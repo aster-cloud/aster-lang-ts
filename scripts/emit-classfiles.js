@@ -2,8 +2,8 @@
 import cp from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { canonicalize } from '../dist/src/canonicalizer.js';
-import { lex } from '../dist/src/lexer.js';
+import { canonicalize } from '../dist/src/frontend/canonicalizer.js';
+import { lex } from '../dist/src/frontend/lexer.js';
 import { parse } from '../dist/src/parser.js';
 import { lowerModule } from '../dist/src/lower_to_core.js';
 

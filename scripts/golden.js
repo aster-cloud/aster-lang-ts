@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import { canonicalize } from '../src/canonicalizer.js';
-import { lex } from '../src/lexer.js';
+import { canonicalize } from '../src/frontend/canonicalizer.js';
+import { lex } from '../src/frontend/lexer.js';
 import { parse } from '../src/parser.js';
 function runOneAst(inputPath, expectPath) {
   try {

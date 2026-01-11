@@ -112,8 +112,8 @@ To heavy, produce Int:
 
     try {
       const script = `
-import { canonicalize } from '${join(process.cwd(), 'dist/src/canonicalizer.js').replace(/\\/g, '/')}';
-import { lex } from '${join(process.cwd(), 'dist/src/lexer.js').replace(/\\/g, '/')}';
+import { canonicalize } from '${join(process.cwd(), 'dist/src/frontend/canonicalizer.js').replace(/\\/g, '/')}';
+import { lex } from '${join(process.cwd(), 'dist/src/frontend/lexer.js').replace(/\\/g, '/')}';
 import { parse } from '${join(process.cwd(), 'dist/src/parser.js').replace(/\\/g, '/')}';
 import { lowerModule } from '${join(process.cwd(), 'dist/src/lower_to_core.js').replace(/\\/g, '/')}';
 import { typecheckModule } from '${join(process.cwd(), 'dist/src/typecheck.js').replace(/\\/g, '/')}';

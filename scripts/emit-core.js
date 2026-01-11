@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import { canonicalize } from '../src/canonicalizer.js';
-import { lex } from '../src/lexer.js';
-import { parse } from '../src/parser.js';
+import { canonicalize } from '../src/frontend/canonicalizer.js';
+import { lex } from '../src/frontend/lexer.js';
+import { parse } from '../src/core/parser.js';
 import { lowerModule } from '../src/lower_to_core.js';
 function main() {
   const file = process.argv[2];
