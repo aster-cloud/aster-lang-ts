@@ -1,0 +1,31 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/index.ts",
+    "src/canonicalizer.ts",
+    "src/lexer.ts",
+    "src/parser.ts",
+    "src/lower_to_core.ts",
+    "src/core_ir.ts",
+    "src/types.ts",
+    "src/types/base.ts",
+    "src/config/semantic.ts",
+    "src/config/token-kind.ts",
+    "src/config/lexicons/types.ts",
+    "src/error_codes.ts"
+  ],
+  "plugin": [
+    "typedoc-plugin-markdown"
+  ],
+  "hideBreadcrumbs": true,
+  "hidePageTitle": false,
+  "categorizeByGroup": false,
+  "sort": ["source-order"],
+  "readme": "none",
+  "out": "docs/api/typedoc",
+  "exclude": [
+    "src/lsp/**"
+  ],
+  "skipErrorChecking": true
+}
+

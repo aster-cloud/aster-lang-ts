@@ -1,0 +1,62 @@
+{
+  "kind": "Module",
+  "name": "boundary.list.slice.zero",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "main",
+      "params": [],
+      "ret": {
+        "kind": "List",
+        "type": {
+          "kind": "TypeName",
+          "name": "Int"
+        }
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "xs",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.empty"
+              },
+              "args": []
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.slice"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "xs"
+                },
+                {
+                  "kind": "Int",
+                  "value": 0
+                },
+                {
+                  "kind": "Int",
+                  "value": 0
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

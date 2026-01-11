@@ -1,0 +1,66 @@
+This module is test.insurance.auto.
+
+Define Driver with driverId, age, yearsLicensed, accidentCount, violationCount, creditScore.
+
+Define Vehicle with vin, year, make, model, value, safetyRating.
+
+Define PolicyQuote with approved, reason, monthlyPremium, deductible, coverageLimit.
+
+To calculateAgeFactor with age, produce:
+  Return 0.
+To calculateVehicleFactor with vehicle, produce:
+  Return 0.
+To calculateBasePremium with driver, vehicle, produce:
+  Return 0.
+To calculateRiskMultiplier with driver, vehicle, produce:
+  Return 0.
+To determineDeductible with coverageType, creditScore, produce:
+  Return 0.
+To determineCoverageLimit with coverageType, vehicleValue, produce:
+  Return 0.
+To generateAutoQuote with driver, vehicle, coverageType, produce:
+  Return 0.
+To testDriverUnder18, produce:
+  Return 0.
+To testTooManyAccidents, produce:
+  Return 0.
+To testTooManyViolations, produce:
+  Return 0.
+To testYoungDriverPremiumCoverage, produce:
+  Return 0.
+To testMiddleAgedDriverStandardCoverage, produce:
+  Return 0.
+To testSeniorDriverBasicCoverage, produce:
+  Return 0.
+To testPerfectDriverNewCar, produce:
+  Return 0.
+To testHighRiskDriverOldCar, produce:
+  Return 0.
+To testLowCreditScore, produce:
+  Return 0.
+To testHighValueVehicle, produce:
+  Return 0.
+To testOldVehicle, produce:
+  Return 0.
+To testCalculateAgeFactorYoung, produce:
+  Return 0.
+To testCalculateAgeFactorMiddle, produce:
+  Return 0.
+To testCalculateAgeFactorSenior, produce:
+  Return 0.
+To testCalculateVehicleFactorNew, produce:
+  Return 0.
+To testCalculateVehicleFactorOld, produce:
+  Return 0.
+To testCalculateRiskMultiplierClean, produce:
+  Return 0.
+To testCalculateRiskMultiplierHighRisk, produce:
+  Return 0.
+To testDetermineDeductiblePremiumHigh, produce:
+  Return 0.
+To testDetermineDeductibleStandardLow, produce:
+  Return 0.
+To testDetermineCoverageLimitPremium, produce:
+  Return 0.
+To testDetermineCoverageLimitBasicHighValue, produce:
+  Return 0.

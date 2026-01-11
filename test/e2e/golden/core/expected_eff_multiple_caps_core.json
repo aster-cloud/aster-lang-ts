@@ -1,0 +1,36 @@
+{
+  "kind": "Module",
+  "name": "test.effects.multiple",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "query_data",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [
+        "IO"
+      ],
+      "effectCaps": [
+        "Http",
+        "Sql",
+        "Files"
+      ],
+      "effectCapsExplicit": true,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "multi"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "kind": "Module",
+  "name": "test.pii.in_data",
+  "decls": [
+    {
+      "kind": "Data",
+      "name": "User",
+      "fields": [
+        {
+          "name": "email",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": []
+        },
+        {
+          "name": "name",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "create_user",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "User"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "test@example.com"
+                },
+                {
+                  "kind": "String",
+                  "value": "John"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

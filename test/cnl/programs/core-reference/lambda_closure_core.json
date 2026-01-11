@@ -1,0 +1,88 @@
+{
+  "kind": "Module",
+  "name": "app",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "makeAdder",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "x",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "FuncType",
+        "params": [
+          {
+            "kind": "TypeName",
+            "name": "Int"
+          }
+        ],
+        "ret": {
+          "kind": "TypeName",
+          "name": "Int"
+        },
+        "effects": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Lambda",
+              "params": [
+                {
+                  "name": "y",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Int"
+                  },
+                  "annotations": []
+                }
+              ],
+              "ret": {
+                "kind": "TypeName",
+                "name": "Int"
+              },
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "Return",
+                    "expr": {
+                      "kind": "Call",
+                      "target": {
+                        "kind": "Name",
+                        "name": "+"
+                      },
+                      "args": [
+                        {
+                          "kind": "Name",
+                          "name": "x"
+                        },
+                        {
+                          "kind": "Name",
+                          "name": "y"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

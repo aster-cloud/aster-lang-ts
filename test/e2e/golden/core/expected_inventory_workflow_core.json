@@ -1,0 +1,133 @@
+{
+  "kind": "Module",
+  "name": "test.golden.inventory",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "manageInventory",
+      "params": [
+        {
+          "name": "orderId",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "annotations": []
+        },
+        {
+          "name": "items",
+          "type": {
+            "kind": "List",
+            "type": {
+              "kind": "TypeName",
+              "name": "Text"
+            }
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "Result",
+        "ok": {
+          "kind": "TypeName",
+          "name": "Text"
+        },
+        "err": {
+          "kind": "TypeName",
+          "name": "Text"
+        }
+      },
+      "effects": [
+        "IO"
+      ],
+      "effectCaps": [
+        "Inventory"
+      ],
+      "effectCapsExplicit": true,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "workflow",
+            "steps": [
+              {
+                "kind": "step",
+                "name": "reserve_inventory",
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Ok",
+                        "expr": {
+                          "kind": "Call",
+                          "target": {
+                            "kind": "Name",
+                            "name": "Inventory.reserve"
+                          },
+                          "args": [
+                            {
+                              "kind": "Name",
+                              "name": "orderId"
+                            },
+                            {
+                              "kind": "Name",
+                              "name": "items"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                "dependencies": [],
+                "effectCaps": [
+                  "Inventory"
+                ],
+                "compensate": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Let",
+                      "name": "_",
+                      "expr": {
+                        "kind": "Call",
+                        "target": {
+                          "kind": "Name",
+                          "name": "Inventory.release"
+                        },
+                        "args": [
+                          {
+                            "kind": "String",
+                            "value": "reservation-id"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Ok",
+                        "expr": {
+                          "kind": "String",
+                          "value": "inventory released"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "effectCaps": [
+              "Inventory"
+            ]
+          }
+        ]
+      },
+      "declaredEffects": [
+        "IO"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "kind": "Module",
+  "name": "test.pii.in_function",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "process_email",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "email",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "+"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "Processed: "
+                },
+                {
+                  "kind": "Name",
+                  "name": "email"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

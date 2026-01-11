@@ -1,0 +1,8 @@
+This module is demo.lambdamatchresult.
+
+To fromResult with result, produce:
+  Let f be function with candidate, produce:
+    Match candidate:
+      When Ok(value), Return value.
+      When Err(err), Return Text.concat("E:", err).
+  Return f(result).

@@ -1,0 +1,3 @@
+WARNING: Function 'compute' declares @cpu but no obvious CPU-bound work found.
+WARNING: 函数 'compute' 声明了 @cpu，但推断未发现 CPU 副作用。
+ERROR: 函数 'calc' 缺少 @cpu 效果声明，推断要求 CPU（或 @io）。

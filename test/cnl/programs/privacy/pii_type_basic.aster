@@ -1,0 +1,4 @@
+This module is test.pii.basic.
+
+To get_email, produce:
+  Return "user@example.com".

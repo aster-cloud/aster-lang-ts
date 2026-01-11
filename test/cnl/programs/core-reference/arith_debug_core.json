@@ -1,0 +1,110 @@
+{
+  "kind": "Module",
+  "name": "app.debug",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "add2",
+      "params": [
+        {
+          "name": "a",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          }
+        },
+        {
+          "name": "b",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          }
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "+"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "a"
+                },
+                {
+                  "kind": "Name",
+                  "name": "b"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "cmp2",
+      "params": [
+        {
+          "name": "a",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          }
+        },
+        {
+          "name": "b",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          }
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Bool"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "<"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "a"
+                },
+                {
+                  "kind": "Name",
+                  "name": "b"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

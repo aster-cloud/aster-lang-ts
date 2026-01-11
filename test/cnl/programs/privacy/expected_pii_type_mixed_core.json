@@ -1,0 +1,88 @@
+{
+  "kind": "Module",
+  "name": "test.pii.mixed",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "get_user_info",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "email",
+            "expr": {
+              "kind": "String",
+              "value": "user@example.com"
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Ok"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "email"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "get_optional_phone",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Some"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "+1-555-0100"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

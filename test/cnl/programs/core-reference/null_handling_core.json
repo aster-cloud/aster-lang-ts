@@ -1,0 +1,202 @@
+{
+  "kind": "Module",
+  "name": "app",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "returnNull",
+      "typeParams": [],
+      "params": [],
+      "ret": {
+        "kind": "Maybe",
+        "type": {
+          "kind": "TypeName",
+          "name": "String"
+        }
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "None"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "checkNull",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "value",
+          "type": {
+            "kind": "Maybe",
+            "type": {
+              "kind": "TypeName",
+              "name": "Int"
+            }
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Bool"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "scrutinee": {
+              "kind": "Name",
+              "name": "value"
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatCtor",
+                  "typeName": "None",
+                  "names": [],
+                  "args": []
+                },
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Bool",
+                        "value": true
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatCtor",
+                  "typeName": "Some",
+                  "names": [],
+                  "args": [
+                    {
+                      "kind": "PatName",
+                      "name": "x"
+                    }
+                  ]
+                },
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Bool",
+                        "value": false
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "compareWithNull",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "text",
+          "type": {
+            "kind": "Maybe",
+            "type": {
+              "kind": "TypeName",
+              "name": "String"
+            }
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "String"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "scrutinee": {
+              "kind": "Name",
+              "name": "text"
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatNull"
+                },
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "String",
+                        "value": "null"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatCtor",
+                  "typeName": "Some",
+                  "names": [],
+                  "args": [
+                    {
+                      "kind": "PatName",
+                      "name": "val"
+                    }
+                  ]
+                },
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Name",
+                        "name": "val"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

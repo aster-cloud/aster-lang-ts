@@ -1,0 +1,154 @@
+{
+  "kind": "Module",
+  "name": "demo.list",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "length",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "xs",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.length"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "xs"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "third",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "xs",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.get"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "xs"
+                },
+                {
+                  "kind": "Int",
+                  "value": 2
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "isEmpty",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "xs",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.isEmpty"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "xs"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "kind": "Module",
+  "name": "demo.lambda3",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "callCap",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "pfx",
+            "expr": {
+              "kind": "String",
+              "value": "pre"
+            }
+          },
+          {
+            "kind": "Let",
+            "name": "f",
+            "expr": {
+              "kind": "Lambda",
+              "params": [
+                {
+                  "name": "x",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Text"
+                  }
+                }
+              ],
+              "ret": {
+                "kind": "TypeName",
+                "name": "Text"
+              },
+              "captures": [
+                "pfx"
+              ],
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "Return",
+                    "expr": {
+                      "kind": "Name",
+                      "name": "pfx"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "f"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "ignored"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

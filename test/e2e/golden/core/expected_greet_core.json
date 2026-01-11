@@ -1,0 +1,98 @@
+{
+  "kind": "Module",
+  "name": "app",
+  "decls": [
+    {
+      "kind": "Data",
+      "name": "User",
+      "fields": [
+        {
+          "name": "id",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "annotations": []
+        },
+        {
+          "name": "name",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "annotations": []
+        }
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "greet",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "user",
+          "type": {
+            "kind": "Maybe",
+            "type": {
+              "kind": "TypeName",
+              "name": "User"
+            }
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Name",
+              "name": "user"
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatNull"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "Hi, guest"
+                  }
+                }
+              },
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatCtor",
+                  "typeName": "User",
+                  "names": [
+                    "id",
+                    "name"
+                  ]
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "Welcome, {name}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

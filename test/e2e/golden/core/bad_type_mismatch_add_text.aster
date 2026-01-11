@@ -1,0 +1,4 @@
+This module is error.type.add.text.
+
+To main, produce:
+  Return add("x", 1).

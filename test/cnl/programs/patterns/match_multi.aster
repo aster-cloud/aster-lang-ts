@@ -1,0 +1,8 @@
+This module is app.match.
+
+Define Color with name.
+
+To pick with k, produce:
+  Match k:
+    When null, Return "none".
+    When Color(name), Return "has color".

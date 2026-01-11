@@ -1,0 +1,143 @@
+{
+  "kind": "Module",
+  "name": "test.map.values",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "run",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "map",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.empty"
+              },
+              "args": []
+            }
+          },
+          {
+            "kind": "Let",
+            "name": "map",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.put"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "map"
+                },
+                {
+                  "kind": "String",
+                  "value": "a"
+                },
+                {
+                  "kind": "Int",
+                  "value": 1
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Let",
+            "name": "map",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.put"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "map"
+                },
+                {
+                  "kind": "String",
+                  "value": "b"
+                },
+                {
+                  "kind": "Int",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Let",
+            "name": "map",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.put"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "map"
+                },
+                {
+                  "kind": "String",
+                  "value": "c"
+                },
+                {
+                  "kind": "Int",
+                  "value": 3
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Let",
+            "name": "values",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.values"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "map"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.length"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "values"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

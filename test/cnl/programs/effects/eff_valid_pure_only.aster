@@ -1,0 +1,7 @@
+This module is test.eff.valid.pure_only.
+
+To add, produce:
+  Return 1 plus 2.
+
+To multiply, produce:
+  Return add() times 3.

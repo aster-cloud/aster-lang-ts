@@ -1,0 +1,63 @@
+{
+  "kind": "Module",
+  "name": "demo.lambda",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "idFn",
+      "params": [],
+      "ret": {
+        "kind": "FuncType",
+        "params": [
+          {
+            "kind": "TypeName",
+            "name": "Text"
+          }
+        ],
+        "ret": {
+          "kind": "TypeName",
+          "name": "Text"
+        }
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Lambda",
+              "params": [
+                {
+                  "name": "y",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Text"
+                  }
+                }
+              ],
+              "ret": {
+                "kind": "TypeName",
+                "name": "Text"
+              },
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "Return",
+                    "expr": {
+                      "kind": "Name",
+                      "name": "y"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

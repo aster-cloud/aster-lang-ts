@@ -1,0 +1,10 @@
+{
+  "file": "workflow-type-mismatch.aster",
+  "diagnostics": [
+    {
+      "code": "E022",
+      "severity": "error",
+      "message": "Compensate block for step 'danger' must return Result<Unit, Text>, got Result<Text, Unknown>"
+    }
+  ]
+}

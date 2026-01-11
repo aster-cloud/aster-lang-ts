@@ -1,0 +1,5 @@
+WARNING: Function 'middle_cpu' declares @cpu but no obvious CPU-bound work found.
+ERROR: 函数 'middle_cpu' 缺少 @io 效果声明，推断要求 IO。
+WARNING: 函数 'middle_cpu' 同时声明 @cpu 和 @io；由于需要 @io，@cpu 可移除。
+ERROR: 函数 'outer_pure' 缺少 @io 效果声明，推断要求 IO。
+ERROR: 函数 'outer_pure' 缺少 @cpu 效果声明，推断要求 CPU（或 @io）。

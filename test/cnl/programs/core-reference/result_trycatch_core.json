@@ -1,0 +1,117 @@
+{
+  "kind": "Module",
+  "name": "app",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "divide",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "a",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        },
+        {
+          "name": "b",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "Result",
+        "ok": {
+          "kind": "TypeName",
+          "name": "Int"
+        },
+        "err": {
+          "kind": "TypeName",
+          "name": "Text"
+        }
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "=="
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "b"
+                },
+                {
+                  "kind": "Int",
+                  "value": 0
+                }
+              ]
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatName",
+                  "name": "true"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Err",
+                    "expr": {
+                      "kind": "String",
+                      "value": "Division by zero"
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatName",
+                  "name": "false"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Ok",
+                    "expr": {
+                      "kind": "Call",
+                      "target": {
+                        "kind": "Name",
+                        "name": "/"
+                      },
+                      "args": [
+                        {
+                          "kind": "Name",
+                          "name": "a"
+                        },
+                        {
+                          "kind": "Name",
+                          "name": "b"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

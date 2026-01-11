@@ -1,0 +1,34 @@
+{
+  "kind": "Module",
+  "name": "test.pii.phone",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "get_phone",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "+1-555-0100"
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

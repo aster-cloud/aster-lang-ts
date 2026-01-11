@@ -1,0 +1,5 @@
+INFO: Function 'step1' declares AiModel capability but it is not used.
+WARNING: Function 'step3' declares @cpu but no obvious CPU-bound work found.
+WARNING: 函数 'step1' 声明了 @io，但推断未发现 IO 副作用。
+ERROR: 函数 'step3' 缺少 @io 效果声明，推断要求 IO。
+WARNING: 函数 'step3' 同时声明 @cpu 和 @io；由于需要 @io，@cpu 可移除。

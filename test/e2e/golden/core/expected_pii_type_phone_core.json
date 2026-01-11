@@ -1,0 +1,39 @@
+{
+  "kind": "Module",
+  "name": "test.pii.phone",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "get_phone",
+      "params": [],
+      "ret": {
+        "kind": "PiiType",
+        "baseType": {
+          "kind": "TypeName",
+          "name": "Text"
+        },
+        "sensitivity": "L3",
+        "category": "phone"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "+1-555-0100"
+            }
+          }
+        ]
+      },
+      "piiLevel": "L3",
+      "piiCategories": [
+        "phone"
+      ]
+    }
+  ]
+}

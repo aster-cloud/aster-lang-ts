@@ -1,0 +1,2 @@
+INFO: Function 'complex_flow' declares Files capability but it is not used.
+INFO: Function 'complex_flow' declares AiModel capability but it is not used.

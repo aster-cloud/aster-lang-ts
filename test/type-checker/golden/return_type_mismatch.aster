@@ -1,0 +1,4 @@
+This module is tests.typecheck.mismatch.return.
+
+To returnMismatch, produce:
+  Return "invalid".

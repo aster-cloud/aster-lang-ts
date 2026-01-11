@@ -1,0 +1,4 @@
+This module is boundary.text.trim.whitespace.
+
+To main, produce:
+  Return Text.trim("   ").

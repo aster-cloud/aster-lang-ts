@@ -1,0 +1,12 @@
+ERROR: Function 'badIO' requires AiModel capability but manifest for module 'demo.capdemo' denies it.
+ERROR: Function 'badIO' requires Files capability but manifest for module 'demo.capdemo' denies it.
+ERROR: Function 'badIO' requires Http capability but manifest for module 'demo.capdemo' denies it.
+ERROR: Function 'badIO' requires Secrets capability but manifest for module 'demo.capdemo' denies it.
+ERROR: Function 'badIO' requires Sql capability but manifest for module 'demo.capdemo' denies it.
+ERROR: Function 'badIO' requires Time capability but manifest for module 'demo.capdemo' denies it.
+ERROR: Function 'hello' requires AiModel capability but manifest for module 'demo.capdemo' denies it.
+ERROR: Function 'hello' requires Files capability but manifest for module 'demo.capdemo' denies it.
+ERROR: Function 'hello' requires Http capability but manifest for module 'demo.capdemo' denies it.
+ERROR: Function 'hello' requires Secrets capability but manifest for module 'demo.capdemo' denies it.
+ERROR: Function 'hello' requires Sql capability but manifest for module 'demo.capdemo' denies it.
+ERROR: Function 'hello' requires Time capability but manifest for module 'demo.capdemo' denies it.

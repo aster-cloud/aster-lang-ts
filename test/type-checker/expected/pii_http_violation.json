@@ -1,0 +1,22 @@
+{
+  "file": "pii_http_violation.aster",
+  "module": "tests.typecheck.pii",
+  "functions": {
+    "sendSensitiveEmail": {
+      "signature": "sendSensitiveEmail(@pii(L2,email) Text) -> Text",
+      "effects": [
+        "io"
+      ],
+      "capabilities": [
+        "Http"
+      ]
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "E400",
+      "severity": "error",
+      "message": "PII data transmitted over HTTP without encryption"
+    }
+  ]
+}

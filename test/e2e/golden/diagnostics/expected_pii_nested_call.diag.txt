@@ -1,0 +1,2 @@
+WARNING: Function 'process_ssn' declares @io but no obvious I/O found.
+INFO: Function 'process_ssn' declares Http capability but it is not used.

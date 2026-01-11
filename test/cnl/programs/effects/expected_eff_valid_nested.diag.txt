@@ -1,0 +1,3 @@
+INFO: Function 'mid_io' declares Http capability but it is not used.
+INFO: Function 'root_io' declares Http capability but it is not used.
+INFO: Function 'root_io' declares Sql capability but it is not used.

@@ -1,0 +1,10 @@
+This module is demo.list.
+
+To length with xs, produce:
+  Return List.length(xs).
+
+To third with xs, produce:
+  Return List.get(xs, 2).
+
+To isEmpty with xs, produce:
+  Return List.isEmpty(xs).

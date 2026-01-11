@@ -1,0 +1,178 @@
+{
+  "kind": "Module",
+  "name": "std.collections",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "length",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "xs",
+          "type": {
+            "kind": "List",
+            "type": {
+              "kind": "TypeName",
+              "name": "Int"
+            }
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.length"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "xs"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "head",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "xs",
+          "type": {
+            "kind": "List",
+            "type": {
+              "kind": "TypeName",
+              "name": "Int"
+            }
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "Maybe",
+        "type": {
+          "kind": "TypeName",
+          "name": "Int"
+        }
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "None"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "id",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "x",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Name",
+              "name": "x"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "mapId",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "xs",
+          "type": {
+            "kind": "List",
+            "type": {
+              "kind": "TypeName",
+              "name": "Int"
+            }
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "List",
+        "type": {
+          "kind": "TypeName",
+          "name": "Int"
+        }
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.map"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "xs"
+                },
+                {
+                  "kind": "Name",
+                  "name": "id"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

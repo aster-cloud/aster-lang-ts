@@ -1,0 +1,64 @@
+{
+  "kind": "Module",
+  "name": "demo.ifp",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "choose",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "flag",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "If",
+            "cond": {
+              "kind": "Name",
+              "name": "flag"
+            },
+            "thenBlock": {
+              "kind": "Block",
+              "statements": [
+                {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "Y"
+                  }
+                }
+              ]
+            },
+            "elseBlock": {
+              "kind": "Block",
+              "statements": [
+                {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "N"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

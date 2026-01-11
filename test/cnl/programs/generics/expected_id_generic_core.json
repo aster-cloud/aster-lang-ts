@@ -1,0 +1,44 @@
+{
+  "kind": "Module",
+  "name": "demo.generic",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "identity",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "x",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Name",
+              "name": "x"
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

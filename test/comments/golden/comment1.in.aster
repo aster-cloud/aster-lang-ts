@@ -1,0 +1,6 @@
+This module is demo.comments.
+
+To greet with name, produce: // inline comment after header
+  Return Text.concat("Hi, ", name).  // say hi
+  // standalone comment should not be preserved
+

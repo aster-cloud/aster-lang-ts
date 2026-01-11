@@ -1,0 +1,165 @@
+{
+  "kind": "Module",
+  "name": "demo.workflow.core.diamond",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "runDiamond",
+      "params": [],
+      "ret": {
+        "kind": "Result",
+        "ok": {
+          "kind": "TypeName",
+          "name": "Int"
+        },
+        "err": {
+          "kind": "TypeName",
+          "name": "Text"
+        }
+      },
+      "effects": [
+        "IO"
+      ],
+      "effectCaps": [
+        "Http",
+        "Sql",
+        "Time",
+        "Files",
+        "Secrets",
+        "AiModel"
+      ],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "workflow",
+            "steps": [
+              {
+                "kind": "step",
+                "name": "prepare",
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Let",
+                      "name": "baseline",
+                      "expr": {
+                        "kind": "Call",
+                        "target": {
+                          "kind": "Name",
+                          "name": "Time.now"
+                        },
+                        "args": []
+                      }
+                    },
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Ok",
+                        "expr": {
+                          "kind": "Name",
+                          "name": "baseline"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "effectCaps": [
+                  "Time"
+                ]
+              },
+              {
+                "kind": "step",
+                "name": "branchA",
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Ok",
+                        "expr": {
+                          "kind": "Call",
+                          "target": {
+                            "kind": "Name",
+                            "name": "Ai.summarize"
+                          },
+                          "args": [
+                            {
+                              "kind": "String",
+                              "value": "payload"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                "effectCaps": [
+                  "AiModel"
+                ]
+              },
+              {
+                "kind": "step",
+                "name": "branchB",
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Ok",
+                        "expr": {
+                          "kind": "Call",
+                          "target": {
+                            "kind": "Name",
+                            "name": "Files.read"
+                          },
+                          "args": [
+                            {
+                              "kind": "String",
+                              "value": "/tmp/data"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                "effectCaps": [
+                  "Files"
+                ]
+              },
+              {
+                "kind": "step",
+                "name": "finalize",
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Ok",
+                        "expr": {
+                          "kind": "Int",
+                          "value": 42
+                        }
+                      }
+                    }
+                  ]
+                },
+                "effectCaps": []
+              }
+            ],
+            "effectCaps": [
+              "Time",
+              "AiModel",
+              "Files"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

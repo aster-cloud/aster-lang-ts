@@ -1,0 +1,9 @@
+{
+  "diagnostics": [
+    {
+      "code": "E303",
+      "severity": "error",
+      "message": "Function 'processPaymentInvalid' uses IO capabilities [Payment] but is missing @io effect (e.g., Payment.charge)."
+    }
+  ]
+}

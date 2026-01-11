@@ -1,0 +1,60 @@
+{
+  "kind": "Module",
+  "name": "test.core.patint",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "run",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Int",
+              "value": 42
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatInt",
+                  "value": 42
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Int",
+                    "value": 1
+                  }
+                }
+              },
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatName",
+                  "name": "_"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Int",
+                    "value": 0
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

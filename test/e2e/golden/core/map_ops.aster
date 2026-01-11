@@ -1,0 +1,7 @@
+This module is demo.map.
+
+To val with m, k, produce:
+  Return Map.get(m, k).
+
+To valStrict with m, k, produce:
+  Return Map.get(m, k).

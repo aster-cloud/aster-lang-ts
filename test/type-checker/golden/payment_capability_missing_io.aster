@@ -1,0 +1,7 @@
+This module is test.typechecker.payment_missing_io.
+
+// Invalid Payment capability usage - missing IO effect declaration
+// Should produce error: Payment capability requires IO effect
+
+To processPaymentInvalid with orderId, amount, produce:
+  Return ok of Payment.charge(orderId, amount).

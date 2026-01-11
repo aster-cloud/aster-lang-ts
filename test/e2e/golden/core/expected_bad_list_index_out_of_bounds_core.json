@@ -1,0 +1,47 @@
+{
+  "kind": "Module",
+  "name": "error.list.index",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "main",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.get"
+              },
+              "args": [
+                {
+                  "kind": "Call",
+                  "target": {
+                    "kind": "Name",
+                    "name": "List.empty"
+                  },
+                  "args": []
+                },
+                {
+                  "kind": "Int",
+                  "value": 0
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

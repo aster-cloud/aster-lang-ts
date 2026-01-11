@@ -1,0 +1,43 @@
+{
+  "kind": "Module",
+  "name": "error.type.add.text",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "main",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "add"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "x"
+                },
+                {
+                  "kind": "Int",
+                  "value": 1
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

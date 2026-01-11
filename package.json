@@ -1,0 +1,155 @@
+{
+  "name": "@aster-cloud/aster-lang-ts",
+  "version": "0.2.0",
+  "description": "Aster CNL (Controlled Natural Language) TypeScript Compiler - Lexer, Parser, AST, Core IR, Type Checker",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./cli": {
+      "types": "./dist/scripts/cli.d.ts",
+      "import": "./dist/scripts/cli.js"
+    },
+    "./core": {
+      "types": "./dist/scripts/emit-core.d.ts",
+      "import": "./dist/scripts/emit-core.js"
+    },
+    "./lexicons": {
+      "types": "./dist/src/config/lexicons/index.d.ts",
+      "import": "./dist/src/config/lexicons/index.js"
+    },
+    "./lexicons/en-US": {
+      "types": "./dist/src/config/lexicons/en-US.d.ts",
+      "import": "./dist/src/config/lexicons/en-US.js"
+    },
+    "./lexicons/zh-CN": {
+      "types": "./dist/src/config/lexicons/zh-CN.d.ts",
+      "import": "./dist/src/config/lexicons/zh-CN.js"
+    },
+    "./lexicons/de-DE": {
+      "types": "./dist/src/config/lexicons/de-DE.d.ts",
+      "import": "./dist/src/config/lexicons/de-DE.js"
+    },
+    "./lexicons/types": {
+      "types": "./dist/src/config/lexicons/types.d.ts",
+      "import": "./dist/src/config/lexicons/types.js"
+    },
+    "./lexicons/registry": {
+      "types": "./dist/src/config/lexicons/registry.d.ts",
+      "import": "./dist/src/config/lexicons/registry.js"
+    },
+    "./token-kind": {
+      "types": "./dist/src/config/token-kind.d.ts",
+      "import": "./dist/src/config/token-kind.js"
+    }
+  },
+  "bin": {
+    "aster": "./dist/scripts/aster.js",
+    "aster-core": "./dist/scripts/emit-core.js",
+    "aster-lsp": "./dist/src/lsp/server.js",
+    "aster-convert": "./dist/src/cli/policy-converter.js"
+  },
+  "scripts": {
+    "build": "tsc && node dist/scripts/build-peg.js",
+    "build:watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "dev": "pnpm run build:watch",
+    "test": "pnpm run build && pnpm run test:unit:run && pnpm run test:integration:run",
+    "test:unit": "pnpm run build && pnpm run test:unit:run",
+    "test:unit:run": "node --test 'dist/test/unit/**/*.test.js' 'dist/test/type-checker/**/*.test.js'",
+    "test:unit:coverage": "pnpm run build && c8 node --test 'dist/test/unit/**/*.test.js' 'dist/test/type-checker/**/*.test.js'",
+    "test:integration": "pnpm run build && pnpm run test:integration:run",
+    "test:integration:run": "node --test 'dist/test/integration/**/*.test.js'",
+    "test:golden": "pnpm run build && pnpm run test:golden:run",
+    "test:golden:run": "node dist/scripts/golden.js",
+    "test:property": "pnpm run build && pnpm run test:property:run",
+    "test:property:run": "node --test 'dist/test/property/**/*.test.js'",
+    "test:fuzz": "pnpm run build && pnpm run test:fuzz:run",
+    "test:fuzz:run": "node --test 'dist/test/fuzz/**/*.test.js'",
+    "test:lsp": "pnpm run build && pnpm run test:lsp:run",
+    "test:lsp:run": "node dist/test/property/lsp-props.test.js",
+    "test:converter": "pnpm run build && pnpm run test:converter:run",
+    "test:converter:run": "node --test 'dist/test/policy-converter/**/*.test.js'",
+    "coverage:report": "c8 report --reporter=html --reporter=text",
+    "coverage:check": "c8 check-coverage --lines 75 --functions 75 --branches 70",
+    "lint": "eslint src scripts --ext .ts",
+    "lint:fix": "eslint src scripts --ext .ts --fix",
+    "format": "prettier --write src scripts",
+    "format:check": "prettier --check src scripts",
+    "typecheck": "tsc --noEmit",
+    "lsp": "node dist/src/lsp/server.js --stdio",
+    "repl": "node dist/scripts/repl.js",
+    "docs:api": "typedoc --options typedoc.json",
+    "prepublishOnly": "pnpm run clean && pnpm run build && pnpm run test"
+  },
+  "keywords": [
+    "programming-language",
+    "compiler",
+    "controlled-natural-language",
+    "cnl",
+    "type-safe",
+    "functional",
+    "lexer",
+    "parser",
+    "ast",
+    "typescript"
+  ],
+  "author": "Aster Language Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aster-cloud/aster-lang-ts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aster-cloud/aster-lang-ts/issues"
+  },
+  "homepage": "https://aster-lang.cloud",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
+    "@types/semver": "^7.7.1",
+    "cac": "6.7.14",
+    "openai": "^6.9.1",
+    "ora": "^9.0.0",
+    "p-limit": "^7.2.0",
+    "semver": "^7.7.3",
+    "tar": "^7.5.2",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "vscode-languageserver-types": "^3.17.5"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8",
+    "@types/node": "^24.6.0",
+    "@typescript-eslint/eslint-plugin": "^8.48.1",
+    "@typescript-eslint/parser": "^8.45.0",
+    "ajv": "^8.17.1",
+    "c8": "^10.1.3",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "fast-check": "^4.3.0",
+    "nock": "^14.0.10",
+    "peggy": "^5.0.6",
+    "prettier": "^3.7.4",
+    "typedoc": "^0.28.15",
+    "typedoc-plugin-markdown": "^4.9.0",
+    "typescript": "^5.9.2"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "packageManager": "pnpm@10.27.0+sha512.72d699da16b1179c14ba9e64dc71c9a40988cbdc65c264cb0e489db7de917f20dcf4d64d8723625f2969ba52d4b7e2a1170682d9ac2a5dcaeaab732b7e16f04a"
+}

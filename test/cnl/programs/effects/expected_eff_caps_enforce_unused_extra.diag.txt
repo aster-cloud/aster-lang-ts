@@ -1,0 +1,1 @@
+INFO: Function 'onlyHttp' declares Sql capability but it is not used.

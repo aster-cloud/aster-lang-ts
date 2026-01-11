@@ -1,0 +1,7 @@
+This module is app.math.
+
+To cmp with x, y, produce:
+  Return x less than y.
+
+To add with x, y, produce:
+  Return x plus y.

@@ -1,0 +1,11 @@
+This module is demo.lambdamixed.
+
+To demo with pfx, produce:
+  Let f be function with x, produce:
+    Return Text.concat(pfx, x).
+  Let g be function with y, produce:
+    Return Text.concat("2", y).
+  Return Text.concat(f(""), g("b")).
+
+To compare with x, y, produce:
+  Return cmp(x, y).

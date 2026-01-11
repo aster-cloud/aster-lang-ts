@@ -1,0 +1,43 @@
+{
+  "kind": "Module",
+  "name": "error.div.zero",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "main",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "div"
+              },
+              "args": [
+                {
+                  "kind": "Int",
+                  "value": 10
+                },
+                {
+                  "kind": "Int",
+                  "value": 0
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

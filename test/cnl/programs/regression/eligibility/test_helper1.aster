@@ -1,0 +1,6 @@
+This module is test.helper1.
+
+Define Service with basePrice.
+
+To determineMinorCoverage with insuranceType, service, produce:
+  Return 0.

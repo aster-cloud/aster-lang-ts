@@ -1,0 +1,3 @@
+ERROR: Function 'bad_func' uses Secrets capability but header declares [Http].
+ERROR: Function 'bad_func' uses Sql capability but header declares [Http].
+ERROR: Function 'bad_func' uses Time capability but header declares [Http].

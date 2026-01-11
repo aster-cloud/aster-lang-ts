@@ -1,0 +1,18 @@
+This module is aster.insurance.life.
+
+Define Applicant with applicantId, age, gender, smoker, bmi, occupation, healthScore.
+
+Define PolicyRequest with coverageAmount, termYears, policyType.
+
+Define LifeQuote with approved, reason, monthlyPremium, coverageAmount, termYears.
+
+To generateLifeQuote with applicant, request, produce:
+  Return 0.
+To calculateBaseRate with age, termYears, produce:
+  Return 0.
+To calculateHealthMultiplier with applicant, produce:
+  Return 0.
+To calculateOccupationMultiplier with occupation, produce:
+  Return 0.
+To calculateRiskScore with applicant, produce:
+  Return 0.

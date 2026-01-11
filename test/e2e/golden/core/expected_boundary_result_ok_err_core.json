@@ -1,0 +1,104 @@
+{
+  "kind": "Module",
+  "name": "test.boundary.result",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "success",
+      "params": [
+        {
+          "name": "x",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "Result",
+        "ok": {
+          "kind": "TypeName",
+          "name": "Int"
+        },
+        "err": {
+          "kind": "TypeName",
+          "name": "Text"
+        }
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Ok"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "x"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "failure",
+      "params": [
+        {
+          "name": "msg",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "Result",
+        "ok": {
+          "kind": "TypeName",
+          "name": "Int"
+        },
+        "err": {
+          "kind": "TypeName",
+          "name": "Text"
+        }
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Err"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "msg"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

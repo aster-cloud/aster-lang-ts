@@ -1,0 +1,4 @@
+This module is boundary.result.errcase.
+
+To main, produce:
+  Return Err(null).

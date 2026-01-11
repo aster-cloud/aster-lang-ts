@@ -1,0 +1,40 @@
+{
+  "kind": "Module",
+  "name": "test.pii.ssn",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "get_ssn",
+      "typeParams": [],
+      "params": [],
+      "ret": {
+        "kind": "PiiType",
+        "baseType": {
+          "kind": "TypeName",
+          "name": "Text"
+        },
+        "sensitivity": "L3",
+        "category": "ssn"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "piiLevel": "L3",
+      "piiCategories": [
+        "ssn"
+      ],
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "123-45-6789"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

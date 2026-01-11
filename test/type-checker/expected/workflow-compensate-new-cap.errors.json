@@ -1,0 +1,10 @@
+{
+  "file": "workflow-compensate-new-cap.aster",
+  "diagnostics": [
+    {
+      "code": "E028",
+      "severity": "error",
+      "message": "Compensate block introduces new capability"
+    }
+  ]
+}

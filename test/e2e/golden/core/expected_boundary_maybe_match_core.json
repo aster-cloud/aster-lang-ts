@@ -1,0 +1,79 @@
+{
+  "kind": "Module",
+  "name": "test.boundary.maybe_match",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "unwrap_or",
+      "params": [
+        {
+          "name": "x",
+          "type": {
+            "kind": "Maybe",
+            "type": {
+              "kind": "TypeName",
+              "name": "Int"
+            }
+          },
+          "annotations": []
+        },
+        {
+          "name": "d",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Name",
+              "name": "x"
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatNull"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Name",
+                    "name": "d"
+                  }
+                }
+              },
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatName",
+                  "name": "v"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Name",
+                    "name": "v"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

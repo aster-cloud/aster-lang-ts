@@ -1,0 +1,113 @@
+// ========================================
+// SOC2 Compliance Demo: Audit Trail Verification
+// CC7.2 - System Operations Monitoring
+// ========================================
+
+This module is examples.compliance.soc2_audit_demo.
+
+// 审计记录结构（防篡改哈希链）
+Define AuditRecord with
+  record_number,
+  tenant_id,
+  event_type,
+  timestamp,
+  policy_module,
+  policy_function,
+  success,
+  prev_hash,
+  current_hash.
+
+Define ChainVerificationResult with
+  is_valid,
+  records_count,
+  broken_index,
+  reason.
+
+Define ChainState with
+  is_valid,
+  records_count,
+  broken_index,
+  reason,
+  last_hash.
+
+// 计算审计记录哈希
+To compute_hash with record, produce:
+  Let content be Text.concat(record.prev_hash, record.event_type, record.timestamp, record.tenant_id, record.policy_module, record.policy_function, Bool.toString(record.success)).
+  Return Crypto.hash(content, "SHA-256").
+
+// 验证单条记录完整性
+To verify_record_integrity with record, produce:
+  Let expected be compute_hash(record).
+  Return expected equals to record.current_hash.
+
+// 验证链接
+To verify_chain_link with record, expected_prev_hash, produce:
+  If expected_prev_hash equals to "":
+    Return record.prev_hash equals to "".
+  Return record.prev_hash equals to expected_prev_hash.
+
+// 验证单条记录并更新链状态
+To verify_one_record with state, record, produce:
+  If state.is_valid equals to false:
+    Return state.
+  If verify_record_integrity(record) equals to false:
+    Let msg be Text.concat("Hash integrity failed at record ", Int.toString(record.record_number)).
+    Return ChainState with is_valid = false, records_count = state.records_count plus 1, broken_index = record.record_number, reason = msg, last_hash = state.last_hash.
+  If verify_chain_link(record, state.last_hash) equals to false:
+    Let msg be Text.concat("Chain link broken at record ", Int.toString(record.record_number)).
+    Return ChainState with is_valid = false, records_count = state.records_count plus 1, broken_index = record.record_number, reason = msg, last_hash = state.last_hash.
+  Return ChainState with is_valid = true, records_count = state.records_count plus 1, broken_index = 0, reason = "", last_hash = record.current_hash.
+
+// 验证三条记录的链（简化版，避免使用 List.reduce）
+To verify_three_records with r1, r2, r3, produce:
+  Let s0 be ChainState with is_valid = true, records_count = 0, broken_index = 0, reason = "", last_hash = "".
+  Let s1 be verify_one_record(s0, r1).
+  Let s2 be verify_one_record(s1, r2).
+  Let s3 be verify_one_record(s2, r3).
+  Return ChainVerificationResult with is_valid = s3.is_valid, records_count = s3.records_count, broken_index = s3.broken_index, reason = s3.reason.
+
+// 验证两条记录的链（简化版，避免使用 List.reduce）
+To verify_two_records with r1, r2, produce:
+  Let s0 be ChainState with is_valid = true, records_count = 0, broken_index = 0, reason = "", last_hash = "".
+  Let s1 be verify_one_record(s0, r1).
+  Let s2 be verify_one_record(s1, r2).
+  Return ChainVerificationResult with is_valid = s2.is_valid, records_count = s2.records_count, broken_index = s2.broken_index, reason = s2.reason.
+
+// 验证审计链完整性（SOC2 CC7.2）- 简化版验证单条
+To verify_audit_chain with record, produce:
+  Let s0 be ChainState with is_valid = true, records_count = 0, broken_index = 0, reason = "", last_hash = "".
+  Let s1 be verify_one_record(s0, record).
+  Return ChainVerificationResult with is_valid = s1.is_valid, records_count = s1.records_count, broken_index = s1.broken_index, reason = s1.reason.
+
+// 生成 SOC2 合规报告
+To generate_soc2_report with tenant_id, verification, produce:
+  If verification.is_valid:
+    Return Text.concat("SOC2 CC7.2 PASSED: Audit chain verified for tenant ", tenant_id, ". Records checked: ", Int.toString(verification.records_count)).
+  Otherwise:
+    Return Text.concat("SOC2 CC7.2 FAILED: Audit chain broken at record ", Int.toString(verification.broken_index), ". Reason: ", verification.reason).
+
+// 创建 Genesis 记录
+To create_genesis_record with tenant_id, produce:
+  Let record be AuditRecord with record_number = 1, tenant_id = tenant_id, event_type = "POLICY_EXECUTED", timestamp = "2025-11-27T10:00:00Z", policy_module = "examples.compliance", policy_function = "verify_audit_chain", success = true, prev_hash = "", current_hash = "".
+  Let hash be compute_hash(record).
+  Return AuditRecord with record_number = record.record_number, tenant_id = record.tenant_id, event_type = record.event_type, timestamp = record.timestamp, policy_module = record.policy_module, policy_function = record.policy_function, success = record.success, prev_hash = "", current_hash = hash.
+
+// 追加审计记录
+To append_audit_record with prev, event_type, policy_func, success, produce:
+  Let record be AuditRecord with record_number = prev.record_number plus 1, tenant_id = prev.tenant_id, event_type = event_type, timestamp = "2025-11-27T10:01:00Z", policy_module = "examples.compliance", policy_function = policy_func, success = success, prev_hash = prev.current_hash, current_hash = "".
+  Let hash be compute_hash(record).
+  Return AuditRecord with record_number = record.record_number, tenant_id = record.tenant_id, event_type = record.event_type, timestamp = record.timestamp, policy_module = record.policy_module, policy_function = record.policy_function, success = record.success, prev_hash = record.prev_hash, current_hash = hash.
+
+// 示例：验证有效链
+To demo_valid_chain, produce:
+  Let genesis be create_genesis_record("tenant-001").
+  Let record2 be append_audit_record(genesis, "DATA_ACCESS", "get_patient", true).
+  Let record3 be append_audit_record(record2, "DATA_MODIFY", "update_record", true).
+  Return verify_three_records(genesis, record2, record3).
+
+// 示例：检测篡改链
+To demo_tampered_chain, produce:
+  Let genesis be create_genesis_record("tenant-001").
+  Let record2 be append_audit_record(genesis, "DATA_ACCESS", "get_patient", true).
+  Let tampered_record2 be AuditRecord with record_number = record2.record_number, tenant_id = record2.tenant_id, event_type = record2.event_type, timestamp = record2.timestamp, policy_module = record2.policy_module, policy_function = record2.policy_function, success = record2.success, prev_hash = "tampered_hash_value", current_hash = record2.current_hash.
+  Return verify_two_records(genesis, tampered_record2).

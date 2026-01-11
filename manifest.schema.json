@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "包名称，使用点号分隔的标识符（如 aster.finance.loan）",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+    },
+    "version": {
+      "type": "string",
+      "description": "包版本，遵循 SemVer 规范",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "生产依赖包及其版本约束",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^(\\^|~)?\\d+\\.\\d+\\.\\d+$"
+      },
+      "default": {}
+    },
+    "devDependencies": {
+      "type": "object",
+      "description": "开发依赖包及其版本约束",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^(\\^|~)?\\d+\\.\\d+\\.\\d+$"
+      },
+      "default": {}
+    },
+    "effects": {
+      "type": "array",
+      "description": "该包导出的自定义效果类型",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][a-zA-Z0-9]*$"
+      },
+      "default": []
+    },
+    "capabilities": {
+      "type": "object",
+      "description": "包需要的系统能力（可选，向后兼容）",
+      "properties": {
+        "allow": {
+          "type": "array",
+          "items": {
+            "enum": ["Http", "Sql", "Time", "Files", "Secrets", "AiModel", "Cpu"]
+          }
+        },
+        "deny": {
+          "type": "array",
+          "items": {
+            "enum": ["Http", "Sql", "Time", "Files", "Secrets", "AiModel", "Cpu"]
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "name": "aster.finance.loan",
+      "version": "1.0.0",
+      "dependencies": {
+        "aster.http": "^2.1.0",
+        "aster.time": "~1.5.3"
+      },
+      "devDependencies": {
+        "aster.test": "^3.0.0"
+      },
+      "effects": ["CreditCheck", "FraudDetection"],
+      "capabilities": {
+        "allow": ["Http", "Sql", "Time"],
+        "deny": ["Secrets"]
+      }
+    },
+    {
+      "capabilities": {
+        "allow": ["Files"]
+      }
+    }
+  ]
+}

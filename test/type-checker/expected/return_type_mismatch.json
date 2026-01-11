@@ -1,0 +1,18 @@
+{
+  "file": "return_type_mismatch.aster",
+  "module": "tests.typecheck.mismatch.return",
+  "functions": {
+    "returnMismatch": {
+      "signature": "returnMismatch() -> Int",
+      "effects": [],
+      "capabilities": []
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "E003",
+      "severity": "error",
+      "message": "Return type mismatch: expected Int, got Text"
+    }
+  ]
+}

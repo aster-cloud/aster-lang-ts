@@ -1,0 +1,10 @@
+This module is aster.finance.loan.
+
+Define LoanApplication with applicantId, amount, termMonths, purpose.
+
+Define ApplicantProfile with age, creditScore, annualIncome, monthlyDebt, yearsEmployed.
+
+Define LoanDecision with approved, reason, approvedAmount, interestRate, termMonths.
+
+To evaluateLoanEligibility with application, applicant, produce:
+  Return LoanDecision with approved = true, reason = "OK", approvedAmount = 0, interestRate = 0, termMonths = 0.

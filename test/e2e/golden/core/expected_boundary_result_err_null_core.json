@@ -1,0 +1,48 @@
+{
+  "kind": "Module",
+  "name": "boundary.result.errcase",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "main",
+      "params": [],
+      "ret": {
+        "kind": "Result",
+        "ok": {
+          "kind": "TypeName",
+          "name": "Int"
+        },
+        "err": {
+          "kind": "Maybe",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          }
+        }
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Err"
+              },
+              "args": [
+                {
+                  "kind": "Null"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

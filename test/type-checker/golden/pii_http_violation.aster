@@ -1,0 +1,4 @@
+This module is tests.typecheck.pii.
+
+To sendSensitiveEmail with email, produce. It performs io [Http]:
+  Return Http.post("http://api.example.com/send", email).

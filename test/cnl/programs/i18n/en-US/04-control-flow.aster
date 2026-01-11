@@ -1,0 +1,35 @@
+// English Control Flow - If/Otherwise conditionals
+This module is test.controlflow.
+
+Define Decision with approved, reason.
+
+// Simple if condition
+To isAdult with age, produce:
+  If age greater than 17:
+    Return true.
+  Return false.
+
+// If with otherwise
+To checkAge with age, produce:
+  If age less than 18:
+    Return "Minor".
+  Otherwise:
+    Return "Adult".
+
+// Nested conditions
+To categorizeAge with age, produce:
+  If age less than 13:
+    Return "Child".
+  If age less than 20:
+    Return "Teenager".
+  If age less than 60:
+    Return "Adult".
+  Return "Senior".
+
+// Complex decision logic
+To evaluateApplication with age, score, produce:
+  If age less than 18:
+    Return Decision with approved = false, reason = "Underage applicant".
+  If score less than 600:
+    Return Decision with approved = false, reason = "Score too low".
+  Return Decision with approved = true, reason = "Approved".

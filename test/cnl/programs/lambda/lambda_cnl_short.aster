@@ -1,0 +1,4 @@
+This module is demo.lambdashort.
+
+To greet with pfx, produce:
+  Return f("short").

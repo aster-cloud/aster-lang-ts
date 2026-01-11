@@ -1,0 +1,81 @@
+{
+  "kind": "Module",
+  "name": "test.pii.chain",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "fetch_email",
+      "params": [],
+      "ret": {
+        "kind": "PiiType",
+        "baseType": {
+          "kind": "TypeName",
+          "name": "Text"
+        },
+        "sensitivity": "L2",
+        "category": "email"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "user@test.com"
+            }
+          }
+        ]
+      },
+      "piiLevel": "L2",
+      "piiCategories": [
+        "email"
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "mask_email",
+      "params": [
+        {
+          "name": "email",
+          "type": {
+            "kind": "PiiType",
+            "baseType": {
+              "kind": "TypeName",
+              "name": "Text"
+            },
+            "sensitivity": "L2",
+            "category": "email"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "***"
+            }
+          }
+        ]
+      },
+      "piiLevel": "L2",
+      "piiCategories": [
+        "email"
+      ]
+    }
+  ]
+}

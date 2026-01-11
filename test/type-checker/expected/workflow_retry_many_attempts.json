@@ -1,0 +1,16 @@
+{
+  "file": "workflow_retry_many_attempts.aster",
+  "module": "tests.typecheck.workflow.retry_many",
+  "diagnostics": [
+    {
+      "code": "W105",
+      "severity": "warning",
+      "message": "Workflow retry 配置可能不合理: retry(backoff=linear, maxAttempts=20) 预计累计等待 190秒，建议最多 10 次"
+    },
+    {
+      "code": "E003",
+      "severity": "error",
+      "message": "Return type mismatch: expected Workflow<Result<Text, Text>, IO>, got Workflow<Result<Unknown, Unknown>, PURE>"
+    }
+  ]
+}

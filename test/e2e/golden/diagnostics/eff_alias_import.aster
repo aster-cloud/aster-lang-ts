@@ -1,0 +1,22 @@
+This module is test.eff.alias_import.
+
+Use Http as H.
+
+Use Db as D.
+
+Use Time as T.
+
+To fetch_with_alias, produce:
+  Return H.get("/api/data").
+
+To query_with_alias, produce:
+  Return D.query("SELECT * FROM users").
+
+To time_alias_test, produce:
+  Return T.format("2024-01-01").
+
+To mixed_alias_and_direct, produce:
+  Return Http.get("/direct").
+
+To declared_effect_with_alias, produce. It performs io:
+  Return H.get("/api/data").

@@ -1,0 +1,4 @@
+This module is tests.typecheck.effects.io.
+
+To fetchUser, produce:
+  Return Http.get("/user").

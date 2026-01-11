@@ -1,0 +1,4 @@
+This module is test.pii.in_function.
+
+To process_email with email, produce:
+  Return "Processed: " plus email.

@@ -1,0 +1,6 @@
+This module is tests.effects.module_b_missing_pkg.
+
+Use mock.pkg.analytics.missing as Missing.
+
+To call_missing, produce. It performs io:
+  Return Missing.fetch_unknown().

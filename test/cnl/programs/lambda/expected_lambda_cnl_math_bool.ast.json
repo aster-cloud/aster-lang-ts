@@ -1,0 +1,92 @@
+{
+  "kind": "Module",
+  "name": "demo.lambdamath",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "compute",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "inc"
+              },
+              "args": [
+                {
+                  "kind": "Int",
+                  "value": 41
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "invert",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "v",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "neg"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "v"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

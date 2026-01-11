@@ -1,0 +1,18 @@
+{
+  "file": "type_mismatch_assign.aster",
+  "module": "tests.typecheck.mismatch.assign",
+  "functions": {
+    "makeBadEntry": {
+      "signature": "makeBadEntry() -> Entry",
+      "effects": [],
+      "capabilities": []
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "E012",
+      "severity": "error",
+      "message": "Field 'id' expects Int, got Text"
+    }
+  ]
+}

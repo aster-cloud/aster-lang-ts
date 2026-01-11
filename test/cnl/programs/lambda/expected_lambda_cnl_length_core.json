@@ -1,0 +1,53 @@
+{
+  "kind": "Module",
+  "name": "demo.lambdalength",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "lengthOf",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "s",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "f"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "s"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

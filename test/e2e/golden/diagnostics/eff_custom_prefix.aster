@@ -1,0 +1,7 @@
+This module is test.eff.custom_prefix.
+
+To fetch_with_custom_client, produce:
+  Return MyHttpClient.get("/api/data").
+
+To fetch_with_declared_io, produce. It performs io:
+  Return MyHttpClient.get("/api/data").

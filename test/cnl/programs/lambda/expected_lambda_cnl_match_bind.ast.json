@@ -1,0 +1,289 @@
+{
+  "kind": "Module",
+  "name": "demo.lambdamatchbind",
+  "decls": [
+    {
+      "kind": "Data",
+      "name": "User",
+      "fields": [
+        {
+          "name": "id",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        },
+        {
+          "name": "name",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "greetUser",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "user",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        },
+        {
+          "name": "prefix",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "f",
+            "expr": {
+              "kind": "Lambda",
+              "params": [
+                {
+                  "name": "value",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Int",
+                    "annotations": []
+                  },
+                  "typeInferred": true
+                }
+              ],
+              "retType": {
+                "kind": "TypeName",
+                "name": "Unknown",
+                "annotations": []
+              },
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "Match",
+                    "expr": {
+                      "kind": "Name",
+                      "name": "value"
+                    },
+                    "cases": [
+                      {
+                        "kind": "Case",
+                        "pattern": {
+                          "kind": "PatternCtor",
+                          "typeName": "User",
+                          "names": [
+                            "id",
+                            "name"
+                          ]
+                        },
+                        "body": {
+                          "kind": "Return",
+                          "expr": {
+                            "kind": "Call",
+                            "target": {
+                              "kind": "Name",
+                              "name": "Text.concat"
+                            },
+                            "args": [
+                              {
+                                "kind": "Name",
+                                "name": "prefix"
+                              },
+                              {
+                                "kind": "Name",
+                                "name": "name"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      {
+                        "kind": "Case",
+                        "pattern": {
+                          "kind": "PatternName",
+                          "name": "other"
+                        },
+                        "body": {
+                          "kind": "Return",
+                          "expr": {
+                            "kind": "Name",
+                            "name": "prefix"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "f"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "user"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "posOrZero",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "count",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "sel",
+            "expr": {
+              "kind": "Lambda",
+              "params": [
+                {
+                  "name": "value",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Int",
+                    "annotations": []
+                  },
+                  "typeInferred": true
+                }
+              ],
+              "retType": {
+                "kind": "TypeName",
+                "name": "Unknown",
+                "annotations": []
+              },
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "If",
+                    "cond": {
+                      "kind": "Call",
+                      "target": {
+                        "kind": "Name",
+                        "name": ">"
+                      },
+                      "args": [
+                        {
+                          "kind": "Name",
+                          "name": "value"
+                        },
+                        {
+                          "kind": "Int",
+                          "value": 0
+                        }
+                      ]
+                    },
+                    "thenBlock": {
+                      "kind": "Block",
+                      "statements": [
+                        {
+                          "kind": "Return",
+                          "expr": {
+                            "kind": "Name",
+                            "name": "value"
+                          }
+                        }
+                      ]
+                    },
+                    "elseBlock": {
+                      "kind": "Block",
+                      "statements": [
+                        {
+                          "kind": "Return",
+                          "expr": {
+                            "kind": "Int",
+                            "value": 0
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "sel"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "count"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

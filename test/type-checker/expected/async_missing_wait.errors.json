@@ -1,0 +1,20 @@
+{
+  "file": "async_missing_wait.aster",
+  "diagnostics": [
+    {
+      "code": "E200",
+      "severity": "error",
+      "message": "Function 'launchTask' may perform I/O but is missing @io effect."
+    },
+    {
+      "code": "E500",
+      "severity": "error",
+      "message": "Started async task 'profile' not waited"
+    },
+    {
+      "code": "E205",
+      "severity": "error",
+      "message": "函数 'launchTask' 缺少 @io 效果声明，推断要求 IO。"
+    }
+  ]
+}

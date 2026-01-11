@@ -1,0 +1,38 @@
+{
+  "kind": "Module",
+  "name": "demo.nullstrict",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "badLen",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.length"
+              },
+              "args": [
+                {
+                  "kind": "Null"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

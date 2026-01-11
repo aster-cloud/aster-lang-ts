@@ -1,0 +1,4 @@
+This module is demo.capcaps.mixed.
+
+To ping, produce. It performs io [Http, Sql, Time]:
+  Return "ok".

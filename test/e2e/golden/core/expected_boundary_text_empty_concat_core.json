@@ -1,0 +1,43 @@
+{
+  "kind": "Module",
+  "name": "boundary.text.concat.empty",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "main",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.concat"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": ""
+                },
+                {
+                  "kind": "String",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

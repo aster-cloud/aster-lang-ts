@@ -1,0 +1,7 @@
+This module is demo.ifp.
+
+To choose with flag, produce:
+  If flag equals to "Y":
+    Return "Y".
+  Otherwise:
+    Return "N".

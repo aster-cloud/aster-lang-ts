@@ -1,0 +1,2 @@
+ERROR: Function 'api_call' uses Http capability but header declares [Sql].
+INFO: Function 'api_call' declares Sql capability but it is not used.

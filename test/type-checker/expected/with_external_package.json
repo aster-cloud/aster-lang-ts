@@ -1,0 +1,11 @@
+{
+  "module": "tests.effects.with_external_package",
+  "functions": {
+    "load_remote": {
+      "signature": "Unit -> Text",
+      "effects": ["IO"],
+      "capabilities": []
+    }
+  },
+  "diagnostics": []
+}

@@ -1,0 +1,85 @@
+{
+  "kind": "Module",
+  "name": "test.generic.result_maybe",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "unwrap",
+      "params": [
+        {
+          "name": "x",
+          "type": {
+            "kind": "Result",
+            "ok": {
+              "kind": "Maybe",
+              "type": {
+                "kind": "TypeName",
+                "name": "Int"
+              }
+            },
+            "err": {
+              "kind": "TypeName",
+              "name": "Text"
+            }
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Name",
+              "name": "x"
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatCtor",
+                  "typeName": "Ok",
+                  "names": [
+                    "v"
+                  ]
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "ok"
+                  }
+                }
+              },
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatCtor",
+                  "typeName": "Err",
+                  "names": [
+                    "msg"
+                  ]
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Name",
+                    "name": "msg"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

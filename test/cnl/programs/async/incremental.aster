@@ -1,0 +1,8 @@
+This module is test.loan.
+
+Define LoanApplication with applicantId, amount, termMonths, purpose.
+
+Define Decision with approved, reason.
+
+To check with age, produce:
+  Return Decision with approved = true, reason = "OK".

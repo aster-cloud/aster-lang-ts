@@ -1,0 +1,30 @@
+{
+  "kind": "Module",
+  "name": "test.core.long",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "run",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Long"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Long",
+              "value": "9223372036854775807"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,134 @@
+{
+  "kind": "Module",
+  "name": "app",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "processOption",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "opt",
+          "type": {
+            "kind": "Maybe",
+            "type": {
+              "kind": "TypeName",
+              "name": "Int"
+            }
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Name",
+              "name": "opt"
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatCtor",
+                  "typeName": "Some",
+                  "names": [],
+                  "args": [
+                    {
+                      "kind": "PatName",
+                      "name": "value"
+                    }
+                  ]
+                },
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Let",
+                      "name": "doubled",
+                      "expr": {
+                        "kind": "Call",
+                        "target": {
+                          "kind": "Name",
+                          "name": "*"
+                        },
+                        "args": [
+                          {
+                            "kind": "Name",
+                            "name": "value"
+                          },
+                          {
+                            "kind": "Int",
+                            "value": 2
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "kind": "Set",
+                      "name": "doubled",
+                      "expr": {
+                        "kind": "Call",
+                        "target": {
+                          "kind": "Name",
+                          "name": "+"
+                        },
+                        "args": [
+                          {
+                            "kind": "Name",
+                            "name": "doubled"
+                          },
+                          {
+                            "kind": "Int",
+                            "value": 1
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Name",
+                        "name": "doubled"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatCtor",
+                  "typeName": "None",
+                  "names": [],
+                  "args": []
+                },
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Int",
+                        "value": 0
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "file": "list_literal_mismatch.aster",
+  "module": "tests.typecheck.list",
+  "functions": {
+    "numbers": {
+      "signature": "numbers() -> List<Int>",
+      "effects": [],
+      "capabilities": []
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "E020",
+      "severity": "error",
+      "message": "List literal element type mismatch: expected Int, got Text"
+    }
+  ]
+}

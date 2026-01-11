@@ -1,0 +1,4 @@
+This module is demo.capcaps.bare.
+
+To ping, produce. It performs io:
+  Return "ok".

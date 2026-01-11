@@ -1,0 +1,289 @@
+{
+  "kind": "Module",
+  "name": "demo.text",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "join",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "left",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        },
+        {
+          "name": "right",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.concat"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "left"
+                },
+                {
+                  "kind": "Name",
+                  "name": "right"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "shout",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "s",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.toUpper"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "s"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "hasPrefix",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "s",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        },
+        {
+          "name": "p",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.startsWith"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "s"
+                },
+                {
+                  "kind": "Name",
+                  "name": "p"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "find",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "s",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        },
+        {
+          "name": "n",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.indexOf"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "s"
+                },
+                {
+                  "kind": "Name",
+                  "name": "n"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "words",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "s",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.split"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "s"
+                },
+                {
+                  "kind": "String",
+                  "value": " "
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

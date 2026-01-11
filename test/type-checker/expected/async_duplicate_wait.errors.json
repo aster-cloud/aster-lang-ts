@@ -1,0 +1,20 @@
+{
+  "file": "async_duplicate_wait.aster",
+  "diagnostics": [
+    {
+      "code": "E200",
+      "severity": "error",
+      "message": "Function 'processUser' may perform I/O but is missing @io effect."
+    },
+    {
+      "code": "E503",
+      "severity": "warning",
+      "message": "Async task 'profile' waited multiple times (2 occurrences)"
+    },
+    {
+      "code": "E205",
+      "severity": "error",
+      "message": "函数 'processUser' 缺少 @io 效果声明，推断要求 IO。"
+    }
+  ]
+}

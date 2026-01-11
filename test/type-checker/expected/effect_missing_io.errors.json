@@ -1,0 +1,15 @@
+{
+  "file": "effect_missing_io.aster",
+  "diagnostics": [
+    {
+      "code": "E200",
+      "severity": "error",
+      "message": "Function 'fetchUser' may perform I/O but is missing @io effect."
+    },
+    {
+      "code": "E205",
+      "severity": "error",
+      "message": "函数 'fetchUser' 缺少 @io 效果声明，推断要求 IO。"
+    }
+  ]
+}

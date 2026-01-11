@@ -1,0 +1,66 @@
+{
+  "kind": "Module",
+  "name": "demo.lambdalengthcmp",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "isLongerThan",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "s",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        },
+        {
+          "name": "n",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "pred"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "s"
+                },
+                {
+                  "kind": "Name",
+                  "name": "n"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

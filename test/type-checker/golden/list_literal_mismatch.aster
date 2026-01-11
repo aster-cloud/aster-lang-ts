@@ -1,0 +1,4 @@
+This module is tests.typecheck.list.
+
+To numbers, produce:
+  Return Int.add(List.head([1, "two"]), 1).

@@ -1,0 +1,7 @@
+This module is test.hello.
+
+To sayHello with name, produce:
+  Return "Hello, " plus name.
+
+To helloWorld, produce:
+  Return "Hello, World!".

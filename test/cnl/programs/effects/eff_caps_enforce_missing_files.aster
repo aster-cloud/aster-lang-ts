@@ -1,0 +1,4 @@
+This module is demo.capcaps.missing_files.
+
+To bad, produce. It performs io [Http]:
+  Return Files.read("/tmp/foo").

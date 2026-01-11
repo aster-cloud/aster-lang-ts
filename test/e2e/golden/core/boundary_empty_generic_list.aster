@@ -1,0 +1,4 @@
+This module is test.boundary.empty_list.
+
+To make_list with dummy, produce:
+  Return List.empty().

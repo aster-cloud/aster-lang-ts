@@ -1,0 +1,3 @@
+ERROR: Function 'log_event' uses Time capability but header declares [Files].
+INFO: Function 'log_event' declares Files capability but it is not used.
+WARNING: 函数 'log_event' 声明了 @io，但推断未发现 IO 副作用。

@@ -1,0 +1,95 @@
+{
+  "kind": "Module",
+  "name": "app",
+  "decls": [
+    {
+      "kind": "Data",
+      "name": "Point",
+      "fields": [
+        {
+          "name": "x",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        },
+        {
+          "name": "y",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        }
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "sumCoords",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "p",
+          "type": {
+            "kind": "TypeName",
+            "name": "Point"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Name",
+              "name": "p"
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatCtor",
+                  "typeName": "Point",
+                  "names": [
+                    "x",
+                    "y"
+                  ]
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Call",
+                    "target": {
+                      "kind": "Name",
+                      "name": "+"
+                    },
+                    "args": [
+                      {
+                        "kind": "Name",
+                        "name": "x"
+                      },
+                      {
+                        "kind": "Name",
+                        "name": "y"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

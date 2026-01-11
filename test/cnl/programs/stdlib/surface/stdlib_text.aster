@@ -1,0 +1,7 @@
+This module is std.text.
+
+To concat with left, right, produce:
+  Return Text.concat(left, right).
+
+To hasSubstring with haystack, needle, produce:
+  Return Text.contains(haystack, needle).

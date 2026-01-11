@@ -1,0 +1,60 @@
+{
+  "kind": "Module",
+  "name": "test.text.concat",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "run",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "result",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.concat"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "Hello"
+                },
+                {
+                  "kind": "String",
+                  "value": "World"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.length"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "result"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+This module is demo.interop.
+
+To pickInt, produce:
+  Return Interop.pick(1).
+
+To pickObj, produce:
+  Return Interop.pick(null).
+
+To pickBool, produce:
+  Return Interop.pick(true).
+
+To pickStr, produce:
+  Return Interop.pick("hello").
+
+To pickLong, produce:
+  Return Interop.pick(1L).
+
+To pickDouble, produce:
+  Return Interop.pick(1.0).

@@ -1,0 +1,39 @@
+{
+  "kind": "Module",
+  "name": "boundary.text.trim.whitespace",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "main",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.trim"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "   "
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

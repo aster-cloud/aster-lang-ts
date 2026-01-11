@@ -1,0 +1,4 @@
+This module is aster.finance.loan.
+
+To determineInterestRate with creditScore, produce:
+  Return 0.

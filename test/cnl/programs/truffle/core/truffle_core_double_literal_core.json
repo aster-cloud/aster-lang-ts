@@ -1,0 +1,30 @@
+{
+  "kind": "Module",
+  "name": "test.core.double",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "run",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Double"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Double",
+              "value": 3.14159
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

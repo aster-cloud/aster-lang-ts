@@ -1,0 +1,7 @@
+This module is demo.capcaps.enforce.
+
+To bad, produce. It performs io [Http]:
+  Return Db.query("select 1").
+
+To ok, produce. It performs io [Http, Sql]:
+  Return Http.get("/ping").

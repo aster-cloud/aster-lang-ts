@@ -1,0 +1,56 @@
+{
+  "kind": "Module",
+  "name": "error.text.substring",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "main",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.substring"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "abc"
+                },
+                {
+                  "kind": "Call",
+                  "target": {
+                    "kind": "Name",
+                    "name": "sub"
+                  },
+                  "args": [
+                    {
+                      "kind": "Int",
+                      "value": 0
+                    },
+                    {
+                      "kind": "Int",
+                      "value": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

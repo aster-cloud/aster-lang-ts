@@ -1,0 +1,72 @@
+{
+  "kind": "Module",
+  "name": "test.list.append",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "run",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "list",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.empty"
+              },
+              "args": []
+            }
+          },
+          {
+            "kind": "Let",
+            "name": "list",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.append"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "list"
+                },
+                {
+                  "kind": "Int",
+                  "value": 42
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.length"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "list"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

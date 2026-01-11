@@ -1,0 +1,183 @@
+{
+  "kind": "Module",
+  "name": "demo.lambdamath",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "compute",
+      "typeParams": [],
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "inc",
+            "expr": {
+              "kind": "Lambda",
+              "params": [
+                {
+                  "name": "x",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Int"
+                  }
+                }
+              ],
+              "retType": {
+                "kind": "TypeName",
+                "name": "Int"
+              },
+              "ret": {
+                "kind": "TypeName",
+                "name": "Int"
+              },
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "Return",
+                    "expr": {
+                      "kind": "Call",
+                      "target": {
+                        "kind": "Name",
+                        "name": "+"
+                      },
+                      "args": [
+                        {
+                          "kind": "Name",
+                          "name": "x"
+                        },
+                        {
+                          "kind": "Int",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "captures": [
+                "+"
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "inc"
+              },
+              "args": [
+                {
+                  "kind": "Int",
+                  "value": 41
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "invert",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "v",
+          "type": {
+            "kind": "TypeName",
+            "name": "Bool"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Bool"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "neg",
+            "expr": {
+              "kind": "Lambda",
+              "params": [
+                {
+                  "name": "x",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Bool"
+                  }
+                }
+              ],
+              "retType": {
+                "kind": "TypeName",
+                "name": "Bool"
+              },
+              "ret": {
+                "kind": "TypeName",
+                "name": "Bool"
+              },
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "Return",
+                    "expr": {
+                      "kind": "Call",
+                      "target": {
+                        "kind": "Name",
+                        "name": "not"
+                      },
+                      "args": [
+                        {
+                          "kind": "Name",
+                          "name": "x"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "captures": [
+                "not"
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "neg"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "v"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+This module is test.eligibility.simple.
+
+To calculatePatientCost with basePrice, coveragePercent, produce:
+  Let coverageAmount be basePrice times coveragePercent.
+  Let patientPercent be 100 minus coveragePercent.
+  Let patientCost be basePrice times patientPercent.
+  Return patientCost.

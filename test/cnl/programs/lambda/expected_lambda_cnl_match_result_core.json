@@ -1,0 +1,142 @@
+{
+  "kind": "Module",
+  "name": "demo.lambdamatchresult",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "fromResult",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "result",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "f",
+            "expr": {
+              "kind": "Lambda",
+              "params": [
+                {
+                  "name": "candidate",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Bool"
+                  }
+                }
+              ],
+              "retType": {
+                "kind": "TypeName",
+                "name": "Unknown"
+              },
+              "ret": {
+                "kind": "TypeName",
+                "name": "Unknown"
+              },
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "Match",
+                    "expr": {
+                      "kind": "Name",
+                      "name": "candidate"
+                    },
+                    "cases": [
+                      {
+                        "kind": "Case",
+                        "pattern": {
+                          "kind": "PatCtor",
+                          "typeName": "Ok",
+                          "names": [
+                            "value"
+                          ]
+                        },
+                        "body": {
+                          "kind": "Return",
+                          "expr": {
+                            "kind": "Name",
+                            "name": "value"
+                          }
+                        }
+                      },
+                      {
+                        "kind": "Case",
+                        "pattern": {
+                          "kind": "PatCtor",
+                          "typeName": "Err",
+                          "names": [
+                            "err"
+                          ]
+                        },
+                        "body": {
+                          "kind": "Return",
+                          "expr": {
+                            "kind": "Call",
+                            "target": {
+                              "kind": "Name",
+                              "name": "Text.concat"
+                            },
+                            "args": [
+                              {
+                                "kind": "String",
+                                "value": "E:"
+                              },
+                              {
+                                "kind": "Name",
+                                "name": "err"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "captures": [
+                "value",
+                "err"
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "f"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "result"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

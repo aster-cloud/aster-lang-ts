@@ -1,0 +1,24 @@
+{
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "TYPE_MISMATCH_ASSIGN",
+      "message": "Type mismatch assigning to 'result'",
+      "span": {
+        "file": "Sample.aster",
+        "start": { "line": 4, "col": 5 },
+        "end": { "line": 4, "col": 16 }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "E005",
+      "message": "Type parameter 'T' is declared but not used.",
+      "span": {
+        "file": "Sample.aster",
+        "start": { "line": 8, "col": 3 },
+        "end": { "line": 8, "col": 20 }
+      }
+    }
+  ]
+}

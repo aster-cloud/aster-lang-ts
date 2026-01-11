@@ -1,0 +1,70 @@
+{
+  "kind": "Module",
+  "name": "test.boundary.map_type",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "get_value",
+      "params": [
+        {
+          "name": "m",
+          "type": {
+            "kind": "Map",
+            "key": {
+              "kind": "TypeName",
+              "name": "Text"
+            },
+            "val": {
+              "kind": "TypeName",
+              "name": "Int"
+            }
+          },
+          "annotations": []
+        },
+        {
+          "name": "k",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "Maybe",
+        "type": {
+          "kind": "TypeName",
+          "name": "Int"
+        }
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.get"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "m"
+                },
+                {
+                  "kind": "Name",
+                  "name": "k"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

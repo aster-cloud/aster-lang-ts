@@ -1,0 +1,5 @@
+This module is fixture.bar.
+
+To call, produce:
+  Return fixture.foo.greet.
+

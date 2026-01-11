@@ -1,0 +1,10 @@
+{
+  "file": "return_type_mismatch.aster",
+  "diagnostics": [
+    {
+      "code": "E003",
+      "severity": "error",
+      "message": "Return type mismatch: expected Int, got Text"
+    }
+  ]
+}

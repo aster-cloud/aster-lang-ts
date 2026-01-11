@@ -1,0 +1,14 @@
+This module is test.eligibility.full.
+
+Define Patient with patientId, age, hasInsurance, insuranceType, chronicConditions.
+
+Define Service with serviceCode, serviceName, basePrice, requiresPreAuth.
+
+Define EligibilityCheck with eligible, reason, coveragePercent, estimatedCost, requiresPreAuth.
+
+To determineMinorCoverage with insuranceType, service, produce:
+  Return 0.
+To calculatePatientCost with basePrice, coveragePercent, produce:
+  Return 0.
+To checkServiceEligibility with patient, service, produce:
+  Return 0.

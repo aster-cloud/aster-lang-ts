@@ -1,0 +1,3 @@
+ERROR: Function 'bad' uses Files capability but header declares [Http].
+INFO: Function 'bad' declares Http capability but it is not used.
+WARNING: 函数 'bad' 声明了 @io，但推断未发现 IO 副作用。

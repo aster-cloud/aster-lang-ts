@@ -1,0 +1,40 @@
+{
+  "kind": "Module",
+  "name": "demo.capcaps.bare",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "ping",
+      "typeParams": [],
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [
+        "IO"
+      ],
+      "effectCaps": [
+        "Http",
+        "Sql",
+        "Time",
+        "Files",
+        "Secrets",
+        "AiModel"
+      ],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "ok"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

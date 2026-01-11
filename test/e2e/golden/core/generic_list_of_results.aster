@@ -1,0 +1,4 @@
+This module is test.generic.list_results.
+
+To count_results with items, produce:
+  Return List.length(items).

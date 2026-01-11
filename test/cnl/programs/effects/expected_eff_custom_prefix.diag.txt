@@ -1,0 +1,1 @@
+WARN: 函数 'fetch_with_declared_io' 声明了 @io，但推断未发现 IO 副作用。

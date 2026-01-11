@@ -1,0 +1,10 @@
+{
+  "file": "capability_missing_decl.aster",
+  "diagnostics": [
+    {
+      "code": "E301",
+      "severity": "error",
+      "message": "Function 'readSecret' uses Secrets capability but header declares [Http]."
+    }
+  ]
+}

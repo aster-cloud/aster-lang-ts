@@ -1,0 +1,34 @@
+{
+  "kind": "Module",
+  "name": "test.pii.basic",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "get_email",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "user@example.com"
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

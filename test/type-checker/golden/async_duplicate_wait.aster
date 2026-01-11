@@ -1,0 +1,7 @@
+This module is tests.typecheck.async.duplicate_wait.
+
+To processUser with userId, produce:
+  Start profile as async ProfileSvc.load(userId).
+  Wait for profile.
+  Wait for profile.
+  Return "done".

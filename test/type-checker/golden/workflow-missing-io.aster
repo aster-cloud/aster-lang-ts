@@ -1,0 +1,9 @@
+This module is tests.workflow.missing_io_effect.
+
+To orchestrate, produce:
+  
+  workflow:
+    step fetch:
+      Return ok of "done".
+  
+  .

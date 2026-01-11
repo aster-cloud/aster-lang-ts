@@ -1,0 +1,8 @@
+This module is demo.standalone.
+
+// top comment
+To id, produce:
+  // inside block
+  Return 1.
+// bottom comment
+

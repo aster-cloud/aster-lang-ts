@@ -1,0 +1,80 @@
+{
+  "kind": "Module",
+  "name": "test.maybe.unwrapor",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "run",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "noneMap",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.empty"
+              },
+              "args": []
+            }
+          },
+          {
+            "kind": "Let",
+            "name": "noneMap",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.put"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "noneMap"
+                },
+                {
+                  "kind": "String",
+                  "value": "_type"
+                },
+                {
+                  "kind": "String",
+                  "value": "None"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Maybe.unwrapOr"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "noneMap"
+                },
+                {
+                  "kind": "Int",
+                  "value": 99
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

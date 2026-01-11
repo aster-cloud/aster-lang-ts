@@ -1,0 +1,9 @@
+{
+  "allow": {
+    "io": ["demo.capdemo.*"],
+    "cpu": ["*"]
+  },
+  "deny": {
+    "io": ["demo.capdemo.hello"]
+  }
+}

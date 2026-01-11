@@ -1,0 +1,18 @@
+{
+  "file": "async_missing_wait.aster",
+  "module": "tests.typecheck.async.start",
+  "functions": {
+    "launchTask": {
+      "signature": "launchTask(Text) -> Text",
+      "effects": [],
+      "capabilities": []
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "E500",
+      "severity": "error",
+      "message": "Started async task 'profile' not waited"
+    }
+  ]
+}

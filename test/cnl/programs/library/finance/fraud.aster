@@ -1,0 +1,10 @@
+This module is aster.finance.fraud.
+
+Define Transaction with transactionId, accountId, amount, timestamp.
+
+Define AccountHistory with accountId, averageAmount, suspiciousCount, accountAge, lastTimestamp.
+
+Define FraudResult with isSuspicious, riskScore, reason.
+
+To detectFraud with transaction, history, produce:
+  Return 0.

@@ -1,0 +1,1 @@
+ERROR: Function 'db_init' uses Files capability but header declares [Sql].

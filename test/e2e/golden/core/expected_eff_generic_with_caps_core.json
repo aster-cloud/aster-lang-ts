@@ -1,0 +1,47 @@
+{
+  "kind": "Module",
+  "name": "test.effects.generic",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "store",
+      "typeParams": [
+        "T"
+      ],
+      "params": [
+        {
+          "name": "value",
+          "type": {
+            "kind": "TypeVar",
+            "name": "T"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "T"
+      },
+      "effects": [
+        "IO"
+      ],
+      "effectCaps": [
+        "Files",
+        "Sql"
+      ],
+      "effectCapsExplicit": true,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Name",
+              "name": "value"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "module": "tests.effects.module_b",
+  "functions": {
+    "load_data": {
+      "signature": "Unit -> Text",
+      "effects": ["IO"],
+      "capabilities": []
+    }
+  },
+  "diagnostics": []
+}

@@ -1,0 +1,40 @@
+This module is aster.finance.creditcard.
+
+Define ApplicantInfo with applicantId, age, annualIncome, creditScore, existingCreditCards, monthlyRent, employmentStatus, yearsAtCurrentJob.
+
+Define FinancialHistory with bankruptcyCount, latePayments, utilization, accountAge, hardInquiries.
+
+Define CreditCardOffer with productType, requestedLimit, hasRewards, annualFee.
+
+Define ApprovalDecision with approved, reason, approvedLimit, interestRateAPR, monthlyFee, creditLine, requiresDeposit, depositAmount.
+
+Define RiskScore with score, category, factors.
+
+Define IncomeValidation with sufficient, ratio, recommendation.
+
+To evaluateCreditCardApplication with applicant, history, offer, produce:
+  Return 0.
+To calculateComprehensiveRiskScore with applicant, history, produce:
+  Return 0.
+To calculateCreditScorePoints with creditScore, produce:
+  Return 0.
+To calculateHistoryPoints with history, produce:
+  Return 0.
+To calculateUtilizationPenalty with utilization, produce:
+  Return 0.
+To calculateInquiryPenalty with inquiries, produce:
+  Return 0.
+To validateIncomeRequirements with applicant, requestedLimit, produce:
+  Return 0.
+To assessEmploymentStability with applicant, produce:
+  Return 0.
+To determineFinalCreditLimit with requestedLimit, applicant, history, riskScore, employmentScore, produce:
+  Return 0.
+To calculateAPR with creditScore, riskScore, history, produce:
+  Return 0.
+To shouldRequireSecuredCard with applicant, history, riskScore, produce:
+  Return 0.
+To calculateRequiredDeposit with requiresSecured, creditLimit, produce:
+  Return 0.
+To determineMonthlyFee with productType, isSecured, creditScore, produce:
+  Return 0.

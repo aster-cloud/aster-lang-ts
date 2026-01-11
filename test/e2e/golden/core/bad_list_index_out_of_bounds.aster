@@ -1,0 +1,4 @@
+This module is error.list.index.
+
+To main, produce:
+  Return List.get(List.empty(), 0).

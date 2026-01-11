@@ -1,0 +1,196 @@
+{
+  "kind": "Module",
+  "name": "demo.interop.sumdemo",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "sumInt",
+      "typeParams": [],
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Interop.sum"
+              },
+              "args": [
+                {
+                  "kind": "Int",
+                  "value": 1
+                },
+                {
+                  "kind": "Int",
+                  "value": 2
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "sumLong",
+      "typeParams": [],
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Interop.sum"
+              },
+              "args": [
+                {
+                  "kind": "Long",
+                  "value": "1"
+                },
+                {
+                  "kind": "Long",
+                  "value": "2"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "sumDouble",
+      "typeParams": [],
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Interop.sum"
+              },
+              "args": [
+                {
+                  "kind": "Double",
+                  "value": 1
+                },
+                {
+                  "kind": "Double",
+                  "value": 2
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "sumIntLong",
+      "typeParams": [],
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Interop.sum"
+              },
+              "args": [
+                {
+                  "kind": "Int",
+                  "value": 1
+                },
+                {
+                  "kind": "Long",
+                  "value": "2"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "sumIntDouble",
+      "typeParams": [],
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Interop.sum"
+              },
+              "args": [
+                {
+                  "kind": "Int",
+                  "value": 1
+                },
+                {
+                  "kind": "Double",
+                  "value": 2
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

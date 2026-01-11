@@ -1,0 +1,53 @@
+{
+  "kind": "Module",
+  "name": "demo.lambdashort",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "greet",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "pfx",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "f"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "short"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "file": "workflow_timeout_too_long.aster",
+  "module": "tests.typecheck.workflow.timeout_long",
+  "diagnostics": [
+    {
+      "code": "W106",
+      "severity": "warning",
+      "message": "Workflow timeout 配置可能不合理: timeout=7200000ms (120分钟) 过长，建议不超过 1 小时"
+    },
+    {
+      "code": "E003",
+      "severity": "error",
+      "message": "Return type mismatch: expected Workflow<Result<Text, Text>, IO>, got Workflow<Result<Unknown, Unknown>, PURE>"
+    }
+  ]
+}

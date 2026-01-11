@@ -1,0 +1,11 @@
+{
+  "file": "workflow-undeclared-capability.aster",
+  "module": "tests.workflow.undeclared_capability",
+  "diagnostics": [
+    {
+      "code": "E027",
+      "severity": "error",
+      "message": "Workflow uses undeclared capability"
+    }
+  ]
+}

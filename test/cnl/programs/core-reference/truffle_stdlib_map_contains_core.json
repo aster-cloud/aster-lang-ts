@@ -1,0 +1,137 @@
+{
+  "kind": "Module",
+  "name": "test.map.contains",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "run",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "map",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.empty"
+              },
+              "args": []
+            }
+          },
+          {
+            "kind": "Let",
+            "name": "map",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.put"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "map"
+                },
+                {
+                  "kind": "String",
+                  "value": "key1"
+                },
+                {
+                  "kind": "Int",
+                  "value": 10
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Let",
+            "name": "map",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.put"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "map"
+                },
+                {
+                  "kind": "String",
+                  "value": "key2"
+                },
+                {
+                  "kind": "Int",
+                  "value": 20
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Let",
+            "name": "result",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.contains"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "map"
+                },
+                {
+                  "kind": "String",
+                  "value": "key1"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "If",
+            "cond": {
+              "kind": "Name",
+              "name": "result"
+            },
+            "thenBlock": {
+              "kind": "Block",
+              "statements": [
+                {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Int",
+                    "value": 1
+                  }
+                }
+              ]
+            },
+            "elseBlock": {
+              "kind": "Block",
+              "statements": [
+                {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Int",
+                    "value": 0
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

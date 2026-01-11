@@ -1,0 +1,10 @@
+{
+  "file": "type_mismatch_assign.aster",
+  "diagnostics": [
+    {
+      "code": "E012",
+      "severity": "error",
+      "message": "Field 'id' expects Int, got Text"
+    }
+  ]
+}

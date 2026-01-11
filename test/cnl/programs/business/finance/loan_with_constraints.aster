@@ -1,0 +1,8 @@
+This module is finance.loan.constraints.
+
+Define LoanApplicationConstrained with applicantId, amount, termMonths, purpose.
+
+To checkLoanEligibilityConstrained with app, produce:
+  Return 0.
+To normalizeLoanAmount with amount, produce:
+  Return 0.

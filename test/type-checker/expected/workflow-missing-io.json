@@ -1,0 +1,11 @@
+{
+  "file": "workflow-missing-io.aster",
+  "module": "tests.workflow.missing_io_effect",
+  "diagnostics": [
+    {
+      "code": "E026",
+      "severity": "error",
+      "message": "Workflow must declare IO effect"
+    }
+  ]
+}

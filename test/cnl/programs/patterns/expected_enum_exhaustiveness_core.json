@@ -1,0 +1,68 @@
+{
+  "kind": "Module",
+  "name": null,
+  "decls": [
+    {
+      "kind": "Enum",
+      "name": "AuthErr",
+      "variants": [
+        "InvalidCreds",
+        "Locked"
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "show",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "e",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Name",
+              "name": "e"
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatName",
+                  "name": "InvalidCreds"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "bad"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

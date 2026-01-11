@@ -1,0 +1,8 @@
+This module is demo.lambdamatchmaybe.
+
+To fromMaybe with value, fallback, produce:
+  Let f be function with candidate, produce:
+    Match candidate:
+      When null, Return fallback.
+      When actual, Return actual.
+  Return f(value).

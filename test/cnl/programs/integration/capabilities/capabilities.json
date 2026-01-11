@@ -1,0 +1,6 @@
+{
+  "allow": {
+    "io": ["demo.capdemo.*"],
+    "cpu": ["*"]
+  }
+}

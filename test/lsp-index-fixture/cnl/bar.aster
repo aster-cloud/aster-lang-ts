@@ -1,0 +1,7 @@
+This module is fixture.bar.
+
+Define Item with id.
+
+To idOf with i, produce:
+  Return i.id.
+

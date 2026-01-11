@@ -1,0 +1,240 @@
+{
+  "kind": "Module",
+  "name": "demo.workflow.linear",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "testWorkflow",
+      "typeParams": [],
+      "params": [],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Text",
+        "annotations": [],
+        "span": {
+          "start": {
+            "line": 3,
+            "col": 26
+          },
+          "end": {
+            "line": 3,
+            "col": 30
+          }
+        }
+      },
+      "effects": [
+        "io"
+      ],
+      "effectCaps": [
+        "Http",
+        "Sql",
+        "Time",
+        "Files",
+        "Secrets",
+        "AiModel"
+      ],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "workflow",
+            "steps": [
+              {
+                "kind": "step",
+                "name": "validate",
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Ok",
+                        "expr": {
+                          "kind": "String",
+                          "value": "validated",
+                          "span": {
+                            "start": {
+                              "line": 7,
+                              "col": 20
+                            },
+                            "end": {
+                              "line": 7,
+                              "col": 31
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": {
+                            "line": 7,
+                            "col": 14
+                          },
+                          "end": {
+                            "line": 7,
+                            "col": 31
+                          }
+                        }
+                      },
+                      "span": {
+                        "start": {
+                          "line": 7,
+                          "col": 7
+                        },
+                        "end": {
+                          "line": 7,
+                          "col": 32
+                        }
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": {
+                      "line": 7,
+                      "col": 7
+                    },
+                    "end": {
+                      "line": 7,
+                      "col": 32
+                    }
+                  }
+                },
+                "span": {
+                  "start": {
+                    "line": 6,
+                    "col": 5
+                  },
+                  "end": {
+                    "line": 9,
+                    "col": 1
+                  }
+                }
+              },
+              {
+                "kind": "step",
+                "name": "execute",
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Ok",
+                        "expr": {
+                          "kind": "String",
+                          "value": "executed",
+                          "span": {
+                            "start": {
+                              "line": 10,
+                              "col": 20
+                            },
+                            "end": {
+                              "line": 10,
+                              "col": 30
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": {
+                            "line": 10,
+                            "col": 14
+                          },
+                          "end": {
+                            "line": 10,
+                            "col": 30
+                          }
+                        }
+                      },
+                      "span": {
+                        "start": {
+                          "line": 10,
+                          "col": 7
+                        },
+                        "end": {
+                          "line": 10,
+                          "col": 31
+                        }
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": {
+                      "line": 10,
+                      "col": 7
+                    },
+                    "end": {
+                      "line": 10,
+                      "col": 31
+                    }
+                  }
+                },
+                "span": {
+                  "start": {
+                    "line": 9,
+                    "col": 5
+                  },
+                  "end": {
+                    "line": 12,
+                    "col": 1
+                  }
+                }
+              }
+            ],
+            "timeout": {
+              "milliseconds": 30000
+            },
+            "span": {
+              "start": {
+                "line": 5,
+                "col": 3
+              },
+              "end": {
+                "line": 14,
+                "col": 4
+              }
+            }
+          }
+        ],
+        "span": {
+          "start": {
+            "line": 5,
+            "col": 3
+          },
+          "end": {
+            "line": 14,
+            "col": 4
+          }
+        }
+      },
+      "span": {
+        "start": {
+          "line": 3,
+          "col": 1
+        },
+        "end": {
+          "line": 15,
+          "col": 1
+        }
+      },
+      "nameSpan": {
+        "start": {
+          "line": 3,
+          "col": 4
+        },
+        "end": {
+          "line": 3,
+          "col": 16
+        }
+      }
+    }
+  ],
+  "span": {
+    "start": {
+      "line": 1,
+      "col": 1
+    },
+    "end": {
+      "line": 15,
+      "col": 1
+    }
+  }
+}

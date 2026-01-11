@@ -1,0 +1,8 @@
+This module is aster.finance.loan.
+
+Define LoanApplication with applicantId, amount.
+
+Define LoanDecision with approved, reason.
+
+To test with x, produce:
+  Return false.

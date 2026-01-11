@@ -1,0 +1,58 @@
+{
+  "kind": "Module",
+  "name": "test.generic.list_results",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "count_results",
+      "params": [
+        {
+          "name": "items",
+          "type": {
+            "kind": "List",
+            "type": {
+              "kind": "Result",
+              "ok": {
+                "kind": "TypeName",
+                "name": "Int"
+              },
+              "err": {
+                "kind": "TypeName",
+                "name": "Text"
+              }
+            }
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.length"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "items"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

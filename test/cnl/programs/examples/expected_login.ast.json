@@ -1,0 +1,193 @@
+{
+  "kind": "Module",
+  "name": "app.service",
+  "decls": [
+    {
+      "kind": "Data",
+      "name": "User",
+      "fields": [
+        {
+          "name": "id",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        },
+        {
+          "name": "name",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ]
+    },
+    {
+      "kind": "Enum",
+      "name": "AuthErr",
+      "variants": [
+        "InvalidCreds",
+        "Locked"
+      ],
+      "variantSpans": [
+        {
+          "start": {
+            "line": 5,
+            "col": 26
+          },
+          "end": {
+            "line": 5,
+            "col": 38
+          }
+        },
+        {
+          "start": {
+            "line": 5,
+            "col": 40
+          },
+          "end": {
+            "line": 5,
+            "col": 46
+          }
+        }
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "login",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "user",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        },
+        {
+          "name": "pass",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [
+        "io"
+      ],
+      "effectCaps": [
+        "Http",
+        "Sql",
+        "Time",
+        "Files",
+        "Secrets",
+        "AiModel"
+      ],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "ok",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "io.verify"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "user"
+                },
+                {
+                  "kind": "Name",
+                  "name": "pass"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "If",
+            "cond": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "not"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "ok"
+                }
+              ]
+            },
+            "thenBlock": {
+              "kind": "Block",
+              "statements": [
+                {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Err",
+                    "expr": {
+                      "kind": "Name",
+                      "name": "InvalidCreds"
+                    }
+                  }
+                }
+              ]
+            },
+            "elseBlock": null
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Ok",
+              "expr": {
+                "kind": "Construct",
+                "typeName": "User",
+                "fields": [
+                  {
+                    "name": "id",
+                    "expr": {
+                      "kind": "Call",
+                      "target": {
+                        "kind": "Name",
+                        "name": "UUID.randomUUID"
+                      },
+                      "args": []
+                    }
+                  },
+                  {
+                    "name": "name",
+                    "expr": {
+                      "kind": "Name",
+                      "name": "user"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

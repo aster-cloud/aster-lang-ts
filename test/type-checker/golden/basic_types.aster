@@ -1,0 +1,4 @@
+This module is tests.typecheck.basic.
+
+To add with x, y, produce:
+  Return x plus y.

@@ -1,0 +1,126 @@
+{
+  "kind": "Module",
+  "name": "demo.map",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "val",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "m",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        },
+        {
+          "name": "k",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.get"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "m"
+                },
+                {
+                  "kind": "Name",
+                  "name": "k"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "valStrict",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "m",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        },
+        {
+          "name": "k",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Map.get"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "m"
+                },
+                {
+                  "kind": "Name",
+                  "name": "k"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

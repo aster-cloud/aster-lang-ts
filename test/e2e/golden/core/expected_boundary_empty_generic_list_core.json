@@ -1,0 +1,49 @@
+{
+  "kind": "Module",
+  "name": "test.boundary.empty_list",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "make_list",
+      "typeParams": [
+        "T"
+      ],
+      "params": [
+        {
+          "name": "dummy",
+          "type": {
+            "kind": "TypeVar",
+            "name": "T"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "List",
+        "type": {
+          "kind": "TypeVar",
+          "name": "T"
+        }
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.empty"
+              },
+              "args": []
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

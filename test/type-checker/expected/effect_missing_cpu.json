@@ -1,0 +1,18 @@
+{
+  "file": "effect_missing_cpu.aster",
+  "module": "tests.typecheck.effects.cpu",
+  "functions": {
+    "hashText": {
+      "signature": "hashText(Text) -> Text",
+      "effects": [],
+      "capabilities": []
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "E201",
+      "severity": "error",
+      "message": "Function 'hashText' may perform CPU-bound work but is missing @cpu (or @io) effect."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "diagnostics": [
+    {
+      "code": "E207",
+      "severity": "warning",
+      "message": "函数 'processPaymentValid' 声明了 @io，但推断未发现 IO 副作用。"
+    },
+    {
+      "code": "E207",
+      "severity": "warning",
+      "message": "函数 'refundPaymentValid' 声明了 @io，但推断未发现 IO 副作用。"
+    }
+  ]
+}

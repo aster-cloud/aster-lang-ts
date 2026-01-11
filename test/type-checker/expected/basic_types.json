@@ -1,0 +1,12 @@
+{
+  "file": "basic_types.aster",
+  "module": "tests.typecheck.basic",
+  "functions": {
+    "add": {
+      "signature": "add(Int, Int) -> Int",
+      "effects": [],
+      "capabilities": []
+    }
+  },
+  "diagnostics": []
+}

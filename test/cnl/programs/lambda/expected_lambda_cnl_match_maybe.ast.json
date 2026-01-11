@@ -1,0 +1,127 @@
+{
+  "kind": "Module",
+  "name": "demo.lambdamatchmaybe",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "fromMaybe",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "value",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int",
+            "annotations": []
+          },
+          "typeInferred": true
+        },
+        {
+          "name": "fallback",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "f",
+            "expr": {
+              "kind": "Lambda",
+              "params": [
+                {
+                  "name": "candidate",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Bool",
+                    "annotations": []
+                  },
+                  "typeInferred": true
+                }
+              ],
+              "retType": {
+                "kind": "TypeName",
+                "name": "Unknown",
+                "annotations": []
+              },
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "Match",
+                    "expr": {
+                      "kind": "Name",
+                      "name": "candidate"
+                    },
+                    "cases": [
+                      {
+                        "kind": "Case",
+                        "pattern": {
+                          "kind": "PatternNull"
+                        },
+                        "body": {
+                          "kind": "Return",
+                          "expr": {
+                            "kind": "Name",
+                            "name": "fallback"
+                          }
+                        }
+                      },
+                      {
+                        "kind": "Case",
+                        "pattern": {
+                          "kind": "PatternName",
+                          "name": "actual"
+                        },
+                        "body": {
+                          "kind": "Return",
+                          "expr": {
+                            "kind": "Name",
+                            "name": "actual"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "f"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "value"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

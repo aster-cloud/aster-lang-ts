@@ -1,0 +1,396 @@
+{
+  "kind": "Module",
+  "name": "app",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "setIntVariable",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "initial",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "x",
+            "expr": {
+              "kind": "Name",
+              "name": "initial"
+            }
+          },
+          {
+            "kind": "Set",
+            "name": "x",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "+"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "x"
+                },
+                {
+                  "kind": "Int",
+                  "value": 10
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Name",
+              "name": "x"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "setBoolVariable",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "condition",
+          "type": {
+            "kind": "TypeName",
+            "name": "Bool"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Bool"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "flag",
+            "expr": {
+              "kind": "Name",
+              "name": "condition"
+            }
+          },
+          {
+            "kind": "Set",
+            "name": "flag",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "not"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "flag"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Name",
+              "name": "flag"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "setObjectVariable",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "text",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "message",
+            "expr": {
+              "kind": "Name",
+              "name": "text"
+            }
+          },
+          {
+            "kind": "Set",
+            "name": "message",
+            "expr": {
+              "kind": "String",
+              "value": "updated"
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Name",
+              "name": "message"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "setMultipleTimes",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "start",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "counter",
+            "expr": {
+              "kind": "Name",
+              "name": "start"
+            }
+          },
+          {
+            "kind": "Set",
+            "name": "counter",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "+"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "counter"
+                },
+                {
+                  "kind": "Int",
+                  "value": 1
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Set",
+            "name": "counter",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "*"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "counter"
+                },
+                {
+                  "kind": "Int",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Set",
+            "name": "counter",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "-"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "counter"
+                },
+                {
+                  "kind": "Int",
+                  "value": 3
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Name",
+              "name": "counter"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Func",
+      "name": "setWithLetMixed",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "a",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        },
+        {
+          "name": "b",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "x",
+            "expr": {
+              "kind": "Name",
+              "name": "a"
+            }
+          },
+          {
+            "kind": "Let",
+            "name": "y",
+            "expr": {
+              "kind": "Name",
+              "name": "b"
+            }
+          },
+          {
+            "kind": "Set",
+            "name": "x",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "+"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "x"
+                },
+                {
+                  "kind": "Name",
+                  "name": "y"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Set",
+            "name": "y",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "*"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "x"
+                },
+                {
+                  "kind": "Int",
+                  "value": 2
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "+"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "x"
+                },
+                {
+                  "kind": "Name",
+                  "name": "y"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

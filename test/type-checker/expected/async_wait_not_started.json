@@ -1,0 +1,23 @@
+{
+  "file": "async_wait_not_started.aster",
+  "module": "tests.typecheck.async.wait_not_started",
+  "functions": {
+    "fetchData": {
+      "signature": "fetchData(Text) -> Text",
+      "effects": [],
+      "capabilities": []
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "E501",
+      "severity": "error",
+      "message": "Waiting for async task 'profile' that was never started"
+    },
+    {
+      "code": "E504",
+      "severity": "error",
+      "message": "Wait for async task 'profile' occurs before any matching start"
+    }
+  ]
+}

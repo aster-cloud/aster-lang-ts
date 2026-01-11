@@ -1,0 +1,62 @@
+{
+  "kind": "Module",
+  "name": "test.pii.in_function",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "process_email",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "email",
+          "type": {
+            "kind": "PiiType",
+            "baseType": {
+              "kind": "TypeName",
+              "name": "Text"
+            },
+            "sensitivity": "L2",
+            "category": "email"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "piiLevel": "L2",
+      "piiCategories": [
+        "email"
+      ],
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "+"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "Processed: "
+                },
+                {
+                  "kind": "Name",
+                  "name": "email"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+ERROR: Function 'mixed' uses Secrets capability but header declares [Http, Files].
+INFO: Function 'mixed' declares Files capability but it is not used.

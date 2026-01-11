@@ -1,0 +1,2 @@
+ERROR: Type variable-like 'U' is used in 'bad' but not declared; declare it with 'of U'.
+ERROR: Type variable-like 'U' is used in 'bad' but not declared; declare it with 'of U'.

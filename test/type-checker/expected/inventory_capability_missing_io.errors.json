@@ -1,0 +1,9 @@
+{
+  "diagnostics": [
+    {
+      "code": "E303",
+      "severity": "error",
+      "message": "Function 'reserveInventoryInvalid' uses IO capabilities [Inventory] but is missing @io effect (e.g., Inventory.reserve)."
+    }
+  ]
+}

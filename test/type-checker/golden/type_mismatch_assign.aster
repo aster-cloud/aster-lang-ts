@@ -1,0 +1,7 @@
+This module is tests.typecheck.mismatch.assign.
+
+Define Entry with id, name.
+
+To makeBadEntry, produce:
+  Let entry be Entry(1, 2).
+  Return Text.concat(entry.name, "x").

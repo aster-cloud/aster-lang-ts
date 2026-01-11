@@ -1,0 +1,3 @@
+WARN: Function 'heavy_compute' declares @cpu but no obvious CPU-bound work found.
+WARN: Function 'process_cpu' declares @cpu but no obvious CPU-bound work found.
+WARN: 函数 'heavy_compute' 声明了 @cpu，但推断未发现 CPU 副作用。

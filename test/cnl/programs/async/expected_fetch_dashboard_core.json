@@ -1,0 +1,165 @@
+{
+  "kind": "Module",
+  "name": null,
+  "decls": [
+    {
+      "kind": "Data",
+      "name": "User",
+      "fields": [
+        {
+          "name": "id",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": []
+        },
+        {
+          "name": "name",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "kind": "Data",
+      "name": "Dash",
+      "fields": [
+        {
+          "name": "profile",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": []
+        },
+        {
+          "name": "timeline",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "constraints": []
+        }
+      ]
+    },
+    {
+      "kind": "Enum",
+      "name": "AuthErr",
+      "variants": [
+        "InvalidCreds",
+        "Locked"
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "fetchDashboard",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "u",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [
+        "IO"
+      ],
+      "effectCaps": [
+        "Http",
+        "Sql",
+        "Time",
+        "Files",
+        "Secrets",
+        "AiModel"
+      ],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Start",
+            "name": "profile",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "ProfileSvc.load"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "u.id"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Start",
+            "name": "timeline",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "FeedSvc.timeline"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "u.id"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Wait",
+            "names": [
+              "profile",
+              "timeline"
+            ]
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Ok",
+              "expr": {
+                "kind": "Call",
+                "target": {
+                  "kind": "Name",
+                  "name": "Dash"
+                },
+                "args": [
+                  {
+                    "kind": "Name",
+                    "name": "profile"
+                  },
+                  {
+                    "kind": "Name",
+                    "name": "timeline"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "declaredEffects": [
+        "IO"
+      ],
+      "retTypeInferred": true
+    }
+  ]
+}

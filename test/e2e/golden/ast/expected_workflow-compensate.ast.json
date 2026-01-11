@@ -1,0 +1,320 @@
+{
+  "kind": "Module",
+  "name": "demo.workflow.compensate",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "processOrder",
+      "typeParams": [],
+      "params": [],
+      "retType": {
+        "kind": "Result",
+        "ok": {
+          "kind": "TypeName",
+          "name": "Text",
+          "annotations": [],
+          "span": {
+            "start": {
+              "line": 3,
+              "col": 36
+            },
+            "end": {
+              "line": 3,
+              "col": 40
+            }
+          }
+        },
+        "err": {
+          "kind": "TypeName",
+          "name": "Text",
+          "annotations": [],
+          "span": {
+            "start": {
+              "line": 3,
+              "col": 45
+            },
+            "end": {
+              "line": 3,
+              "col": 49
+            }
+          }
+        },
+        "span": {
+          "start": {
+            "line": 3,
+            "col": 26
+          },
+          "end": {
+            "line": 3,
+            "col": 49
+          }
+        }
+      },
+      "effects": [
+        "io"
+      ],
+      "effectCaps": [
+        "Http",
+        "Sql",
+        "Time",
+        "Files",
+        "Secrets",
+        "AiModel"
+      ],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "workflow",
+            "steps": [
+              {
+                "kind": "step",
+                "name": "reserve",
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Ok",
+                        "expr": {
+                          "kind": "String",
+                          "value": "reserved",
+                          "span": {
+                            "start": {
+                              "line": 7,
+                              "col": 20
+                            },
+                            "end": {
+                              "line": 7,
+                              "col": 30
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": {
+                            "line": 7,
+                            "col": 14
+                          },
+                          "end": {
+                            "line": 7,
+                            "col": 30
+                          }
+                        }
+                      },
+                      "span": {
+                        "start": {
+                          "line": 7,
+                          "col": 7
+                        },
+                        "end": {
+                          "line": 7,
+                          "col": 31
+                        }
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": {
+                      "line": 7,
+                      "col": 7
+                    },
+                    "end": {
+                      "line": 7,
+                      "col": 31
+                    }
+                  }
+                },
+                "compensate": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Ok",
+                        "expr": {
+                          "kind": "String",
+                          "value": "released",
+                          "span": {
+                            "start": {
+                              "line": 10,
+                              "col": 20
+                            },
+                            "end": {
+                              "line": 10,
+                              "col": 30
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": {
+                            "line": 10,
+                            "col": 14
+                          },
+                          "end": {
+                            "line": 10,
+                            "col": 30
+                          }
+                        }
+                      },
+                      "span": {
+                        "start": {
+                          "line": 10,
+                          "col": 7
+                        },
+                        "end": {
+                          "line": 10,
+                          "col": 31
+                        }
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": {
+                      "line": 10,
+                      "col": 7
+                    },
+                    "end": {
+                      "line": 10,
+                      "col": 31
+                    }
+                  }
+                },
+                "span": {
+                  "start": {
+                    "line": 6,
+                    "col": 5
+                  },
+                  "end": {
+                    "line": 12,
+                    "col": 1
+                  }
+                }
+              },
+              {
+                "kind": "step",
+                "name": "execute",
+                "body": {
+                  "kind": "Block",
+                  "statements": [
+                    {
+                      "kind": "Return",
+                      "expr": {
+                        "kind": "Ok",
+                        "expr": {
+                          "kind": "String",
+                          "value": "executed",
+                          "span": {
+                            "start": {
+                              "line": 13,
+                              "col": 20
+                            },
+                            "end": {
+                              "line": 13,
+                              "col": 30
+                            }
+                          }
+                        },
+                        "span": {
+                          "start": {
+                            "line": 13,
+                            "col": 14
+                          },
+                          "end": {
+                            "line": 13,
+                            "col": 30
+                          }
+                        }
+                      },
+                      "span": {
+                        "start": {
+                          "line": 13,
+                          "col": 7
+                        },
+                        "end": {
+                          "line": 13,
+                          "col": 31
+                        }
+                      }
+                    }
+                  ],
+                  "span": {
+                    "start": {
+                      "line": 13,
+                      "col": 7
+                    },
+                    "end": {
+                      "line": 13,
+                      "col": 31
+                    }
+                  }
+                },
+                "span": {
+                  "start": {
+                    "line": 12,
+                    "col": 5
+                  },
+                  "end": {
+                    "line": 15,
+                    "col": 1
+                  }
+                }
+              }
+            ],
+            "span": {
+              "start": {
+                "line": 5,
+                "col": 3
+              },
+              "end": {
+                "line": 15,
+                "col": 4
+              }
+            }
+          }
+        ],
+        "span": {
+          "start": {
+            "line": 5,
+            "col": 3
+          },
+          "end": {
+            "line": 15,
+            "col": 4
+          }
+        }
+      },
+      "span": {
+        "start": {
+          "line": 3,
+          "col": 1
+        },
+        "end": {
+          "line": 16,
+          "col": 1
+        }
+      },
+      "nameSpan": {
+        "start": {
+          "line": 3,
+          "col": 4
+        },
+        "end": {
+          "line": 3,
+          "col": 16
+        }
+      }
+    }
+  ],
+  "span": {
+    "start": {
+      "line": 1,
+      "col": 1
+    },
+    "end": {
+      "line": 16,
+      "col": 1
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "kind": "Module",
+  "name": "demo.ifp",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "choose",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "flag",
+          "type": {
+            "kind": "TypeName",
+            "name": "Bool"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "If",
+            "cond": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "=="
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "flag"
+                },
+                {
+                  "kind": "String",
+                  "value": "Y"
+                }
+              ]
+            },
+            "thenBlock": {
+              "kind": "Block",
+              "statements": [
+                {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "Y"
+                  }
+                }
+              ]
+            },
+            "elseBlock": {
+              "kind": "Block",
+              "statements": [
+                {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "N"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

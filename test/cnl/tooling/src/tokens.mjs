@@ -1,0 +1,56 @@
+// Token kinds and keyword tables for Aster CNL v0 (en-US)
+import { TokenKind } from '../../src/types.js';
+
+// Locked v1 lexicon (en-US). Multi-word keywords are space-joined canonical forms.
+export const KW = {
+  MODULE_IS: 'this module is',
+  USE: 'use',
+  AS: 'as',
+  DEFINE: 'define',
+  WITH: 'with',
+  ONE_OF: 'as one of',
+  TO: 'to',
+  PRODUCE: 'produce',
+  PERFORMS: 'it performs',
+  IO: 'io',
+  CPU: 'cpu',
+  LET: 'let',
+  BE: 'be',
+  SET: 'set',
+  TO_WORD: 'to',
+  IF: 'if',
+  OTHERWISE: 'otherwise',
+  MATCH: 'match',
+  WHEN: 'when',
+  RETURN: 'return',
+  WITHIN: 'within',
+  SCOPE: 'scope',
+  START: 'start',
+  ASYNC: 'async',
+  WAIT_FOR: 'wait for',
+  FOR_EACH: 'for each',
+  IN: 'in',
+  MAYBE: 'maybe',
+  OPTION_OF: 'option of',
+  RESULT_OF: 'result of',
+  OR: 'or',
+  AND: 'and',
+  NULL: 'null',
+  TRUE: 'true',
+  FALSE: 'false',
+  TEXT: 'text',
+  INT: 'int',
+  FLOAT: 'float',
+  BOOL_TYPE: 'bool',
+  OK_OF: 'ok of',
+  ERR_OF: 'err of',
+  SOME_OF: 'some of',
+  NONE: 'none',
+  NOT: 'not',
+};
+
+export const Effects = {
+  IO: 'io',
+  CPU: 'cpu',
+};
+

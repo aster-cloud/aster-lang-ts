@@ -1,0 +1,16 @@
+{
+  "file": "workflow_retry_timeout_conflict.aster",
+  "module": "tests.typecheck.workflow.retry_timeout",
+  "diagnostics": [
+    {
+      "code": "W105",
+      "severity": "warning",
+      "message": "Workflow retry 配置可能不合理: retry(backoff=linear, maxAttempts=5) 预估累计等待 10秒，超过 timeout=3秒"
+    },
+    {
+      "code": "E003",
+      "severity": "error",
+      "message": "Return type mismatch: expected Workflow<Result<Text, Text>, IO>, got Workflow<Result<Unknown, Unknown>, PURE>"
+    }
+  ]
+}

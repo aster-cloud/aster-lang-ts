@@ -1,0 +1,9 @@
+This module is test.async.
+
+To processAsync with userId, produce:
+  Start task as async loadUser(userId).
+  Wait for task.
+  Return "Processed: " plus task.
+
+To loadUser with id, produce:
+  Return "User-" plus id.

@@ -1,0 +1,5 @@
+This module is demo.morecomments.  // header comment
+
+To compute, produce:  // x init
+  Let x be 1.  // add one
+  Return x plus 1.

@@ -1,0 +1,9 @@
+This module is aster.finance.fraud.
+
+Define Transaction with transactionId, amount.
+
+Define FraudResult with riskScore.
+
+To detectSimple with transaction, produce:
+  Let score be transaction.amount.
+  Return FraudResult with riskScore = score.

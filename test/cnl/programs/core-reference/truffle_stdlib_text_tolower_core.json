@@ -1,0 +1,56 @@
+{
+  "kind": "Module",
+  "name": "test.text.tolower",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "run",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "result",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.toLower"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "HELLO"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "Text.length"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "result"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

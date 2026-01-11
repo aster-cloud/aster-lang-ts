@@ -1,0 +1,53 @@
+{
+  "kind": "Module",
+  "name": "test.pii.param_return",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "validate_email",
+      "params": [
+        {
+          "name": "email",
+          "type": {
+            "kind": "PiiType",
+            "baseType": {
+              "kind": "TypeName",
+              "name": "Text"
+            },
+            "sensitivity": "L2",
+            "category": "email"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "PiiType",
+        "baseType": {
+          "kind": "TypeName",
+          "name": "Text"
+        },
+        "sensitivity": "L2",
+        "category": "email"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Name",
+              "name": "email"
+            }
+          }
+        ]
+      },
+      "piiLevel": "L2",
+      "piiCategories": [
+        "email"
+      ]
+    }
+  ]
+}

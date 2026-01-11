@@ -1,0 +1,10 @@
+{
+  "file": "effect_missing_cpu.aster",
+  "diagnostics": [
+    {
+      "code": "E201",
+      "severity": "error",
+      "message": "Function 'hashText' may perform CPU-bound work but is missing @cpu (or @io) effect."
+    }
+  ]
+}

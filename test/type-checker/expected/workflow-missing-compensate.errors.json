@@ -1,0 +1,10 @@
+{
+  "file": "workflow-missing-compensate.aster",
+  "diagnostics": [
+    {
+      "code": "E023",
+      "severity": "warning",
+      "message": "Step 'fetch' performs side effects but does not define a compensate block."
+    }
+  ]
+}

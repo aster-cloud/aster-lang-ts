@@ -1,0 +1,4 @@
+This module is test.eff.violation.empty_caps.
+
+To fetch, produce. It performs io:
+  Return Http.get("/data").

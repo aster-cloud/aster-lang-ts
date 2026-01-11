@@ -1,0 +1,7 @@
+This module is fixture.foo.
+
+Define User with id, name.
+
+To greet with u, produce:
+  Return Text.concat("Hi, ", u.name).
+

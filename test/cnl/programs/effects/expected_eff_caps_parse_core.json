@@ -1,0 +1,43 @@
+{
+  "kind": "Module",
+  "name": "demo.capcaps",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "ping",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [
+        "IO"
+      ],
+      "effectCaps": [
+        "Http",
+        "Sql",
+        "Time"
+      ],
+      "effectCapsExplicit": true,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "ok"
+            }
+          }
+        ]
+      },
+      "declaredEffects": [
+        "IO"
+      ],
+      "retTypeInferred": true
+    }
+  ]
+}

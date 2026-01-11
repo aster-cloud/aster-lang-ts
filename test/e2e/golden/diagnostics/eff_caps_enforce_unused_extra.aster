@@ -1,0 +1,4 @@
+This module is demo.capcaps.enforce_unused.
+
+To onlyHttp, produce. It performs io [Http, Sql]:
+  Return Http.get("/ping").

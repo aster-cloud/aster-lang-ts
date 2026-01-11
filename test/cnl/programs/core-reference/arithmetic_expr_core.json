@@ -1,0 +1,66 @@
+{
+  "kind": "Module",
+  "name": "app",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "calculate",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "x",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Double"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "+"
+              },
+              "args": [
+                {
+                  "kind": "Call",
+                  "target": {
+                    "kind": "Name",
+                    "name": "*"
+                  },
+                  "args": [
+                    {
+                      "kind": "Name",
+                      "name": "x"
+                    },
+                    {
+                      "kind": "Double",
+                      "value": 2.5
+                    }
+                  ]
+                },
+                {
+                  "kind": "Long",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

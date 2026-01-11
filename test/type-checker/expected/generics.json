@@ -1,0 +1,12 @@
+{
+  "file": "generics.aster",
+  "module": "tests.typecheck.generics",
+  "functions": {
+    "identity": {
+      "signature": "identity<T>(T) -> T",
+      "effects": [],
+      "capabilities": []
+    }
+  },
+  "diagnostics": []
+}

@@ -1,0 +1,129 @@
+{
+  "kind": "Module",
+  "name": "demo.lambdalengthcmp",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "isLongerThan",
+      "typeParams": [],
+      "params": [
+        {
+          "name": "s",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "annotations": []
+        },
+        {
+          "name": "n",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          },
+          "annotations": []
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Bool"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "pred",
+            "expr": {
+              "kind": "Lambda",
+              "params": [
+                {
+                  "name": "t",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Text"
+                  }
+                },
+                {
+                  "name": "k",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Int"
+                  }
+                }
+              ],
+              "retType": {
+                "kind": "TypeName",
+                "name": "Bool"
+              },
+              "ret": {
+                "kind": "TypeName",
+                "name": "Bool"
+              },
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "Return",
+                    "expr": {
+                      "kind": "Call",
+                      "target": {
+                        "kind": "Name",
+                        "name": ">"
+                      },
+                      "args": [
+                        {
+                          "kind": "Call",
+                          "target": {
+                            "kind": "Name",
+                            "name": "Text.length"
+                          },
+                          "args": [
+                            {
+                              "kind": "Name",
+                              "name": "t"
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "Name",
+                          "name": "k"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "captures": [
+                ">"
+              ]
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "pred"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "s"
+                },
+                {
+                  "kind": "Name",
+                  "name": "n"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

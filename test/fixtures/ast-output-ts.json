@@ -1,0 +1,20 @@
+{
+  "kind": "Program",
+  "body": [
+    {
+      "kind": "FunctionDecl",
+      "name": "greet",
+      "returnType": "String",
+      "params": [
+        {
+          "name": "name",
+          "type": "String"
+        }
+      ],
+      "span": {
+        "start": { "line": 1, "col": 0 },
+        "end": { "line": 3, "col": 1 }
+      }
+    }
+  ]
+}

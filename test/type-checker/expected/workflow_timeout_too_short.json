@@ -1,0 +1,16 @@
+{
+  "file": "workflow_timeout_too_short.aster",
+  "module": "tests.typecheck.workflow.timeout_short",
+  "diagnostics": [
+    {
+      "code": "W106",
+      "severity": "warning",
+      "message": "Workflow timeout 配置可能不合理: timeout=1000ms (1秒) 过短，可能导致正常操作超时"
+    },
+    {
+      "code": "E003",
+      "severity": "error",
+      "message": "Return type mismatch: expected Workflow<Result<Text, Text>, IO>, got Workflow<Result<Unknown, Unknown>, PURE>"
+    }
+  ]
+}

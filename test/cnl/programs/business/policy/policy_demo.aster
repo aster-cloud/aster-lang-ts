@@ -1,0 +1,19 @@
+This module is demo.policy_demo.
+
+To demonstratePolicyEngine, produce:
+  Return "Policy engine demonstration: Access granted".
+
+To runPolicyTest1, produce:
+  Return "Test 1: Admin access granted".
+
+To runPolicyTest2, produce:
+  Return "Test 2: User read own resource granted".
+
+To runPolicyTest3, produce:
+  Return "Test 3: User read other resource denied".
+
+To runPolicyTest4, produce:
+  Return "Test 4: User read own resource granted".
+
+To runPolicyTest5, produce:
+  Return "Test 5: User read own resource granted".

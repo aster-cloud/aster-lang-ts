@@ -1,0 +1,82 @@
+{
+  "kind": "Module",
+  "name": "demo.matchenum",
+  "decls": [
+    {
+      "kind": "Enum",
+      "name": "Err",
+      "variants": [
+        "NotFound",
+        "Invalid"
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "explain",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "e",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "constraints": [],
+          "typeInferred": true
+        }
+      ],
+      "ret": {
+        "kind": "TypeVar",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Name",
+              "name": "e"
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatName",
+                  "name": "NotFound"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "missing"
+                  }
+                }
+              },
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatName",
+                  "name": "Invalid"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "invalid"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

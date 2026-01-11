@@ -1,0 +1,141 @@
+{
+  "kind": "Module",
+  "name": "demo.nestedmatchdeep",
+  "decls": [
+    {
+      "kind": "Data",
+      "name": "Inner",
+      "fields": [
+        {
+          "name": "v",
+          "type": {
+            "kind": "TypeName",
+            "name": "Int"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "Data",
+      "name": "Mid",
+      "fields": [
+        {
+          "name": "inner",
+          "type": {
+            "kind": "TypeName",
+            "name": "Inner"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "Data",
+      "name": "Outer",
+      "fields": [
+        {
+          "name": "mid",
+          "type": {
+            "kind": "TypeName",
+            "name": "Mid"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "run",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "o",
+            "expr": {
+              "kind": "Construct",
+              "typeName": "Outer",
+              "fields": [
+                {
+                  "name": "mid",
+                  "expr": {
+                    "kind": "Construct",
+                    "typeName": "Mid",
+                    "fields": [
+                      {
+                        "name": "inner",
+                        "expr": {
+                          "kind": "Construct",
+                          "typeName": "Inner",
+                          "fields": [
+                            {
+                              "name": "v",
+                              "expr": {
+                                "kind": "Int",
+                                "value": 7
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Name",
+              "name": "o"
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatCtor",
+                  "typeName": "Outer",
+                  "names": [],
+                  "args": [
+                    {
+                      "kind": "PatCtor",
+                      "typeName": "Mid",
+                      "names": [],
+                      "args": [
+                        {
+                          "kind": "PatCtor",
+                          "typeName": "Inner",
+                          "names": [],
+                          "args": [
+                            {
+                              "kind": "PatName",
+                              "name": "x"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "Name",
+                    "name": "x"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

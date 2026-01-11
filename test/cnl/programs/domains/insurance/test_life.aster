@@ -1,0 +1,80 @@
+This module is test.insurance.life.
+
+Define Applicant with applicantId, age, gender, smoker, bmi, occupation, healthScore.
+
+Define PolicyRequest with coverageAmount, termYears, policyType.
+
+Define LifeQuote with approved, reason, monthlyPremium, coverageAmount, termYears.
+
+To calculateBaseRate with age, termYears, produce:
+  Return 0.
+To calculateHealthMultiplier with applicant, produce:
+  Return 0.
+To calculateOccupationMultiplier with occupation, produce:
+  Return 0.
+To calculateRiskScore with applicant, produce:
+  Return 0.
+To generateLifeQuote with applicant, request, produce:
+  Return 0.
+To testApplicantTooYoung, produce:
+  Return 0.
+To testApplicantTooOld, produce:
+  Return 0.
+To testHealthScoreTooLow, produce:
+  Return 0.
+To testCoverageExceedsMaximum, produce:
+  Return 0.
+To testYoungHealthyNonSmokerShortTerm, produce:
+  Return 0.
+To testYoungHealthyNonSmokerLongTerm, produce:
+  Return 0.
+To testMiddleAgedSmokerHighBMI, produce:
+  Return 0.
+To testMiddleAgedNonSmokerLowBMI, produce:
+  Return 0.
+To testOlderApplicantHealthy, produce:
+  Return 0.
+To testHighRiskOccupation, produce:
+  Return 0.
+To testModerateRiskOccupation, produce:
+  Return 0.
+To testOfficeWorkerLowRisk, produce:
+  Return 0.
+To testSmokerVeryHighBMI, produce:
+  Return 0.
+To testExcellentHealthHighScore, produce:
+  Return 0.
+To testCalculateBaseRateYoungShort, produce:
+  Return 0.
+To testCalculateBaseRateYoungLong, produce:
+  Return 0.
+To testCalculateBaseRateMiddleShort, produce:
+  Return 0.
+To testCalculateBaseRateMiddleLong, produce:
+  Return 0.
+To testCalculateBaseRateOlderShort, produce:
+  Return 0.
+To testCalculateBaseRateOlderLong, produce:
+  Return 0.
+To testCalculateBaseRateSeniorShort, produce:
+  Return 0.
+To testCalculateHealthMultiplierClean, produce:
+  Return 0.
+To testCalculateHealthMultiplierSmoker, produce:
+  Return 0.
+To testCalculateHealthMultiplierHighBMI, produce:
+  Return 0.
+To testCalculateHealthMultiplierExcellent, produce:
+  Return 0.
+To testCalculateOccupationMultiplierHighRisk, produce:
+  Return 0.
+To testCalculateOccupationMultiplierModerate, produce:
+  Return 0.
+To testCalculateOccupationMultiplierOffice, produce:
+  Return 0.
+To testCalculateOccupationMultiplierUnknown, produce:
+  Return 0.
+To testCalculateRiskScoreLowRisk, produce:
+  Return 0.
+To testCalculateRiskScoreHighRisk, produce:
+  Return 0.

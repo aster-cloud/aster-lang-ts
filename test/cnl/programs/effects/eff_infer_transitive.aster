@@ -1,0 +1,10 @@
+This module is demo.eff_infer_transitive.
+
+To leafIO, produce. It performs io:
+  Return Http.get("https://example.com").
+
+To middleCPU, produce. It performs cpu:
+  Return leafIO().
+
+To rootIO, produce. It performs io:
+  Return middleCPU().

@@ -1,0 +1,105 @@
+{
+  "kind": "Module",
+  "name": null,
+  "decls": [
+    {
+      "kind": "Enum",
+      "name": "AuthErr",
+      "variants": [
+        "InvalidCreds",
+        "Locked"
+      ],
+      "variantSpans": [
+        {
+          "start": {
+            "line": 1,
+            "col": 26
+          },
+          "end": {
+            "line": 1,
+            "col": 38
+          }
+        },
+        {
+          "start": {
+            "line": 1,
+            "col": 40
+          },
+          "end": {
+            "line": 1,
+            "col": 46
+          }
+        }
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "show2",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "e",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text",
+            "annotations": []
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Name",
+              "name": "e"
+            },
+            "cases": [
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatternName",
+                  "name": "InvalidCreds"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "bad"
+                  }
+                }
+              },
+              {
+                "kind": "Case",
+                "pattern": {
+                  "kind": "PatternName",
+                  "name": "x"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "other"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

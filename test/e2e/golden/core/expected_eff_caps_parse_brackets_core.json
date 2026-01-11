@@ -1,0 +1,37 @@
+{
+  "kind": "Module",
+  "name": "demo.capcaps.brackets",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "ping",
+      "typeParams": [],
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [
+        "IO"
+      ],
+      "effectCaps": [
+        "Http",
+        "Sql",
+        "Time"
+      ],
+      "effectCapsExplicit": true,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "ok"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "kind": "Module",
+  "name": "demo.lambdaInt",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "callInt",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Int"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Let",
+            "name": "f",
+            "expr": {
+              "kind": "Lambda",
+              "params": [
+                {
+                  "name": "i",
+                  "type": {
+                    "kind": "TypeName",
+                    "name": "Int"
+                  }
+                }
+              ],
+              "ret": {
+                "kind": "TypeName",
+                "name": "Int"
+              },
+              "body": {
+                "kind": "Block",
+                "statements": [
+                  {
+                    "kind": "Return",
+                    "expr": {
+                      "kind": "Name",
+                      "name": "i"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "f"
+              },
+              "args": [
+                {
+                  "kind": "Int",
+                  "value": 7
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

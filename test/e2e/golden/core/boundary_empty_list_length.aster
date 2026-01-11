@@ -1,0 +1,4 @@
+This module is boundary.list.empty.length.
+
+To main, produce:
+  Return List.length(List.empty()).

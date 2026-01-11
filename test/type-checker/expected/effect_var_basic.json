@@ -1,0 +1,17 @@
+{
+  "file": "effect_var_basic.aster",
+  "module": "test.effect_var",
+  "functions": {
+    "identity": {
+      "signature": "identity(T with E) -> T",
+      "effects": ["E"],
+      "capabilities": []
+    },
+    "caller": {
+      "signature": "caller() -> Unit",
+      "effects": ["IO"],
+      "capabilities": []
+    }
+  },
+  "diagnostics": []
+}

@@ -1,0 +1,49 @@
+// Deutsche Operatoren - Arithmetische und Vergleichsoperatoren
+Dieses Modul ist test.operatoren.
+
+// Arithmetische Operationen
+zahlenAddieren mit a, b, liefert:
+  gib zurueck a plus b.
+
+zahlenSubtrahieren mit a, b, liefert:
+  gib zurueck a minus b.
+
+zahlenMultiplizieren mit a, b, liefert:
+  gib zurueck a mal b.
+
+zahlenDividieren mit a, b, liefert:
+  gib zurueck a geteilt durch b.
+
+// Vergleichsoperationen
+istGroesser mit a, b, liefert:
+  gib zurueck a groesser als b.
+
+istKleiner mit a, b, liefert:
+  gib zurueck a kleiner als b.
+
+sindGleich mit a, b, liefert:
+  gib zurueck a entspricht b.
+
+// Boolesche Operationen
+beideWahr mit a, b, liefert:
+  wenn a entspricht wahr:
+    wenn b entspricht wahr:
+      gib zurueck wahr.
+  gib zurueck falsch.
+
+einesWahr mit a, b, liefert:
+  wenn a entspricht wahr:
+    gib zurueck wahr.
+  wenn b entspricht wahr:
+    gib zurueck wahr.
+  gib zurueck falsch.
+
+negieren mit a, liefert:
+  gib zurueck nicht a.
+
+// Kombinierter Ausdruck
+komplexeBerechnung mit a, b, c, liefert:
+  sei summe gleich a plus b.
+  sei produkt gleich summe mal c.
+  sei resultat gleich produkt minus a.
+  gib zurueck resultat.

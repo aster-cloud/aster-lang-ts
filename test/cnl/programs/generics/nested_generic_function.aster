@@ -1,0 +1,5 @@
+This module is demo.nested_generic.
+
+To wrap with value, produce:
+  Let result be helper(value).
+  Return some of result.

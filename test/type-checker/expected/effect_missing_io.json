@@ -1,0 +1,18 @@
+{
+  "file": "effect_missing_io.aster",
+  "module": "tests.typecheck.effects.io",
+  "functions": {
+    "fetchUser": {
+      "signature": "fetchUser() -> Text",
+      "effects": [],
+      "capabilities": []
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "E200",
+      "severity": "error",
+      "message": "Function 'fetchUser' may perform I/O but is missing @io effect."
+    }
+  ]
+}

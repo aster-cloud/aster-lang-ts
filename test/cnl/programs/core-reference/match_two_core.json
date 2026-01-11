@@ -1,0 +1,81 @@
+{
+  "kind": "Module",
+  "name": "app.match",
+  "decls": [
+    {
+      "kind": "Data",
+      "name": "Color",
+      "fields": [
+        {
+          "name": "name",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "pick",
+      "params": [
+        {
+          "name": "v",
+          "type": {
+            "kind": "TypeName",
+            "name": "Color"
+          }
+        }
+      ],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Match",
+            "expr": {
+              "kind": "Name",
+              "name": "v"
+            },
+            "cases": [
+              {
+                "pattern": {
+                  "kind": "PatNull"
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "none"
+                  }
+                }
+              },
+              {
+                "pattern": {
+                  "kind": "PatCtor",
+                  "typeName": "Color",
+                  "names": [
+                    "n"
+                  ]
+                },
+                "body": {
+                  "kind": "Return",
+                  "expr": {
+                    "kind": "String",
+                    "value": "color"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+This module is test.eff.violation.pure_calls_cpu.
+
+To compute, produce. It performs cpu:
+  Return 42 plus 58.
+
+To calc, produce:
+  Return compute().

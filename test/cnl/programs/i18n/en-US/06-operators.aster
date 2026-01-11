@@ -1,0 +1,49 @@
+// English Operators - Arithmetic and comparison operators
+This module is test.operators.
+
+// Arithmetic operations
+To addNumbers with a, b, produce:
+  Return a plus b.
+
+To subtractNumbers with a, b, produce:
+  Return a minus b.
+
+To multiplyNumbers with a, b, produce:
+  Return a times b.
+
+To divideNumbers with a, b, produce:
+  Return a divided by b.
+
+// Comparison operations
+To isGreater with a, b, produce:
+  Return a greater than b.
+
+To isLesser with a, b, produce:
+  Return a less than b.
+
+To areEqual with a, b, produce:
+  Return a equals to b.
+
+// Boolean operations
+To bothTrue with a, b, produce:
+  If a equals to true:
+    If b equals to true:
+      Return true.
+  Return false.
+
+To eitherTrue with a, b, produce:
+  If a equals to true:
+    Return true.
+  If b equals to true:
+    Return true.
+  Return false.
+
+To negate with a, produce:
+  Return not a.
+
+// Combined expression
+To complexCalc with a, b, c, produce:
+  Let sum be a plus b.
+  Let product be sum times c.
+  Let result be product minus a.
+  Return result.

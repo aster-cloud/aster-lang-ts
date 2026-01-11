@@ -1,0 +1,76 @@
+{
+  "kind": "Module",
+  "name": "test.pii.in_data",
+  "decls": [
+    {
+      "kind": "Data",
+      "name": "User",
+      "fields": [
+        {
+          "name": "email",
+          "type": {
+            "kind": "PiiType",
+            "baseType": {
+              "kind": "TypeName",
+              "name": "Text"
+            },
+            "sensitivity": "L2",
+            "category": "email"
+          },
+          "annotations": []
+        },
+        {
+          "name": "name",
+          "type": {
+            "kind": "PiiType",
+            "baseType": {
+              "kind": "TypeName",
+              "name": "Text"
+            },
+            "sensitivity": "L1",
+            "category": "name"
+          },
+          "annotations": []
+        }
+      ]
+    },
+    {
+      "kind": "Func",
+      "name": "create_user",
+      "typeParams": [],
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "User"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "User"
+              },
+              "args": [
+                {
+                  "kind": "String",
+                  "value": "test@example.com"
+                },
+                {
+                  "kind": "String",
+                  "value": "John"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

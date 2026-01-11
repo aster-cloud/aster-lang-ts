@@ -1,0 +1,6 @@
+This module is test.pii.in_data.
+
+Define User with email, name.
+
+To create_user, produce:
+  Return User("test@example.com", "John").

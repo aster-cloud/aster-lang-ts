@@ -1,0 +1,10 @@
+{
+  "file": "effect_var_basic.aster",
+  "diagnostics": [
+    {
+      "code": "E211",
+      "severity": "error",
+      "message": "效应变量 E 无法推断出具体效果"
+    }
+  ]
+}

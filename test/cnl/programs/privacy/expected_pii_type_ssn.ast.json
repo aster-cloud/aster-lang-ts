@@ -1,0 +1,35 @@
+{
+  "kind": "Module",
+  "name": "test.pii.ssn",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "get_ssn",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown",
+        "annotations": []
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "123-45-6789"
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    }
+  ]
+}

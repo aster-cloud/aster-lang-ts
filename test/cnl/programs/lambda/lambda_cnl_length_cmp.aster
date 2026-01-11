@@ -1,0 +1,4 @@
+This module is demo.lambdalengthcmp.
+
+To isLongerThan with s, n, produce:
+  Return pred(s, n).

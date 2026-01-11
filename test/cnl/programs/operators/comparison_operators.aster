@@ -1,0 +1,10 @@
+This module is demo.comparison.
+
+To testGreaterThanOrEqual with a, b, produce:
+  Return 0.
+To testLessThanOrEqual with a, b, produce:
+  Return 0.
+To testNotEqual with a, b, produce:
+  Return 0.
+To testInRange with value, min, max, produce:
+  Return 0.

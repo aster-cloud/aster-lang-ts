@@ -1,0 +1,22 @@
+{
+  "file": "capability_missing_decl.aster",
+  "module": "tests.typecheck.capabilities",
+  "functions": {
+    "readSecret": {
+      "signature": "readSecret() -> Text",
+      "effects": [
+        "io"
+      ],
+      "capabilities": [
+        "Http"
+      ]
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "E301",
+      "severity": "error",
+      "message": "Function 'readSecret' uses Secrets capability but header declares [Http]."
+    }
+  ]
+}

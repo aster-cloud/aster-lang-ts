@@ -1,0 +1,6 @@
+This module is demo.match.
+
+To classify with v, produce:
+  Match v:
+    When null, Return "none".
+    When value, Return "some".

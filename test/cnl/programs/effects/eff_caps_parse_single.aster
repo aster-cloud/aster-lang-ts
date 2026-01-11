@@ -1,0 +1,4 @@
+This module is demo.capcaps.single.
+
+To ping, produce. It performs io [Http]:
+  Return "ok".

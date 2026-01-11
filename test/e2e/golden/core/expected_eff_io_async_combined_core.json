@@ -1,0 +1,35 @@
+{
+  "kind": "Module",
+  "name": "test.effects.io_async",
+  "decls": [
+    {
+      "kind": "Func",
+      "name": "fetch_data",
+      "params": [],
+      "ret": {
+        "kind": "TypeName",
+        "name": "Text"
+      },
+      "effects": [
+        "IO"
+      ],
+      "effectCaps": [
+        "Http",
+        "Sql"
+      ],
+      "effectCapsExplicit": true,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "String",
+              "value": "combined"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

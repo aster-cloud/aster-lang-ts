@@ -1,0 +1,4 @@
+This module is error.div.zero.
+
+To main, produce:
+  Return div(10, 0).

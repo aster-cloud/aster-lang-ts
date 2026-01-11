@@ -1,0 +1,46 @@
+This module is test.healthcare.eligibility.
+
+Define Patient with patientId, age, hasInsurance, insuranceType, chronicConditions.
+
+Define Service with serviceCode, serviceName, basePrice, requiresPreAuth.
+
+Define EligibilityCheck with eligible, reason, coveragePercent, estimatedCost, requiresPreAuth.
+
+To determineMinorCoverage with insuranceType, service, produce:
+  Return 0.
+To determineSeniorCoverage with insuranceType, service, produce:
+  Return 0.
+To determineStandardCoverage with insuranceType, service, chronicConditions, produce:
+  Return 0.
+To calculatePatientCost with basePrice, coveragePercent, produce:
+  Return 0.
+To checkServiceEligibility with patient, service, produce:
+  Return 0.
+To testNoInsurance, produce:
+  Return 0.
+To testMinorPremiumCoverage, produce:
+  Return 0.
+To testMinorStandardCoverage, produce:
+  Return 0.
+To testMinorBasicCoverage, produce:
+  Return 0.
+To testSeniorMedicareCoverage, produce:
+  Return 0.
+To testSeniorPremiumCoverage, produce:
+  Return 0.
+To testSeniorStandardCoverage, produce:
+  Return 0.
+To testStandardPremiumHighChronic, produce:
+  Return 0.
+To testStandardPremiumLowChronic, produce:
+  Return 0.
+To testStandardStandardHighChronic, produce:
+  Return 0.
+To testStandardStandardLowChronic, produce:
+  Return 0.
+To testStandardBasicCoverage, produce:
+  Return 0.
+To testStandardUnknownInsurance, produce:
+  Return 0.
+To testCalculatePatientCost, produce:
+  Return 0.
