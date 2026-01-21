@@ -1,6 +1,6 @@
 {
   "name": "@aster-cloud/aster-lang-ts",
-  "version": "0.0.1",
+  "version": "0.0.8",
   "description": "Aster CNL (Controlled Natural Language) TypeScript Compiler - Lexer, Parser, AST, Core IR, Type Checker",
   "type": "module",
   "main": "./dist/src/index.js",
@@ -45,6 +45,30 @@
     "./token-kind": {
       "types": "./dist/src/config/token-kind.d.ts",
       "import": "./dist/src/config/token-kind.js"
+    },
+    "./typecheck": {
+      "types": "./dist/src/typecheck/index.d.ts",
+      "import": "./dist/src/typecheck/index.js"
+    },
+    "./lsp": {
+      "types": "./dist/src/lsp/index.d.ts",
+      "import": "./dist/src/lsp/index.js"
+    },
+    "./lsp/server": {
+      "types": "./dist/src/lsp/server.d.ts",
+      "import": "./dist/src/lsp/server.js"
+    },
+    "./lsp/diagnostics": {
+      "types": "./dist/src/lsp/diagnostics.d.ts",
+      "import": "./dist/src/lsp/diagnostics.js"
+    },
+    "./browser": {
+      "types": "./dist/src/browser.d.ts",
+      "import": "./dist/src/browser.js"
+    },
+    "./browser/bundle": {
+      "types": "./dist/src/browser.d.ts",
+      "import": "./dist/browser.bundle.js"
     }
   },
   "bin": {
@@ -55,6 +79,7 @@
   },
   "scripts": {
     "build": "tsc && node dist/scripts/build-peg.js",
+    "build:browser": "pnpm run build && node scripts/build-browser.js",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",
     "dev": "pnpm run build:watch",
@@ -126,6 +151,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
+    "esbuild": "^0.24.0",
     "@types/node": "^24.6.0",
     "@typescript-eslint/eslint-plugin": "^8.48.1",
     "@typescript-eslint/parser": "^8.45.0",
