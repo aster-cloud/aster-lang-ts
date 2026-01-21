@@ -200,8 +200,6 @@ export function invalidateTypecheckCache(uri: string): void {
     typecheckCache.delete(depUri);
     removeFromDependentsMap(depUri);
   }
-
-  console.log(`[TypecheckCache] Invalidated ${uri} and ${dependentUris.size} dependents`);
 }
 
 /**
@@ -222,7 +220,8 @@ export async function loadCapabilityManifest(): Promise<CapabilityManifest | nul
     manifestCache = { path, data };
     return data;
   } catch (error) {
-    console.log('Failed to load capability manifest:', error);
+    // Use stderr to avoid corrupting the LSP protocol stream on stdout
+    console.error('[Diagnostics] Failed to load capability manifest:', error);
     manifestCache = { path, data: null };
     return null;
   }
@@ -266,7 +265,8 @@ export async function computeDiagnostics(
     // 缓存命中，直接返回
     const duration = Date.now() - startTime;
     if (duration > 1) {
-      console.log(`[Diagnostics] Cache hit for ${uri} (${duration}ms)`);
+      // Use stderr to avoid corrupting the LSP protocol stream on stdout
+      console.error(`[Diagnostics] Cache hit for ${uri} (${duration}ms)`);
     }
     return cached.diagnostics;
   }
@@ -294,7 +294,8 @@ export async function computeDiagnostics(
       if (tcCached && tcCached.version === version && tcCached.moduleName === moduleName) {
         // 缓存命中，直接使用缓存的类型检查结果
         tdiags = tcCached.diagnostics;
-        console.log(`[TypecheckCache] Cache hit for ${uri} (module: ${moduleName})`);
+        // Use stderr to avoid corrupting the LSP protocol stream on stdout
+        console.error(`[TypecheckCache] Cache hit for ${uri} (module: ${moduleName})`);
       } else {
         // 缓存未命中或版本不匹配，执行类型检查
         const typecheckStart = Date.now();
@@ -319,7 +320,8 @@ export async function computeDiagnostics(
         removeFromDependentsMap(uri); // 先清除旧的依赖关系
         updateDependentsMap(uri, imports);
 
-        console.log(`[TypecheckCache] Cached ${uri} (module: ${moduleName}, typecheck: ${typecheckTime}ms, imports: ${imports.length})`);
+        // Use stderr to avoid corrupting the LSP protocol stream on stdout
+        console.error(`[TypecheckCache] Cached ${uri} (module: ${moduleName}, typecheck: ${typecheckTime}ms, imports: ${imports.length})`);
       }
 
       // 转换为 LSP Diagnostic 格式
@@ -511,6 +513,39 @@ export async function computeWorkspaceDiagnostics(
   return results;
 }
 
+// 保存 connection 引用用于推送诊断
+let connectionRef: Connection | null = null;
+let documentsRef: { get(uri: string): TextDocument | undefined } | null = null;
+let getOrParseRef: ((doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any }) | null = null;
+
+/**
+ * 推送诊断到客户端（push-based diagnostics）。
+ * 用于在文档变更后主动向客户端发送诊断信息。
+ * @param uri 文档 URI
+ */
+export async function pushDiagnostics(uri: string): Promise<void> {
+  if (!connectionRef || !documentsRef || !getOrParseRef) {
+    return;
+  }
+
+  const doc = documentsRef.get(uri);
+  if (!doc) {
+    return;
+  }
+
+  try {
+    const diagnostics = await computeDiagnostics(doc, getOrParseRef);
+    connectionRef.sendDiagnostics({
+      uri,
+      version: doc.version,
+      diagnostics,
+    });
+  } catch (error) {
+    // 发送诊断失败时不阻塞，仅记录错误
+    console.error(`[Diagnostics] Failed to push diagnostics for ${uri}:`, error);
+  }
+}
+
 /**
  * 注册诊断相关的 LSP 请求处理器。
  * @param connection LSP 连接对象。
@@ -522,6 +557,10 @@ export function registerDiagnosticHandlers(
   documents: { get(uri: string): TextDocument | undefined },
   getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any }
 ): void {
+  // 保存引用用于推送诊断
+  connectionRef = connection;
+  documentsRef = documents;
+  getOrParseRef = getOrParse;
   // LSP 3.17+ pull diagnostics handler
   connection.onRequest(
     DocumentDiagnosticRequest.type,

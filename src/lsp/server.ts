@@ -50,6 +50,7 @@ import {
   invalidateTypecheckCache,
   computeWorkspaceDiagnostics,
   setModuleSearchRoots,
+  pushDiagnostics,
 } from './diagnostics.js';
 import { registerCompletionHandlers, typeText } from './completion.js';
 import {
@@ -414,17 +415,28 @@ documents.onDidClose(e => {
   documentSettings.delete(e.document.uri);
 });
 
+// Push initial diagnostics when a document is opened
+documents.onDidOpen(async (e) => {
+  try {
+    // Small delay to ensure document is fully initialized
+    setTimeout(async () => {
+      try { await pushDiagnostics(e.document.uri); } catch {}
+    }, 100);
+  } catch {}
+});
+
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
 documents.onDidChangeContent(change => {
   const uri = change.document.uri;
   const prev = pendingValidate.get(uri);
   if (prev) clearTimeout(prev);
-  const handle = setTimeout(() => {
+  const handle = setTimeout(async () => {
     pendingValidate.delete(uri);
-    // Diagnostics are now served via pull (textDocument/diagnostic).
-    // We still parse to keep caches warm for fast responses.
+    // Parse to keep caches warm for fast responses
     try { void getOrParse(change.document); } catch {}
+    // Push diagnostics to client (for clients that don't support pull-based diagnostics)
+    try { await pushDiagnostics(uri); } catch {}
   }, 150);
   pendingValidate.set(uri, handle);
   // Clear diagnostic cache when document changes
