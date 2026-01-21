@@ -51,5 +51,25 @@ export { Core, Effect } from './core/core_ir.js';
 export { TokenKind, KW } from './frontend/tokens.js';
 export { Node } from './ast/ast.js';
 
+// 类型检查
+export {
+  typecheckModule,
+  typecheckModuleWithCapabilities,
+  loadImportedEffects,
+} from './typecheck.js';
+export type { TypecheckDiagnostic, TypecheckOptions } from './typecheck.js';
+
+// 输入值生成器（用于策略执行时自动生成示例输入）
+export {
+  generateFieldValue,
+  generateInputValues,
+  getFieldValueHint,
+} from './parser/input-generator.js';
+export type {
+  TypeKind,
+  FieldInfo,
+  ParameterInfo,
+} from './parser/input-generator.js';
+
 // 类型定义重导出
 export type * from './types.js';

@@ -1,0 +1,494 @@
+/**
+ * @module @aster-cloud/aster-lang-ts/browser
+ *
+ * Lightweight browser/edge-compatible entry point for Aster CNL compiler.
+ * This module excludes Node.js dependencies and is suitable for:
+ * - Browser-based editors
+ * - Cloudflare Workers/Pages
+ * - Edge runtimes (Vercel Edge, Deno Deploy, etc.)
+ *
+ * **Compilation Pipeline**:
+ * ```
+ * CNL Source → canonicalize → lex → parse → AST → lowerModule → Core IR → typecheck
+ * ```
+ *
+ * @example Basic compilation
+ * ```typescript
+ * import { compile, compileWithDiagnostics } from '@aster-cloud/aster-lang-ts/browser';
+ *
+ * const source = `This module is app. To greet name String, produce String: Return "Hello, " + name.`;
+ * const result = compile(source);
+ *
+ * if (result.success) {
+ *   console.log('Compiled Core IR:', result.core);
+ * } else {
+ *   console.error('Compilation errors:', result.errors);
+ * }
+ * ```
+ */
+
+// Core compilation pipeline functions
+export { canonicalize } from './frontend/canonicalizer.js';
+export { lex } from './frontend/lexer.js';
+export { parse } from './parser.js';
+export { lowerModule } from './lower_to_core.js';
+
+// Keyword translation (multi-language CNL support)
+export {
+  createKeywordTranslator,
+  buildKeywordTranslationIndex,
+  buildFullTranslationIndex,
+  translateTokens,
+  translateTokensWithMarkers,
+  translateToken,
+  needsKeywordTranslation,
+} from './frontend/keyword-translator.js';
+export type {
+  KeywordTranslationIndex,
+  MarkerKeywordIndex,
+  TranslationIndexResult,
+} from './frontend/keyword-translator.js';
+
+// Core types and enums
+export { Core, Effect } from './core/core_ir.js';
+export { TokenKind, KW } from './frontend/tokens.js';
+export { Node } from './ast/ast.js';
+
+// Input value generation (for policy execution)
+export {
+  generateFieldValue,
+  generateInputValues,
+  getFieldValueHint,
+} from './parser/input-generator.js';
+export type {
+  TypeKind,
+  FieldInfo,
+  ParameterInfo,
+} from './parser/input-generator.js';
+
+// Type definitions re-export
+export type * from './types.js';
+
+// Lexicons for multi-language support
+export { EN_US, ZH_CN, DE_DE, LexiconRegistry, initializeDefaultLexicons } from './config/lexicons/index.js';
+export type { Lexicon } from './config/lexicons/types.js';
+
+// ============================================================================
+// High-level compilation API (browser-friendly)
+// ============================================================================
+
+import { canonicalize } from './frontend/canonicalizer.js';
+import { lex } from './frontend/lexer.js';
+import { parse } from './parser.js';
+import { lowerModule } from './lower_to_core.js';
+import type { Core as CoreTypes, Token, Module as AstModule } from './types.js';
+import type { Lexicon } from './config/lexicons/types.js';
+import { typecheckBrowser as _typecheckBrowser } from './typecheck/browser.js';
+
+/**
+ * Compilation result with success/failure status
+ */
+export interface CompileResult {
+  /** Whether compilation succeeded */
+  success: boolean;
+  /** Compiled Core IR module (if successful) */
+  core?: CoreTypes.Module;
+  /** Parse errors (if any) */
+  parseErrors?: string[];
+  /** Lowering errors (if any) */
+  loweringErrors?: string[];
+  /** Raw tokens from lexer (only when includeIntermediates is true) */
+  tokens?: Token[];
+  /** AST from parser (only when includeIntermediates is true) */
+  ast?: AstModule;
+}
+
+/**
+ * Compilation options
+ */
+export interface CompileOptions {
+  /** CNL lexicon (default: EN_US). Pass a Lexicon object from the exports. */
+  lexicon?: Lexicon;
+  /** Include intermediate representations in result */
+  includeIntermediates?: boolean;
+}
+
+/**
+ * Compile CNL source code to Core IR
+ *
+ * This is the main compilation function for browser/edge use.
+ * It runs the full compilation pipeline without type checking
+ * (type checking requires module resolution which needs file system access).
+ *
+ * @param source - CNL source code
+ * @param options - Compilation options
+ * @returns Compilation result with Core IR or errors
+ *
+ * @example
+ * ```typescript
+ * const result = compile(`
+ *   This module is pricing.
+ *   To calculate_discount amount Number, produce Number:
+ *     If amount > 100 then Return amount * 0.1
+ *     Otherwise Return 0.
+ * `);
+ *
+ * if (result.success) {
+ *   console.log(result.core);
+ * }
+ * ```
+ */
+export function compile(source: string, options?: CompileOptions): CompileResult {
+  try {
+    // Step 1: Canonicalize source
+    const canonical = canonicalize(source);
+
+    // Step 2: Lexical analysis
+    const tokens = lex(canonical, options?.lexicon);
+
+    // Step 3: Parse to AST
+    const ast = parse(tokens);
+
+    // Check for parse errors
+    if ('error' in ast || !ast) {
+      const result: CompileResult = {
+        success: false,
+        parseErrors: ['error' in ast ? (ast as { error: string }).error : 'Parse failed'],
+      };
+      if (options?.includeIntermediates) {
+        result.tokens = tokens;
+      }
+      return result;
+    }
+
+    // Step 4: Lower to Core IR
+    const core = lowerModule(ast);
+
+    const result: CompileResult = {
+      success: true,
+      core,
+    };
+    if (options?.includeIntermediates) {
+      result.tokens = tokens;
+      result.ast = ast;
+    }
+    return result;
+  } catch (error) {
+    return {
+      success: false,
+      loweringErrors: [error instanceof Error ? error.message : String(error)],
+    };
+  }
+}
+
+/**
+ * Validate CNL source code syntax without full compilation
+ *
+ * This is a lightweight validation that only runs lexer and parser,
+ * useful for real-time editor validation.
+ *
+ * @param source - CNL source code
+ * @param lexicon - CNL lexicon (optional, defaults to EN_US)
+ * @returns Array of error messages (empty if valid)
+ */
+export function validateSyntax(source: string, lexicon?: Lexicon): string[] {
+  try {
+    const canonical = canonicalize(source);
+    const tokens = lex(canonical, lexicon);
+    const ast = parse(tokens);
+
+    if ('error' in ast) {
+      return [(ast as { error: string }).error];
+    }
+
+    return [];
+  } catch (error) {
+    return [error instanceof Error ? error.message : String(error)];
+  }
+}
+
+/**
+ * Get tokens from CNL source (for syntax highlighting)
+ *
+ * @param source - CNL source code
+ * @param lexicon - CNL lexicon (optional, defaults to EN_US)
+ * @returns Array of tokens
+ */
+export function tokenize(source: string, lexicon?: Lexicon): Token[] {
+  const canonical = canonicalize(source);
+  return lex(canonical, lexicon);
+}
+
+// ============================================================================
+// Schema extraction API (for dynamic form generation)
+// ============================================================================
+
+import type { TypeKind, ParameterInfo, FieldInfo } from './parser/input-generator.js';
+import type { Module, Declaration, Func, Data, Type } from './types.js';
+
+/**
+ * Schema extraction result
+ */
+export interface SchemaResult {
+  /** Whether extraction succeeded */
+  success: boolean;
+  /** Module name */
+  moduleName?: string;
+  /** Function name */
+  functionName?: string;
+  /** Parameter schema */
+  parameters?: ParameterInfo[];
+  /** Error message if failed */
+  error?: string;
+}
+
+/**
+ * Schema extraction options
+ */
+export interface SchemaOptions {
+  /** CNL lexicon (default: EN_US) */
+  lexicon?: Lexicon;
+  /** Target function name (default: first function) */
+  functionName?: string;
+}
+
+/**
+ * Convert AST Type to type kind
+ */
+function getTypeKind(type: Type): TypeKind {
+  if (!type || typeof type !== 'object' || !('kind' in type)) {
+    return 'unknown';
+  }
+
+  switch (type.kind) {
+    case 'TypeName': {
+      const name = type.name.toLowerCase();
+      if (['int', 'float', 'double', 'number', 'bool', 'boolean', 'text', 'string', 'datetime', 'date', 'time'].includes(name)) {
+        return 'primitive';
+      }
+      // Custom type names are typically structs
+      return 'struct';
+    }
+    case 'List':
+      return 'list';
+    case 'Map':
+      return 'map';
+    case 'Option':
+    case 'Maybe':
+      return 'option';
+    case 'Result':
+      return 'result';
+    case 'FuncType':
+      return 'function';
+    default:
+      return 'unknown';
+  }
+}
+
+/**
+ * Convert AST Type to display string
+ */
+function typeToString(type: Type): string {
+  if (!type || typeof type !== 'object' || !('kind' in type)) {
+    return 'Unknown';
+  }
+
+  switch (type.kind) {
+    case 'TypeName':
+      return type.name;
+    case 'List':
+      return `List<${typeToString(type.type)}>`;
+    case 'Map':
+      return `Map<${typeToString(type.key)}, ${typeToString(type.val)}>`;
+    case 'Option':
+      return `Option<${typeToString(type.type)}>`;
+    case 'Maybe':
+      return `Maybe<${typeToString(type.type)}>`;
+    case 'Result':
+      return `Result<${typeToString(type.ok)}, ${typeToString(type.err)}>`;
+    default:
+      return 'Unknown';
+  }
+}
+
+/**
+ * Extract schema from CNL source code
+ *
+ * Parses CNL source and extracts parameter schema for the specified function,
+ * suitable for dynamic form generation.
+ *
+ * @param source - CNL source code
+ * @param options - Schema extraction options
+ * @returns Schema extraction result
+ *
+ * @example
+ * ```typescript
+ * const result = extractSchema(`
+ *   This module is loan.
+ *   A LoanApplication has creditScore Int, amount Float, term Int.
+ *   To evaluate application LoanApplication, produce Bool:
+ *     If application.creditScore >= 700 then Return true
+ *     Otherwise Return false.
+ * `);
+ *
+ * if (result.success) {
+ *   console.log(result.parameters);
+ *   // [{ name: 'application', type: 'LoanApplication', typeKind: 'struct', ... }]
+ * }
+ * ```
+ */
+export function extractSchema(source: string, options?: SchemaOptions): SchemaResult {
+  try {
+    // Parse to AST
+    const canonical = canonicalize(source);
+    const tokens = lex(canonical, options?.lexicon);
+    const ast = parse(tokens);
+
+    if ('error' in ast || !ast) {
+      return {
+        success: false,
+        error: 'error' in ast ? (ast as { error: string }).error : 'Parse failed',
+      };
+    }
+
+    const module = ast as Module;
+    const moduleName = module.name ?? 'unknown';
+
+    // Find all Data declarations (for struct field resolution)
+    const dataDecls = new Map<string, FieldInfo[]>();
+    for (const decl of module.decls) {
+      if (decl.kind === 'Data') {
+        const data = decl as Data;
+        const fields: FieldInfo[] = data.fields.map((f) => ({
+          name: f.name,
+          type: typeToString(f.type),
+          typeKind: getTypeKind(f.type),
+        }));
+        dataDecls.set(data.name, fields);
+      }
+    }
+
+    // Find the target function
+    const funcs = module.decls.filter((d: Declaration) => d.kind === 'Func') as Func[];
+    if (funcs.length === 0) {
+      return {
+        success: false,
+        error: 'No functions found in module',
+      };
+    }
+
+    const targetFuncName = options?.functionName;
+    const func = targetFuncName
+      ? funcs.find((f: Func) => f.name === targetFuncName)
+      : funcs[0];
+
+    if (!func) {
+      return {
+        success: false,
+        error: targetFuncName
+          ? `Function '${targetFuncName}' not found`
+          : 'No functions found in module',
+      };
+    }
+
+    // Extract parameters
+    const parameters: ParameterInfo[] = func.params.map((param, index) => {
+      const typeName = typeToString(param.type);
+      const typeKind = getTypeKind(param.type);
+
+      // Resolve struct fields if applicable
+      const fields = typeKind === 'struct' && dataDecls.has(typeName)
+        ? dataDecls.get(typeName)
+        : undefined;
+
+      const result: ParameterInfo = {
+        name: param.name,
+        type: typeName,
+        typeKind,
+        optional: false, // Parameters don't have optional field in AST
+        position: index,
+      };
+
+      if (fields) {
+        result.fields = fields;
+      }
+
+      return result;
+    });
+
+    return {
+      success: true,
+      moduleName,
+      functionName: func.name,
+      parameters,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+// ============================================================================
+// Browser-compatible Type Checking API
+// ============================================================================
+
+export { typecheckBrowser } from './typecheck/browser.js';
+export type { BrowserTypecheckOptions } from './typecheck/browser.js';
+export type { TypecheckDiagnostic } from './types.js';
+
+/**
+ * Compile and type check CNL source in one call
+ *
+ * This is the recommended API for browser/edge use when you need
+ * both compilation and type checking.
+ *
+ * @param source - CNL source code
+ * @param options - Compile and type check options
+ * @returns Object containing compilation result and type diagnostics
+ *
+ * @example
+ * ```typescript
+ * import { compileAndTypecheck } from '@aster-cloud/aster-lang-ts/browser';
+ *
+ * const result = compileAndTypecheck(source);
+ *
+ * if (result.parseErrors.length > 0) {
+ *   console.log('Parse errors:', result.parseErrors);
+ * }
+ *
+ * if (result.typeErrors.length > 0) {
+ *   console.log('Type errors:', result.typeErrors);
+ * }
+ *
+ * if (result.success && result.core) {
+ *   console.log('Compiled successfully:', result.core);
+ * }
+ * ```
+ */
+export function compileAndTypecheck(
+  source: string,
+  options?: CompileOptions & { enforcePii?: boolean }
+): CompileResult & { typeErrors: import('./types.js').TypecheckDiagnostic[] } {
+  const compileResult = compile(source, options);
+
+  if (!compileResult.success || !compileResult.core) {
+    return {
+      ...compileResult,
+      typeErrors: [],
+    };
+  }
+
+  const typecheckOptions: { enforcePii?: boolean } = {};
+  if (options?.enforcePii !== undefined) {
+    typecheckOptions.enforcePii = options.enforcePii;
+  }
+
+  const typeErrors = _typecheckBrowser(compileResult.core, typecheckOptions);
+
+  return {
+    ...compileResult,
+    typeErrors,
+  };
+}

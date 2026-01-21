@@ -94,7 +94,13 @@ export async function loadIndex(indexPath: string): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.log(error);
+    // ENOENT is expected on first run - index file doesn't exist yet
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return false;
+    }
+    // Log real errors (permission issues, parse errors, etc.) to stderr
+    // to avoid corrupting the LSP protocol stream on stdout
+    console.error('[LSP Index] Failed to load index:', error);
     return false;
   }
 }
@@ -124,6 +130,11 @@ function scheduleSaveIndex(): void {
   indexWriteTimer = setTimeout(() => {
     if (indexConfig.indexPath) {
       saveIndex(indexConfig.indexPath).catch(err => {
+        // EROFS (read-only file system) is expected in containerized environments
+        // where the filesystem is mounted read-only for security
+        if (err instanceof Error && 'code' in err && err.code === 'EROFS') {
+          return;
+        }
         console.error('Failed to save index:', err);
       });
     }

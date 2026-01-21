@@ -49,10 +49,11 @@ export function parseConstraints(
     constraints.push(constraint.constraint);
     lastToken = constraint.endToken;
 
-    // 检查是否有 'and' 连接更多约束（仅在约束之间）
-    // 注意：不要消费字段之间的 'and'
+    // 检查是否还有后续约束
     if (isConstraintKeyword(ctx)) {
-      // 有更多约束，继续循环
+      continue;
+    }
+    if (skipConstraintConnector(ctx)) {
       continue;
     }
 
@@ -69,17 +70,80 @@ export function parseConstraints(
  * 检查当前位置是否是约束关键词
  */
 function isConstraintKeyword(ctx: ParserContext): boolean {
-  if (!ctx.at(TokenKind.IDENT)) {
+  return isConstraintToken(ctx.peek());
+}
+
+function isConstraintToken(token: Token | undefined): boolean {
+  if (!token) return false;
+  if (
+    token.kind !== TokenKind.IDENT &&
+    token.kind !== TokenKind.TYPE_IDENT &&
+    token.kind !== TokenKind.KEYWORD
+  ) {
     return false;
   }
-
-  const value = ((ctx.peek().value as string) || '').toLowerCase();
+  const value = ((token.value as string) || '').toLowerCase();
   return (
     value === KW.REQUIRED ||
     value === KW.BETWEEN ||
     value === KW.MATCHING ||
-    value === 'at' // 用于 'at least' / 'at most'
+    value === 'at'
   );
+}
+
+/**
+ * 获取下一个非布局 token（跳过换行/缩进），便于判断连接词后的 token 类型
+ */
+function nextSignificantToken(ctx: ParserContext, startIndex: number): Token | null {
+  let idx = startIndex;
+  while (idx < ctx.tokens.length) {
+    const token = ctx.tokens[idx]!;
+    if (
+      token.kind === TokenKind.NEWLINE ||
+      token.kind === TokenKind.INDENT ||
+      token.kind === TokenKind.DEDENT
+    ) {
+      idx++;
+      continue;
+    }
+    return token;
+  }
+  return null;
+}
+
+/**
+ * 跳过约束之间的连接符（',' 或 'and'）
+ */
+function skipConstraintConnector(ctx: ParserContext): boolean {
+  const current = ctx.peek();
+
+  if (current.kind === TokenKind.COMMA) {
+    const nextToken = nextSignificantToken(ctx, ctx.index + 1);
+    if (isConstraintToken(nextToken ?? undefined)) {
+      ctx.next(); // consume comma
+      ctx.consumeNewlines();
+      ctx.consumeIndent();
+      return true;
+    }
+    return false;
+  }
+
+  if (
+    (current.kind === TokenKind.IDENT ||
+      current.kind === TokenKind.TYPE_IDENT ||
+      current.kind === TokenKind.KEYWORD) &&
+    ((current.value as string) || '').toLowerCase() === KW.AND
+  ) {
+    const nextToken = nextSignificantToken(ctx, ctx.index + 1);
+    if (isConstraintToken(nextToken ?? undefined)) {
+      ctx.nextWord(); // consume 'and'
+      ctx.consumeNewlines();
+      ctx.consumeIndent();
+      return true;
+    }
+  }
+
+  return false;
 }
 
 interface ParsedConstraint {
@@ -96,11 +160,12 @@ function tryParseConstraint(
   ctx: ParserContext,
   error: (msg: string, tok?: Token) => never
 ): ParsedConstraint | null {
-  if (!ctx.at(TokenKind.IDENT)) {
+  const startToken = ctx.peek();
+  if (!isConstraintToken(startToken)) {
     return null;
   }
 
-  const value = ((ctx.peek().value as string) || '').toLowerCase();
+  const value = ((startToken.value as string) || '').toLowerCase();
 
   // 'required' - 必填约束
   if (value === KW.REQUIRED) {

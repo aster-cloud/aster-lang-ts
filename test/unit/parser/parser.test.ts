@@ -297,6 +297,65 @@ To validate with input: Text required, produce Bool:
       assert.equal(param.constraints![0]!.kind, 'Required');
     });
 
+    it('应该解析无类型声明的字段和参数约束', () => {
+      const module = parseSource(`
+This module is test.parser.inline_constraints.
+
+Define LoanApplication with applicantId required, amount, termMonths between 0 and 600, purpose required.
+
+Define ApplicantProfile with age between 0 and 120, creditScore between 300 and 850, annualIncome.
+
+To determineInterestRateBps with creditScore between 300 and 850, produce:
+  Return 350.
+`);
+      const loanDecl = module.decls.find(
+        (decl): decl is Extract<Declaration, { kind: 'Data' }> =>
+          decl.kind === 'Data' && decl.name === 'LoanApplication'
+      );
+      assert.ok(loanDecl, '应该存在 LoanApplication 数据类型');
+      if (!loanDecl) assert.fail('缺少 LoanApplication');
+      const applicantField = loanDecl.fields.find(f => f.name === 'applicantId');
+      assert.ok(applicantField?.constraints?.some(c => c.kind === 'Required'));
+      const termMonthsField = loanDecl.fields.find(f => f.name === 'termMonths');
+      assert.ok(termMonthsField, '缺少 termMonths 字段');
+      if (!termMonthsField) assert.fail('缺少 termMonths 字段');
+      const termRange = termMonthsField.constraints?.find(c => c.kind === 'Range');
+      assert.ok(termRange, 'termMonths 应有范围约束');
+      if (termRange && termRange.kind === 'Range') {
+        assert.equal(termRange.min, 0);
+        assert.equal(termRange.max, 600);
+      }
+
+      const profileDecl = module.decls.find(
+        (decl): decl is Extract<Declaration, { kind: 'Data' }> =>
+          decl.kind === 'Data' && decl.name === 'ApplicantProfile'
+      );
+      assert.ok(profileDecl, '应该存在 ApplicantProfile 数据类型');
+      if (!profileDecl) assert.fail('缺少 ApplicantProfile');
+      const ageField = profileDecl.fields.find(f => f.name === 'age');
+      assert.ok(ageField?.constraints?.some(c => c.kind === 'Range'));
+      const creditField = profileDecl.fields.find(f => f.name === 'creditScore');
+      assert.ok(creditField, '缺少 creditScore 字段');
+      if (!creditField) assert.fail('缺少 creditScore 字段');
+      const creditRange = creditField.constraints?.find(c => c.kind === 'Range');
+      assert.ok(creditRange, 'creditScore 应有范围约束');
+      if (creditRange && creditRange.kind === 'Range') {
+        assert.equal(creditRange.min, 300);
+        assert.equal(creditRange.max, 850);
+      }
+
+      const fn = findFunc(module, 'determineInterestRateBps');
+      const creditParam = fn.params.find(p => p.name === 'creditScore');
+      assert.ok(creditParam, '缺少 creditScore 参数');
+      if (!creditParam) assert.fail('缺少 creditScore 参数');
+      const paramRange = creditParam.constraints?.find(c => c.kind === 'Range');
+      assert.ok(paramRange, 'creditScore 参数应有范围约束');
+      if (paramRange && paramRange.kind === 'Range') {
+        assert.equal(paramRange.min, 300);
+        assert.equal(paramRange.max, 850);
+      }
+    });
+
     it('应该在缺失参数分隔符时报告诊断', () => {
       assert.throws(
         () =>
