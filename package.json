@@ -1,6 +1,6 @@
 {
   "name": "@aster-cloud/aster-lang-ts",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Aster CNL (Controlled Natural Language) TypeScript Compiler - Lexer, Parser, AST, Core IR, Type Checker",
   "type": "module",
   "main": "./dist/src/index.js",
