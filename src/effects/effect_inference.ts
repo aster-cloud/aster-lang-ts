@@ -2,10 +2,10 @@ import type { Core, TypecheckDiagnostic, Origin } from '../types.js';
 import { Effect } from '../types.js';
 import { getIOPrefixes, getCPUPrefixes } from '../config/effect_config.js';
 import { DefaultCoreVisitor, createVisitorContext } from '../core/visitor.js';
-import { resolveAlias } from '../typecheck.js';
+import { resolveAlias } from '../typecheck/utils.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { EffectSignature } from './effect_signature.js';
-import { ModuleCache, cacheModuleEffectSignatures } from '../lsp/module_cache.js';
+import type { ModuleCache, CacheEffectOptions } from '../lsp/module_cache.js';
 
 export interface EffectConstraint {
   caller: string;
@@ -47,6 +47,8 @@ export interface EffectInferenceOptions {
   imports?: Map<string, string>;
   importedEffects?: Map<string, EffectSignature>;
   moduleCache?: ModuleCache;
+  /** Optional callback to cache effect signatures. If not provided and no moduleCache, caching is skipped. */
+  cacheEffectSignatures?: (options: CacheEffectOptions) => void;
 }
 
 export function inferEffects(core: Core.Module, options?: EffectInferenceOptions): TypecheckDiagnostic[] {
@@ -141,9 +143,10 @@ export function inferEffects(core: Core.Module, options?: EffectInferenceOptions
     };
     if (options.moduleCache) {
       options.moduleCache.cacheModuleEffectSignatures(cacheOptions);
-    } else {
-      cacheModuleEffectSignatures(cacheOptions);
+    } else if (options.cacheEffectSignatures) {
+      options.cacheEffectSignatures(cacheOptions);
     }
+    // If neither moduleCache nor cacheEffectSignatures provided, skip caching (browser mode)
   }
 
   return diagnostics;
