@@ -1,4 +1,4 @@
-import type { Core, Span } from '../types.js';
+import type { Core } from '../types.js';
 import { DefaultCoreVisitor } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { TypeSystem } from './type_system.js';
@@ -9,6 +9,7 @@ import {
   formatType,
   isUnknown,
   normalizeType,
+  originToSpan,
   typesEqual,
   unknownType,
 } from './utils.js';
@@ -27,7 +28,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           const fieldPath = parts.slice(1);
           const baseSymbol = symbols.lookup(baseName);
           if (!baseSymbol) {
-            diagnostics.undefinedVariable(baseName, expression.span);
+            diagnostics.undefinedVariable(baseName, originToSpan(expression.origin));
             this.result = unknownType();
             this.handled = true;
             return;
@@ -40,7 +41,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
               const resolvedDataDecl =
                 dataDecl ?? inferDataDeclFromField(module, baseName, fieldName);
               if (!resolvedDataDecl) {
-                diagnostics.error(ErrorCode.UNKNOWN_FIELD, expression.span, {
+                diagnostics.error(ErrorCode.UNKNOWN_FIELD, originToSpan(expression.origin), {
                   field: fieldName,
                   type: formatType(currentType),
                 });
@@ -50,7 +51,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
               }
               const field = resolvedDataDecl.fields.find(item => item.name === fieldName);
               if (!field) {
-                diagnostics.error(ErrorCode.UNKNOWN_FIELD, expression.span, {
+                diagnostics.error(ErrorCode.UNKNOWN_FIELD, originToSpan(expression.origin), {
                   field: fieldName,
                   type: resolvedDataDecl.name,
                 });
@@ -60,7 +61,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
               }
               currentType = field.type as Core.Type;
             } else {
-              diagnostics.error(ErrorCode.UNKNOWN_FIELD, expression.span, {
+              diagnostics.error(ErrorCode.UNKNOWN_FIELD, originToSpan(expression.origin), {
                 field: fieldName,
                 type: formatType(currentType),
               });
@@ -88,7 +89,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           if (matched) {
             this.result = { kind: 'TypeName', name: matched.name } as Core.TypeName;
           } else {
-            diagnostics.undefinedVariable(expression.name, expression.span);
+            diagnostics.undefinedVariable(expression.name, originToSpan(expression.origin));
             this.result = unknownType();
           }
         }
@@ -164,7 +165,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           provided.add(field.name);
           const schemaField = dataDecl.fields.find(item => item.name === field.name);
           if (!schemaField) {
-            diagnostics.error(ErrorCode.UNKNOWN_FIELD, expression.span, {
+            diagnostics.error(ErrorCode.UNKNOWN_FIELD, originToSpan(expression.origin), {
               field: field.name,
               type: dataDecl.name,
             });
@@ -172,7 +173,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           }
           const valueType = typeOfExpr(module, symbols, field.expr, diagnostics);
           if (!typesEqual(schemaField.type as Core.Type, valueType)) {
-            diagnostics.error(ErrorCode.FIELD_TYPE_MISMATCH, (field.expr as { span?: Span }).span ?? expression.span, {
+            diagnostics.error(ErrorCode.FIELD_TYPE_MISMATCH, originToSpan(field.expr.origin) ?? originToSpan(expression.origin), {
               field: field.name,
               expected: formatType(schemaField.type as Core.Type),
               actual: formatType(valueType),
@@ -181,7 +182,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         }
         for (const field of dataDecl.fields) {
           if (!provided.has(field.name)) {
-            diagnostics.error(ErrorCode.MISSING_REQUIRED_FIELD, expression.span, {
+            diagnostics.error(ErrorCode.MISSING_REQUIRED_FIELD, originToSpan(expression.origin), {
               type: dataDecl.name,
               field: field.name,
             });
@@ -198,7 +199,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         } else if (!isUnknown(awaited) && awaited.kind === 'Result') {
           this.result = awaited.ok as Core.Type;
         } else {
-          diagnostics.warning(ErrorCode.AWAIT_TYPE, expression.span, { type: formatType(awaited) });
+          diagnostics.warning(ErrorCode.AWAIT_TYPE, originToSpan(expression.origin), { type: formatType(awaited) });
           this.result = unknownType();
         }
         this.handled = true;
@@ -220,7 +221,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
       case 'Call': {
         if (expression.target.kind === 'Name' && expression.target.name === 'not') {
           if (expression.args.length !== 1) {
-            diagnostics.error(ErrorCode.NOT_CALL_ARITY, expression.span ?? expression.target.span, {});
+            diagnostics.error(ErrorCode.NOT_CALL_ARITY, originToSpan(expression.origin) ?? originToSpan(expression.target.origin), {});
           } else {
             void typeOfExpr(module, symbols, expression.args[0]!, diagnostics);
           }
@@ -252,7 +253,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           }
           const kindCount = (hasInt ? 1 : 0) + (hasLong ? 1 : 0) + (hasDouble ? 1 : 0);
           if (kindCount > 1) {
-            diagnostics.warning(ErrorCode.AMBIGUOUS_INTEROP_NUMERIC, expression.span ?? expression.target.span, {
+            diagnostics.warning(ErrorCode.AMBIGUOUS_INTEROP_NUMERIC, originToSpan(expression.origin) ?? originToSpan(expression.target.origin), {
               target: expression.target.name,
               hasInt,
               hasLong,
@@ -268,7 +269,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           } else if (!isUnknown(awaitedType) && awaitedType.kind === 'Result') {
             this.result = awaitedType.ok as Core.Type;
           } else {
-            diagnostics.warning(ErrorCode.AWAIT_TYPE, expression.span, { type: formatType(awaitedType) });
+            diagnostics.warning(ErrorCode.AWAIT_TYPE, originToSpan(expression.origin), { type: formatType(awaitedType) });
             this.result = unknownType();
           }
           this.handled = true;
