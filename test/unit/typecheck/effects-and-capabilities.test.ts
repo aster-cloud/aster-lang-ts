@@ -125,7 +125,7 @@ const ast = parse(tokens);
 const core = lowerModule(ast);
 const diags = typecheckModule(core);
 for (const diag of diags) {
-  if (diag.code === '${ErrorCode.EFF_MISSING_CPU}') {
+  if (diag.code === '${ErrorCode.EFF_INFER_MISSING_CPU}') {
     console.log('FOUND');
     process.exit(0);
   }

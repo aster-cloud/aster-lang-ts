@@ -14,7 +14,7 @@
 
 import type { Core, TypecheckDiagnostic } from '../types.js';
 import type { EffectSignature } from '../effects/effect_signature.js';
-import { inferEffects } from '../effects/effect_inference.js';
+import { inferEffects } from '../effects/effect_inference_browser.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';

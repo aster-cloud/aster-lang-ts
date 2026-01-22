@@ -1,6 +1,4 @@
-import { join, resolve } from 'node:path';
 import type { Core, Origin, Span } from '../types.js';
-import { getIOPrefixes, getCPUPrefixes } from '../config/effect_config.js';
 import { TypeSystem } from './type_system.js';
 
 // 类型检查工具模块：收敛常量、类型辅助与路径规范化逻辑，供多个子模块复用。
@@ -11,9 +9,66 @@ export const IO_EFFECT_TYPE: Core.Type = { kind: 'TypeName', name: 'IO' };
 export const CPU_EFFECT_TYPE: Core.Type = { kind: 'TypeName', name: 'CPU' };
 export const PURE_EFFECT_TYPE: Core.Type = { kind: 'TypeName', name: 'PURE' };
 
-// 从配置获取效果推断前缀（模块级，避免重复调用）
-export const IO_PREFIXES = getIOPrefixes();
-export const CPU_PREFIXES = getCPUPrefixes();
+// Default IO prefixes (matches DEFAULT_CONFIG in effect_config.ts)
+const DEFAULT_IO_PREFIXES: readonly string[] = [
+  'IO.',
+  'Http.',
+  'AuthRepo.',
+  'ProfileSvc.',
+  'FeedSvc.',
+  'Db.',
+  'UUID.randomUUID',
+];
+
+// Default CPU prefixes (matches DEFAULT_CONFIG in effect_config.ts)
+const DEFAULT_CPU_PREFIXES: readonly string[] = [];
+
+// Effect prefixes - try loading from config, fallback to defaults for browser compatibility
+let _ioPrefixes: readonly string[] | null = null;
+let _cpuPrefixes: readonly string[] | null = null;
+let _prefixesLoaded = false;
+
+function loadPrefixes(): void {
+  if (_prefixesLoaded) return; // Already loaded
+  _prefixesLoaded = true;
+  try {
+    // Use dynamic import with createRequire for proper ESM compatibility
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createRequire } = require('node:module');
+    const require2 = createRequire(import.meta.url);
+    const config = require2('../config/effect_config.js');
+    _ioPrefixes = config.getIOPrefixes();
+    _cpuPrefixes = config.getCPUPrefixes();
+  } catch {
+    // Fallback to defaults in browser environment
+    _ioPrefixes = DEFAULT_IO_PREFIXES;
+    _cpuPrefixes = DEFAULT_CPU_PREFIXES;
+  }
+}
+
+/**
+ * Get IO prefixes for effect inference.
+ * Loads from config in Node.js, uses defaults in browser.
+ */
+export function getIOPrefixesCompat(): readonly string[] {
+  loadPrefixes();
+  return _ioPrefixes!;
+}
+
+/**
+ * Get CPU prefixes for effect inference.
+ * Loads from config in Node.js, uses defaults in browser.
+ */
+export function getCPUPrefixesCompat(): readonly string[] {
+  loadPrefixes();
+  return _cpuPrefixes!;
+}
+
+// Exported constants for backward compatibility - use getter functions for lazy loading
+// Initialize immediately since many modules expect these as constants
+loadPrefixes();
+export const IO_PREFIXES: readonly string[] = _ioPrefixes!;
+export const CPU_PREFIXES: readonly string[] = _cpuPrefixes!;
 
 /**
  * 解析导入别名到真实模块前缀
@@ -109,17 +164,44 @@ export function originToSpan(origin: Origin | undefined): Span | undefined {
   return { start: origin.start, end: origin.end };
 }
 
+/**
+ * Get default module search paths.
+ * Uses dynamic import to avoid Node.js dependency at module load time.
+ */
 export function defaultModuleSearchPaths(): string[] {
-  const cwd = process.cwd();
-  return [cwd, join(cwd, '.aster', 'packages')];
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('node:path');
+    const cwd = process.cwd();
+    return [cwd, path.join(cwd, '.aster', 'packages')];
+  } catch {
+    // In browser environment, return empty array
+    return [];
+  }
 }
 
+/**
+ * Normalize module search paths.
+ * Uses dynamic import to avoid Node.js dependency at module load time.
+ */
 export function normalizeModuleSearchPaths(paths?: readonly string[]): readonly string[] {
   const source = paths && paths.length > 0 ? paths : defaultModuleSearchPaths();
   const normalized = new Set<string>();
-  for (const candidate of source) {
-    if (!candidate) continue;
-    normalized.add(resolve(candidate));
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('node:path');
+    for (const candidate of source) {
+      if (!candidate) continue;
+      normalized.add(path.resolve(candidate));
+    }
+  } catch {
+    // In browser environment, use paths as-is
+    for (const candidate of source) {
+      if (!candidate) continue;
+      normalized.add(candidate);
+    }
   }
+
   return [...normalized];
 }
