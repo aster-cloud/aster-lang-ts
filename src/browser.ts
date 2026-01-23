@@ -84,6 +84,7 @@ import { lowerModule } from './lower_to_core.js';
 import type { Core as CoreTypes, Token, Module as AstModule } from './types.js';
 import type { Lexicon } from './config/lexicons/types.js';
 import { typecheckBrowser as _typecheckBrowser } from './typecheck/browser.js';
+import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
 
 /**
  * Compilation result with success/failure status
@@ -140,13 +141,23 @@ export interface CompileOptions {
  */
 export function compile(source: string, options?: CompileOptions): CompileResult {
   try {
-    // Step 1: Canonicalize source
-    const canonical = canonicalize(source);
+    const lexicon = options?.lexicon;
+
+    // Step 1: Canonicalize source WITH lexicon for language-specific normalization
+    const canonical = canonicalize(source, lexicon);
 
     // Step 2: Lexical analysis
-    const tokens = lex(canonical, options?.lexicon);
+    let tokens = lex(canonical, lexicon);
 
-    // Step 3: Parse to AST
+    // Step 3: Translate non-English tokens to English for parser compatibility
+    // Parser uses hardcoded English keywords (e.g., 'this module is', 'if', 'return')
+    // so we need to translate German/Chinese tokens to English before parsing
+    if (lexicon && needsKeywordTranslation(lexicon)) {
+      const translator = createKeywordTranslator(lexicon);
+      tokens = translator.translateTokens(tokens);
+    }
+
+    // Step 4: Parse to AST (now with English tokens)
     const ast = parse(tokens);
 
     // Check for parse errors
@@ -193,8 +204,16 @@ export function compile(source: string, options?: CompileOptions): CompileResult
  */
 export function validateSyntax(source: string, lexicon?: Lexicon): string[] {
   try {
-    const canonical = canonicalize(source);
-    const tokens = lex(canonical, lexicon);
+    // Canonicalize with lexicon for language-specific normalization
+    const canonical = canonicalize(source, lexicon);
+    let tokens = lex(canonical, lexicon);
+
+    // Translate non-English tokens to English for parser compatibility
+    if (lexicon && needsKeywordTranslation(lexicon)) {
+      const translator = createKeywordTranslator(lexicon);
+      tokens = translator.translateTokens(tokens);
+    }
+
     const ast = parse(tokens);
 
     if ('error' in ast) {
@@ -215,7 +234,8 @@ export function validateSyntax(source: string, lexicon?: Lexicon): string[] {
  * @returns Array of tokens
  */
 export function tokenize(source: string, lexicon?: Lexicon): Token[] {
-  const canonical = canonicalize(source);
+  // Canonicalize with lexicon for language-specific normalization
+  const canonical = canonicalize(source, lexicon);
   return lex(canonical, lexicon);
 }
 
@@ -339,9 +359,19 @@ function typeToString(type: Type): string {
  */
 export function extractSchema(source: string, options?: SchemaOptions): SchemaResult {
   try {
+    const lexicon = options?.lexicon;
+
+    // Canonicalize with lexicon for language-specific normalization
+    const canonical = canonicalize(source, lexicon);
+    let tokens = lex(canonical, lexicon);
+
+    // Translate non-English tokens to English for parser compatibility
+    if (lexicon && needsKeywordTranslation(lexicon)) {
+      const translator = createKeywordTranslator(lexicon);
+      tokens = translator.translateTokens(tokens);
+    }
+
     // Parse to AST
-    const canonical = canonicalize(source);
-    const tokens = lex(canonical, options?.lexicon);
     const ast = parse(tokens);
 
     if ('error' in ast || !ast) {

@@ -136,6 +136,21 @@ export const DE_DE: Lexicon = {
       // "mit" 同时承担类型字段与函数入参标记
       [SemanticTokenKind.TYPE_WITH, SemanticTokenKind.FUNC_TO],
     ],
+    // ASCII-ized umlaut normalization: convert common ASCII alternatives to proper umlauts
+    // This allows users to type "groesser" instead of "größer", "zurueck" instead of "zurück"
+    customRules: [
+      // Step 1: Handle oe -> ö first (before ss -> ß rules that might depend on it)
+      { name: 'oe-to-ö', pattern: 'oe', replacement: 'ö' },
+      // Step 2: Handle ue -> ü (zurueck -> zurück, fuehrt -> führt, pruefe -> prüfe)
+      { name: 'ue-to-ü', pattern: 'ue', replacement: 'ü' },
+      // Step 3: Handle ae -> ä (Minderjaehriger -> Minderjähriger)
+      { name: 'ae-to-ä', pattern: 'ae', replacement: 'ä' },
+      // Step 4: Handle ss -> ß in specific keyword contexts
+      // Note: After step 1, "groesser" becomes "grösser", need to convert "grösser" -> "größer"
+      { name: 'ss-to-ß-grösser', pattern: '\\bgrösser\\b', replacement: 'größer' },
+      { name: 'ss-to-ß-gross', pattern: '\\bgross\\b', replacement: 'groß' },
+      { name: 'ss-to-ß-höchstens', pattern: '\\bhöchstens\\b', replacement: 'höchstens' }, // already correct, no change needed
+    ],
   },
 
   messages: {

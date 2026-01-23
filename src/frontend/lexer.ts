@@ -52,9 +52,19 @@ function getEffectiveLexicon(lexicon?: Lexicon): Lexicon {
 function isLetter(ch: string, lexicon?: Lexicon): boolean {
   if (!ch) return false;
 
-  // 英语模式：只允许 ASCII 字母
+  // 英语模式：允许 ASCII 字母和 Latin Extended 字母（包括德语元音变音）
+  // 德语使用 whitespaceMode: 'english' 但关键词包含 ü, ö, ä, ß 等字符
   if (!lexicon || lexicon.canonicalization.whitespaceMode === 'english') {
-    return /[A-Za-z]/.test(ch);
+    // ASCII letters
+    if (/[A-Za-z]/.test(ch)) return true;
+    // Latin Extended characters (umlauts, sharp s, etc.)
+    // Latin-1 Supplement: 0x00C0-0x00FF (À-ÿ, includes ü, ö, ä, ß)
+    // Latin Extended-A: 0x0100-0x017F
+    const code = ch.charCodeAt(0);
+    if ((code >= 0x00C0 && code <= 0x00FF) || (code >= 0x0100 && code <= 0x017F)) {
+      return true;
+    }
+    return false;
   }
 
   // 中文模式：允许 ASCII 字母和中文字符
