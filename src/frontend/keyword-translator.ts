@@ -79,12 +79,26 @@ export function buildKeywordTranslationIndex(
  * @param targetLexicon - 目标词法表（默认 en-US）
  * @returns 包含普通索引和标记索引的结果
  */
+// 高优先级的关键词种类，在发生冲突时优先使用
+// 这些通常是更具语义特异性的关键词
+const HIGH_PRIORITY_KINDS = new Set<SemanticTokenKind>([
+  SemanticTokenKind.TYPE_WITH,      // "with" 用于类型定义比 "to" 更特定
+  SemanticTokenKind.MODULE_DECL,    // 模块声明
+  SemanticTokenKind.TYPE_DEF,       // 类型定义
+  SemanticTokenKind.IF,             // 条件控制
+  SemanticTokenKind.RETURN,         // 返回语句
+  SemanticTokenKind.GREATER_THAN,   // 比较运算
+  SemanticTokenKind.LESS_THAN,      // 比较运算
+]);
+
 export function buildFullTranslationIndex(
   sourceLexicon: Lexicon,
   targetLexicon: Lexicon = EN_US
 ): TranslationIndexResult {
   const index = new Map<string, string>();
   const markerIndex = new Map<string, string>();
+  // 记录已添加映射的优先级
+  const indexPriority = new Map<string, boolean>();
 
   // 获取源词法表的标记符号
   const markers = sourceLexicon.punctuation.markers;
@@ -95,6 +109,7 @@ export function buildFullTranslationIndex(
   for (const kind of Object.values(SemanticTokenKind)) {
     const sourceKeyword = sourceLexicon.keywords[kind];
     const targetKeyword = targetLexicon.keywords[kind];
+    const isHighPriority = HIGH_PRIORITY_KINDS.has(kind);
 
     if (sourceKeyword && targetKeyword && sourceKeyword !== targetKeyword) {
       // 检查是否是标记关键词（被【】包裹）
@@ -103,8 +118,36 @@ export function buildFullTranslationIndex(
         const innerValue = sourceKeyword.slice(markerOpen.length, -markerClose.length);
         markerIndex.set(innerValue.toLowerCase(), targetKeyword);
       } else {
-        // 普通关键词添加到普通索引
-        index.set(sourceKeyword.toLowerCase(), targetKeyword);
+        const srcLower = sourceKeyword.toLowerCase();
+        const existingPriority = indexPriority.get(srcLower);
+
+        // 只在以下情况添加映射：
+        // 1. 源词尚未有映射
+        // 2. 当前是高优先级且现有不是高优先级
+        if (!index.has(srcLower) || (isHighPriority && !existingPriority)) {
+          index.set(srcLower, targetKeyword);
+          indexPriority.set(srcLower, isHighPriority);
+        }
+
+        // 对于多词关键词短语，同时添加逐词映射
+        // 例如 "Dieses Modul ist" -> "this module is"
+        // 会分解为 "dieses" -> "this", "modul" -> "module", "ist" -> "is"
+        const sourceParts = sourceKeyword.toLowerCase().split(/\s+/);
+        const targetParts = targetKeyword.toLowerCase().split(/\s+/);
+        if (sourceParts.length > 1 && sourceParts.length === targetParts.length) {
+          for (let i = 0; i < sourceParts.length; i++) {
+            const srcWord = sourceParts[i]!;
+            const tgtWord = targetParts[i]!;
+            const existingWordPriority = indexPriority.get(srcWord);
+            // 添加逐词映射（遵循相同的优先级规则）
+            if (srcWord !== tgtWord) {
+              if (!index.has(srcWord) || (isHighPriority && !existingWordPriority)) {
+                index.set(srcWord, tgtWord);
+                indexPriority.set(srcWord, isHighPriority);
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -158,10 +201,25 @@ export function translateTokens(
 }
 
 /**
- * 翻译 token 流中的所有关键词（包括标记关键词序列）。
+ * 检查 token 是否是可翻译的标识符类型
+ */
+function isTranslatableToken(token: Token): boolean {
+  return (
+    token.kind === TokenKind.IDENT ||
+    token.kind === TokenKind.TYPE_IDENT ||
+    token.kind === TokenKind.KEYWORD
+  );
+}
+
+/**
+ * 翻译 token 流中的所有关键词（包括标记关键词序列和多词短语）。
  *
- * 此函数会识别 LBRACKET + IDENT + RBRACKET 序列，
- * 如果内部 IDENT 是标记关键词，则将三个 token 合并为单个翻译后的 token。
+ * 此函数处理三种情况：
+ * 1. LBRACKET + IDENT + RBRACKET 序列（标记关键词）
+ * 2. 多个连续 IDENT token 组成的短语翻译：
+ *    - 源和目标词数相同时，逐词翻译（保持 token 数量）
+ *    - 源词数多于目标词数时，合并为较少的 token（如 "gib zurück" -> "return"）
+ * 3. 单个 token 的翻译
  *
  * @param tokens - 原始 token 数组
  * @param index - 普通关键词翻译索引
@@ -176,10 +234,19 @@ export function translateTokensWithMarkers(
   const result: Token[] = [];
   let i = 0;
 
+  // 预先计算多词短语的最大长度（用于优化查找）
+  let maxPhraseLength = 1;
+  for (const key of index.keys()) {
+    const wordCount = key.split(/\s+/).length;
+    if (wordCount > maxPhraseLength) {
+      maxPhraseLength = wordCount;
+    }
+  }
+
   while (i < tokens.length) {
     const token = tokens[i]!;
 
-    // 检查是否是 LBRACKET + IDENT + RBRACKET 序列
+    // 检查是否是 LBRACKET + IDENT + RBRACKET 序列（标记关键词）
     if (
       token.kind === TokenKind.LBRACKET &&
       i + 2 < tokens.length &&
@@ -191,19 +258,139 @@ export function translateTokensWithMarkers(
       const translated = markerIndex.get(innerValue.toLowerCase());
 
       if (translated) {
-        // 找到标记关键词，合并为单个 TYPE_IDENT token
-        result.push({
-          kind: TokenKind.TYPE_IDENT,
-          value: translated,
-          start: token.start,
-          end: tokens[i + 2]!.end,
-        });
+        // 找到标记关键词
+        // 如果翻译结果是多词（如 "this module is"），需要拆分为多个 token
+        const targetWords = translated.split(/\s+/);
+        if (targetWords.length === 1) {
+          // 单词翻译：合并为单个 TYPE_IDENT token
+          result.push({
+            kind: TokenKind.TYPE_IDENT,
+            value: translated,
+            start: token.start,
+            end: tokens[i + 2]!.end,
+          });
+        } else {
+          // 多词翻译：拆分为多个 IDENT token（第一个保持 TYPE_IDENT）
+          const startPos = token.start;
+          const endPos = tokens[i + 2]!.end;
+          for (let j = 0; j < targetWords.length; j++) {
+            result.push({
+              kind: j === 0 ? TokenKind.TYPE_IDENT : TokenKind.IDENT,
+              value: targetWords[j]!,
+              start: startPos,
+              end: endPos,
+            });
+          }
+        }
         i += 3; // 跳过三个 token
         continue;
       }
     }
 
-    // 普通 token 翻译
+    // 尝试多词短语翻译（从最长匹配开始，贪婪匹配）
+    if (isTranslatableToken(token)) {
+      let matched = false;
+
+      // 从最长可能的短语开始尝试匹配
+      for (let phraseLen = Math.min(maxPhraseLength, tokens.length - i); phraseLen > 1; phraseLen--) {
+        // 检查接下来的 token 是否都是可翻译类型
+        let allTranslatable = true;
+        const phraseTokens: Token[] = [];
+
+        for (let j = 0; j < phraseLen; j++) {
+          const t = tokens[i + j]!;
+          if (!isTranslatableToken(t)) {
+            allTranslatable = false;
+            break;
+          }
+          phraseTokens.push(t);
+        }
+
+        if (!allTranslatable) continue;
+
+        // 构建短语并查找翻译
+        const phrase = phraseTokens.map(t => (t.value as string).toLowerCase()).join(' ');
+        const translated = index.get(phrase);
+
+        if (translated) {
+          // 计算翻译目标的词数
+          const targetWords = translated.split(/\s+/);
+          const targetWordCount = targetWords.length;
+
+          if (targetWordCount === phraseLen) {
+            // 源和目标词数相同：逐词翻译，保持 token 数量
+            // 例如 "dieses modul ist" -> "this module is" 保持 3 个 token
+            for (let j = 0; j < phraseLen; j++) {
+              const srcToken = phraseTokens[j]!;
+              result.push({
+                kind: srcToken.kind,
+                value: targetWords[j]!,
+                start: srcToken.start,
+                end: srcToken.end,
+              });
+            }
+          } else if (targetWordCount < phraseLen) {
+            // 目标词数少于源词数：合并为较少的 token
+            // 例如 "gib zurück" (2) -> "return" (1)
+            // 为每个目标词创建一个 token，位置信息从源 token 分配
+            for (let j = 0; j < targetWordCount; j++) {
+              // 计算每个目标词对应的源 token 范围
+              const srcStartIdx = Math.floor(j * phraseLen / targetWordCount);
+              const srcEndIdx = Math.floor((j + 1) * phraseLen / targetWordCount) - 1;
+              const srcStartToken = phraseTokens[srcStartIdx]!;
+              const srcEndToken = phraseTokens[srcEndIdx]!;
+              result.push({
+                kind: srcStartToken.kind,
+                value: targetWords[j]!,
+                start: srcStartToken.start,
+                end: srcEndToken.end,
+              });
+            }
+          } else {
+            // 目标词数多于源词数（如中文 "至少" -> 英文 "at least"）
+            // 需要拆分为多个 token
+            const firstToken = phraseTokens[0]!;
+            const lastToken = phraseTokens[phraseLen - 1]!;
+            for (let j = 0; j < targetWordCount; j++) {
+              result.push({
+                kind: firstToken.kind,
+                value: targetWords[j]!,
+                start: firstToken.start,
+                end: lastToken.end,
+              });
+            }
+          }
+
+          i += phraseLen; // 跳过所有匹配的 token
+          matched = true;
+          break;
+        }
+      }
+
+      if (matched) continue;
+    }
+
+    // 普通单 token 翻译（需要处理单词→多词的情况，如 "至少" → "at least"）
+    if (isTranslatableToken(token)) {
+      const value = token.value as string;
+      const translated = index.get(value.toLowerCase());
+      if (translated) {
+        const targetWords = translated.split(/\s+/);
+        if (targetWords.length > 1) {
+          // 单源词→多目标词：拆分为多个 token
+          for (const word of targetWords) {
+            result.push({
+              kind: token.kind,
+              value: word,
+              start: token.start,
+              end: token.end,
+            });
+          }
+          i++;
+          continue;
+        }
+      }
+    }
     result.push(translateToken(token, index));
     i++;
   }

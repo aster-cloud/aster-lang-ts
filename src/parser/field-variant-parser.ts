@@ -140,8 +140,9 @@ export function parseVariantList(
   while (hasMore) {
     const vTok = ctx.peek();
 
-    // 解析变体名（必须是类型标识符）
-    if (!ctx.at(TokenKind.TYPE_IDENT)) {
+    // 解析变体名（类型标识符或普通标识符）
+    // Accept both TYPE_IDENT and IDENT to support languages without capitalization (e.g., Chinese)
+    if (!ctx.at(TokenKind.TYPE_IDENT) && !ctx.at(TokenKind.IDENT)) {
       error("Expected type identifier for variant name", vTok);
     }
     const v = ctx.next().value as string;

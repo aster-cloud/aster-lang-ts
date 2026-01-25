@@ -97,7 +97,10 @@ export function createParserTools(ctx: ParserContext): ParserTools {
     },
 
     parseTypeIdent(): string {
-      if (!ctx.at(TokenKind.TYPE_IDENT))
+      // Accept both TYPE_IDENT and IDENT to support languages without capitalization (e.g., Chinese)
+      // In English, type names are capitalized (User, Order) -> TYPE_IDENT
+      // In Chinese, type names look like regular words (用户, 订单) -> IDENT
+      if (!ctx.at(TokenKind.TYPE_IDENT) && !ctx.at(TokenKind.IDENT))
         Diagnostics.expectedToken('Type identifier', ctx.peek().kind, ctx.peek().start).throw();
       return ctx.next().value as string;
     },

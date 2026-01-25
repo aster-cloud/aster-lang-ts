@@ -6,13 +6,13 @@ Definiere Benutzer mit id, name, rolle.
 Definiere Status als eines von Ausstehend, Aktiv, Gesperrt, Geloescht.
 
 // Abgleich auf optionalen Wert
-benutzerBegruessen mit benutzer, liefert:
+Um benutzerBegruessen mit benutzer, liefert:
   pruefe benutzer:
     bei null, gib zurueck "Hallo, Gast".
     bei Benutzer(id, name, rolle), gib zurueck "Willkommen, " plus name.
 
 // Abgleich auf Aufzaehlung
-statusBeschreiben mit status, liefert:
+Um statusBeschreiben mit status, liefert:
   pruefe status:
     bei Ausstehend, gib zurueck "Wartet auf Freigabe".
     bei Aktiv, gib zurueck "Derzeit aktiv".
@@ -20,7 +20,7 @@ statusBeschreiben mit status, liefert:
     bei Geloescht, gib zurueck "Dauerhaft entfernt".
 
 // Abgleich mit Ganzzahl-Literal
-punktzahlKlassifizieren mit punktzahl, liefert:
+Um punktzahlKlassifizieren mit punktzahl, liefert:
   pruefe punktzahl:
     bei 0, gib zurueck "Null".
     bei 100, gib zurueck "Perfekt".

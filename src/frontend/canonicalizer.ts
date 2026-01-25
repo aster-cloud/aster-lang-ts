@@ -218,17 +218,36 @@ export function canonicalize(input: string, lexicon?: Lexicon): string {
 
   // Keep original casing to preserve TypeIdents. We only normalize multi-word keywords by hinting
   // but we leave actual case handling to the parser (case-insensitive compare).
+  //
+  // To protect multi-word keywords from article removal, we use a marker-based approach:
+  // 1. Replace multi-word keywords with unique markers
+  // 2. Remove articles
+  // 3. Restore multi-word keywords from markers
   let marked = s;
-  for (const phrase of multiWordKeywords) {
+  const keywordMarkers = new Map<string, string>();
+  let markerIndex = 0;
+
+  // Step 1: Replace multi-word keywords with markers (sorted by length, longest first)
+  const sortedKeywords = [...multiWordKeywords].sort((a, b) => b.length - a.length);
+  for (const phrase of sortedKeywords) {
     const re = new RegExp(phrase.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'ig');
-    marked = marked.replace(re, m => m.toLowerCase());
+    marked = marked.replace(re, m => {
+      const marker = `\x00KW${markerIndex++}\x00`;
+      keywordMarkers.set(marker, m.toLowerCase());
+      return marker;
+    });
   }
 
-  // Remove articles in allowed contexts (lightweight; parser will enforce correctness)
+  // Step 2: Remove articles in allowed contexts (lightweight; parser will enforce correctness)
   if (articleRe) {
     marked = segmentString(marked, quotes)
       .map(segment => (segment.inString ? segment.text : segment.text.replace(articleRe, '')))
       .join('');
+  }
+
+  // Step 3: Restore multi-word keywords from markers
+  for (const [marker, keyword] of keywordMarkers) {
+    marked = marked.replace(marker, keyword);
   }
   // Do not collapse newlines globally.
   marked = marked.replace(/^\s+$/gm, '');

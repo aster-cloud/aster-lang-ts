@@ -28,7 +28,9 @@ export const DE_DE: Lexicon = {
     [SemanticTokenKind.TYPE_ONE_OF]: 'als eines von',
 
     // 函数定义
-    [SemanticTokenKind.FUNC_TO]: 'mit',
+    // FUNC_TO is the function definition start keyword (like English "To calculate...")
+    // German uses "Um" (in order to) or just use English-style keyword
+    [SemanticTokenKind.FUNC_TO]: 'Um',
     [SemanticTokenKind.FUNC_PRODUCE]: 'liefert',
     [SemanticTokenKind.FUNC_PERFORMS]: 'führt aus',
 
@@ -133,8 +135,7 @@ export const DE_DE: Lexicon = {
     removeArticles: true, // 移除常见冠词以降低噪音
     articles: ['der', 'die', 'das', 'ein', 'eine', 'einen', 'einem', 'einer', 'eines'],
     allowedDuplicates: [
-      // "mit" 同时承担类型字段与函数入参标记
-      [SemanticTokenKind.TYPE_WITH, SemanticTokenKind.FUNC_TO],
+      // No duplicates needed - "Um" is for functions, "mit" is for type fields
     ],
     // ASCII-ized umlaut normalization: convert common ASCII alternatives to proper umlauts
     // This allows users to type "groesser" instead of "größer", "zurueck" instead of "zurück"

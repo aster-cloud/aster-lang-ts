@@ -111,9 +111,16 @@ export const NAMING_RULES: readonly TypeInferenceRule[] = [
     priority: 9,
   },
 
-  // 布尔类型 - 前缀匹配
+  // 布尔类型 - 前缀匹配（英文）
   {
     pattern: /^(?:is|has|can|should|was|will|did|does|allow|enable|disable|active|valid|require)/i,
+    type: 'Bool',
+    priority: 11,
+  },
+  // 布尔类型 - 前缀匹配（中文）
+  // 是否* = "whether", 有无* = "has/have", 能否* = "can", 可否* = "may"
+  {
+    pattern: /^(?:是否|有无|能否|可否|允许|启用|禁用)/,
     type: 'Bool',
     priority: 11,
   },

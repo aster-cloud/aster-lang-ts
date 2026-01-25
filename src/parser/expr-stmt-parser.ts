@@ -949,7 +949,12 @@ function parsePrimary(
   }
 
   // Construction: Type with a = expr and b = expr
-  if (ctx.at(TokenKind.TYPE_IDENT)) {
+  // Accept both TYPE_IDENT and IDENT to support languages without capitalization (e.g., Chinese)
+  // Only treat IDENT as a potential construction if followed by 'with' keyword
+  const nextTokenIsWithKeyword = ctx.tokens[ctx.index + 1] &&
+    (ctx.tokens[ctx.index + 1]!.kind === TokenKind.IDENT || ctx.tokens[ctx.index + 1]!.kind === TokenKind.KEYWORD) &&
+    (ctx.tokens[ctx.index + 1]!.value as string || '').toLowerCase() === KW.WITH;
+  if (ctx.at(TokenKind.TYPE_IDENT) || (ctx.at(TokenKind.IDENT) && nextTokenIsWithKeyword)) {
     const typeTok = ctx.next();
     const typeName = typeTok.value as string;
     if (ctx.isKeyword(KW.WITH)) {
@@ -1104,7 +1109,11 @@ export function parsePattern(
     assignSpan(node, spanFromToken(tok));
     return node;
   }
-  if (ctx.at(TokenKind.TYPE_IDENT)) {
+  // Accept both TYPE_IDENT and IDENT for type patterns
+  // (Chinese type names appear as IDENT since they don't use capitalization)
+  // Only treat IDENT as a type pattern if followed by LPAREN for destructuring
+  const nextTokenIsLParen = ctx.tokens[ctx.index + 1]?.kind === TokenKind.LPAREN;
+  if (ctx.at(TokenKind.TYPE_IDENT) || (ctx.at(TokenKind.IDENT) && nextTokenIsLParen)) {
     const typeTok = ctx.next();
     const typeName = typeTok.value as string;
     if (ctx.at(TokenKind.LPAREN)) {

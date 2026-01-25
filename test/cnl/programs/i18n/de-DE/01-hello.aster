@@ -1,8 +1,8 @@
 // Deutsches Hello World - Grundfunktion zur Begruessung
 Dieses Modul ist test.hallo.
 
-begruesse mit name, liefert:
+Um begruesse mit name, liefert:
   gib zurueck "Hallo, " plus name.
 
-halloWelt liefert:
+Um halloWelt, liefert:
   gib zurueck "Hallo, Welt!".

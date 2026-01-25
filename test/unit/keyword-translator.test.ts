@@ -42,7 +42,7 @@ describe('关键词翻译器', () => {
       assert.strictEqual(index.get('包含'), 'with');
 
       // 验证函数定义关键词
-      assert.strictEqual(index.get('入参'), 'to');
+      // 注意: '【函数】' 是标记关键词，在 markerIndex 中而不是 index 中
       assert.strictEqual(index.get('产出'), 'produce');
 
       // 验证类型关键词
@@ -203,8 +203,8 @@ describe('关键词翻译器', () => {
 
   describe('完整编译流程集成', () => {
     it('应能解析翻译后的中文 CNL 简单返回语句', () => {
-      // 中文源代码
-      const zhSource = '入参 id 产出 整数：\n  返回 1。';
+      // 中文源代码 - 使用 【函数】 标记关键词
+      const zhSource = '【函数】 identity 包含 id，产出：\n  返回 id。';
 
       // 步骤 1: 规范化
       const canonical = canonicalize(zhSource, ZH_CN);
@@ -217,16 +217,17 @@ describe('关键词翻译器', () => {
       const translatedTokens = translator.translateTokens(tokens);
 
       // 验证关键词已翻译
+      const typeIdentTokens = translatedTokens.filter(t => t.kind === TokenKind.TYPE_IDENT);
+      const hasTo = typeIdentTokens.some(t => t.value === 'to');
       const identTokens = translatedTokens.filter(t => t.kind === TokenKind.IDENT);
-      const hasTo = identTokens.some(t => t.value === 'to');
+      const hasWith = identTokens.some(t => t.value === 'with');
       const hasProduce = identTokens.some(t => t.value === 'produce');
       const hasReturn = identTokens.some(t => t.value === 'return');
-      const hasInt = identTokens.some(t => t.value === 'int');
 
-      assert.ok(hasTo, '应有翻译后的 "to" 关键词');
+      assert.ok(hasTo, '应有翻译后的 "to" 关键词（TYPE_IDENT）');
+      assert.ok(hasWith, '应有翻译后的 "with" 关键词');
       assert.ok(hasProduce, '应有翻译后的 "produce" 关键词');
       assert.ok(hasReturn, '应有翻译后的 "return" 关键词');
-      assert.ok(hasInt, '应有翻译后的 "int" 类型');
 
       // 步骤 4: 解析（使用翻译后的 token）
       const ast = parse(translatedTokens);
@@ -270,8 +271,8 @@ describe('关键词翻译器', () => {
     });
 
     it('应能解析翻译后的中文 CNL If 语句', () => {
-      // 中文 If 语句 (CNL 改进: 移除冗余逗号)
-      const zhSource = `入参 check 产出 整数：
+      // 中文 If 语句 - 使用 【函数】 标记关键词
+      const zhSource = `【函数】 check 包含 x，产出：
   若 1 小于 2：
     返回 1。
   返回 0。`;

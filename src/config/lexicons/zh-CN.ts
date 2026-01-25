@@ -37,7 +37,10 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.TYPE_ONE_OF]: '为以下之一',
 
     // 函数定义
-    [SemanticTokenKind.FUNC_TO]: '入参',
+    // FUNC_TO is the function definition start keyword (like English "To...")
+    // Chinese uses "【函数】" as a marker for clarity
+    [SemanticTokenKind.FUNC_TO]: '【函数】',
+    // TYPE_WITH will handle "入参" for parameters
     [SemanticTokenKind.FUNC_PRODUCE]: '产出',
     [SemanticTokenKind.FUNC_PERFORMS]: '执行',
 
