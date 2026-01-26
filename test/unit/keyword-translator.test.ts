@@ -34,11 +34,12 @@ describe('关键词翻译器', () => {
       // 验证控制流关键词（普通关键词，不含【】）
       assert.strictEqual(index.get('如果'), 'if');
       assert.strictEqual(index.get('若'), 'match');
+      // 注意：'为' 同时用于 WHEN 和 BE（复合关键词），由于构建顺序 WHEN 会覆盖 BE
+      // 实际解析时依赖上下文：match 块内为 when，let 语句后为 be
       assert.strictEqual(index.get('为'), 'when');
       assert.strictEqual(index.get('返回'), 'return');
       assert.strictEqual(index.get('否则'), 'otherwise');
       assert.strictEqual(index.get('令'), 'let');
-      assert.strictEqual(index.get('赋'), 'be');
 
       // 验证普通类型定义关键词（不含【】）
       assert.strictEqual(index.get('包含'), 'with');

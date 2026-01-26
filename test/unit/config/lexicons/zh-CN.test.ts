@@ -90,7 +90,7 @@ describe('ZH_CN Lexicon 测试套件', () => {
 
     it('应正确映射变量操作关键字', () => {
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.LET], '令');
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.BE], '赋');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.BE], '为');
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.SET], '将');
     });
 
@@ -143,16 +143,24 @@ describe('ZH_CN Lexicon 测试套件', () => {
   });
 
   describe('复合关键词模式 (Compound Patterns)', () => {
-    it('应在 zh-CN lexicon 中定义 match-when 复合模式', () => {
+    it('应在 zh-CN lexicon 中定义复合模式', () => {
       const patterns = ZH_CN.canonicalization.compoundPatterns;
       assert.ok(patterns, '应存在 compoundPatterns 配置');
-      assert.strictEqual(patterns.length, 1, '应有 1 个复合模式');
+      assert.strictEqual(patterns.length, 2, '应有 2 个复合模式');
 
+      // match-when 模式：若...为
       const matchWhen = patterns[0]!;
       assert.strictEqual(matchWhen.name, 'match-when');
       assert.strictEqual(matchWhen.opener, SemanticTokenKind.MATCH);
       assert.ok(matchWhen.contextualKeywords.includes(SemanticTokenKind.WHEN));
       assert.strictEqual(matchWhen.closer, 'DEDENT');
+
+      // let-be 模式：令...为
+      const letBe = patterns[1]!;
+      assert.strictEqual(letBe.name, 'let-be');
+      assert.strictEqual(letBe.opener, SemanticTokenKind.LET);
+      assert.ok(letBe.contextualKeywords.includes(SemanticTokenKind.BE));
+      assert.strictEqual(letBe.closer, 'NEWLINE');
     });
 
     it('应正确解析包含 若...为 和 为以下之一 的程序', () => {
@@ -183,7 +191,7 @@ describe('ZH_CN Lexicon 测试套件', () => {
 
   describe('Canonicalizer 中文支持', () => {
     it('应保留中文标点', () => {
-      const input = '令 变量 赋 42。';
+      const input = '令 变量 为 42。';
       const result = canonicalize(input, ZH_CN);
       assert.ok(result.includes('。'));
     });
@@ -777,12 +785,12 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
 
     it('应正确词法分析变量绑定', () => {
-      const input = '令 结果 赋 计算(42)。';
+      const input = '令 结果 为 计算(42)。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       assert.ok(findIdent(tokens, '令'), '应识别「令」标识符');
-      assert.ok(findIdent(tokens, '赋'), '应识别「赋」标识符');
+      assert.ok(findIdent(tokens, '为'), '应识别「为」标识符');
     });
 
     it('应正确词法分析完整中文程序', () => {
@@ -1036,7 +1044,7 @@ To greet with user: User?, produce Text:
 
       // 验证变量绑定
       assert.ok(findIdent(tokens, '令'), '应有 令 关键词');
-      assert.ok(findIdent(tokens, '赋'), '应有 赋 关键词');
+      assert.ok(findIdent(tokens, '为'), '应有 为 关键词');
 
       // 验证布尔值
       const boolTokens = tokens.filter((t: Token) => t.kind === TokenKind.BOOL);
@@ -1092,9 +1100,9 @@ To greet with user: User?, produce Text:
 
       // 验证变量绑定
       const letCount = countIdent(tokens, '令');
-      const beCount = countIdent(tokens, '赋');
+      const beCount = countIdent(tokens, '为');
       assert.ok(letCount >= 2, '应有多个 令 关键词');
-      assert.ok(beCount >= 2, '应有多个 赋 关键词');
+      assert.ok(beCount >= 2, '应有多个 为 关键词');
     });
 
     it('所有中文 CNL 文件应成功规范化', () => {

@@ -55,7 +55,7 @@ export const ZH_CN: Lexicon = {
 
     // 变量操作
     [SemanticTokenKind.LET]: '令',
-    [SemanticTokenKind.BE]: '赋',
+    [SemanticTokenKind.BE]: '为',
     [SemanticTokenKind.SET]: '将',
     [SemanticTokenKind.TO_WORD]: '设为',
 
@@ -150,6 +150,12 @@ export const ZH_CN: Lexicon = {
     // 引号规范化已在 canonicalizer 中统一处理（支持智能引号和直引号）
     // 不再需要自定义规则
 
+    // 允许共享同一关键字的语义令牌组
+    // "为" 在不同上下文中有不同含义：模式匹配 (WHEN) 和变量赋值 (BE)
+    allowedDuplicates: [
+      [SemanticTokenKind.WHEN, SemanticTokenKind.BE], // "为" 用于 match/when 和 let/be
+    ],
+
     // 复合关键词模式 - 定义上下文敏感的关键词组合
     compoundPatterns: [
       {
@@ -159,6 +165,14 @@ export const ZH_CN: Lexicon = {
           SemanticTokenKind.WHEN, // "为" - 仅在 match 块内有效
         ],
         closer: 'DEDENT',
+      },
+      {
+        name: 'let-be',
+        opener: SemanticTokenKind.LET, // "令"
+        contextualKeywords: [
+          SemanticTokenKind.BE, // "为" - 在 let 语句中用作赋值
+        ],
+        closer: 'NEWLINE',
       },
     ],
   },
