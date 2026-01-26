@@ -323,11 +323,11 @@ describe('I18N 多语言词法表测试套件', () => {
       assert.ok(result.canonical.includes('Return'), '应有 Return');
     });
 
-    it('中文: 应识别 若/否则/返回 关键词', () => {
+    it('中文: 应识别 如果/否则/返回 关键词', () => {
       const result = parseFile('zh-CN', '04-control-flow', ZH_CN);
       assert.ok(result);
       // 中文关键词保持原样
-      assert.ok(result.source.includes('若'), '应有 若');
+      assert.ok(result.source.includes('如果'), '应有 如果');
       assert.ok(result.source.includes('返回'), '应有 返回');
     });
 

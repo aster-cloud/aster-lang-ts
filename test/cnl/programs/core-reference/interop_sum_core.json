@@ -5,11 +5,13 @@
     {
       "kind": "Func",
       "name": "sumInt",
-      "typeParams": [],
+      "typeParams": [
+        "Unknown"
+      ],
       "params": [],
       "ret": {
-        "kind": "TypeName",
-        "name": "Text"
+        "kind": "TypeVar",
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -38,16 +40,19 @@
             }
           }
         ]
-      }
+      },
+      "retTypeInferred": true
     },
     {
       "kind": "Func",
       "name": "sumLong",
-      "typeParams": [],
+      "typeParams": [
+        "Unknown"
+      ],
       "params": [],
       "ret": {
-        "kind": "TypeName",
-        "name": "Text"
+        "kind": "TypeVar",
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -76,16 +81,19 @@
             }
           }
         ]
-      }
+      },
+      "retTypeInferred": true
     },
     {
       "kind": "Func",
       "name": "sumDouble",
-      "typeParams": [],
+      "typeParams": [
+        "Unknown"
+      ],
       "params": [],
       "ret": {
-        "kind": "TypeName",
-        "name": "Text"
+        "kind": "TypeVar",
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -114,16 +122,19 @@
             }
           }
         ]
-      }
+      },
+      "retTypeInferred": true
     },
     {
       "kind": "Func",
       "name": "sumIntLong",
-      "typeParams": [],
+      "typeParams": [
+        "Unknown"
+      ],
       "params": [],
       "ret": {
-        "kind": "TypeName",
-        "name": "Text"
+        "kind": "TypeVar",
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -152,16 +163,19 @@
             }
           }
         ]
-      }
+      },
+      "retTypeInferred": true
     },
     {
       "kind": "Func",
       "name": "sumIntDouble",
-      "typeParams": [],
+      "typeParams": [
+        "Unknown"
+      ],
       "params": [],
       "ret": {
-        "kind": "TypeName",
-        "name": "Text"
+        "kind": "TypeVar",
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -190,7 +204,8 @@
             }
           }
         ]
-      }
+      },
+      "retTypeInferred": true
     }
   ]
 }

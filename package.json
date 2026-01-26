@@ -1,6 +1,6 @@
 {
   "name": "@aster-cloud/aster-lang-ts",
-  "version": "0.0.16",
+  "version": "0.0.18",
   "description": "Aster CNL (Controlled Natural Language) TypeScript Compiler - Lexer, Parser, AST, Core IR, Type Checker",
   "type": "module",
   "main": "./dist/src/index.js",
@@ -134,7 +134,7 @@
   },
   "homepage": "https://aster-lang.cloud",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24.0.0"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",

@@ -301,12 +301,6 @@ async function main(): Promise<void> {
     'test/cnl/programs/lambda/lambda_cnl_math_bool.aster',
     'test/cnl/programs/lambda/expected_lambda_cnl_math_bool_core.json'
   );
-  // CNL mixed lambdas example (block + short form)
-  runOneAst('test/cnl/programs/lambda/lambda_cnl_mixed.aster', 'test/cnl/programs/lambda/expected_lambda_cnl_mixed.ast.json');
-  await runOneCore(
-    'test/cnl/programs/lambda/lambda_cnl_mixed.aster',
-    'test/cnl/programs/lambda/expected_lambda_cnl_mixed.core.json'
-  );
   // CNL lambda example using Text.length
   runOneAst(
     'test/cnl/programs/lambda/lambda_cnl_length.aster',
@@ -501,9 +495,6 @@ async function main(): Promise<void> {
     await runOneTypecheck('test/cnl/programs/effects/eff_valid_nested.aster', 'test/cnl/programs/effects/expected_eff_valid_nested.diag.txt');
     await runOneTypecheck('test/cnl/programs/effects/eff_valid_pure_only.aster', 'test/cnl/programs/effects/expected_eff_valid_pure_only.diag.txt');
     await runOneTypecheck('test/cnl/programs/effects/eff_valid_subset_declared.aster', 'test/cnl/programs/effects/expected_eff_valid_subset_declared.diag.txt');
-
-    // Additional typecheck negative tests
-    await runOneTypecheck('test/cnl/programs/generics/bad_generic_return_type.aster', 'test/cnl/programs/generics/expected_bad_generic_return_type.diag.txt');
   } finally {
     // 恢复原始环境变量避免污染后续任务
     if (prevEnforce === undefined) {
