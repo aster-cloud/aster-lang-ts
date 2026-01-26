@@ -373,7 +373,31 @@ export function translateTokensWithMarkers(
     // 普通单 token 翻译（需要处理单词→多词的情况，如 "至少" → "at least"）
     if (isTranslatableToken(token)) {
       const value = token.value as string;
-      const translated = index.get(value.toLowerCase());
+      const valueLower = value.toLowerCase();
+
+      // 上下文敏感翻译：处理 allowedDuplicates 冲突
+      // 例如：中文 "为" 同时用于 WHEN 和 BE，需要根据前一个 token 判断
+      // - 在 "let x 为 ..." 结构中，"为" → "be"
+      // - 否则，"为" → "when"（默认，用于 match 块）
+      let translated = index.get(valueLower);
+      if (translated === 'when' && result.length >= 2) {
+        // 在 "令 x 为 ..." 结构中：
+        // - result[-1] 是变量名 "x"（IDENT）
+        // - result[-2] 是关键字 "let"
+        // 检查前面第二个 token 是否是 "let"
+        const prevPrevToken = result[result.length - 2];
+        if (prevPrevToken &&
+            (prevPrevToken.kind === TokenKind.IDENT ||
+             prevPrevToken.kind === TokenKind.TYPE_IDENT ||
+             prevPrevToken.kind === TokenKind.KEYWORD)) {
+          const prevPrevValue = (prevPrevToken.value as string).toLowerCase();
+          if (prevPrevValue === 'let') {
+            // 在 let 上下文中，"为" 翻译为 "be"
+            translated = 'be';
+          }
+        }
+      }
+
       if (translated) {
         const targetWords = translated.split(/\s+/);
         if (targetWords.length > 1) {
@@ -389,6 +413,15 @@ export function translateTokensWithMarkers(
           i++;
           continue;
         }
+        // 单词翻译
+        result.push({
+          kind: token.kind,
+          value: translated,
+          start: token.start,
+          end: token.end,
+        });
+        i++;
+        continue;
       }
     }
     result.push(translateToken(token, index));

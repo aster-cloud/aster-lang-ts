@@ -2,9 +2,11 @@ import { describe, test, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../src/frontend/lexer.js';
-import { parse } from '../../../src/parser.js';
+import { parse, parseWithLexicon } from '../../../src/parser.js';
 import type { Module, Declaration, Statement } from '../../../src/types.js';
 import { CapabilityKind } from '../../../src/config/semantic.js';
+import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { EN_US } from '../../../src/config/lexicons/en-US.js';
 
 function parseSource(source: string): Module {
   const canonical = canonicalize(source);
@@ -1281,6 +1283,134 @@ To spawn, produce Text:
       }
       assert.equal(startStmt.expr.target.kind, 'Name');
       assert.equal(startStmt.expr.target.name, 'Http.fetch');
+    });
+  });
+
+  describe('parseWithLexicon 多语言支持', () => {
+    test('应该使用 en-US lexicon 直接解析（无翻译）', () => {
+      const source = `
+This module is test.parser.lexicon.en.
+
+To greet with name: Text, produce Text:
+  Return Text.concat("Hello, ", name).
+`;
+      const canonical = canonicalize(source, EN_US);
+      const tokens = lex(canonical, EN_US);
+      const module = parseWithLexicon(tokens, EN_US);
+
+      assert.equal(module.name, 'test.parser.lexicon.en');
+      const func = findFunc(module, 'greet');
+      assert.equal(func.params.length, 1);
+      assert.equal(func.params[0]!.name, 'name');
+    });
+
+    test('应该使用 zh-CN lexicon 自动翻译并解析', () => {
+      const zhSource = `
+【模块】测试。
+
+【函数】 identity 包含 value：整数，产出：
+  返回 value。
+`;
+      const canonical = canonicalize(zhSource, ZH_CN);
+      const tokens = lex(canonical, ZH_CN);
+      const module = parseWithLexicon(tokens, ZH_CN);
+
+      assert.ok(module, '应该成功解析中文 CNL');
+      assert.equal(module.name, '测试');
+
+      const func = findFunc(module, 'identity');
+      assert.equal(func.params.length, 1);
+      assert.equal(func.params[0]!.name, 'value');
+      assert.equal(func.retType.kind, 'TypeName');
+    });
+
+    test('应该解析中文 CNL 的类型定义', () => {
+      const zhSource = `
+【模块】测试。
+
+【定义】 User 包含 age：整数。
+`;
+      const canonical = canonicalize(zhSource, ZH_CN);
+      const tokens = lex(canonical, ZH_CN);
+      const module = parseWithLexicon(tokens, ZH_CN);
+
+      const dataDef = module.decls.find(d => d.kind === 'Data');
+      assert.ok(dataDef && dataDef.kind === 'Data', '应该找到 Data 定义');
+      if (!dataDef || dataDef.kind !== 'Data') {
+        assert.fail('缺少 Data 定义');
+      }
+      assert.equal(dataDef.name, 'User');
+      assert.equal(dataDef.fields.length, 1);
+      assert.equal(dataDef.fields[0]!.name, 'age');
+    });
+
+    test('应该解析中文 CNL 的 If 语句', () => {
+      const zhSource = `
+【模块】测试。
+
+【函数】 check 包含 x：整数，产出：
+  如果 x 大于 0：
+    返回 1。
+  否则：
+    返回 0。
+`;
+      const canonical = canonicalize(zhSource, ZH_CN);
+      const tokens = lex(canonical, ZH_CN);
+      const module = parseWithLexicon(tokens, ZH_CN);
+
+      const func = findFunc(module, 'check');
+      const statements = func.body?.statements ?? [];
+      const ifStmt = statements.find(s => s.kind === 'If');
+      assert.ok(ifStmt && ifStmt.kind === 'If', '应该找到 If 语句');
+      if (!ifStmt || ifStmt.kind !== 'If') {
+        assert.fail('缺少 If 语句');
+      }
+      assert.ok(ifStmt.elseBlock, '应该有 else 分支');
+    });
+
+    test('应该解析中文 CNL 的 Match 语句（若...为）', () => {
+      const zhSource = `
+【模块】测试。
+
+【函数】 describe 包含 status：整数，产出：
+  若 status：
+    为 1，返回 「成功」。
+    为 0，返回 「失败」。
+`;
+      const canonical = canonicalize(zhSource, ZH_CN);
+      const tokens = lex(canonical, ZH_CN);
+      const module = parseWithLexicon(tokens, ZH_CN);
+
+      const func = findFunc(module, 'describe');
+      const statements = func.body?.statements ?? [];
+      const matchStmt = statements.find(s => s.kind === 'Match');
+      assert.ok(matchStmt && matchStmt.kind === 'Match', '应该找到 Match 语句');
+      if (!matchStmt || matchStmt.kind !== 'Match') {
+        assert.fail('缺少 Match 语句');
+      }
+      assert.equal(matchStmt.cases.length, 2, '应该有 2 个 case');
+    });
+
+    test('应该解析中文 CNL 的 Let...为 语句', () => {
+      const zhSource = `
+【模块】测试。
+
+【函数】 calc 包含 x：整数，产出：
+  令 result 为 x 加 1。
+  返回 result。
+`;
+      const canonical = canonicalize(zhSource, ZH_CN);
+      const tokens = lex(canonical, ZH_CN);
+      const module = parseWithLexicon(tokens, ZH_CN);
+
+      const func = findFunc(module, 'calc');
+      const statements = func.body?.statements ?? [];
+      const letStmt = statements.find(s => s.kind === 'Let');
+      assert.ok(letStmt && letStmt.kind === 'Let', '应该找到 Let 语句');
+      if (!letStmt || letStmt.kind !== 'Let') {
+        assert.fail('缺少 Let 语句');
+      }
+      assert.equal(letStmt.name, 'result');
     });
   });
 });

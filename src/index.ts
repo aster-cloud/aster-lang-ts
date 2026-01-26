@@ -27,7 +27,7 @@
 // 编译器管道函数
 export { canonicalize } from './frontend/canonicalizer.js';
 export { lex } from './frontend/lexer.js';
-export { parse } from './parser.js';
+export { parse, parseWithLexicon } from './parser.js';
 export { lowerModule } from './lower_to_core.js';
 
 // 关键词翻译（多语言 CNL 支持）
