@@ -12,7 +12,9 @@ import type { Module as AstModule, Core, TypecheckDiagnostic } from '../../src/t
 import { ModuleCache } from '../../src/lsp/module_cache.js';
 
 const FIXTURE_ROOT = path.resolve(process.cwd(), 'test/type-checker/cross-module');
-const PACKAGE_ROOT = path.join(FIXTURE_ROOT, '.aster', 'packages');
+// Use 'external-packages' instead of '.aster/packages' to ensure fixtures are tracked by git
+// (directories starting with .aster are git-ignored)
+const PACKAGE_ROOT = path.join(FIXTURE_ROOT, 'external-packages');
 const MODULE_SEARCH_PATHS = [FIXTURE_ROOT, PACKAGE_ROOT] as const;
 
 function loadCoreModule(relativePath: string): Core.Module {
@@ -42,7 +44,7 @@ describe('跨模块类型检查加载包签名', () => {
     assert.equal(moduleBDiagnostics.length, 0, '工作区 module_b 应通过类型检查');
   });
 
-  it('可以从 .aster/packages 加载外部模块签名', () => {
+  it('可以从 external-packages 加载外部模块签名', () => {
     const cache = new ModuleCache();
     const diagnostics = runTypecheck('module_b_external.aster', cache);
     assert.equal(diagnostics.length, 0, '导入外部包应通过类型检查');
