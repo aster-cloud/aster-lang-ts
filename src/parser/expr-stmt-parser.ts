@@ -522,23 +522,35 @@ function parseCases(
   error: (msg: string) => never
 ): Case[] {
   const cases: Case[] = [];
-  if (!ctx.at(TokenKind.INDENT)) error('Expected indent for cases');
-  ctx.next();
-  while (!ctx.at(TokenKind.DEDENT)) {
-    if (!ctx.isKeyword(KW.WHEN)) error("Expected 'When'");
-    const whenTok = ctx.nextWord();
-    const pat = parsePattern(ctx, error);
-    if (!ctx.at(TokenKind.COMMA)) error("Expected ',' after pattern");
+
+  // 进入 match 上下文（用于验证 WHEN 关键词）
+  ctx.pushCompoundContext(KW.MATCH);
+
+  try {
+    if (!ctx.at(TokenKind.INDENT)) error('Expected indent for cases');
     ctx.next();
-    const body = parseCaseBody(ctx, error);
-    const caseNode = Node.Case(pat, body);
-    const endTok = lastConsumedToken(ctx);
-    assignSpan(caseNode, spanFromTokens(whenTok, endTok));
-    cases.push(caseNode);
-    while (ctx.at(TokenKind.NEWLINE)) ctx.next();
+    while (!ctx.at(TokenKind.DEDENT)) {
+      if (!ctx.isKeyword(KW.WHEN)) {
+        // 改进的错误消息，提示复合模式关系
+        error("Expected 'When' (若...为 pattern requires '为' after '若')");
+      }
+      const whenTok = ctx.nextWord();
+      const pat = parsePattern(ctx, error);
+      if (!ctx.at(TokenKind.COMMA)) error("Expected ',' after pattern");
+      ctx.next();
+      const body = parseCaseBody(ctx, error);
+      const caseNode = Node.Case(pat, body);
+      const endTok = lastConsumedToken(ctx);
+      assignSpan(caseNode, spanFromTokens(whenTok, endTok));
+      cases.push(caseNode);
+      while (ctx.at(TokenKind.NEWLINE)) ctx.next();
+    }
+    ctx.next();
+    return cases;
+  } finally {
+    // 确保退出上下文（即使发生错误）
+    ctx.popCompoundContext();
   }
-  ctx.next();
-  return cases;
 }
 
 /**

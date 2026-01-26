@@ -110,6 +110,14 @@ export interface CanonicalizationConfig {
    * ```
    */
   readonly allowedDuplicates?: readonly (readonly SemanticTokenKind[])[];
+
+  /**
+   * 复合关键词模式 - 定义上下文敏感的关键词组合。
+   *
+   * 用于文档化语法组（如中文 "若...为" 模式匹配），为工具（LSP、格式化器）
+   * 提供元数据，并在错误上下文使用关键词时提供更清晰的诊断信息。
+   */
+  readonly compoundPatterns?: readonly CompoundPattern[];
 }
 
 /**
@@ -124,6 +132,26 @@ export interface CanonicalizationRule {
 
   /** 替换内容 */
   readonly replacement: string;
+}
+
+/**
+ * 复合关键词模式 - 定义上下文敏感的关键词组合。
+ *
+ * 用于文档化语法组（如 "若...为"），为工具（LSP、格式化器）提供元数据，
+ * 并在错误上下文使用关键词时提供更清晰的诊断信息。
+ */
+export interface CompoundPattern {
+  /** 模式名称（用于调试、文档和错误消息） */
+  readonly name: string;
+
+  /** 开启上下文的关键词（如 MATCH = "若"） */
+  readonly opener: SemanticTokenKind;
+
+  /** 只在该上下文内有效的关键词（如 WHEN = "为"） */
+  readonly contextualKeywords: readonly SemanticTokenKind[];
+
+  /** 上下文结束方式（默认为 'DEDENT'） */
+  readonly closer?: 'DEDENT' | 'NEWLINE';
 }
 
 /**

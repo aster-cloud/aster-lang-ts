@@ -75,11 +75,11 @@ describe('ZH_CN Lexicon 测试套件', () => {
 
   describe('中文关键字映射', () => {
     it('应正确映射控制流关键字', () => {
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.IF], '若');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.IF], '如果');
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.OTHERWISE], '否则');
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.RETURN], '返回');
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.MATCH], '把');
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.WHEN], '当');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.MATCH], '若');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.WHEN], '为');
     });
 
     it('应正确映射类型定义关键字', () => {
@@ -90,7 +90,7 @@ describe('ZH_CN Lexicon 测试套件', () => {
 
     it('应正确映射变量操作关键字', () => {
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.LET], '令');
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.BE], '为');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.BE], '赋');
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.SET], '将');
     });
 
@@ -142,9 +142,48 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
   });
 
+  describe('复合关键词模式 (Compound Patterns)', () => {
+    it('应在 zh-CN lexicon 中定义 match-when 复合模式', () => {
+      const patterns = ZH_CN.canonicalization.compoundPatterns;
+      assert.ok(patterns, '应存在 compoundPatterns 配置');
+      assert.strictEqual(patterns.length, 1, '应有 1 个复合模式');
+
+      const matchWhen = patterns[0]!;
+      assert.strictEqual(matchWhen.name, 'match-when');
+      assert.strictEqual(matchWhen.opener, SemanticTokenKind.MATCH);
+      assert.ok(matchWhen.contextualKeywords.includes(SemanticTokenKind.WHEN));
+      assert.strictEqual(matchWhen.closer, 'DEDENT');
+    });
+
+    it('应正确解析包含 若...为 和 为以下之一 的程序', () => {
+      const source = `【模块】测试。
+
+【定义】状态 为以下之一 成功、失败。
+
+【函数】检查 包含 状态，产出 文本：
+  若 状态：
+    为 成功，返回 「成功」。
+    为 失败，返回 「失败」。`;
+      const can = canonicalize(source, ZH_CN);
+      const tokens = lex(can, ZH_CN);
+
+      // 验证 "为以下之一" 作为单独 token
+      const oneOfToken = findIdent(tokens, '为以下之一');
+      assert.ok(oneOfToken, '应识别 "为以下之一" 为单独 token');
+
+      // 验证 "为" 作为 WHEN 关键词（多次出现）
+      const whenCount = countIdent(tokens, '为');
+      assert.strictEqual(whenCount, 2, '应有 2 个 "为" token');
+
+      // 验证 "若" 作为 MATCH 关键词
+      const matchCount = countIdent(tokens, '若');
+      assert.strictEqual(matchCount, 1, '应有 1 个 "若" token');
+    });
+  });
+
   describe('Canonicalizer 中文支持', () => {
     it('应保留中文标点', () => {
-      const input = '令 变量 为 42。';
+      const input = '令 变量 赋 42。';
       const result = canonicalize(input, ZH_CN);
       assert.ok(result.includes('。'));
     });
@@ -339,33 +378,33 @@ describe('ZH_CN Lexicon 测试套件', () => {
   });
 
   describe('中文控制流语法', () => {
-    it('应正确词法分析 若/否则 二分支条件', () => {
-      const input = '若 年龄 >= 18：\n  返回 「成年」。\n否则：\n  返回 「未成年」。';
+    it('应正确词法分析 如果/否则 二分支条件', () => {
+      const input = '如果 年龄 >= 18：\n  返回 「成年」。\n否则：\n  返回 「未成年」。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       // 验证控制流关键词（在 lexer 阶段为 IDENT）
-      assert.ok(findIdent(tokens, '若'), '应识别「若」标识符');
+      assert.ok(findIdent(tokens, '如果'), '应识别「如果」标识符');
       assert.ok(findIdent(tokens, '否则'), '应识别「否则」标识符');
       assert.strictEqual(countIdent(tokens, '返回'), 2, '应有两个「返回」标识符');
     });
 
-    it('应正确词法分析 把/当 模式匹配', () => {
-      const input = '把 用户 当：\n  当 空，返回 「访客」。\n  当 用户(编号, 名字)，返回 名字。';
+    it('应正确词法分析 若/为 模式匹配', () => {
+      const input = '若 用户：\n  为 空，返回 「访客」。\n  为 用户(编号, 名字)，返回 名字。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       // 验证模式匹配关键词
-      assert.ok(findIdent(tokens, '把'), '应识别「把」标识符');
-      assert.strictEqual(countIdent(tokens, '当'), 3, '应有三个「当」标识符（含 把...当）');
+      assert.ok(findIdent(tokens, '若'), '应识别「若」标识符');
+      assert.strictEqual(countIdent(tokens, '为'), 2, '应有两个「为」标识符');
     });
 
     it('应正确词法分析嵌套条件', () => {
-      const input = '若 甲：\n  若 乙：\n    返回 「甲乙」。\n  否则：\n    返回 「仅甲」。\n否则：\n  返回 「无」。';
+      const input = '如果 甲：\n  如果 乙：\n    返回 「甲乙」。\n  否则：\n    返回 「仅甲」。\n否则：\n  返回 「无」。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.strictEqual(countIdent(tokens, '若'), 2, '应有两个「若」标识符');
+      assert.strictEqual(countIdent(tokens, '如果'), 2, '应有两个「如果」标识符');
       assert.strictEqual(countIdent(tokens, '否则'), 2, '应有两个「否则」标识符');
       assert.strictEqual(countIdent(tokens, '返回'), 3, '应有三个「返回」标识符');
     });
@@ -618,13 +657,13 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
 
     it('应正确词法分析带条件的循环', () => {
-      const input = '对每个 数字 在 数列：\n  若 数字 大于 0：\n    累加 数字。';
+      const input = '对每个 数字 在 数列：\n  如果 数字 大于 0：\n    累加 数字。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       assert.ok(findIdent(tokens, '对每个'), '应识别「对每个」标识符');
       assert.ok(findIdent(tokens, '在'), '应识别「在」标识符');
-      assert.ok(findIdent(tokens, '若'), '应识别「若」标识符');
+      assert.ok(findIdent(tokens, '如果'), '应识别「如果」标识符');
       assert.ok(findIdent(tokens, '大于'), '应识别「大于」标识符');
       // Token 结构验证
       assert.strictEqual(countTokenKind(tokens, TokenKind.COLON), 2, '应有2个冒号（循环体+条件体）');
@@ -738,12 +777,12 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
 
     it('应正确词法分析变量绑定', () => {
-      const input = '令 结果 为 计算(42)。';
+      const input = '令 结果 赋 计算(42)。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       assert.ok(findIdent(tokens, '令'), '应识别「令」标识符');
-      assert.ok(findIdent(tokens, '为'), '应识别「为」标识符');
+      assert.ok(findIdent(tokens, '赋'), '应识别「赋」标识符');
     });
 
     it('应正确词法分析完整中文程序', () => {
@@ -752,9 +791,9 @@ describe('ZH_CN Lexicon 测试套件', () => {
 【定义】用户 包含 编号：文本，名字：文本。
 
 问候 入参 用户：可选 用户，产出 文本：
-  把 用户 当：
-    当 空，返回 「你好，访客」。
-    当 用户(编号, 名字)，返回 「欢迎，」加 名字。`;
+  若 用户：
+    为 空，返回 「你好，访客」。
+    为 用户(编号, 名字)，返回 「欢迎，」加 名字。`;
 
       const result = canonicalize(program, ZH_CN);
       const tokens = lex(result, ZH_CN);
@@ -764,8 +803,8 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.strictEqual(countIdent(tokens, '包含'), 1, '应有1个「包含」');
       assert.strictEqual(countIdent(tokens, '入参'), 1, '应有1个「入参」');
       assert.strictEqual(countIdent(tokens, '产出'), 1, '应有1个「产出」');
-      assert.strictEqual(countIdent(tokens, '把'), 1, '应有1个「把」');
-      assert.strictEqual(countIdent(tokens, '当'), 3, '应有3个「当」（把...当 + 2个分支）');
+      assert.strictEqual(countIdent(tokens, '若'), 1, '应有1个「若」');
+      assert.strictEqual(countIdent(tokens, '为'), 2, '应有2个「为」');
       assert.strictEqual(countIdent(tokens, '返回'), 2, '应有2个「返回」');
       assert.strictEqual(countIdent(tokens, '可选'), 1, '应有1个「可选」');
     });
@@ -789,9 +828,9 @@ To greet with user: User?, produce Text:
 【定义】用户 包含 编号：文本，名字：文本，年龄：整数。
 
 问候 入参 用户：可选 用户，产出 文本：
-  把 用户 当：
-    当 空，返回 「你好，访客」。
-    当 用户(编号, 名字, 42)，返回 「欢迎，」加 名字。`;
+  若 用户：
+    为 空，返回 「你好，访客」。
+    为 用户(编号, 名字, 42)，返回 「欢迎，」加 名字。`;
 
       const enTokens = lex(canonicalize(enProgram, EN_US), EN_US);
       const zhTokens = lex(canonicalize(zhProgram, ZH_CN), ZH_CN);
@@ -869,9 +908,9 @@ To greet with user: User?, produce Text:
       assert.ok(zhDist.lbracket > 0, '中文程序应有方括号（【】标记）');
     });
 
-    it('若/if 和 否则/otherwise 应正确识别为标识符', () => {
+    it('如果/if 和 否则/otherwise 应正确识别为标识符', () => {
       const enTokens = lex(canonicalize('if true: return 1. otherwise: return 0.', EN_US), EN_US);
-      const zhTokens = lex(canonicalize('若 真：返回 1。否则：返回 0。', ZH_CN), ZH_CN);
+      const zhTokens = lex(canonicalize('如果 真：返回 1。否则：返回 0。', ZH_CN), ZH_CN);
 
       // 英文验证（关键词在 lexer 阶段为 IDENT）
       const hasEnIf = enTokens.some((t: Token) => t.kind === TokenKind.IDENT && t.value === 'if');
@@ -880,9 +919,9 @@ To greet with user: User?, produce Text:
       assert.ok(hasEnOtherwise, '英文应有 otherwise 标识符');
 
       // 中文验证
-      const hasZhIf = zhTokens.some((t: Token) => t.kind === TokenKind.IDENT && t.value === '若');
+      const hasZhIf = zhTokens.some((t: Token) => t.kind === TokenKind.IDENT && t.value === '如果');
       const hasZhOtherwise = zhTokens.some((t: Token) => t.kind === TokenKind.IDENT && t.value === '否则');
-      assert.ok(hasZhIf, '中文应有 若 标识符');
+      assert.ok(hasZhIf, '中文应有 如果 标识符');
       assert.ok(hasZhOtherwise, '中文应有 否则 标识符');
     });
 
@@ -992,12 +1031,12 @@ To greet with user: User?, produce Text:
       assert.ok(findIdent(tokens, '包含'), '应有 包含 关键词');
 
       // 验证控制流关键词
-      assert.ok(findIdent(tokens, '若'), '应有 若 关键词');
+      assert.ok(findIdent(tokens, '如果'), '应有 如果 关键词');
       assert.ok(findIdent(tokens, '返回'), '应有 返回 关键词');
 
       // 验证变量绑定
       assert.ok(findIdent(tokens, '令'), '应有 令 关键词');
-      assert.ok(findIdent(tokens, '为'), '应有 为 关键词');
+      assert.ok(findIdent(tokens, '赋'), '应有 赋 关键词');
 
       // 验证布尔值
       const boolTokens = tokens.filter((t: Token) => t.kind === TokenKind.BOOL);
@@ -1031,8 +1070,8 @@ To greet with user: User?, produce Text:
       const { tokens } = parseZhCNFile('user_greeting.aster');
 
       // 验证模式匹配关键词
-      assert.ok(findIdent(tokens, '把'), '应有 把 关键词');
-      assert.ok(findIdent(tokens, '当'), '应有 当 关键词');
+      assert.ok(findIdent(tokens, '若'), '应有 若 关键词（模式匹配）');
+      assert.ok(findIdent(tokens, '为'), '应有 为 关键词（when）');
 
       // 可选类型已改为推断，应不再显式出现
       assert.ok(!findIdent(tokens, '可选'), '不应显式出现 可选 关键词');
@@ -1053,9 +1092,9 @@ To greet with user: User?, produce Text:
 
       // 验证变量绑定
       const letCount = countIdent(tokens, '令');
-      const beCount = countIdent(tokens, '为');
+      const beCount = countIdent(tokens, '赋');
       assert.ok(letCount >= 2, '应有多个 令 关键词');
-      assert.ok(beCount >= 2, '应有多个 为 关键词');
+      assert.ok(beCount >= 2, '应有多个 赋 关键词');
     });
 
     it('所有中文 CNL 文件应成功规范化', () => {

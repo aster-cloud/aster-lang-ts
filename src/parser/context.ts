@@ -18,6 +18,8 @@ export interface ParserContext {
   collectedEffects: string[] | null;
   effectSnapshots: Array<string[] | null>;
   debug: { enabled: boolean; depth: number; log(message: string): void };
+  /** 当前复合模式上下文栈（用于验证上下文敏感关键词） */
+  compoundContextStack: string[];
   /** 跳过当前位置所有 trivia Token（如注释） */
   skipTrivia(): void;
   /** 查看第 N 个非 trivia Token（内部使用，不跳过 trivia） */
@@ -38,6 +40,12 @@ export interface ParserContext {
   snapshotEffects(): string[] | null;
   restoreEffects(snapshot: string[] | null): void;
   withTypeScope<T>(names: Iterable<string>, body: () => T): T;
+  /** 进入复合模式上下文 */
+  pushCompoundContext(opener: string): void;
+  /** 退出复合模式上下文 */
+  popCompoundContext(): void;
+  /** 检查是否在指定复合模式上下文内 */
+  inCompoundContext(opener: string): boolean;
 }
 
 /**
@@ -70,6 +78,8 @@ export function tokLowerAt(ctx: ParserContext, idx: number): string | null {
 const parserLogger = createLogger('parser');
 
 export function createParserContext(tokens: readonly Token[]): ParserContext {
+  const compoundContextStack: string[] = [];
+
   const ctx: ParserContext = {
     tokens,
     index: 0,
@@ -79,6 +89,7 @@ export function createParserContext(tokens: readonly Token[]): ParserContext {
     currentEffectVars: new Set<string>(),
     collectedEffects: null,
     effectSnapshots: [],
+    compoundContextStack,
     debug: {
       enabled: ConfigService.getInstance().debugTypes,
       depth: 0,
@@ -203,6 +214,15 @@ export function createParserContext(tokens: readonly Token[]): ParserContext {
       } finally {
         ctx.currentTypeVars = saved;
       }
+    },
+    pushCompoundContext: (opener: string): void => {
+      compoundContextStack.push(opener);
+    },
+    popCompoundContext: (): void => {
+      compoundContextStack.pop();
+    },
+    inCompoundContext: (opener: string): boolean => {
+      return compoundContextStack.includes(opener);
     },
   };
 

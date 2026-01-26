@@ -5,7 +5,7 @@
  *
  * **设计策略**：混合策略
  * - 法律文书风格：声明类关键词使用【】标记，如【模块】【定义】
- * - 把字句结构：模式匹配使用"把 X 分为"结构
+ * - 若为结构：模式匹配使用"若 X：为 Y"结构
  * - 直觉自然：控制流关键词使用日常中文，如"若"、"否则"、"返回"
  *
  * **标点符号**：
@@ -45,17 +45,17 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.FUNC_PERFORMS]: '执行',
 
     // 控制流
-    [SemanticTokenKind.IF]: '若',
+    [SemanticTokenKind.IF]: '如果',
     [SemanticTokenKind.OTHERWISE]: '否则',
-    [SemanticTokenKind.MATCH]: '把',
-    [SemanticTokenKind.WHEN]: '当',
+    [SemanticTokenKind.MATCH]: '若',
+    [SemanticTokenKind.WHEN]: '为',
     [SemanticTokenKind.RETURN]: '返回',
     [SemanticTokenKind.FOR_EACH]: '对每个',
     [SemanticTokenKind.IN]: '在',
 
     // 变量操作
     [SemanticTokenKind.LET]: '令',
-    [SemanticTokenKind.BE]: '为',
+    [SemanticTokenKind.BE]: '赋',
     [SemanticTokenKind.SET]: '将',
     [SemanticTokenKind.TO_WORD]: '设为',
 
@@ -149,6 +149,18 @@ export const ZH_CN: Lexicon = {
     removeArticles: false, // 中文没有冠词
     // 引号规范化已在 canonicalizer 中统一处理（支持智能引号和直引号）
     // 不再需要自定义规则
+
+    // 复合关键词模式 - 定义上下文敏感的关键词组合
+    compoundPatterns: [
+      {
+        name: 'match-when',
+        opener: SemanticTokenKind.MATCH, // "若"
+        contextualKeywords: [
+          SemanticTokenKind.WHEN, // "为" - 仅在 match 块内有效
+        ],
+        closer: 'DEDENT',
+      },
+    ],
   },
 
   messages: {
