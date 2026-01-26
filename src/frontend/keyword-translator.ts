@@ -411,7 +411,16 @@ export function translateTokensWithMarkers(
 export function createKeywordTranslator(
   sourceLexicon: Lexicon,
   targetLexicon: Lexicon = EN_US
-) {
+): {
+  index: Map<string, string>;
+  markerIndex: Map<string, string>;
+  translateToken: (token: Token) => Token;
+  translateTokens: (tokens: readonly Token[]) => Token[];
+  hasTranslation: (value: string) => boolean;
+  getTranslation: (value: string) => string | undefined;
+  hasMarkerTranslation: (value: string) => boolean;
+  getMarkerTranslation: (value: string) => string | undefined;
+} {
   const { index, markerIndex } = buildFullTranslationIndex(sourceLexicon, targetLexicon);
 
   return {

@@ -33,8 +33,7 @@ function loadPrefixes(): void {
   _prefixesLoaded = true;
   try {
     // Use dynamic import with createRequire for proper ESM compatibility
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createRequire } = require('node:module');
+    const { createRequire } = require('node:module') as { createRequire: (url: string) => NodeRequire };
     const require2 = createRequire(import.meta.url);
     const config = require2('../config/effect_config.js');
     _ioPrefixes = config.getIOPrefixes();
@@ -170,8 +169,7 @@ export function originToSpan(origin: Origin | undefined): Span | undefined {
  */
 export function defaultModuleSearchPaths(): string[] {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const path = require('node:path');
+    const path = require('node:path') as typeof import('node:path');
     const cwd = process.cwd();
     return [cwd, path.join(cwd, '.aster', 'packages')];
   } catch {
@@ -189,8 +187,7 @@ export function normalizeModuleSearchPaths(paths?: readonly string[]): readonly 
   const normalized = new Set<string>();
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const path = require('node:path');
+    const path = require('node:path') as typeof import('node:path');
     for (const candidate of source) {
       if (!candidate) continue;
       normalized.add(path.resolve(candidate));

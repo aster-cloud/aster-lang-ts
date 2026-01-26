@@ -122,7 +122,7 @@ export function buildIdentifierIndex(vocabulary: DomainVocabulary): IdentifierIn
     byKind.set(kind, new Map());
   }
 
-  const addMapping = (mapping: IdentifierMapping) => {
+  const addMapping = (mapping: IdentifierMapping): void => {
     // 双向映射
     toCanonical.set(mapping.localized.toLowerCase(), mapping.canonical);
     toLocalized.set(mapping.canonical.toLowerCase(), mapping.localized);
@@ -210,7 +210,7 @@ export function validateVocabulary(vocabulary: DomainVocabulary): {
   const seenCanonical = new Set<string>();
   const seenLocalized = new Set<string>();
 
-  const checkMapping = (mapping: IdentifierMapping, context: string) => {
+  const checkMapping = (mapping: IdentifierMapping, context: string): void => {
     // 检查规范化名称是否为有效 ASCII 标识符
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(mapping.canonical)) {
       errors.push(`${context}: 规范化名称 "${mapping.canonical}" 必须是有效的 ASCII 标识符`);

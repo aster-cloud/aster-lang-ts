@@ -9,9 +9,7 @@
 import {
   vocabularyRegistry,
   initBuiltinVocabularies,
-  IdentifierIndex,
-  canonicalizeIdentifier,
-  localizeIdentifier,
+  type IdentifierIndex,
 } from '../index.js';
 
 /**
@@ -86,7 +84,7 @@ export class IdentifierCanonicalizer {
 /**
  * 演示：将中文策略代码规范化。
  */
-function demo() {
+function demo(): void {
   // 1. 初始化词汇表
   initBuiltinVocabularies();
 
@@ -140,7 +138,7 @@ function demo() {
  * 2. 关键词规范化（现有 Canonicalizer）
  * 3. ANTLR 解析
  */
-function fullPipelineDemo() {
+function fullPipelineDemo(): void {
   console.log(`
 ===========================================
 完整翻译流程

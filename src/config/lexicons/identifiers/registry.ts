@@ -11,10 +11,8 @@
  */
 
 import {
-  DomainVocabulary,
-  IdentifierIndex,
-  IdentifierMapping,
-  IdentifierKind,
+  type DomainVocabulary,
+  type IdentifierIndex,
   buildIdentifierIndex,
   validateVocabulary,
 } from './types.js';
