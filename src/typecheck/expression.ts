@@ -7,6 +7,7 @@ import type { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
 import {
   formatType,
+  isAssignable,
   isUnknown,
   normalizeType,
   originToSpan,
@@ -172,7 +173,8 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
             continue;
           }
           const valueType = typeOfExpr(module, symbols, field.expr, diagnostics);
-          if (!typesEqual(schemaField.type as Core.Type, valueType)) {
+          // 使用 isAssignable 支持数值类型隐式提升（Int → Float 等）
+          if (!isAssignable(schemaField.type as Core.Type, valueType)) {
             diagnostics.error(ErrorCode.FIELD_TYPE_MISMATCH, originToSpan(field.expr.origin) ?? originToSpan(expression.origin), {
               field: field.name,
               expected: formatType(schemaField.type as Core.Type),

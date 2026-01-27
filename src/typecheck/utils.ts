@@ -158,6 +158,67 @@ export function typesEqual(a: Core.Type | undefined | null, b: Core.Type | undef
   return TypeSystem.equals(left, right, strict);
 }
 
+/**
+ * 判断实际类型是否可赋值给期望类型
+ *
+ * 比 typesEqual 更宽松，支持 CNL 自然语言编程中的隐式类型提升：
+ * - Int → Float/Double（整数提升为浮点）
+ * - Long → Double（长整型提升为双精度）
+ * - Float ↔ Double（浮点类型互通）
+ *
+ * 设计理由：
+ * 1. 字段类型推断可能推断为 Float，但字面量是 Int
+ * 2. 用户写 `rate = 350` 比 `rate = 350.0` 更自然
+ * 3. 不影响严格类型比较（分支/匹配/泛型等场景仍用 typesEqual）
+ *
+ * @param expected 期望的类型（字段声明类型）
+ * @param actual 实际的类型（赋值表达式类型）
+ * @param strict 是否启用严格模式（禁用隐式提升）
+ * @returns true 表示可赋值
+ */
+export function isAssignable(
+  expected: Core.Type | undefined | null,
+  actual: Core.Type | undefined | null,
+  strict = false
+): boolean {
+  // 首先检查严格相等
+  if (typesEqual(expected, actual, strict)) {
+    return true;
+  }
+
+  // 严格模式下不做隐式提升
+  if (strict) {
+    return false;
+  }
+
+  const expectedType = normalizeType(expected);
+  const actualType = normalizeType(actual);
+
+  // 仅处理基础类型名的隐式提升
+  if (expectedType.kind !== 'TypeName' || actualType.kind !== 'TypeName') {
+    return false;
+  }
+
+  const expectedName = expectedType.name;
+  const actualName = actualType.name;
+
+  // 数值类型提升规则（仅允许安全的向上提升）
+  // 规则设计：
+  // - Float 和 Double 视为等价（CNL 不区分精度）
+  // - Int 可提升为任意浮点类型
+  // - Long 可提升为 Double
+  switch (expectedName) {
+    case 'Float':
+      // Int → Float, Double → Float（Float/Double 等价）
+      return actualName === 'Int' || actualName === 'Double';
+    case 'Double':
+      // Int/Long/Float → Double
+      return actualName === 'Int' || actualName === 'Long' || actualName === 'Float';
+    default:
+      return false;
+  }
+}
+
 export function originToSpan(origin: Origin | undefined): Span | undefined {
   if (!origin) return undefined;
   return { start: origin.start, end: origin.end };

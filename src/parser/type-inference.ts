@@ -74,6 +74,12 @@ export const NAMING_RULES: readonly TypeInferenceRule[] = [
     type: 'Float',
     priority: 9,
   },
+  // 利率/费率（中文）
+  {
+    pattern: /(?:利率|费率|比率|百分比)$/,
+    type: 'Float',
+    priority: 9,
+  },
 
   // 计数/数量类型 - 整数相关
   {
@@ -124,9 +130,16 @@ export const NAMING_RULES: readonly TypeInferenceRule[] = [
     type: 'Bool',
     priority: 11,
   },
-  // 布尔类型 - 后缀匹配
+  // 布尔类型 - 后缀匹配（英文）
   {
     pattern: /(?:Flag|Enabled|Disabled|Active|Valid|Approved|Rejected|Completed|Confirmed|Sufficient|Success|Passed|Verified)$/i,
+    type: 'Bool',
+    priority: 8,
+  },
+  // 布尔类型 - 后缀匹配（中文）
+  // 仅包含明确的布尔语义词汇，排除可能是状态枚举的词（成功/失败/完成）
+  {
+    pattern: /(?:批准|通过|有效|合格|可疑|确认|验证)$/,
     type: 'Bool',
     priority: 8,
   },
