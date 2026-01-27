@@ -85,6 +85,20 @@ import type { Core as CoreTypes, Token, Module as AstModule } from './types.js';
 import type { Lexicon } from './config/lexicons/types.js';
 import { typecheckBrowser as _typecheckBrowser } from './typecheck/browser.js';
 import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
+import { DiagnosticError } from './diagnostics/diagnostics.js';
+
+/**
+ * Parse error with position information
+ */
+export interface ParseError {
+  /** Error message */
+  message: string;
+  /** Position information (optional, for backward compatibility) */
+  span?: {
+    start: { line: number; col: number };
+    end: { line: number; col: number };
+  };
+}
 
 /**
  * Compilation result with success/failure status
@@ -94,8 +108,8 @@ export interface CompileResult {
   success: boolean;
   /** Compiled Core IR module (if successful) */
   core?: CoreTypes.Module;
-  /** Parse errors (if any) */
-  parseErrors?: string[];
+  /** Parse errors (if any) - now includes position information */
+  parseErrors?: ParseError[];
   /** Lowering errors (if any) */
   loweringErrors?: string[];
   /** Raw tokens from lexer (only when includeIntermediates is true) */
@@ -164,7 +178,9 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     if ('error' in ast || !ast) {
       const result: CompileResult = {
         success: false,
-        parseErrors: ['error' in ast ? (ast as { error: string }).error : 'Parse failed'],
+        parseErrors: [{
+          message: 'error' in ast ? (ast as { error: string }).error : 'Parse failed',
+        }],
       };
       if (options?.includeIntermediates) {
         result.tokens = tokens;
@@ -185,6 +201,17 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     }
     return result;
   } catch (error) {
+    // Handle DiagnosticError with position information
+    if (error instanceof DiagnosticError) {
+      const diagnostic = error.diagnostic;
+      return {
+        success: false,
+        parseErrors: [{
+          message: diagnostic.message,
+          span: diagnostic.span,
+        }],
+      };
+    }
     return {
       success: false,
       loweringErrors: [error instanceof Error ? error.message : String(error)],
@@ -202,7 +229,30 @@ export function compile(source: string, options?: CompileOptions): CompileResult
  * @param lexicon - CNL lexicon (optional, defaults to EN_US)
  * @returns Array of error messages (empty if valid)
  */
-export function validateSyntax(source: string, lexicon?: Lexicon): string[] {
+/**
+ * Validation result with position information
+ */
+export interface ValidationError {
+  /** Error message */
+  message: string;
+  /** Position information (optional) */
+  span?: {
+    start: { line: number; col: number };
+    end: { line: number; col: number };
+  };
+}
+
+/**
+ * Validate CNL source code syntax without full compilation
+ *
+ * This is a lightweight validation that only runs lexer and parser,
+ * useful for real-time editor validation.
+ *
+ * @param source - CNL source code
+ * @param lexicon - CNL lexicon (optional, defaults to EN_US)
+ * @returns Array of validation errors with position information
+ */
+export function validateSyntaxWithSpan(source: string, lexicon?: Lexicon): ValidationError[] {
   try {
     // Canonicalize with lexicon for language-specific normalization
     const canonical = canonicalize(source, lexicon);
@@ -217,13 +267,36 @@ export function validateSyntax(source: string, lexicon?: Lexicon): string[] {
     const ast = parse(tokens);
 
     if ('error' in ast) {
-      return [(ast as { error: string }).error];
+      return [{ message: (ast as { error: string }).error }];
     }
 
     return [];
   } catch (error) {
-    return [error instanceof Error ? error.message : String(error)];
+    // Handle DiagnosticError with position information
+    if (error instanceof DiagnosticError) {
+      const diagnostic = error.diagnostic;
+      return [{
+        message: diagnostic.message,
+        span: diagnostic.span,
+      }];
+    }
+    return [{ message: error instanceof Error ? error.message : String(error) }];
   }
+}
+
+/**
+ * Validate CNL source code syntax without full compilation
+ *
+ * This is a lightweight validation that only runs lexer and parser,
+ * useful for real-time editor validation.
+ *
+ * @param source - CNL source code
+ * @param lexicon - CNL lexicon (optional, defaults to EN_US)
+ * @returns Array of error messages (empty if valid)
+ * @deprecated Use validateSyntaxWithSpan for position information
+ */
+export function validateSyntax(source: string, lexicon?: Lexicon): string[] {
+  return validateSyntaxWithSpan(source, lexicon).map(e => e.message);
 }
 
 /**
