@@ -81,9 +81,16 @@ export const NAMING_RULES: readonly TypeInferenceRule[] = [
     priority: 9,
   },
 
-  // 计数/数量类型 - 整数相关
+  // 计数/数量类型 - 整数相关（英文）
   {
     pattern: /(?:Count|Number|Qty|Quantity|Age|Score|Level|Rank|Index|Size|Length|Width|Height)$/i,
+    type: 'Int',
+    priority: 10,
+  },
+  // 计数/数量类型 - 整数相关（中文）
+  // 评分/年龄/数量/次数/额度 等
+  {
+    pattern: /(?:评分|年龄|数量|次数|额度|金额|保费|免赔额|账龄|卡数)$/,
     type: 'Int',
     priority: 10,
   },
