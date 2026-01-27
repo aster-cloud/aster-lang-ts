@@ -11,7 +11,6 @@ import {
   isUnknown,
   normalizeType,
   originToSpan,
-  typesEqual,
   unknownType,
 } from './utils.js';
 
