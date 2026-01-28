@@ -496,13 +496,22 @@ export function extractSchema(source: string, options?: SchemaOptions): SchemaRe
 
     // Extract parameters
     const parameters: ParameterInfo[] = func.params.map((param, index) => {
-      const typeName = typeToString(param.type);
-      const typeKind = getTypeKind(param.type);
+      let typeName = typeToString(param.type);
+      let typeKind = getTypeKind(param.type);
+      let fields: FieldInfo[] | undefined;
 
       // Resolve struct fields if applicable
-      const fields = typeKind === 'struct' && dataDecls.has(typeName)
-        ? dataDecls.get(typeName)
-        : undefined;
+      if (typeKind === 'struct' && dataDecls.has(typeName)) {
+        fields = dataDecls.get(typeName);
+      } else if (typeKind === 'primitive' && dataDecls.has(param.name)) {
+        // 当参数类型为基本类型但参数名与 Data 定义匹配时，
+        // 推断参数类型为该 Data 类型（支持中文无类型参数语法）
+        // 例如：【函数】评估贷款 包含 申请人，产出：
+        // 此时参数名"申请人"与 Data "申请人"匹配，推断类型为结构体
+        typeName = param.name;
+        typeKind = 'struct';
+        fields = dataDecls.get(param.name);
+      }
 
       const result: ParameterInfo = {
         name: param.name,
