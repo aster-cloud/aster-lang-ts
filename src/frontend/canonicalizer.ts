@@ -495,7 +495,7 @@ function translateIdentifiersInSegment(text: string, index: IdentifierIndex): st
   const IDENT_RE = /[a-zA-Z_\u4e00-\u9fa5][\w\u4e00-\u9fa5]*/g;
 
   return text.replace(IDENT_RE, match => {
-    const canonical = index.toCanonical.get(match);
+    const canonical = index.toCanonical.get(match.toLowerCase());
     return canonical ?? match;
   });
 }

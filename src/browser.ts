@@ -70,6 +70,7 @@ export type {
 export type * from './types.js';
 
 // Lexicons for multi-language support
+import { LexiconRegistry, initializeDefaultLexicons } from './config/lexicons/index.js';
 export { EN_US, ZH_CN, DE_DE, LexiconRegistry, initializeDefaultLexicons } from './config/lexicons/index.js';
 export type { Lexicon } from './config/lexicons/types.js';
 
@@ -162,9 +163,14 @@ export function compile(source: string, options?: CompileOptions): CompileResult
 
     // Step 1: Canonicalize source WITH lexicon for language-specific normalization
     // If domain is specified, pass CanonicalizerOptions to enable identifier translation
-    const canonical = domain && lexicon
-      ? canonicalize(source, { lexicon, domain, locale: lexicon.id })
-      : canonicalize(source, lexicon);
+    let canonical: string;
+    if (domain) {
+      // Resolve effective lexicon for domain translation (default to EN_US)
+      const effectiveLexicon = lexicon ?? (initializeDefaultLexicons(), LexiconRegistry.getDefault());
+      canonical = canonicalize(source, { lexicon: effectiveLexicon, domain, locale: effectiveLexicon.id });
+    } else {
+      canonical = canonicalize(source, lexicon);
+    }
 
     // Step 2: Lexical analysis
     let tokens = lex(canonical, lexicon);
