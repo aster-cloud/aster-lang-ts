@@ -24,7 +24,7 @@ import type { Lexicon } from '../config/lexicons/types.js';
 import { getMultiWordKeywords } from '../config/lexicons/types.js';
 import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/index.js';
 import type { IdentifierIndex } from '../config/lexicons/identifiers/types.js';
-import { vocabularyRegistry } from '../config/lexicons/identifiers/registry.js';
+import { vocabularyRegistry, initBuiltinVocabularies } from '../config/lexicons/identifiers/registry.js';
 
 /**
  * 规范化器选项。
@@ -173,6 +173,7 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
     const opts = lexiconOrOptions as CanonicalizerOptions;
     lexicon = opts.lexicon;
     if (opts.domain && opts.locale) {
+      initBuiltinVocabularies();
       identifierIndex = vocabularyRegistry.getIndex(opts.domain, opts.locale);
     }
   }

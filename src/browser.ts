@@ -124,6 +124,8 @@ export interface CompileResult {
 export interface CompileOptions {
   /** CNL lexicon (default: EN_US). Pass a Lexicon object from the exports. */
   lexicon?: Lexicon;
+  /** 领域标识符（如 'insurance.auto'），启用领域标识符翻译 */
+  domain?: string;
   /** Include intermediate representations in result */
   includeIntermediates?: boolean;
 }
@@ -156,9 +158,13 @@ export interface CompileOptions {
 export function compile(source: string, options?: CompileOptions): CompileResult {
   try {
     const lexicon = options?.lexicon;
+    const domain = options?.domain;
 
     // Step 1: Canonicalize source WITH lexicon for language-specific normalization
-    const canonical = canonicalize(source, lexicon);
+    // If domain is specified, pass CanonicalizerOptions to enable identifier translation
+    const canonical = domain && lexicon
+      ? canonicalize(source, { lexicon, domain, locale: lexicon.id })
+      : canonicalize(source, lexicon);
 
     // Step 2: Lexical analysis
     let tokens = lex(canonical, lexicon);

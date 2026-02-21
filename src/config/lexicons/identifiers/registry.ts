@@ -209,11 +209,12 @@ class VocabularyRegistry {
   }
 
   /**
-   * 清除所有注册的词汇表。
+   * 清除所有注册的词汇表（同时重置内置初始化标志）。
    */
   clear(): void {
     this.vocabularies.clear();
     this.customVocabularies.clear();
+    builtinsInitialized = false;
   }
 }
 
@@ -222,10 +223,14 @@ class VocabularyRegistry {
  */
 export const vocabularyRegistry = new VocabularyRegistry();
 
+let builtinsInitialized = false;
+
 /**
- * 初始化内置词汇表。
+ * 初始化内置词汇表（幂等，多次调用安全）。
  */
 export function initBuiltinVocabularies(): void {
+  if (builtinsInitialized) return;
+  builtinsInitialized = true;
   vocabularyRegistry.register(INSURANCE_AUTO_ZH_CN);
   vocabularyRegistry.register(FINANCE_LOAN_ZH_CN);
 }
