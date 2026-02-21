@@ -84,3 +84,11 @@ jobs:
         with:
           generate_release_notes: true
           draft: false
+
+      - name: Trigger aster-cloud dependency upgrade
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+          repository: aster-cloud/aster-cloud
+          event-type: lang-ts-released
+          client-payload: '{"version": "${{ github.ref_name }}"}'
