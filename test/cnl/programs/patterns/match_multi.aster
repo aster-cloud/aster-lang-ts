@@ -1,8 +1,8 @@
-This module is app.match.
+Module app.match.
 
-Define Color with name.
+Define Color has name.
 
-To pick with k, produce:
+Rule pick given k, produce:
   Match k:
     When null, Return "none".
     When Color(name), Return "has color".

@@ -1,7 +1,7 @@
-This module is app.math.
+Module app.math.
 
-To cmp with x, y, produce:
+Rule cmp given x, y, produce:
   Return x less than y.
 
-To add with x, y, produce:
+Rule add given x, y, produce:
   Return x plus y.

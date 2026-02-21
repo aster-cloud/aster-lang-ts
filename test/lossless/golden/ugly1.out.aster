@@ -1,4 +1,4 @@
-This module is demo.
+Module demo.
 
-To greet with name,  produce:
+Rule greet given name,  produce:
   Return 0.

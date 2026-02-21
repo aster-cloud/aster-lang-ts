@@ -6,8 +6,8 @@ import { lex } from '../src/frontend/lexer.js';
 import { parse } from '../src/parser.js';
 
 const text = [
-  'This module is demo.perfassert.',
-  'To join with left: Text and right: Text, produce Text:',
+  'Module demo.perfassert.',
+  'Rule join given left: Text and right: Text, produce Text:',
   '  Return Text.concat(left, right).',
   ''
 ].join('\n');

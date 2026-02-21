@@ -3,12 +3,12 @@
 // HIPAA Compliant PHI Handling
 // ========================================
 
-This module is examples.healthcare.patient_record.
+Module examples.healthcare.patient_record.
 
 // PHI (Protected Health Information) 数据结构
 // 注意：实际生产环境中应使用 @pii 注解标记敏感字段
 // 此处简化以便演示编译和验证流程
-Define PatientPHI with
+Define PatientPHI has
   patient_id,
   name,
   ssn,
@@ -17,23 +17,23 @@ Define PatientPHI with
   treatment_plan,
   insurance_id.
 
-Define AccessRequest with
+Define AccessRequest has
   requester_id,
   requester_role,
   purpose,
   patient_id,
   has_consent.
 
-Define ConsentResult with
+Define ConsentResult has
   is_valid,
   reason.
 
-Define PatientSummary with
+Define PatientSummary has
   patient_id,
   display_info.
 
 // 同意验证函数（HIPAA §164.508）
-To verify_consent with request, produce:
+Rule verify_consent given request, produce:
   If request.has_consent equals to false:
     Return ConsentResult with is_valid = false, reason = "Patient consent not obtained".
   If request.purpose equals to "":
@@ -41,7 +41,7 @@ To verify_consent with request, produce:
   Return ConsentResult with is_valid = true, reason = "Consent verified".
 
 // HIPAA 最小必要原则：根据角色返回不同字段
-To get_patient_summary with request, patient_phi, produce:
+Rule get_patient_summary given request, patient_phi, produce:
   Let consent be verify_consent(request).
   If consent.is_valid equals to false:
     Return err of consent.reason.
@@ -54,17 +54,17 @@ To get_patient_summary with request, patient_phi, produce:
   Return err of "Access denied: insufficient role".
 
 // 安全的 PHI 显示：自动脱敏
-To display_patient_safe with patient_phi, produce:
+Rule display_patient_safe given patient_phi, produce:
   Return Text.concat("Patient: ", redact(patient_phi.name), ", SSN: ", redact(patient_phi.ssn)).
 
 // 示例：合规访问（医生有同意）
-To demo_compliant_access, produce:
+Rule demo_compliant_access, produce:
   Let patient_phi be PatientPHI with patient_id = "P-001", name = "John Doe", ssn = "123-45-6789", date_of_birth = "1990-01-01", diagnosis = "Hypertension", treatment_plan = "Medication daily", insurance_id = "INS-12345".
   Let request be AccessRequest with requester_id = "DR-001", requester_role = "physician", purpose = "treatment", patient_id = "P-001", has_consent = true.
   Return get_patient_summary(request, patient_phi).
 
 // 示例：不合规访问（无同意）
-To demo_non_compliant_access, produce:
+Rule demo_non_compliant_access, produce:
   Let patient_phi be PatientPHI with patient_id = "P-001", name = "John Doe", ssn = "123-45-6789", date_of_birth = "1990-01-01", diagnosis = "Hypertension", treatment_plan = "Medication daily", insurance_id = "INS-12345".
   Let request be AccessRequest with requester_id = "ADMIN-001", requester_role = "admin", purpose = "curiosity", patient_id = "P-001", has_consent = false.
   Return get_patient_summary(request, patient_phi).

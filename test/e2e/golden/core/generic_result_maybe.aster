@@ -1,6 +1,6 @@
-This module is test.generic.result_maybe.
+Module test.generic.result_maybe.
 
-To unwrap with x, produce:
+Rule unwrap given x, produce:
   Match x:
     When Ok(v), Return "ok".
     When Err(msg), Return msg.

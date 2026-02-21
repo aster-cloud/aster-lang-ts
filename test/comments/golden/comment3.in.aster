@@ -1,7 +1,7 @@
-This module is demo.standalone.
+Module demo.standalone.
 
 // top comment
-To id, produce:
+Rule id, produce:
   // inside block
   Return 1.
 // bottom comment

@@ -1,6 +1,6 @@
-This module is tests.typecheck.async.duplicate_start.
+Module tests.typecheck.async.duplicate_start.
 
-To launchTwice with userId, produce:
+Rule launchTwice given userId, produce:
   Start profile as async ProfileSvc.load(userId).
   Start profile as async ProfileSvc.reload(userId).
   Wait for profile.

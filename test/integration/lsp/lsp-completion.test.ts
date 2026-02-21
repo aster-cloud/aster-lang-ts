@@ -62,8 +62,8 @@ async function testBasicCompletion(): Promise<void> {
   assert(completions.length > 20, `应返回多个补全项（实际: ${completions.length}）`);
 
   // 验证关键字补全
-  const hasKeyword = completions.some(c => c.label === 'this module is');
-  assert(hasKeyword, '应包含关键字 "this module is"');
+  const hasKeyword = completions.some(c => c.label === 'module');
+  assert(hasKeyword, '应包含关键字 "module"');
 
   // 验证类型补全
   const hasType = completions.some(c => c.label === 'Text');
@@ -79,28 +79,28 @@ async function testCompletionResolve(): Promise<void> {
 
   registerCompletionHandlers(mockConnection, mockDocuments, getOrParse);
 
-  // 测试 'this module is' 的详细信息
-  const item1: CompletionItem = { label: 'this module is', data: 'this module is' };
+  // 测试 'module' 的详细信息
+  const item1: CompletionItem = { label: 'module', data: 'module' };
   const resolved1 = mockConnection.handlers.onCompletionResolve(item1);
-  assert(resolved1.detail === 'Module declaration', `"this module is" detail 应为 "Module declaration"（实际: ${resolved1.detail}）`);
+  assert(resolved1.detail === 'Module declaration', `"module" detail 应为 "Module declaration"（实际: ${resolved1.detail}）`);
 
   // 测试 'define' 的详细信息
   const item2: CompletionItem = { label: 'define', data: 'define' };
   const resolved2 = mockConnection.handlers.onCompletionResolve(item2);
   assert(resolved2.detail === 'Type definition', `"define" detail 应为 "Type definition"（实际: ${resolved2.detail}）`);
 
-  // 测试 'to' 的详细信息
-  const item3: CompletionItem = { label: 'to', data: 'to' };
+  // 测试 'rule' 的详细信息
+  const item3: CompletionItem = { label: 'rule', data: 'rule' };
   const resolved3 = mockConnection.handlers.onCompletionResolve(item3);
-  assert(resolved3.detail === 'Function definition', `"to" detail 应为 "Function definition"（实际: ${resolved3.detail}）`);
+  assert(resolved3.detail === 'Function definition', `"rule" detail 应为 "Function definition"（实际: ${resolved3.detail}）`);
 
   console.log('✓ 补全项解析功能正常');
 }
 
 async function testSignatureHelp(): Promise<void> {
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-To greet with name: Text, age: Int, produce Text:
+Rule greet given name: Text, age: Int, produce Text:
   Return "Hello".
 `;
 
@@ -128,12 +128,12 @@ To greet with name: Text, age: Int, produce Text:
 }
 
 async function testSignatureHelpWithCall(): Promise<void> {
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello".
 
-To main produce Text:
+Rule main produce Text:
   Let result be greet("World").
   Return result.
 `;

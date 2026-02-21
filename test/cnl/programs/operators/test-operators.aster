@@ -1,12 +1,12 @@
-This module is test.operators.
+Module test.operators.
 
-Define TestResult with value, message.
+Define TestResult has value, message.
 
-To testLessOrEqual with x, produce:
+Rule testLessOrEqual given x, produce:
   Return TestResult with value = x, message = "greater than 10".
 
-To testGreaterOrEqual with x, produce:
+Rule testGreaterOrEqual given x, produce:
   Return TestResult with value = x, message = "less than 10".
 
-To testNotEqual with x, produce:
+Rule testNotEqual given x, produce:
   Return TestResult with value = x, message = "Equal to 10".

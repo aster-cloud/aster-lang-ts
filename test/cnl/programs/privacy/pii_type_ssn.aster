@@ -1,4 +1,4 @@
-This module is test.pii.ssn.
+Module test.pii.ssn.
 
-To get_ssn, produce:
+Rule get_ssn, produce:
   Return "123-45-6789".

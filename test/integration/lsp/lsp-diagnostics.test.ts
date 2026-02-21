@@ -31,11 +31,11 @@ function createMockGetOrParse() {
 }
 
 async function testBasicDiagnostics(): Promise<void> {
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-Define User with id: Text, name: Text.
+Define User has id: Text, name: Text.
 
-To greet with user: User, produce Text:
+Rule greet given user: User, produce Text:
   Return "Hello, {user.name}".
 `;
 
@@ -50,7 +50,7 @@ To greet with user: User, produce Text:
 }
 
 async function testMissingModuleHeader(): Promise<void> {
-  const code = `Define User with id: Text.`;
+  const code = `Define User has id: Text.`;
 
   const doc = TextDocument.create('file:///test.aster', 'aster', 1, code);
   const getOrParse = createMockGetOrParse();
@@ -69,14 +69,14 @@ async function testMissingModuleHeader(): Promise<void> {
 
 async function testPiiFlowDiagnostics(): Promise<void> {
   // 使用实际的 PII 违规示例
-  const code = `This module is pii_test.
+  const code = `Module pii_test.
 
 Effect HttpGet returning PII.
 
-To getSensitiveData produce PII with effect HttpGet:
+Rule getSensitiveData produce PII with effect HttpGet:
   Return "sensitive".
 
-To leakData produce Text with effect HttpGet:
+Rule leakData produce Text with effect HttpGet:
   Let data be getSensitiveData().
   Return data.
 `;

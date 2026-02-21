@@ -3,13 +3,15 @@ import { TokenKind } from '../../src/types.js';
 
 // Locked v1 lexicon (en-US). Multi-word keywords are space-joined canonical forms.
 export const KW = {
-  MODULE_IS: 'this module is',
+  MODULE_IS: 'module',
   USE: 'use',
   AS: 'as',
   DEFINE: 'define',
   WITH: 'with',
+  HAS: 'has',
   ONE_OF: 'as one of',
-  TO: 'to',
+  RULE: 'rule',
+  GIVEN: 'given',
   PRODUCE: 'produce',
   PERFORMS: 'it performs',
   IO: 'io',

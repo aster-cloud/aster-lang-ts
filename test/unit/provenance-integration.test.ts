@@ -11,9 +11,9 @@ describe('Provenance Integration Tests', () => {
     const tracker = new ProvenanceTracker();
     const validator = new PolicyValidator();
 
-    const cnlCode = `This module is ai.generated.simple.
+    const cnlCode = `Module ai.generated.simple.
 
-To add with x: Int, y: Int, produce Int:
+Rule add given x: Int, y: Int, produce Int:
   Return x plus y.
 `;
 
@@ -37,15 +37,15 @@ To add with x: Int, y: Int, produce Int:
     const tracker = new ProvenanceTracker();
     const validator = new PolicyValidator();
 
-    const cnlCode = `This module is ai.generated.complex.
+    const cnlCode = `Module ai.generated.complex.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello".
 
-To double with n: Int, produce Int:
+Rule double given n: Int, produce Int:
   Return n times 2.
 
-To calculate with x: Int, y: Int, produce Int:
+Rule calculate given x: Int, y: Int, produce Int:
   Let sum be x plus y.
   Return sum times 2.
 `;
@@ -69,9 +69,9 @@ To calculate with x: Int, y: Int, produce Int:
     const tracker = new ProvenanceTracker();
     const validator = new PolicyValidator();
 
-    const cnlCode = `This module is ai.generated.longprompt.
+    const cnlCode = `Module ai.generated.longprompt.
 
-To identity with x: Int, produce Int:
+Rule identity given x: Int, produce Int:
   Return x.
 `;
 
@@ -95,9 +95,9 @@ To identity with x: Int, produce Int:
     const tracker = new ProvenanceTracker();
     const validator = new PolicyValidator();
 
-    const cnlCode = `This module is ai.generated.multiline.
+    const cnlCode = `Module ai.generated.multiline.
 
-To multiply with x: Int, y: Int, produce Int:
+Rule multiply given x: Int, y: Int, produce Int:
   Return x times y.
 `;
 
@@ -121,9 +121,9 @@ To multiply with x: Int, y: Int, produce Int:
     const validator = new PolicyValidator();
 
     // 這段代碼有類型錯誤：返回 Text 而非 Int
-    const cnlCode = `This module is ai.generated.invalid.
+    const cnlCode = `Module ai.generated.invalid.
 
-To bad, produce Int:
+Rule bad, produce Int:
   Return "not an int".
 `;
 
@@ -149,9 +149,9 @@ To bad, produce Int:
     const tracker = new ProvenanceTracker();
     const validator = new PolicyValidator();
 
-    const cnlCode = `This module is ai.generated.extract.
+    const cnlCode = `Module ai.generated.extract.
 
-To test, produce Int:
+Rule test, produce Int:
   Return 42.
 `;
 
@@ -183,9 +183,9 @@ To test, produce Int:
   test('多個 provenance 頭（嵌套生成）應該只提取第一個', async () => {
     const tracker = new ProvenanceTracker();
 
-    const cnlCode = `This module is ai.test.
+    const cnlCode = `Module ai.test.
 
-To test, produce Int:
+Rule test, produce Int:
   Return 1.
 `;
 

@@ -1,4 +1,4 @@
-This module is error.div.zero.
+Module error.div.zero.
 
-To main, produce:
+Rule main, produce:
   Return div(10, 0).

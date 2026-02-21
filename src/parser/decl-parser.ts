@@ -54,7 +54,7 @@ function parseEffectParams(
 
 /**
  * 解析数据类型定义
- * 语法: Define User with name: Text and age: Int.
+ * 语法: Define User has name: Text and age: Int.
  *
  * @param ctx 解析器上下文
  * @param error 错误报告函数
@@ -75,9 +75,9 @@ export function parseDataDecl(
   // 解析类型名
   const typeName = parseTypeIdent();
 
-  // 期望: with
-  if (!ctx.isKeywordSeq(KW.WITH)) {
-    error("Expected 'with' after type name in data definition");
+  // 期望: with / has
+  if (!ctx.isKeywordSeq(KW.WITH) && !ctx.isKeywordSeq(KW.HAS)) {
+    error("Expected 'has' after type name in data definition");
   }
   ctx.nextWord();
 
@@ -151,7 +151,7 @@ export function parseEnumDecl(
 
 /**
  * 解析函数定义
- * 语法: To greet with name: Text, produce Text. It performs io: ...
+ * 语法: Rule greet given name: Text, produce Text. It performs io: ...
  *
  * @param ctx 解析器上下文
  * @param error 错误报告函数
@@ -204,7 +204,7 @@ export function parseFuncDecl(
     while (more) {
       skipLayoutTrivia();
       // 如果遇到参数列表或 produce 子句，停止
-      if (ctx.isKeyword(KW.WITH) || ctx.isKeyword(KW.PRODUCE) || ctx.at(TokenKind.COLON)) {
+      if (ctx.isKeyword(KW.WITH) || ctx.isKeyword(KW.GIVEN) || ctx.isKeyword(KW.PRODUCE) || ctx.at(TokenKind.COLON)) {
         break;
       }
       // 解析类型变量名（优先 TYPE_IDENT，回退到 IDENT）
@@ -222,8 +222,8 @@ export function parseFuncDecl(
       if (ctx.at(TokenKind.COMMA)) {
         ctx.next();
         skipLayoutTrivia();
-        // 如果逗号后面跟 'with' 或 produce，停止
-        if (ctx.isKeyword(KW.WITH) || ctx.isKeyword(KW.PRODUCE)) {
+        // 如果逗号后面跟 'with'/'given' 或 produce，停止
+        if (ctx.isKeyword(KW.WITH) || ctx.isKeyword(KW.GIVEN) || ctx.isKeyword(KW.PRODUCE)) {
           more = false;
           break;
         }
@@ -486,7 +486,7 @@ export function collectTopLevelDecls(
       const typeName = tools.parseTypeIdent();
 
       // 判断是 Data 还是 Enum
-      if (ctx.isKeywordSeq(KW.WITH)) {
+      if (ctx.isKeywordSeq(KW.WITH) || ctx.isKeywordSeq(KW.HAS)) {
         const startTok = defineTok;
         // Data: Define User with ...
         ctx.nextWord();
@@ -512,11 +512,11 @@ export function collectTopLevelDecls(
         ctx.declaredTypes.add(typeName);
         decls.push(en);
       } else {
-        tools.error("Expected 'with' or 'as one of' after type name");
+        tools.error("Expected 'has' or 'as one of' after type name");
       }
     }
-    // 解析函数: To ...
-    else if (ctx.isKeyword(KW.TO)) {
+    // 解析函数: Rule ...
+    else if (ctx.isKeyword(KW.RULE)) {
       decls.push(parseFuncDecl(ctx, tools.error, tools.expectCommaOr, tools.expectKeyword, tools.expectNewline, tools.parseIdent));
     }
     // 容忍顶层的空白/缩进/反缩进

@@ -1,4 +1,4 @@
-This module is smoke.test.
+Module smoke.test.
 
-To main, produce:
+Rule main, produce:
   Return 42.

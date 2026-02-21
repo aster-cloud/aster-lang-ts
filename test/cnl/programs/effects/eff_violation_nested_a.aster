@@ -1,10 +1,10 @@
-This module is test.eff.violation.nested_a.
+Module test.eff.violation.nested_a.
 
-To inner_io, produce. It performs io [Http]:
+Rule inner_io, produce. It performs io [Http]:
   Return Http.get("/ping").
 
-To middle_cpu, produce. It performs cpu:
+Rule middle_cpu, produce. It performs cpu:
   Return inner_io().
 
-To outer_pure, produce:
+Rule outer_pure, produce:
   Return middle_cpu().

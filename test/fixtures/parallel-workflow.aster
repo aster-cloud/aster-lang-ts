@@ -1,4 +1,4 @@
-This module is test.fixtures.parallel_workflow.
+Module test.fixtures.parallel_workflow.
 
-To main, produce:
+Rule main, produce:
   Return 0.

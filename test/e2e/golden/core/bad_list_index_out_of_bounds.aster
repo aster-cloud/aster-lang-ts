@@ -1,4 +1,4 @@
-This module is error.list.index.
+Module error.list.index.
 
-To main, produce:
+Rule main, produce:
   Return List.get(List.empty(), 0).

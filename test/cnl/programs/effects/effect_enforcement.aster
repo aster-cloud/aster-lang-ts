@@ -1,4 +1,4 @@
-This module is demo.effects.
+Module demo.effects.
 
-To missingIO, produce:
+Rule missingIO, produce:
   Return IO.print("x").

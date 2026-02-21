@@ -1,4 +1,4 @@
-This module is demo.lambdalengthcmp.
+Module demo.lambdalengthcmp.
 
-To isLongerThan with s, n, produce:
+Rule isLongerThan given s, n, produce:
   Return pred(s, n).

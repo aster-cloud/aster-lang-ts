@@ -1,4 +1,4 @@
-This module is test.pii.phone.
+Module test.pii.phone.
 
-To get_phone, produce:
+Rule get_phone, produce:
   Return "+1-555-0100".

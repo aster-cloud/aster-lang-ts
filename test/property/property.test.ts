@@ -134,7 +134,7 @@ const testCommentClassification = (): void => {
   const inlineCases = [
     'Let x be 1. # inline',
     'Return "hi". // inline',
-    'To greet, produce Text: # inline',
+    'Rule greet produce Text: # inline',
   ];
   const standaloneCases = [
     '# standalone',
@@ -174,10 +174,10 @@ const testCommentClassification = (): void => {
 // Property: Comments should not affect indentation tracking
 const testCommentsIndentInteraction = (): void => {
   const src = [
-    'This module is test.',
+    'Module test.',
     '',
     '# standalone comment',
-    'To f, produce Int:',
+    'Rule f produce Int:',
     '  # indented comment',
     '  Let x be 1.',
     '  # another comment',
@@ -214,13 +214,13 @@ const testCommentsIndentInteraction = (): void => {
 // 确保 'Start ... as async ... .', 'Wait for ... .' 解析为语句而非裸表达式
 const testStartWaitPrecedence = (): void => {
   const src = [
-    'This module is demo.async.',
+    'Module demo.async.',
     '',
-    'Define User with id: Text.',
-    'Define Dash with profile: Text, timeline: Text.',
+    'Define User has id: Text.',
+    'Define Dash has profile: Text, timeline: Text.',
     'Define AuthErr as one of InvalidCreds, Locked.',
     '',
-    'To fetchDashboard with u: User, produce Result of Dash and AuthErr. It performs io:',
+    'Rule fetchDashboard given u: User, produce Result of Dash and AuthErr. It performs io:',
     '  Start profile as async ProfileSvc.load(u.id).',
     '  Start timeline as async FeedSvc.timeline(u.id).',
     '  Wait for profile and timeline.',
@@ -251,11 +251,11 @@ const testStartWaitPrecedence = (): void => {
 // Regression: Wait 支持单名与多名（"a" / "a and b" / "a, b and c"）
 const testWaitSingleAndMultiple = (): void => {
   const mkSrc = (waitLine: string) => [
-    'This module is demo.wait.',
+    'Module demo.wait.',
     '',
-    'Define User with id: Text.',
+    'Define User has id: Text.',
     '',
-    'To f with u: User, produce Int. It performs io:',
+    'Rule f given u: User, produce Int. It performs io:',
     '  Start taskA as async ProfileSvc.load(u.id).',
     '  Start taskB as async ProfileSvc.load(u.id).',
     '  Start taskC as async ProfileSvc.load(u.id).',
@@ -289,10 +289,10 @@ const testWaitSingleAndMultiple = (): void => {
 // Property: Round-trip test for simple valid programs
 const testRoundTrip = (): void => {
   const validPrograms = [
-    'This module is test.',
-    'Define User with name: Text.',
-    'To greet, produce Text.',
-    'To test, produce Text:\n  Let x be 42.\n  Return "hello".',
+    'Module test.',
+    'Define User has name: Text.',
+    'Rule greet produce Text.',
+    'Rule test produce Text:\n  Let x be 42.\n  Return "hello".',
   ];
 
   for (const program of validPrograms) {
@@ -319,9 +319,9 @@ const testRoundTrip = (): void => {
 // Property: Parser should handle malformed input gracefully
 const testParserErrorHandling = (): void => {
   const malformedInputs = [
-    'This module is',  // Missing module name
-    'Define User with',  // Incomplete data definition
-    'To greet produce',  // Missing comma
+    'Module',  // Missing module name
+    'Define User has',  // Incomplete data definition
+    'Rule greet produce',  // Missing type
     'Let x be',  // Missing expression
     'Return',  // Missing expression
   ];
@@ -367,7 +367,7 @@ function main(): void {
     testParserErrorHandling();
 
     // LSP analysis small checks
-    const src1 = 'This module is demo.x.\nTo f, produce Text:\n  Return Interop.sum(1, 2.0).\n';
+    const src1 = 'Module demo.x.\nRule f produce Text:\n  Return Interop.sum(1, 2.0).\n';
     const toks1 = lex(canonicalize(src1));
     const diags1 = findAmbiguousInteropCalls(toks1 as any);
     if (diags1.length === 0) throw new Error('Expected ambiguous call diagnostic');
@@ -381,7 +381,7 @@ function main(): void {
     if (!rangeCall) throw new Error('Expected to find dotted call range');
 
     // Nested call: ensure inner and outer are detectable and descriptor preview aligns
-    const src2 = 'This module is demo.x.\nTo g, produce Text:\n  Return Interop.sum(Interop.sum(1, 2.0), 3.0).\n';
+    const src2 = 'Module demo.x.\nRule g produce Text:\n  Return Interop.sum(Interop.sum(1, 2.0), 3.0).\n';
     const toks2 = lex(canonicalize(src2));
     // Outer call at TYPE_IDENT 'Interop'
     const typeIdx2 = toks2.findIndex(t => (t.kind === TokenKind.TYPE_IDENT || t.kind === TokenKind.IDENT) && t.value === 'Interop');
@@ -397,7 +397,7 @@ function main(): void {
     if (!rangeInner) throw new Error('Expected inner call range');
 
     // Text.* helpers: descriptor preview checks
-    const src3 = 'This module is demo.t.\nTo h, produce Int:\n  Return Text.length("abc").\n';
+    const src3 = 'Module demo.t.\nRule h produce Int:\n  Return Text.length("abc").\n';
     const toks3 = lex(canonicalize(src3));
     const textIdx = toks3.findIndex(t => (t.kind === TokenKind.TYPE_IDENT || t.kind === TokenKind.IDENT) && t.value === 'Text');
     if (textIdx < 0) throw new Error('No Text token found. toks=' + dumpTokens(toks3 as any));
@@ -409,7 +409,7 @@ function main(): void {
     const retLen = returnTypeTextFromDesc(descPrev);
     if (retLen !== 'Int') throw new Error('Unexpected return type for Text.length: ' + retLen);
 
-    const src4 = 'This module is demo.t.\nTo j, produce Text:\n  Return Text.concat("a", "b").\n';
+    const src4 = 'Module demo.t.\nRule j produce Text:\n  Return Text.concat("a", "b").\n';
     const toks4 = lex(canonicalize(src4));
     const concatIdx = toks4.findIndex(t => t.kind === TokenKind.IDENT && t.value === 'concat');
     if (concatIdx < 2) throw new Error('concat token not found or too early. toks=' + dumpTokens(toks4 as any));
@@ -423,7 +423,7 @@ function main(): void {
     if (retConcat !== 'Text') throw new Error('Unexpected return type for Text.concat: ' + retConcat);
 
     // List.get and Map.get previews
-    const src5 = 'This module is demo.c.\nTo k, produce Text:\n  Return List.get(xs, 1).\n';
+    const src5 = 'Module demo.c.\nRule k produce Text:\n  Return List.get(xs, 1).\n';
     const toks5 = lex(canonicalize(src5));
     const listIdx = toks5.findIndex(t => (t.kind === TokenKind.TYPE_IDENT && t.value === 'List') || (t.kind === TokenKind.IDENT && t.value === 'List'));
     if (listIdx < 0) throw new Error('No List token found. toks=' + dumpTokens(toks5 as any));
@@ -435,7 +435,7 @@ function main(): void {
     const retList = returnTypeTextFromDesc(descList);
     if (retList !== 'Object') throw new Error('Unexpected return type for List.get: ' + retList);
 
-    const src6 = 'This module is demo.c.\nTo m, produce Text:\n  Return Map.get(mm, kk).\n';
+    const src6 = 'Module demo.c.\nRule m produce Text:\n  Return Map.get(mm, kk).\n';
     const toks6 = lex(canonicalize(src6));
     const mapIdx = toks6.findIndex(t => (t.kind === TokenKind.TYPE_IDENT && t.value === 'Map') || (t.kind === TokenKind.IDENT && t.value === 'Map'));
     if (mapIdx < 0) throw new Error('No Map token found. toks=' + dumpTokens(toks6 as any));
@@ -459,9 +459,9 @@ main();
 // Generics: basic sanity
 function testGenericsBasic(): void {
   const src = [
-    'This module is demo.generic.',
+    'Module demo.generic.',
     '',
-    'To identity of T, with x: T, produce T:',
+    'Rule identity of T, given x: T, produce T:',
     '  Return x.',
     '',
   ].join('\n');

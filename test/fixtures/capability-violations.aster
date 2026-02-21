@@ -1,14 +1,14 @@
-This module is tests.cross.capability_violations.
+Module tests.cross.capability_violations.
 
-To missingCapability, produce. It performs io [Http]:
+Rule missingCapability, produce. It performs io [Http]:
   Let token be Secrets.get("api-key").
   Let status be Http.get("/status").
   Return status.
 
-To redundantCapability, produce. It performs io [Sql]:
+Rule redundantCapability, produce. It performs io [Sql]:
   Return "ok".
 
-To workflowMissingCapability, produce. It performs io [Sql]:
+Rule workflowMissingCapability, produce. It performs io [Sql]:
   
   workflow:
     step fetch:

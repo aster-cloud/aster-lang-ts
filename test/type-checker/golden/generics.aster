@@ -1,4 +1,4 @@
-This module is tests.typecheck.generics.
+Module tests.typecheck.generics.
 
-To identity with value, produce:
+Rule identity given value, produce:
   Return value.

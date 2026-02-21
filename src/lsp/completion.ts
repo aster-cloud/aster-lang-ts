@@ -308,13 +308,13 @@ export function registerCompletionHandlers(
 
   // 补全项解析：为选中的补全项提供额外信息
   connection.onCompletionResolve((item: CompletionItem): CompletionItem => {
-    if (item.data === 'this module is') {
+    if (item.data === 'module') {
       item.detail = 'Module declaration';
       item.documentation = 'Declares the module name for this file';
     } else if (item.data === 'define') {
       item.detail = 'Type definition';
       item.documentation = 'Define a new data type or enum';
-    } else if (item.data === 'to') {
+    } else if (item.data === 'rule') {
       item.detail = 'Function definition';
       item.documentation = 'Define a new function';
     }

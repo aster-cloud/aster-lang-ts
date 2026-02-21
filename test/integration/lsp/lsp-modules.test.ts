@@ -62,9 +62,9 @@ function createMockGetOrParse() {
 }
 
 async function testFormattingModule(): Promise<void> {
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello " + name.`;
 
   const doc = TextDocument.create('file:///test.aster', 'aster', 1, code);
@@ -87,9 +87,9 @@ To greet with name: Text, produce Text:
 }
 
 async function testCodeActionModule(): Promise<void> {
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello " + name.`;
 
   const doc = TextDocument.create('file:///test.aster', 'aster', 1, code);
@@ -139,9 +139,9 @@ async function testSymbolsModule(): Promise<void> {
 }
 
 async function testTokensModule(): Promise<void> {
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello " + name.`;
 
   const doc = TextDocument.create('file:///test.aster', 'aster', 1, code);

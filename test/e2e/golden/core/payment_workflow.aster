@@ -1,9 +1,9 @@
-This module is test.golden.payment.
+Module test.golden.payment.
 
 // Payment capability workflow test
 // Tests Payment.charge and Payment.refund with compensation
 
-To processPayment with orderId, amount, produce with IO. It performs io [Payment]:
+Rule processPayment given orderId, amount, produce with IO. It performs io [Payment]:
 
   workflow:
     step charge_payment:

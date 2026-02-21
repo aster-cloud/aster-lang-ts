@@ -1,4 +1,4 @@
-This module is tests.typecheck.list.
+Module tests.typecheck.list.
 
-To numbers, produce:
+Rule numbers, produce:
   Return Int.add(List.head([1, "two"]), 1).

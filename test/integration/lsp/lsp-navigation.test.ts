@@ -86,21 +86,21 @@ function createMockGetDocumentSettings() {
 
 async function testReferencesHandler(): Promise<void> {
   clearIndex();
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello " plus name.
 
-To main produce Text:
+Rule main produce Text:
   Let result be greet("World").
   Return result.
 `;
 
   const mainFile = createTempModule('references-main', code);
   const doc = TextDocument.create(mainFile.uri, 'cnl', 1, code);
-  const consumerContent = `This module is consumer.
+  const consumerContent = `Module consumer.
 
-To demo produce Text:
+Rule demo produce Text:
   Return greet("Tester").
 `;
   const consumerFile = createTempModule('references-consumer', consumerContent);
@@ -119,7 +119,7 @@ To demo produce Text:
   // 测试查找 greet 函数的引用
   const params = {
     textDocument: { uri: doc.uri },
-    position: { line: 2, character: 3 }, // greet 函数定义处
+    position: { line: 2, character: 5 }, // greet 函数定义处 (Rule greet → 'greet' starts at col 5)
     context: { includeDeclaration: true },
   };
 
@@ -138,12 +138,12 @@ To demo produce Text:
 
 async function testRenameHandler(): Promise<void> {
   clearIndex();
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello " plus name.
 
-To main produce Text:
+Rule main produce Text:
   Let result be greet("World").
   Return result.
 `;
@@ -162,7 +162,7 @@ To main produce Text:
   // 测试重命名 greet 函数
   const params = {
     textDocument: { uri: doc.uri },
-    position: { line: 2, character: 3 }, // greet 函数定义处
+    position: { line: 2, character: 5 }, // greet 函数定义处 (Rule greet → 'greet' starts at col 5)
     newName: 'sayHello',
   };
 
@@ -185,9 +185,9 @@ To main produce Text:
 
 async function testHoverHandler(): Promise<void> {
   clearIndex();
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello " plus name.
 `;
 
@@ -204,7 +204,7 @@ To greet with name: Text, produce Text:
   // 测试在函数名上悬停
   const params = {
     textDocument: { uri: doc.uri },
-    position: { line: 2, character: 3 }, // greet 函数定义处
+    position: { line: 2, character: 5 }, // greet 函数定义处 (Rule greet → 'greet' starts at col 5)
   };
 
   const hover = await mockConnection.handlers.onHover(params);
@@ -221,9 +221,9 @@ To greet with name: Text, produce Text:
 
 async function testDocumentSymbolHandler(): Promise<void> {
   clearIndex();
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello " plus name.
 
 Define User as:
@@ -258,12 +258,12 @@ Define User as:
 
 async function testDefinitionHandler(): Promise<void> {
   clearIndex();
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello " plus name.
 
-To main produce Text:
+Rule main produce Text:
   Let result be greet("World").
   Return result.
 `;
@@ -319,12 +319,12 @@ async function testEdgeCases(): Promise<void> {
 
 async function testPrepareRenameHandler(): Promise<void> {
   clearIndex();
-  const code = `This module is test_app.
+  const code = `Module test_app.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello " plus name.
 
-To main produce Text:
+Rule main produce Text:
   Let result be greet("World").
   Return result.
 `;

@@ -1,4 +1,4 @@
-This module is test.effects.generic_func.
+Module test.effects.generic_func.
 
-To persist with data, produce. It performs io [Files]:
+Rule persist given data, produce. It performs io [Files]:
   Return data.

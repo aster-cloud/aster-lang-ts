@@ -1,4 +1,4 @@
-This module is boundary.text.concat.empty.
+Module boundary.text.concat.empty.
 
-To main, produce:
+Rule main, produce:
   Return Text.concat("", "").

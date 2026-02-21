@@ -1,6 +1,6 @@
-This module is demo.    
+Module demo.    
 
-To print with msg, produce  :   
+Rule print given msg, produce  :   
   Return IO.print(msg)   .     
 
 

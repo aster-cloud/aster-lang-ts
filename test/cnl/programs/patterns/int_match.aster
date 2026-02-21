@@ -1,6 +1,6 @@
-This module is demo.int_match.
+Module demo.int_match.
 
-To classify with n, produce:
+Rule classify given n, produce:
   Match n:
     When 0, Return "zero".
     When 1, Return "one".

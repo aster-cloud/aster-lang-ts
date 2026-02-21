@@ -18,19 +18,19 @@ export const DE_DE: Lexicon = {
 
   keywords: {
     // 模块声明
-    [SemanticTokenKind.MODULE_DECL]: 'Dieses Modul ist',
+    [SemanticTokenKind.MODULE_DECL]: 'Modul',
     [SemanticTokenKind.IMPORT]: 'verwende',
     [SemanticTokenKind.IMPORT_ALIAS]: 'als',
 
     // 类型定义
     [SemanticTokenKind.TYPE_DEF]: 'Definiere',
     [SemanticTokenKind.TYPE_WITH]: 'mit',
+    [SemanticTokenKind.TYPE_HAS]: 'hat',
     [SemanticTokenKind.TYPE_ONE_OF]: 'als eines von',
 
     // 函数定义
-    // FUNC_TO is the function definition start keyword (like English "To calculate...")
-    // German uses "Um" (in order to) or just use English-style keyword
-    [SemanticTokenKind.FUNC_TO]: 'Um',
+    [SemanticTokenKind.FUNC_TO]: 'Regel',
+    [SemanticTokenKind.FUNC_GIVEN]: 'gegeben',
     [SemanticTokenKind.FUNC_PRODUCE]: 'liefert',
     [SemanticTokenKind.FUNC_PERFORMS]: 'führt aus',
 
@@ -40,6 +40,7 @@ export const DE_DE: Lexicon = {
     [SemanticTokenKind.MATCH]: 'prüfe',
     [SemanticTokenKind.WHEN]: 'bei',
     [SemanticTokenKind.RETURN]: 'gib zurück',
+    [SemanticTokenKind.RESULT_IS]: 'Ergebnis ist',
     [SemanticTokenKind.FOR_EACH]: 'für jedes',
     [SemanticTokenKind.IN]: 'in',
 
@@ -65,6 +66,9 @@ export const DE_DE: Lexicon = {
     [SemanticTokenKind.GREATER_THAN]: 'größer als',
     [SemanticTokenKind.EQUALS_TO]: 'entspricht',
     [SemanticTokenKind.IS]: 'ist',
+    [SemanticTokenKind.UNDER]: 'unter',
+    [SemanticTokenKind.OVER]: 'ueber',
+    [SemanticTokenKind.MORE_THAN]: 'mehr als',
 
     // 类型构造
     [SemanticTokenKind.MAYBE]: 'vielleicht',
@@ -135,7 +139,8 @@ export const DE_DE: Lexicon = {
     removeArticles: true, // 移除常见冠词以降低噪音
     articles: ['der', 'die', 'das', 'ein', 'eine', 'einen', 'einem', 'einer', 'eines'],
     allowedDuplicates: [
-      // No duplicates needed - "Um" is for functions, "mit" is for type fields
+      [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN], // unter / kleiner als → "<"
+      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN], // ueber / größer als / mehr als → ">"
     ],
     // ASCII-ized umlaut normalization: convert common ASCII alternatives to proper umlauts
     // This allows users to type "groesser" instead of "größer", "zurueck" instead of "zurück"

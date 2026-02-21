@@ -29,14 +29,14 @@ function main(): void {
 
   ensureDir(cnlDir);
 
-  const cnl = `This module is app.
+  const cnl = `Module app.
 
-Define a User with id: Text and name: Text.
+Define a User has id: Text and name: Text.
 
-To hello, produce Text:
+Rule hello, produce Text:
   Return "Hello, world".
 
-To greet user: maybe User, produce Text:
+Rule greet user: maybe User, produce Text:
   Match user:
     When null, Return "Hi, guest".
     When User(id, name), Return "Welcome, {name}".

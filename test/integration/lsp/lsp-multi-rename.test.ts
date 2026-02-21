@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
   // rename 'greet' to 'greet2' at its declaration in a.aster
   const lines = aText.split(/\n/);
-  const lineIdx = lines.findIndex(l => /To\s+greet\b/.test(l));
+  const lineIdx = lines.findIndex(l => /Rule\s+greet\b/.test(l));
   const charIdx = Math.max(0, lines[lineIdx]!.indexOf('greet'));
   send(server, { jsonrpc: '2.0', id: 2, method: 'textDocument/rename', params: { textDocument: { uri: aUri }, position: { line: lineIdx, character: charIdx + 2 }, newName: 'greet2' } });
   const resp = await read(server, 2);

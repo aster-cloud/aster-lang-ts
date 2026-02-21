@@ -1,7 +1,7 @@
-This module is demo.eff_infer_wrapper_io.
+Module demo.eff_infer_wrapper_io.
 
-To helperWithIO, produce. It performs io:
+Rule helperWithIO, produce. It performs io:
   Return Http.get("https://example.com").
 
-To wrapperWithIO, produce. It performs io:
+Rule wrapperWithIO, produce. It performs io:
   Return helperWithIO().

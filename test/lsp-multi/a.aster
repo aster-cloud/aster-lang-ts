@@ -1,5 +1,5 @@
-This module is fixture.foo.
+Module fixture.foo.
 
-To greet, produce:
+Rule greet, produce:
   Return "hi".
 

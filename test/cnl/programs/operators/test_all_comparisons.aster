@@ -1,6 +1,6 @@
-This module is test.allcomparisons.
+Module test.allcomparisons.
 
-To testAllOperators with x, y, produce:
+Rule testAllOperators given x, y, produce:
   Let lt be x less than y.
   Let gt be x greater than y.
   Let lte be x at most y.

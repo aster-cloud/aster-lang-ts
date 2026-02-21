@@ -1,4 +1,4 @@
-This module is error.type.add.text.
+Module error.type.add.text.
 
-To main, produce:
+Rule main, produce:
   Return add("x", 1).

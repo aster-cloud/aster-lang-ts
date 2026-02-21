@@ -1,6 +1,6 @@
-This module is test.
+Module test.
 
-Define User with name.
+Define User has name.
 
-To greet, produce:
+Rule greet, produce:
   Return 0.

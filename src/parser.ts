@@ -64,7 +64,7 @@ export function parse(tokens: readonly Token[]): Module {
  * import { canonicalize, lex, parseWithLexicon } from '@aster-cloud/aster-lang-ts';
  * import { ZH_CN } from '@aster-cloud/aster-lang-ts/lexicons/zh-CN';
  *
- * const zhSource = '【模块】示例。【函数】 identity 包含 x，产出：返回 x。';
+ * const zhSource = '模块 示例。规则 identity 给定 x：返回 x。';
  * const canonical = canonicalize(zhSource, ZH_CN);
  * const tokens = lex(canonical, ZH_CN);
  * const ast = parseWithLexicon(tokens, ZH_CN); // 自动翻译中文关键词

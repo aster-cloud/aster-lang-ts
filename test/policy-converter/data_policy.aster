@@ -1,9 +1,9 @@
-This module is test.data.
+Module test.data.
 
-Define Person with name, age, email.
+Define Person has name, age, email.
 
-To createPerson with name, age, email, produce:
+Rule createPerson given name, age, email, produce:
   Return Person with name = name, age = age, email = email.
 
-To getPersonName with person, produce:
+Rule getPersonName given person, produce:
   Return person.name.

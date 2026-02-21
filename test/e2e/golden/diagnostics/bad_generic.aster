@@ -1,4 +1,4 @@
-This module is demo.badgen.
+Module demo.badgen.
 
-To bad with x, produce:
+Rule bad given x, produce:
   Return "ok".

@@ -57,9 +57,9 @@ function lowerCoreFromSource(source: string): { ast: AstModule; core: CoreTypes.
 
 function workflowSource(moduleName: string, steps: string): string {
   return `
-This module is ${moduleName}.
+Module ${moduleName}.
 
-To orchestrate, produce Result of Text with IO. It performs io:
+Rule orchestrate, produce Result of Text with IO. It performs io:
 
   workflow:
 ${steps}

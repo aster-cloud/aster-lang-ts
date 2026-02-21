@@ -1,6 +1,6 @@
-This module is test.helper1.
+Module test.helper1.
 
-Define Service with basePrice.
+Define Service has basePrice.
 
-To determineMinorCoverage with insuranceType, service, produce:
+Rule determineMinorCoverage given insuranceType, service, produce:
   Return 0.

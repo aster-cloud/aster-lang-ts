@@ -196,19 +196,20 @@ import { SemanticTokenKind } from './token-kind.js';
  * Aster CNL 关键字定义（v1 lexicon, en-US）。
  *
  * 多词关键字使用空格连接的规范形式（canonical form）。
- * 例如：'this module is', 'as one of', 'wait for'
+ * 例如：'as one of', 'wait for'
  *
- * **注意**：此对象保留用于向后兼容。新代码应使用 Lexicon 系统。
  * @deprecated 使用 `LexiconRegistry.getDefault().keywords` 代替
  */
 export const KW = {
-  MODULE_IS: 'this module is',
+  MODULE_IS: 'module',
   USE: 'use',
   AS: 'as',
   DEFINE: 'define',
   WITH: 'with',
+  HAS: 'has',
   ONE_OF: 'as one of',
-  TO: 'to',
+  RULE: 'rule',
+  GIVEN: 'given',
   PRODUCE: 'produce',
   PERFORMS: 'it performs',
   IO: 'io',
@@ -231,6 +232,7 @@ export const KW = {
   MAX_ATTEMPTS: 'max attempts',
   BACKOFF: 'backoff',
   RETURN: 'return',
+  RESULT_IS: 'the result is',
   WITHIN: 'within',
   SCOPE: 'scope',
   START: 'start',
@@ -264,6 +266,9 @@ export const KW = {
   GREATER_THAN: 'greater than',
   EQUALS_TO: 'equals to',
   IS: 'is',
+  UNDER: 'under',
+  OVER: 'over',
+  MORE_THAN: 'more than',
   // 约束关键词
   REQUIRED: 'required',
   BETWEEN: 'between',
@@ -284,8 +289,10 @@ export const KW_TO_SEMANTIC: Record<keyof typeof KW, SemanticTokenKind> = {
   AS: SemanticTokenKind.IMPORT_ALIAS,
   DEFINE: SemanticTokenKind.TYPE_DEF,
   WITH: SemanticTokenKind.TYPE_WITH,
+  HAS: SemanticTokenKind.TYPE_HAS,
   ONE_OF: SemanticTokenKind.TYPE_ONE_OF,
-  TO: SemanticTokenKind.FUNC_TO,
+  RULE: SemanticTokenKind.FUNC_TO,
+  GIVEN: SemanticTokenKind.FUNC_GIVEN,
   PRODUCE: SemanticTokenKind.FUNC_PRODUCE,
   PERFORMS: SemanticTokenKind.FUNC_PERFORMS,
   IO: SemanticTokenKind.IO,
@@ -308,6 +315,7 @@ export const KW_TO_SEMANTIC: Record<keyof typeof KW, SemanticTokenKind> = {
   MAX_ATTEMPTS: SemanticTokenKind.MAX_ATTEMPTS,
   BACKOFF: SemanticTokenKind.BACKOFF,
   RETURN: SemanticTokenKind.RETURN,
+  RESULT_IS: SemanticTokenKind.RESULT_IS,
   WITHIN: SemanticTokenKind.WITHIN,
   SCOPE: SemanticTokenKind.SCOPE,
   START: SemanticTokenKind.START,
@@ -341,6 +349,9 @@ export const KW_TO_SEMANTIC: Record<keyof typeof KW, SemanticTokenKind> = {
   GREATER_THAN: SemanticTokenKind.GREATER_THAN,
   EQUALS_TO: SemanticTokenKind.EQUALS_TO,
   IS: SemanticTokenKind.IS,
+  UNDER: SemanticTokenKind.UNDER,
+  OVER: SemanticTokenKind.OVER,
+  MORE_THAN: SemanticTokenKind.MORE_THAN,
   // 约束关键词映射
   REQUIRED: SemanticTokenKind.REQUIRED,
   BETWEEN: SemanticTokenKind.BETWEEN,

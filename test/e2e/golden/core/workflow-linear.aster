@@ -1,6 +1,6 @@
-This module is demo.workflow.core.linear.
+Module demo.workflow.core.linear.
 
-To runLinear, produce. It performs io:
+Rule runLinear, produce. It performs io:
   
   workflow:
     step fetch:

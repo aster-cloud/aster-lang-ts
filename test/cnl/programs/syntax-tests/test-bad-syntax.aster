@@ -1,4 +1,4 @@
-This module is test.cnl.programs.syntax_tests.test_bad_syntax.
+Module test.cnl.programs.syntax_tests.test_bad_syntax.
 
-To main, produce:
+Rule main, produce:
   Return 0.

@@ -1,7 +1,7 @@
-This module is test.hello.
+Module test.hello.
 
-To sayHello with name, produce:
+Rule sayHello given name, produce:
   Return "Hello, " plus name.
 
-To helloWorld, produce:
+Rule helloWorld, produce:
   Return "Hello, World!".

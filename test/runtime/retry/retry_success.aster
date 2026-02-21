@@ -1,6 +1,6 @@
-This module is tests.runtime.retry.success.
+Module tests.runtime.retry.success.
 
-To retrySuccess, produce. It performs io:
+Rule retrySuccess, produce. It performs io:
 
   workflow:
     step fetchData:

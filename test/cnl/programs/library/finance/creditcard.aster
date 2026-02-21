@@ -1,40 +1,40 @@
-This module is aster.finance.creditcard.
+Module aster.finance.creditcard.
 
-Define ApplicantInfo with applicantId, age, annualIncome, creditScore, existingCreditCards, monthlyRent, employmentStatus, yearsAtCurrentJob.
+Define ApplicantInfo has applicantId, age, annualIncome, creditScore, existingCreditCards, monthlyRent, employmentStatus, yearsAtCurrentJob.
 
-Define FinancialHistory with bankruptcyCount, latePayments, utilization, accountAge, hardInquiries.
+Define FinancialHistory has bankruptcyCount, latePayments, utilization, accountAge, hardInquiries.
 
-Define CreditCardOffer with productType, requestedLimit, hasRewards, annualFee.
+Define CreditCardOffer has productType, requestedLimit, hasRewards, annualFee.
 
-Define ApprovalDecision with approved, reason, approvedLimit, interestRateAPR, monthlyFee, creditLine, requiresDeposit, depositAmount.
+Define ApprovalDecision has approved, reason, approvedLimit, interestRateAPR, monthlyFee, creditLine, requiresDeposit, depositAmount.
 
-Define RiskScore with score, category, factors.
+Define RiskScore has score, category, factors.
 
-Define IncomeValidation with sufficient, ratio, recommendation.
+Define IncomeValidation has sufficient, ratio, recommendation.
 
-To evaluateCreditCardApplication with applicant, history, offer, produce:
+Rule evaluateCreditCardApplication given applicant, history, offer, produce:
   Return 0.
-To calculateComprehensiveRiskScore with applicant, history, produce:
+Rule calculateComprehensiveRiskScore given applicant, history, produce:
   Return 0.
-To calculateCreditScorePoints with creditScore, produce:
+Rule calculateCreditScorePoints given creditScore, produce:
   Return 0.
-To calculateHistoryPoints with history, produce:
+Rule calculateHistoryPoints given history, produce:
   Return 0.
-To calculateUtilizationPenalty with utilization, produce:
+Rule calculateUtilizationPenalty given utilization, produce:
   Return 0.
-To calculateInquiryPenalty with inquiries, produce:
+Rule calculateInquiryPenalty given inquiries, produce:
   Return 0.
-To validateIncomeRequirements with applicant, requestedLimit, produce:
+Rule validateIncomeRequirements given applicant, requestedLimit, produce:
   Return 0.
-To assessEmploymentStability with applicant, produce:
+Rule assessEmploymentStability given applicant, produce:
   Return 0.
-To determineFinalCreditLimit with requestedLimit, applicant, history, riskScore, employmentScore, produce:
+Rule determineFinalCreditLimit given requestedLimit, applicant, history, riskScore, employmentScore, produce:
   Return 0.
-To calculateAPR with creditScore, riskScore, history, produce:
+Rule calculateAPR given creditScore, riskScore, history, produce:
   Return 0.
-To shouldRequireSecuredCard with applicant, history, riskScore, produce:
+Rule shouldRequireSecuredCard given applicant, history, riskScore, produce:
   Return 0.
-To calculateRequiredDeposit with requiresSecured, creditLimit, produce:
+Rule calculateRequiredDeposit given requiresSecured, creditLimit, produce:
   Return 0.
-To determineMonthlyFee with productType, isSecured, creditScore, produce:
+Rule determineMonthlyFee given productType, isSecured, creditScore, produce:
   Return 0.

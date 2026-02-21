@@ -21,17 +21,19 @@ export const EN_US: Lexicon = {
 
   keywords: {
     // 模块声明
-    [SemanticTokenKind.MODULE_DECL]: 'this module is',
+    [SemanticTokenKind.MODULE_DECL]: 'Module',
     [SemanticTokenKind.IMPORT]: 'use',
     [SemanticTokenKind.IMPORT_ALIAS]: 'as',
 
     // 类型定义
     [SemanticTokenKind.TYPE_DEF]: 'define',
     [SemanticTokenKind.TYPE_WITH]: 'with',
+    [SemanticTokenKind.TYPE_HAS]: 'has',
     [SemanticTokenKind.TYPE_ONE_OF]: 'as one of',
 
     // 函数定义
-    [SemanticTokenKind.FUNC_TO]: 'to',
+    [SemanticTokenKind.FUNC_TO]: 'Rule',
+    [SemanticTokenKind.FUNC_GIVEN]: 'given',
     [SemanticTokenKind.FUNC_PRODUCE]: 'produce',
     [SemanticTokenKind.FUNC_PERFORMS]: 'it performs',
 
@@ -41,6 +43,7 @@ export const EN_US: Lexicon = {
     [SemanticTokenKind.MATCH]: 'match',
     [SemanticTokenKind.WHEN]: 'when',
     [SemanticTokenKind.RETURN]: 'return',
+    [SemanticTokenKind.RESULT_IS]: 'the result is',
     [SemanticTokenKind.FOR_EACH]: 'for each',
     [SemanticTokenKind.IN]: 'in',
 
@@ -66,6 +69,9 @@ export const EN_US: Lexicon = {
     [SemanticTokenKind.GREATER_THAN]: 'greater than',
     [SemanticTokenKind.EQUALS_TO]: 'equals to',
     [SemanticTokenKind.IS]: 'is',
+    [SemanticTokenKind.UNDER]: 'under',
+    [SemanticTokenKind.OVER]: 'over',
+    [SemanticTokenKind.MORE_THAN]: 'more than',
 
     // 类型构造
     [SemanticTokenKind.MAYBE]: 'maybe',
@@ -136,12 +142,9 @@ export const EN_US: Lexicon = {
     whitespaceMode: 'english', // 英语使用空格分隔单词
     removeArticles: true, // 移除 a, an, the
     articles: ['a', 'an', 'the'],
-    // 英语中 "to" 在两个语法上下文中使用：
-    // - FUNC_TO: 函数定义 ("To calculate...")
-    // - TO_WORD: 赋值操作 ("Set x to...")
-    // 解析器通过上下文区分，因此这是允许的重复
     allowedDuplicates: [
-      [SemanticTokenKind.FUNC_TO, SemanticTokenKind.TO_WORD],
+      [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN],
+      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
     ],
   },
 

@@ -1,4 +1,4 @@
-This module is tests.typecheck.basic.
+Module tests.typecheck.basic.
 
-To add with x, y, produce:
+Rule add given x, y, produce:
   Return x plus y.

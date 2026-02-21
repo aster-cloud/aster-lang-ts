@@ -1,6 +1,6 @@
-This module is tests.typecheck.workflow.timeout_short.
+Module tests.typecheck.workflow.timeout_short.
 
-To quickTimeout, produce. It performs io:
+Rule quickTimeout, produce. It performs io:
   
   workflow:
     step only:

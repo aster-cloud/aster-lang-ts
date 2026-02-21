@@ -45,7 +45,7 @@ describe('关键词翻译器', () => {
       assert.strictEqual(index.get('包含'), 'with');
 
       // 验证函数定义关键词
-      // 注意: '【函数】' 是标记关键词，在 markerIndex 中而不是 index 中
+      // 注意: '规则' 是标记关键词，在 markerIndex 中而不是 index 中
       assert.strictEqual(index.get('产出'), 'produce');
 
       // 验证类型关键词
@@ -73,7 +73,7 @@ describe('关键词翻译器', () => {
   });
 
   describe('buildFullTranslationIndex', () => {
-    it('应构建普通关键词和标记关键词的完整索引', () => {
+    it('应构建普通关键词的完整索引', () => {
       const { index, markerIndex } = buildFullTranslationIndex(ZH_CN, EN_US);
 
       // 验证普通关键词在 index 中
@@ -82,11 +82,14 @@ describe('关键词翻译器', () => {
       assert.strictEqual(index.get('返回'), 'return');
       assert.strictEqual(index.get('包含'), 'with');
 
-      // 验证标记关键词在 markerIndex 中（不含【】的内部值）
-      assert.strictEqual(markerIndex.get('定义'), 'define');
-      assert.strictEqual(markerIndex.get('模块'), 'this module is');
-      assert.strictEqual(markerIndex.get('流程'), 'workflow');
-      assert.strictEqual(markerIndex.get('步骤'), 'step');
+      // 中文不再使用【】标记，所有关键词都在 index 中
+      assert.strictEqual(index.get('定义'), 'define');
+      assert.strictEqual(index.get('模块'), 'Module');
+      assert.strictEqual(index.get('流程'), 'workflow');
+      assert.strictEqual(index.get('步骤'), 'step');
+
+      // markerIndex 应为空（中文无标记符号）
+      assert.strictEqual(markerIndex.size, 0);
     });
   });
 
@@ -209,8 +212,8 @@ describe('关键词翻译器', () => {
 
   describe('完整编译流程集成', () => {
     it('应能解析翻译后的中文 CNL 简单返回语句', () => {
-      // 中文源代码 - 使用 【函数】 标记关键词
-      const zhSource = '【函数】 identity 包含 id，产出：\n  返回 id。';
+      // 中文源代码 - 使用 规则 关键词
+      const zhSource = '规则 identity 包含 id，产出：\n  返回 id。';
 
       // 步骤 1: 规范化
       const canonical = canonicalize(zhSource, ZH_CN);
@@ -222,15 +225,14 @@ describe('关键词翻译器', () => {
       const translator = createKeywordTranslator(ZH_CN);
       const translatedTokens = translator.translateTokens(tokens);
 
-      // 验证关键词已翻译
-      const typeIdentTokens = translatedTokens.filter(t => t.kind === TokenKind.TYPE_IDENT);
-      const hasTo = typeIdentTokens.some(t => t.value === 'to');
-      const identTokens = translatedTokens.filter(t => t.kind === TokenKind.IDENT);
-      const hasWith = identTokens.some(t => t.value === 'with');
-      const hasProduce = identTokens.some(t => t.value === 'produce');
-      const hasReturn = identTokens.some(t => t.value === 'return');
+      // 验证关键词已翻译（注意：翻译后值来自 en-US lexicon，保持其大小写）
+      const allTokens = translatedTokens;
+      const hasRule = allTokens.some(t => (t.value as string)?.toLowerCase() === 'rule');
+      const hasWith = allTokens.some(t => t.value === 'with');
+      const hasProduce = allTokens.some(t => t.value === 'produce');
+      const hasReturn = allTokens.some(t => t.value === 'return');
 
-      assert.ok(hasTo, '应有翻译后的 "to" 关键词（TYPE_IDENT）');
+      assert.ok(hasRule, '应有翻译后的 "Rule" 关键词');
       assert.ok(hasWith, '应有翻译后的 "with" 关键词');
       assert.ok(hasProduce, '应有翻译后的 "produce" 关键词');
       assert.ok(hasReturn, '应有翻译后的 "return" 关键词');
@@ -245,7 +247,7 @@ describe('关键词翻译器', () => {
 
     it('应能解析翻译后的中文 CNL 类型定义', () => {
       // 中文类型定义
-      const zhSource = '【定义】 Driver 包含 age：整数。';
+      const zhSource = '定义 Driver 包含 age：整数。';
 
       // 完整编译流程
       const canonical = canonicalize(zhSource, ZH_CN);
@@ -253,17 +255,13 @@ describe('关键词翻译器', () => {
       const translator = createKeywordTranslator(ZH_CN);
       const translatedTokens = translator.translateTokens(tokens);
 
-      // 验证关键词翻译
-      // 标记关键词【定义】被合并为 TYPE_IDENT token
-      const typeIdentTokens = translatedTokens.filter(t => t.kind === TokenKind.TYPE_IDENT);
-      const hasDefine = typeIdentTokens.some(t => t.value === 'define');
+      // 验证关键词翻译（注意：翻译后值来自 en-US lexicon）
+      const allTokens = translatedTokens;
+      const hasDefine = allTokens.some(t => (t.value as string)?.toLowerCase() === 'define');
+      const hasWith = allTokens.some(t => t.value === 'with');
+      const hasInt = allTokens.some(t => t.value === 'int');
 
-      // 普通关键词保持为 IDENT token
-      const identTokens = translatedTokens.filter(t => t.kind === TokenKind.IDENT);
-      const hasWith = identTokens.some(t => t.value === 'with');
-      const hasInt = identTokens.some(t => t.value === 'int');
-
-      assert.ok(hasDefine, '应有翻译后的 "define" 关键词（TYPE_IDENT）');
+      assert.ok(hasDefine, '应有翻译后的 "define" 关键词');
       assert.ok(hasWith, '应有翻译后的 "with" 关键词');
       assert.ok(hasInt, '应有翻译后的 "int" 类型');
 
@@ -277,8 +275,8 @@ describe('关键词翻译器', () => {
     });
 
     it('应能解析翻译后的中文 CNL If 语句', () => {
-      // 中文 If 语句 - 使用 【函数】 标记关键词
-      const zhSource = `【函数】 check 包含 x，产出：
+      // 中文 If 语句 - 使用 规则 标记关键词
+      const zhSource = `规则 check 包含 x，产出：
   如果 1 小于 2：
     返回 1。
   返回 0。`;
@@ -304,7 +302,7 @@ describe('关键词翻译器', () => {
 
     it('英文 CNL 不受影响', () => {
       // 英文源代码
-      const enSource = 'To id, produce Int:\n  Return 1.';
+      const enSource = 'Rule id, produce Int:\n  Return 1.';
 
       // 完整编译流程（英文不需要翻译，但测试流程不会出错）
       const canonical = canonicalize(enSource, EN_US);

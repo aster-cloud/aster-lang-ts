@@ -1,4 +1,4 @@
-This module is demo.bom.
+Module demo.bom.
 
-To greet with name, produce:
+Rule greet given name, produce:
   Return 0.

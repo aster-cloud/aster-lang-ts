@@ -1,15 +1,15 @@
-This module is test.eligibility.struct.
+Module test.eligibility.struct.
 
-Define Patient with patientId, age, hasInsurance, insuranceType, chronicConditions.
+Define Patient has patientId, age, hasInsurance, insuranceType, chronicConditions.
 
-Define Service with serviceCode, serviceName, basePrice, requiresPreAuth.
+Define Service has serviceCode, serviceName, basePrice, requiresPreAuth.
 
-Define EligibilityCheck with eligible, reason, coveragePercent, estimatedCost, requiresPreAuth.
+Define EligibilityCheck has eligible, reason, coveragePercent, estimatedCost, requiresPreAuth.
 
-To calculatePatientCost with basePrice, coveragePercent, produce:
+Rule calculatePatientCost given basePrice, coveragePercent, produce:
   Let patientPercent be 100 minus coveragePercent.
   Let patientCost be basePrice times patientPercent.
   Return patientCost.
 
-To checkServiceEligibility with patient, service, produce:
+Rule checkServiceEligibility given patient, service, produce:
   Return EligibilityCheck with eligible = true, reason = "Has insurance", coveragePercent = 80, estimatedCost = calculatePatientCost(service.basePrice, 80), requiresPreAuth = service.requiresPreAuth.

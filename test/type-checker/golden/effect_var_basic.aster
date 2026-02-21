@@ -1,8 +1,8 @@
-This module is test.effect_var.
+Module test.effect_var.
 
-To identity with x, produce:
+Rule identity given x, produce:
   Return x.
 
-To caller, produce. It performs io:
+Rule caller, produce. It performs io:
   Let input be IO.readLine().
   Return identity(input).

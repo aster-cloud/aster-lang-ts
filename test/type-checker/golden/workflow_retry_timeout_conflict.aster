@@ -1,6 +1,6 @@
-This module is tests.typecheck.workflow.retry_timeout.
+Module tests.typecheck.workflow.retry_timeout.
 
-To retryTimeoutConflict, produce. It performs io:
+Rule retryTimeoutConflict, produce. It performs io:
   
   workflow:
     step only:

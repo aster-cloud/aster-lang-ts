@@ -1,4 +1,4 @@
-This module is boundary.text.trim.whitespace.
+Module boundary.text.trim.whitespace.
 
-To main, produce:
+Rule main, produce:
   Return Text.trim("   ").

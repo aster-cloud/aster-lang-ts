@@ -1,7 +1,7 @@
-This module is std.text.
+Module std.text.
 
-To concat with left, right, produce:
+Rule concat given left, right, produce:
   Return Text.concat(left, right).
 
-To hasSubstring with haystack, needle, produce:
+Rule hasSubstring given haystack, needle, produce:
   Return Text.contains(haystack, needle).

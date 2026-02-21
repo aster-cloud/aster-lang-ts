@@ -1,6 +1,6 @@
-This module is boundary.nullcase.default.
+Module boundary.nullcase.default.
 
-To main, produce:
+Rule main, produce:
   Match null:
     When null, Return "none".
     When value, Return "some".

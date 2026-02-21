@@ -1,7 +1,7 @@
-This module is test.simple.
+Module test.simple.
 
-To greet with name, produce:
+Rule greet given name, produce:
   Return "Hello, " plus (name plus "!").
 
-To add with x, y, produce:
+Rule add given x, y, produce:
   Return x plus y.

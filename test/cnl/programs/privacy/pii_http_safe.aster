@@ -1,4 +1,4 @@
-This module is test.pii.http_safe.
+Module test.pii.http_safe.
 
-To store_email with email, produce:
+Rule store_email given email, produce:
   Return email.

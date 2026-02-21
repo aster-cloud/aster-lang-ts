@@ -1,4 +1,4 @@
-This module is test.cnl.programs.parser_tests.with_data_type.
+Module test.cnl.programs.parser_tests.with_data_type.
 
-To main, produce:
+Rule main, produce:
   Return 0.

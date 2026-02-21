@@ -1,4 +1,4 @@
-This module is tests.runtime.retry.timeout.
+Module tests.runtime.retry.timeout.
 
-To retryWithTimeout, produce. It performs io:
+Rule retryWithTimeout, produce. It performs io:
   Return 0.

@@ -1,18 +1,18 @@
 // English Patterns - Pattern matching with match/when
-This module is test.patterns.
+Module test.patterns.
 
-Define User with id, name, role.
+Define User has id, name, role.
 
 Define Status as one of Pending, Active, Suspended, Deleted.
 
 // Match on optional value
-To greetUser with user, produce:
+Rule greetUser given user, produce:
   Match user:
     When null, Return "Hello, guest".
     When User(id, name, role), Return "Welcome, " plus name.
 
 // Match on enum
-To describeStatus with status, produce:
+Rule describeStatus given status, produce:
   Match status:
     When Pending, Return "Waiting for approval".
     When Active, Return "Currently active".
@@ -20,7 +20,7 @@ To describeStatus with status, produce:
     When Deleted, Return "Permanently removed".
 
 // Match with integer literal
-To classifyScore with score, produce:
+Rule classifyScore given score, produce:
   Match score:
     When 0, Return "Zero".
     When 100, Return "Perfect".

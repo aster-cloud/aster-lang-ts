@@ -1,6 +1,6 @@
-This module is demo.workflow.compensate.
+Module demo.workflow.compensate.
 
-To processOrder, produce. It performs io:
+Rule processOrder, produce. It performs io:
   
   workflow:
     step reserve:

@@ -69,9 +69,9 @@ describe('编译管道端到端测试', () => {
   describe('成功编译场景', () => {
     it('应该成功编译简单的模块和函数', () => {
       const source = `
-This module is test.simple.
+Module test.simple.
 
-To greet, produce Text:
+Rule greet produce Text:
   Return "Hello, World!".
 `;
 
@@ -88,9 +88,9 @@ To greet, produce Text:
 
     it('应该成功编译带参数的函数', () => {
       const source = `
-This module is test.params.
+Module test.params.
 
-To double with x: Int, produce Int:
+Rule double given x: Int, produce Int:
   Return x plus x.
 `;
 
@@ -106,11 +106,11 @@ To double with x: Int, produce Int:
 
     it('应该成功编译数据类型定义', () => {
       const source = `
-This module is test.data.
+Module test.data.
 
-Define User with name: Text, age: Int.
+Define User has name: Text, age: Int.
 
-To createUser with n: Text, a: Int, produce User:
+Rule createUser given n: Text, a: Int, produce User:
   Return User(n, a).
 `;
 
@@ -126,11 +126,11 @@ To createUser with n: Text, a: Int, produce User:
 
     it('应该成功编译枚举类型', () => {
       const source = `
-This module is test.enum.
+Module test.enum.
 
 Define Status as one of Success, Failure, Pending.
 
-To getStatus, produce Status:
+Rule getStatus produce Status:
   Return Success.
 `;
 
@@ -145,9 +145,9 @@ To getStatus, produce Status:
 
     it('应该成功编译带效果声明的函数', () => {
       const source = `
-This module is test.effects.
+Module test.effects.
 
-To fetchData, produce Text. It performs io:
+Rule fetchData produce Text. It performs io:
   Return "data".
 `;
 
@@ -165,7 +165,7 @@ To fetchData, produce Text. It performs io:
   describe('编译错误场景', () => {
     it('应该检测缺少模块头', () => {
       const source = `
-To greet, produce Text:
+Rule greet produce Text:
   Return "Hello".
 `;
 
@@ -184,9 +184,9 @@ To greet, produce Text:
 
     it('应该检测语法错误', () => {
       const source = `
-This module is test.syntax.
+Module test.syntax.
 
-To greet produce Text
+Rule greet produce Text
   Return "Hello".
 `;
 
@@ -198,9 +198,9 @@ To greet produce Text
 
     it('应该检测类型不匹配', () => {
       const source = `
-This module is test.typecheck.
+Module test.typecheck.
 
-To getNumber, produce Int:
+Rule getNumber produce Int:
   Return "not a number".
 `;
 
@@ -215,9 +215,9 @@ To getNumber, produce Int:
   describe('管道各阶段的输出一致性', () => {
     it('规范化应该是幂等的', () => {
       const source = `
-This module is test.canonical.
+Module test.canonical.
 
-To greet, produce Text:
+Rule greet produce Text:
   Return "Hello".
 `;
 
@@ -229,11 +229,11 @@ To greet, produce Text:
 
     it('AST 和 Core 应该保持结构对应', () => {
       const source = `
-This module is test.structure.
+Module test.structure.
 
-Define User with name: Text.
+Define User has name: Text.
 
-To createUser with n: Text, produce User:
+Rule createUser given n: Text, produce User:
   Return User(n).
 `;
 
@@ -244,7 +244,7 @@ To createUser with n: Text, produce User:
     });
 
     it('词法标记应该覆盖整个源代码', () => {
-      const source = 'This module is test.';
+      const source = 'Module test.';
 
       const canonical = canonicalize(source);
       const tokens = lex(canonical);
@@ -252,14 +252,14 @@ To createUser with n: Text, produce User:
       // 最后一个标记应该是 EOF
       assert.equal(tokens[tokens.length - 1]?.kind, 'EOF', '最后一个标记应该是 EOF');
 
-      // 应该至少有: IDENT(This) IDENT(module) IDENT(is) IDENT(test) DOT EOF
-      assert.equal(tokens.length >= 5, true, '应该有足够的标记');
+      // 应该至少有: IDENT(Module) IDENT(test) DOT EOF
+      assert.equal(tokens.length >= 3, true, '应该有足够的标记');
     });
   });
 
   describe('管道性能和边界情况', () => {
     it('应该处理空模块', () => {
-      const source = 'This module is test.empty.';
+      const source = 'Module test.empty.';
 
       const result = compileEnd2End(source);
 
@@ -271,13 +271,13 @@ To createUser with n: Text, produce User:
       const functions = [];
       for (let i = 0; i < 50; i++) {
         functions.push(`
-To func${i}, produce Int:
+Rule func${i} produce Int:
   Return ${i}.
 `);
       }
 
       const source = `
-This module is test.large.
+Module test.large.
 
 ${functions.join('\n')}
 `;
@@ -290,9 +290,9 @@ ${functions.join('\n')}
 
     it('应该处理简单的控制流', () => {
       const source = `
-This module is test.nested.
+Module test.nested.
 
-To simpleIf with x: Int, produce Int:
+Rule simpleIf given x: Int, produce Int:
   If x greater than 10:
     Return 1.
   Return 0.
@@ -311,9 +311,9 @@ To simpleIf with x: Int, produce Int:
   describe('管道集成特性', () => {
     it('应该支持泛型函数', () => {
       const source = `
-This module is test.generic.
+Module test.generic.
 
-To identity of T, with x: T, produce T:
+Rule identity of T, given x: T, produce T:
   Return x.
 `;
 
@@ -329,12 +329,12 @@ To identity of T, with x: T, produce T:
 
     it('应该支持多个泛型函数', () => {
       const source = `
-This module is test.generics.
+Module test.generics.
 
-To identity of T, with x: T, produce T:
+Rule identity of T, given x: T, produce T:
   Return x.
 
-To pair of Ta and Tb, with a: Ta, b: Tb, produce Text:
+Rule pair of Ta and Tb, given a: Ta, b: Tb, produce Text:
   Return "pair".
 `;
 
@@ -352,18 +352,18 @@ To pair of Ta and Tb, with a: Ta, b: Tb, produce Text:
 
     it('应该支持异步操作（Start/Wait）', () => {
       const source = `
-This module is test.async.
+Module test.async.
 
-To fetchDashboard with userId: Text, produce Text. It performs io:
+Rule fetchDashboard given userId: Text, produce Text. It performs io:
   Start profile as async fetchProfile(userId).
   Start timeline as async fetchTimeline(userId).
   Wait for profile and timeline.
   Return "Dashboard".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 
-To fetchTimeline with id: Text, produce Text. It performs io:
+Rule fetchTimeline given id: Text, produce Text. It performs io:
   Return "Timeline".
 `;
 

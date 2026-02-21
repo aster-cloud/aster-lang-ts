@@ -1,80 +1,80 @@
-This module is test.insurance.life.
+Module test.insurance.life.
 
-Define Applicant with applicantId, age, gender, smoker, bmi, occupation, healthScore.
+Define Applicant has applicantId, age, gender, smoker, bmi, occupation, healthScore.
 
-Define PolicyRequest with coverageAmount, termYears, policyType.
+Define PolicyRequest has coverageAmount, termYears, policyType.
 
-Define LifeQuote with approved, reason, monthlyPremium, coverageAmount, termYears.
+Define LifeQuote has approved, reason, monthlyPremium, coverageAmount, termYears.
 
-To calculateBaseRate with age, termYears, produce:
+Rule calculateBaseRate given age, termYears, produce:
   Return 0.
-To calculateHealthMultiplier with applicant, produce:
+Rule calculateHealthMultiplier given applicant, produce:
   Return 0.
-To calculateOccupationMultiplier with occupation, produce:
+Rule calculateOccupationMultiplier given occupation, produce:
   Return 0.
-To calculateRiskScore with applicant, produce:
+Rule calculateRiskScore given applicant, produce:
   Return 0.
-To generateLifeQuote with applicant, request, produce:
+Rule generateLifeQuote given applicant, request, produce:
   Return 0.
-To testApplicantTooYoung, produce:
+Rule testApplicantTooYoung, produce:
   Return 0.
-To testApplicantTooOld, produce:
+Rule testApplicantTooOld, produce:
   Return 0.
-To testHealthScoreTooLow, produce:
+Rule testHealthScoreTooLow, produce:
   Return 0.
-To testCoverageExceedsMaximum, produce:
+Rule testCoverageExceedsMaximum, produce:
   Return 0.
-To testYoungHealthyNonSmokerShortTerm, produce:
+Rule testYoungHealthyNonSmokerShortTerm, produce:
   Return 0.
-To testYoungHealthyNonSmokerLongTerm, produce:
+Rule testYoungHealthyNonSmokerLongTerm, produce:
   Return 0.
-To testMiddleAgedSmokerHighBMI, produce:
+Rule testMiddleAgedSmokerHighBMI, produce:
   Return 0.
-To testMiddleAgedNonSmokerLowBMI, produce:
+Rule testMiddleAgedNonSmokerLowBMI, produce:
   Return 0.
-To testOlderApplicantHealthy, produce:
+Rule testOlderApplicantHealthy, produce:
   Return 0.
-To testHighRiskOccupation, produce:
+Rule testHighRiskOccupation, produce:
   Return 0.
-To testModerateRiskOccupation, produce:
+Rule testModerateRiskOccupation, produce:
   Return 0.
-To testOfficeWorkerLowRisk, produce:
+Rule testOfficeWorkerLowRisk, produce:
   Return 0.
-To testSmokerVeryHighBMI, produce:
+Rule testSmokerVeryHighBMI, produce:
   Return 0.
-To testExcellentHealthHighScore, produce:
+Rule testExcellentHealthHighScore, produce:
   Return 0.
-To testCalculateBaseRateYoungShort, produce:
+Rule testCalculateBaseRateYoungShort, produce:
   Return 0.
-To testCalculateBaseRateYoungLong, produce:
+Rule testCalculateBaseRateYoungLong, produce:
   Return 0.
-To testCalculateBaseRateMiddleShort, produce:
+Rule testCalculateBaseRateMiddleShort, produce:
   Return 0.
-To testCalculateBaseRateMiddleLong, produce:
+Rule testCalculateBaseRateMiddleLong, produce:
   Return 0.
-To testCalculateBaseRateOlderShort, produce:
+Rule testCalculateBaseRateOlderShort, produce:
   Return 0.
-To testCalculateBaseRateOlderLong, produce:
+Rule testCalculateBaseRateOlderLong, produce:
   Return 0.
-To testCalculateBaseRateSeniorShort, produce:
+Rule testCalculateBaseRateSeniorShort, produce:
   Return 0.
-To testCalculateHealthMultiplierClean, produce:
+Rule testCalculateHealthMultiplierClean, produce:
   Return 0.
-To testCalculateHealthMultiplierSmoker, produce:
+Rule testCalculateHealthMultiplierSmoker, produce:
   Return 0.
-To testCalculateHealthMultiplierHighBMI, produce:
+Rule testCalculateHealthMultiplierHighBMI, produce:
   Return 0.
-To testCalculateHealthMultiplierExcellent, produce:
+Rule testCalculateHealthMultiplierExcellent, produce:
   Return 0.
-To testCalculateOccupationMultiplierHighRisk, produce:
+Rule testCalculateOccupationMultiplierHighRisk, produce:
   Return 0.
-To testCalculateOccupationMultiplierModerate, produce:
+Rule testCalculateOccupationMultiplierModerate, produce:
   Return 0.
-To testCalculateOccupationMultiplierOffice, produce:
+Rule testCalculateOccupationMultiplierOffice, produce:
   Return 0.
-To testCalculateOccupationMultiplierUnknown, produce:
+Rule testCalculateOccupationMultiplierUnknown, produce:
   Return 0.
-To testCalculateRiskScoreLowRisk, produce:
+Rule testCalculateRiskScoreLowRisk, produce:
   Return 0.
-To testCalculateRiskScoreHighRisk, produce:
+Rule testCalculateRiskScoreHighRisk, produce:
   Return 0.

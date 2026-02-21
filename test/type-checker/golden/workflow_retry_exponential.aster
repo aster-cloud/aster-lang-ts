@@ -1,6 +1,6 @@
-This module is tests.typecheck.workflow.retry_exponential.
+Module tests.typecheck.workflow.retry_exponential.
 
-To retryExponential, produce. It performs io:
+Rule retryExponential, produce. It performs io:
   
   workflow:
     step only:

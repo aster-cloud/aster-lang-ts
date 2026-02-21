@@ -43,15 +43,15 @@ describe('异步纪律检查', () => {
   describe('Start 未 Wait 场景', () => {
     it('应该检测单个 Start 未 Wait', () => {
       const source = `
-This module is test.async.start_not_waited.
+Module test.async.start_not_waited.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -65,23 +65,23 @@ To fetchProfile with id: Text, produce Text. It performs io:
 
     it('应该检测多个 Start 未 Wait', () => {
       const source = `
-This module is test.async.multiple_not_waited.
+Module test.async.multiple_not_waited.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start timeline as async fetchTimeline(u.id).
   Start settings as async fetchSettings(u.id).
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 
-To fetchTimeline with id: Text, produce Text. It performs io:
+Rule fetchTimeline given id: Text, produce Text. It performs io:
   Return "Timeline".
 
-To fetchSettings with id: Text, produce Text. It performs io:
+Rule fetchSettings given id: Text, produce Text. It performs io:
   Return "Settings".
 `;
 
@@ -99,11 +99,11 @@ To fetchSettings with id: Text, produce Text. It performs io:
   describe('Wait 未 Start 场景', () => {
     it('应该检测单个 Wait 未 Start', () => {
       const source = `
-This module is test.async.wait_not_started.
+Module test.async.wait_not_started.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Wait for profile.
   Return "Done".
 `;
@@ -118,11 +118,11 @@ To fetchData with u: User, produce Text. It performs io:
 
     it('应该检测多个 Wait 未 Start', () => {
       const source = `
-This module is test.async.multiple_wait_not_started.
+Module test.async.multiple_wait_not_started.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Wait for profile and timeline and settings.
   Return "Done".
 `;
@@ -141,17 +141,17 @@ To fetchData with u: User, produce Text. It performs io:
   describe('重复 Start 场景', () => {
     it('应该检测重复 Start 同一任务', () => {
       const source = `
-This module is test.async.duplicate_start.
+Module test.async.duplicate_start.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start profile as async fetchProfile(u.id).
   Wait for profile.
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -166,18 +166,18 @@ To fetchProfile with id: Text, produce Text. It performs io:
 
     it('应该检测三次 Start 同一任务', () => {
       const source = `
-This module is test.async.triple_start.
+Module test.async.triple_start.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start profile as async fetchProfile(u.id).
   Start profile as async fetchProfile(u.id).
   Wait for profile.
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -193,17 +193,17 @@ To fetchProfile with id: Text, produce Text. It performs io:
   describe('重复 Wait 场景', () => {
     it('应该检测重复 Wait 同一任务（warning）', () => {
       const source = `
-This module is test.async.duplicate_wait.
+Module test.async.duplicate_wait.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Wait for profile.
   Wait for profile.
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -218,18 +218,18 @@ To fetchProfile with id: Text, produce Text. It performs io:
 
     it('应该检测三次 Wait 同一任务', () => {
       const source = `
-This module is test.async.triple_wait.
+Module test.async.triple_wait.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Wait for profile.
   Wait for profile.
   Wait for profile.
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -245,16 +245,16 @@ To fetchProfile with id: Text, produce Text. It performs io:
   describe('正常场景', () => {
     it('单个 Start-Wait 对应该无错误', () => {
       const source = `
-This module is test.async.normal_single.
+Module test.async.normal_single.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Wait for profile.
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -268,24 +268,24 @@ To fetchProfile with id: Text, produce Text. It performs io:
 
     it('多个 Start-Wait 对应该无错误', () => {
       const source = `
-This module is test.async.normal_multiple.
+Module test.async.normal_multiple.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start timeline as async fetchTimeline(u.id).
   Start settings as async fetchSettings(u.id).
   Wait for profile and timeline and settings.
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 
-To fetchTimeline with id: Text, produce Text. It performs io:
+Rule fetchTimeline given id: Text, produce Text. It performs io:
   Return "Timeline".
 
-To fetchSettings with id: Text, produce Text. It performs io:
+Rule fetchSettings given id: Text, produce Text. It performs io:
   Return "Settings".
 `;
 
@@ -299,11 +299,11 @@ To fetchSettings with id: Text, produce Text. It performs io:
 
     it('分批 Wait 应该无错误', () => {
       const source = `
-This module is test.async.normal_batched.
+Module test.async.normal_batched.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start timeline as async fetchTimeline(u.id).
   Wait for profile.
@@ -311,13 +311,13 @@ To fetchData with u: User, produce Text. It performs io:
   Wait for timeline and settings.
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 
-To fetchTimeline with id: Text, produce Text. It performs io:
+Rule fetchTimeline given id: Text, produce Text. It performs io:
   Return "Timeline".
 
-To fetchSettings with id: Text, produce Text. It performs io:
+Rule fetchSettings given id: Text, produce Text. It performs io:
   Return "Settings".
 `;
 
@@ -333,11 +333,11 @@ To fetchSettings with id: Text, produce Text. It performs io:
   describe('混合场景', () => {
     it('应该同时检测多种错误', () => {
       const source = `
-This module is test.async.mixed_errors.
+Module test.async.mixed_errors.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start profile as async fetchProfile(u.id).
   Start timeline as async fetchTimeline(u.id).
@@ -346,10 +346,10 @@ To fetchData with u: User, produce Text. It performs io:
   Wait for settings.
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 
-To fetchTimeline with id: Text, produce Text. It performs io:
+Rule fetchTimeline given id: Text, produce Text. It performs io:
   Return "Timeline".
 `;
 
@@ -380,16 +380,16 @@ To fetchTimeline with id: Text, produce Text. It performs io:
   describe('Wait 与 Start 顺序', () => {
     it('Wait 在 Start 之前应报告错误', () => {
       const source = `
-This module is test.async.wait_before_start.simple.
+Module test.async.wait_before_start.simple.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Wait for profile.
   Start profile as async fetchProfile(u.id).
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -402,17 +402,17 @@ To fetchProfile with id: Text, produce Text. It performs io:
 
     it('Wait 在 Start 前且 Start 位于分支应报告错误', () => {
       const source = `
-This module is test.async.wait_before_start.branch.
+Module test.async.wait_before_start.branch.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Wait for profile.
   If u.id equals to "vip":
     Start profile as async fetchProfile(u.id).
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
       const diagnostics = compileAndGetDiagnostics(source);
@@ -426,11 +426,11 @@ To fetchProfile with id: Text, produce Text. It performs io:
   describe('分支中的多重 Start', () => {
     it('If 互斥分支的重复 Start 不再报错', () => {
       const source = `
-This module is test.async.branch_duplicate.if.
+Module test.async.branch_duplicate.if.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   If u.id equals to "vip":
     Start profile as async fetchProfile(u.id).
   Otherwise:
@@ -438,7 +438,7 @@ To fetchData with u: User, produce Text. It performs io:
   Wait for profile.
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -452,11 +452,11 @@ To fetchProfile with id: Text, produce Text. It performs io:
 
     it('多个条件路径触发相同 Start 会被累计', () => {
       const source = `
-This module is test.async.branch_duplicate.multi_paths.
+Module test.async.branch_duplicate.multi_paths.
 
-Define User with id: Text, tier: Text.
+Define User has id: Text, tier: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   If u.tier equals to "vip":
     Start profile as async fetchProfile(u.id).
   If u.tier equals to "premium":
@@ -464,7 +464,7 @@ To fetchData with u: User, produce Text. It performs io:
   Wait for profile.
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -480,11 +480,11 @@ To fetchProfile with id: Text, produce Text. It performs io:
   describe('嵌套作用域的 Start 行为', () => {
     it('嵌套分支中遗漏 Wait 会被视为 Start 未 Wait', () => {
       const source = `
-This module is test.async.nested_missing_wait.branch.
+Module test.async.nested_missing_wait.branch.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   If u.id equals to "vip":
     Start audit as async fetchAudit(u.id).
     If u.id equals to "vip":
@@ -492,7 +492,7 @@ To fetchData with u: User, produce Text. It performs io:
   Wait for audit.
   Return "Done".
 
-To fetchAudit with id: Text, produce Text. It performs io:
+Rule fetchAudit given id: Text, produce Text. It performs io:
   Return "Audit".
 `;
 
@@ -505,18 +505,18 @@ To fetchAudit with id: Text, produce Text. It performs io:
 
     it('外层与嵌套作用域重复 Start 会产生重复诊断', () => {
       const source = `
-This module is test.async.nested_duplicate_start.
+Module test.async.nested_duplicate_start.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   If u.id equals to "vip":
     Start profile as async fetchProfile(u.id).
   Wait for profile.
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -532,11 +532,11 @@ To fetchProfile with id: Text, produce Text. It performs io:
   describe('组合场景与诊断精确性', () => {
     it('Wait 提前 + 分支重复 Start 仅产生重复诊断', () => {
       const source = `
-This module is test.async.combo.branch_wait_first.
+Module test.async.combo.branch_wait_first.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetchData with u: User, produce Text. It performs io:
+Rule fetchData given u: User, produce Text. It performs io:
   Wait for profile.
   If u.id equals to "vip":
     Start profile as async fetchProfile(u.id).
@@ -544,7 +544,7 @@ To fetchData with u: User, produce Text. It performs io:
     Start profile as async fetchProfile(u.id).
   Return "Done".
 
-To fetchProfile with id: Text, produce Text. It performs io:
+Rule fetchProfile given id: Text, produce Text. It performs io:
   Return "Profile".
 `;
 

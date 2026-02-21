@@ -1,4 +1,4 @@
-This module is boundary.list.empty.length.
+Module boundary.list.empty.length.
 
-To main, produce:
+Rule main, produce:
   Return List.length(List.empty()).

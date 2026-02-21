@@ -1,5 +1,5 @@
-This module is tests.typecheck.async.wait_not_started.
+Module tests.typecheck.async.wait_not_started.
 
-To fetchData with userId, produce:
+Rule fetchData given userId, produce:
   Wait for profile.
   Return "done".

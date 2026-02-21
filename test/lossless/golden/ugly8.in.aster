@@ -1,4 +1,4 @@
-This module is demo.paren.
+Module demo.paren.
 
-To join with a, b, produce:
+Rule join given a, b, produce:
   Return 0.

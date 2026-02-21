@@ -1,13 +1,13 @@
-This module is test.eff.valid.nested.
+Module test.eff.valid.nested.
 
-To leaf_http, produce. It performs io [Http]:
+Rule leaf_http, produce. It performs io [Http]:
   Return Http.get("/health").
 
-To mid_io, produce. It performs io [Http, Sql]:
+Rule mid_io, produce. It performs io [Http, Sql]:
   Let resp be leaf_http().
   Return Db.insert("logs", resp).
 
-To root_io, produce. It performs io [Http, Sql, Time]:
+Rule root_io, produce. It performs io [Http, Sql, Time]:
   Let data be mid_io().
   Let ts be Time.now().
   Return (ts plus ": ") plus data.

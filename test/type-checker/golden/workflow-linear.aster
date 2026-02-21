@@ -1,6 +1,6 @@
-This module is tests.workflow.linear.
+Module tests.workflow.linear.
 
-To runWorkflow, produce. It performs io:
+Rule runWorkflow, produce. It performs io:
   
   workflow:
     step fetch:

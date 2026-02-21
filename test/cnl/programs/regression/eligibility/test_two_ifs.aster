@@ -1,4 +1,4 @@
-This module is test.two.ifs.
+Module test.two.ifs.
 
-To testTwoIfs with x, produce:
+Rule testTwoIfs given x, produce:
   Return 0.

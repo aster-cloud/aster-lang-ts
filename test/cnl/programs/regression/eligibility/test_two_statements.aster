@@ -1,12 +1,12 @@
-This module is test.two.statements.
+Module test.two.statements.
 
-Define Patient with insuranceType, age.
+Define Patient has insuranceType, age.
 
-Define Service with basePrice.
+Define Service has basePrice.
 
-Define Result with value.
+Define Result has value.
 
-To determineMinorCoverage with insuranceType, service, produce:
+Rule determineMinorCoverage given insuranceType, service, produce:
   Return 0.
-To checkServiceEligibility with patient, service, produce:
+Rule checkServiceEligibility given patient, service, produce:
   Return 0.

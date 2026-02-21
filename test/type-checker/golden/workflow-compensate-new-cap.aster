@@ -1,6 +1,6 @@
-This module is tests.workflow.compensate_capability.
+Module tests.workflow.compensate_capability.
 
-To compensateAddsCapability, produce. It performs io [Http, Secrets]:
+Rule compensateAddsCapability, produce. It performs io [Http, Secrets]:
   
   workflow:
     step fetch:

@@ -1,11 +1,11 @@
-This module is test.pii.nested_call.
+Module test.pii.nested_call.
 
-To format_user with ssn, produce:
+Rule format_user given ssn, produce:
   Return "SSN: " plus ssn.
 
-To upload_data with data, produce. It performs io [Http]:
+Rule upload_data given data, produce. It performs io [Http]:
   Return Http.post("/upload", data).
 
-To process_ssn with ssn, produce. It performs io [Http]:
+Rule process_ssn given ssn, produce. It performs io [Http]:
   Let formatted be format_user(ssn).
   Return upload_data(formatted).

@@ -1,6 +1,6 @@
-This module is test.boundary.maybe_match.
+Module test.boundary.maybe_match.
 
-To unwrap_or with x, d, produce:
+Rule unwrap_or given x, d, produce:
   Match x:
     When null, Return d.
     When v, Return v.

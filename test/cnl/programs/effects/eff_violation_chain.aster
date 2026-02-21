@@ -1,10 +1,10 @@
-This module is test.eff.violation.chain.
+Module test.eff.violation.chain.
 
-To step1, produce. It performs io [AiModel]:
+Rule step1, produce. It performs io [AiModel]:
   Return AiModel.generate("step1").
 
-To step2, produce. It performs io [Time]:
+Rule step2, produce. It performs io [Time]:
   Return step1() plus Time.now().
 
-To step3, produce. It performs cpu:
+Rule step3, produce. It performs cpu:
   Return step2() plus " processed".

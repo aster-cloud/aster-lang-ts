@@ -10,8 +10,8 @@ function assert(cond: boolean, msg: string): void {
 
 function main(): void {
   const program = [
-    'This module is demo.props.',
-    'To f with left: Text and right: Text, produce Text:',
+    'Module demo.props.',
+    'Rule f given left: Text and right: Text, produce Text:',
     '  Let x be Text.concat(left, right).',
     '  Return x.',
     ''

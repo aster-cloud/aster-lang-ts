@@ -1,4 +1,4 @@
-This module is tests.typecheck.effects.io.
+Module tests.typecheck.effects.io.
 
-To fetchUser, produce:
+Rule fetchUser, produce:
   Return Http.get("/user").

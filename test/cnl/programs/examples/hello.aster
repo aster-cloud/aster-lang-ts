@@ -1,4 +1,4 @@
-This module is app.
+Module app.
 
-To helloMessage, produce:
+Rule helloMessage, produce:
   Return "Hello, world!".

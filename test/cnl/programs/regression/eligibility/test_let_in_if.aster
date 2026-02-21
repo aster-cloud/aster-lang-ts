@@ -1,4 +1,4 @@
-This module is test.let.in.if.
+Module test.let.in.if.
 
-To testLetInIf with x, produce:
+Rule testLetInIf given x, produce:
   Return 0.

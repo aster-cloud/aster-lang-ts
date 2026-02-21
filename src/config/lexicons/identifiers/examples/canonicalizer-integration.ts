@@ -93,11 +93,11 @@ function demo(): void {
 
   // 3. 原始中文代码
   const chineseSource = `
-【模块】保险.汽车。
+模块 保险.汽车。
 
-【定义】驾驶员 包含 年龄：整数，驾龄：整数，事故次数：整数。
+定义 驾驶员 包含 年龄：整数，驾龄：整数，事故次数：整数。
 
-【定义】报价结果 包含 批准：布尔，原因：文本，月保费：整数。
+定义 报价结果 包含 批准：布尔，原因：文本，月保费：整数。
 
 生成报价 入参 驾驶员：驾驶员，产出 报价结果：
   若 驾驶员.年龄 小于 18：
@@ -115,11 +115,11 @@ function demo(): void {
   console.log(canonicalized);
 
   // 5. 预期输出（标识符已翻译）：
-  // 【模块】保险.汽车。
+  // 模块 保险.汽车。
   //
-  // 【定义】Driver 包含 age：整数，drivingYears：整数，accidents：整数。
+  // 定义 Driver 包含 age：整数，drivingYears：整数，accidents：整数。
   //
-  // 【定义】QuoteResult 包含 approved：布尔，reason：文本，monthlyPremium：整数。
+  // 定义 QuoteResult 包含 approved：布尔，reason：文本，monthlyPremium：整数。
   //
   // generateQuote 入参 driver：Driver，产出 QuoteResult：
   //   若 driver.age 小于 18：
@@ -145,10 +145,10 @@ function fullPipelineDemo(): void {
 ===========================================
 
 用户输入（纯中文）:
-  【定义】驾驶员 包含 年龄：整数。
+  定义 驾驶员 包含 年龄：整数。
 
 步骤 1 - 标识符翻译（本模块）:
-  【定义】Driver 包含 age：整数。
+  定义 Driver 包含 age：整数。
 
 步骤 2 - 关键词翻译（Canonicalizer）:
   Define Driver with age: Int.

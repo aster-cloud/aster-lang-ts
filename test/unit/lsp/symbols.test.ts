@@ -104,7 +104,7 @@ describe('registerSymbolsHandlers', () => {
   it('应该生成文档链接并区分跨文件与自身 URI', () => {
     const connection = createMockConnection();
     let currentText = [
-      'This module is other.mod.',
+      'Module other.mod.',
       '',
       'Text.print("示例")',
       'other.mod.helper 调用 self.mod.reuse',
@@ -144,7 +144,7 @@ describe('registerSymbolsHandlers', () => {
       assert.ok(textLink);
       assert.strictEqual(textLink.range.start.line, 2);
 
-      currentText = 'This module is self.mod.';
+      currentText = 'Module self.mod.';
       modules = [{ uri: docUri, moduleName: 'self.mod', symbols: [] }];
       const selfLinks = handler({ textDocument: { uri: docUri } });
       assert.strictEqual(selfLinks.length, 0);

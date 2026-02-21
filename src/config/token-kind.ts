@@ -25,7 +25,7 @@ export enum SemanticTokenKind {
   // 模块声明
   // ============================================================
 
-  /** 模块声明 - "this module is" / "【模块】" */
+  /** 模块声明 - "Module" / "模块" */
   MODULE_DECL = 'MODULE_DECL',
 
   /** 导入声明 - "use" / "引用" */
@@ -38,11 +38,14 @@ export enum SemanticTokenKind {
   // 类型定义
   // ============================================================
 
-  /** 类型定义 - "define" / "【定义】" */
+  /** 类型定义 - "define" / "定义" */
   TYPE_DEF = 'TYPE_DEF',
 
   /** 类型字段 - "with" / "包含" */
   TYPE_WITH = 'TYPE_WITH',
+
+  /** 类型字段 - "has" / "包含" */
+  TYPE_HAS = 'TYPE_HAS',
 
   /** 枚举类型 - "as one of" / "为以下之一" */
   TYPE_ONE_OF = 'TYPE_ONE_OF',
@@ -51,8 +54,11 @@ export enum SemanticTokenKind {
   // 函数定义
   // ============================================================
 
-  /** 函数入参 - "to" / "入参" */
+  /** 函数声明（新语法） - "Rule" / "规则" */
   FUNC_TO = 'FUNC_TO',
+
+  /** 函数参数（新语法） - "given" / "给定" */
+  FUNC_GIVEN = 'FUNC_GIVEN',
 
   /** 函数产出 - "produce" / "产出" */
   FUNC_PRODUCE = 'FUNC_PRODUCE',
@@ -78,6 +84,9 @@ export enum SemanticTokenKind {
 
   /** 返回语句 - "return" / "返回" */
   RETURN = 'RETURN',
+
+  /** 结果表达式 - "the result is" / "结果为" */
+  RESULT_IS = 'RESULT_IS',
 
   /** 循环遍历 - "for each" / "对每个" */
   FOR_EACH = 'FOR_EACH',
@@ -145,6 +154,15 @@ export enum SemanticTokenKind {
 
   /** 判断 - "is" / "是" */
   IS = 'IS',
+
+  /** 低于（比较同义词） - "under" / "不足" */
+  UNDER = 'UNDER',
+
+  /** 超过（比较同义词） - "over" / "超过" */
+  OVER = 'OVER',
+
+  /** 多于（比较同义词） - "more than" / "多于" */
+  MORE_THAN = 'MORE_THAN',
 
   // ============================================================
   // 类型构造
@@ -214,10 +232,10 @@ export enum SemanticTokenKind {
   // 工作流
   // ============================================================
 
-  /** 工作流定义 - "workflow" / "【流程】" */
+  /** 工作流定义 - "workflow" / "流程" */
   WORKFLOW = 'WORKFLOW',
 
-  /** 步骤定义 - "step" / "【步骤】" */
+  /** 步骤定义 - "step" / "步骤" */
   STEP = 'STEP',
 
   /** 依赖声明 - "depends" / "依赖" */
@@ -310,14 +328,15 @@ export function isSemanticTokenKind(value: string): value is SemanticTokenKind {
  */
 export const SEMANTIC_TOKEN_CATEGORIES: Record<string, SemanticTokenKind[]> = {
   module: [SemanticTokenKind.MODULE_DECL, SemanticTokenKind.IMPORT, SemanticTokenKind.IMPORT_ALIAS],
-  type: [SemanticTokenKind.TYPE_DEF, SemanticTokenKind.TYPE_WITH, SemanticTokenKind.TYPE_ONE_OF],
-  function: [SemanticTokenKind.FUNC_TO, SemanticTokenKind.FUNC_PRODUCE, SemanticTokenKind.FUNC_PERFORMS],
+  type: [SemanticTokenKind.TYPE_DEF, SemanticTokenKind.TYPE_WITH, SemanticTokenKind.TYPE_HAS, SemanticTokenKind.TYPE_ONE_OF],
+  function: [SemanticTokenKind.FUNC_TO, SemanticTokenKind.FUNC_GIVEN, SemanticTokenKind.FUNC_PRODUCE, SemanticTokenKind.FUNC_PERFORMS],
   control: [
     SemanticTokenKind.IF,
     SemanticTokenKind.OTHERWISE,
     SemanticTokenKind.MATCH,
     SemanticTokenKind.WHEN,
     SemanticTokenKind.RETURN,
+    SemanticTokenKind.RESULT_IS,
     SemanticTokenKind.FOR_EACH,
     SemanticTokenKind.IN,
   ],
@@ -334,6 +353,9 @@ export const SEMANTIC_TOKEN_CATEGORIES: Record<string, SemanticTokenKind[]> = {
     SemanticTokenKind.GREATER_THAN,
     SemanticTokenKind.EQUALS_TO,
     SemanticTokenKind.IS,
+    SemanticTokenKind.UNDER,
+    SemanticTokenKind.OVER,
+    SemanticTokenKind.MORE_THAN,
   ],
   typeConstruct: [
     SemanticTokenKind.MAYBE,

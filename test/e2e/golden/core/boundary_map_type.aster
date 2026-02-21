@@ -1,4 +1,4 @@
-This module is test.boundary.map_type.
+Module test.boundary.map_type.
 
-To get_value with m, k, produce:
+Rule get_value given m, k, produce:
   Return Map.get(m, k).

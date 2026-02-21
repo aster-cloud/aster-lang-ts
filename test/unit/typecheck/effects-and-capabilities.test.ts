@@ -34,11 +34,11 @@ function codes(diags: readonly TypecheckDiagnostic[]): string[] {
 describe('效应与能力检查', () => {
   it('resolveAlias 应该在使用别名的 IO 调用时触发缺失 IO 诊断', () => {
     const diagnostics = runTypecheck(`
-This module is test.typecheck.alias_missing_io.
+Module test.typecheck.alias_missing_io.
 
 Use Http as H.
 
-To fetchUser, produce Text:
+Rule fetchUser, produce Text:
   Return H.get("/user").
 `);
     assert.equal(diagnostics.some(d => d.code === ErrorCode.EFF_MISSING_IO), true, '缺失 IO 诊断应该存在');
@@ -46,11 +46,11 @@ To fetchUser, produce Text:
 
   it('resolveAlias 在声明 IO 效应时不应该产生误报', () => {
     const diagnostics = runTypecheck(`
-This module is test.typecheck.alias_with_effect.
+Module test.typecheck.alias_with_effect.
 
 Use Http as H.
 
-To fetchUser, produce Text. It performs io:
+Rule fetchUser, produce Text. It performs io:
   Return H.get("/user").
 `);
     assert.equal(diagnostics.some(d => d.code === ErrorCode.EFF_MISSING_IO), false, '声明 IO 后不应报告缺失');
@@ -58,9 +58,9 @@ To fetchUser, produce Text. It performs io:
 
   it('未使用任何 IO 调用却声明 io 应该触发冗余警告', () => {
     const diagnostics = runTypecheck(`
-This module is test.typecheck.superfluous_io.
+Module test.typecheck.superfluous_io.
 
-To ping, produce Text. It performs io:
+Rule ping, produce Text. It performs io:
   Return "pong".
 `);
     // E203 已移除，现在由 E207 (EFF_INFER_REDUNDANT_IO) 基于效应推断检测
@@ -73,9 +73,9 @@ To ping, produce Text. It performs io:
 
   it('声明 cpu 但未进行 CPU 工作应该触发冗余警告', () => {
     const diagnostics = runTypecheck(`
-This module is test.typecheck.superfluous_cpu.
+Module test.typecheck.superfluous_cpu.
 
-To compute, produce Int. It performs cpu:
+Rule compute, produce Int. It performs cpu:
   Return 1.
 `);
     assert.equal(
@@ -104,9 +104,9 @@ To compute, produce Int. It performs cpu:
     writeFileSync(configPath, JSON.stringify(config), 'utf8');
 
     const moduleSource = `
-This module is test.typecheck.missing_cpu_under_config.
+Module test.typecheck.missing_cpu_under_config.
 
-To heavy, produce Int:
+Rule heavy, produce Int:
   Return CpuWork.hash(42).
 `;
 
@@ -149,9 +149,9 @@ process.exit(1);
 
   it('显式能力列表未覆盖使用的调用应触发能力缺失错误', () => {
     const diagnostics = runTypecheck(`
-This module is test.typecheck.cap_missing.
+Module test.typecheck.cap_missing.
 
-To bad, produce Text. It performs io [Http]:
+Rule bad, produce Text. It performs io [Http]:
   Return Db.query("select 1").
 `);
     assert.equal(
@@ -163,9 +163,9 @@ To bad, produce Text. It performs io [Http]:
 
   it('显式能力未使用时应产生信息级别提示', () => {
     const diagnostics = runTypecheck(`
-This module is test.typecheck.cap_superfluous.
+Module test.typecheck.cap_superfluous.
 
-To onlyHttp, produce Text. It performs io [Sql]:
+Rule onlyHttp, produce Text. It performs io [Sql]:
   Return Http.get("/ping").
 `);
     const superfluous = diagnostics.find(d => d.code === ErrorCode.EFF_CAP_SUPERFLUOUS);
@@ -175,9 +175,9 @@ To onlyHttp, produce Text. It performs io [Sql]:
 
   it('能力清单禁止调用时应该返回 CAPABILITY_NOT_ALLOWED', () => {
     const source = `
-This module is test.typecheck.cap_manifest_block.
+Module test.typecheck.cap_manifest_block.
 
-To callHttp, produce Text. It performs io [Http]:
+Rule callHttp, produce Text. It performs io [Http]:
   Return Http.get("/ban").
 `;
     const canonical = canonicalize(source);
@@ -199,9 +199,9 @@ To callHttp, produce Text. It performs io [Http]:
 
   it('能力清单允许调用时不应产生禁止诊断', () => {
     const source = `
-This module is test.typecheck.cap_manifest_allow.
+Module test.typecheck.cap_manifest_allow.
 
-To callHttp, produce Text. It performs io [Http]:
+Rule callHttp, produce Text. It performs io [Http]:
   Return Http.get("/ok").
 `;
     const canonical = canonicalize(source);

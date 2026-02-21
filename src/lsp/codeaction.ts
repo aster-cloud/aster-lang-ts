@@ -228,9 +228,9 @@ export function registerCodeActionHandlers(
       if (typeof d.message === 'string' && d.message.startsWith('Missing module header')) {
         const fsPath = uriToFsPath(doc.uri) || doc.uri;
         const mod = suggestModuleFromPath(fsPath);
-        const header = `This module is ${mod}.\n`;
+        const header = `Module ${mod}.\n`;
         actions.push({
-          title: `Fix: Add module header (This module is ${mod}.)`,
+          title: `Fix: Add module header (Module ${mod}.)`,
           kind: 'quickfix' as any,
           diagnostics: [d],
           edit: { changes: { [params.textDocument.uri]: [TextEdit.insert({ line: 0, character: 0 }, header)] } },
@@ -375,7 +375,7 @@ function extractFuncNameFromMessage(msg: string): string {
  * 辅助函数：从文本中提取模块名
  */
 function extractModuleName(text: string): string | null {
-  const m = text.match(/This module is ([A-Za-z][A-Za-z0-9_.]*)\./);
+  const m = text.match(/Module ([A-Za-z][A-Za-z0-9_.]*)\./);
   return m?.[1] ?? null;
 }
 
@@ -386,7 +386,7 @@ function headerInsertEffectEdit(text: string, func: string, cap: 'IO' | 'CPU'): 
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? '';
-    if (/^To\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line)) {
+    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line)) {
       if (/It performs/i.test(line)) return null;
       const withEff = line.replace(/(:|\.)\s*$/, `. It performs ${cap}:`);
       return TextEdit.replace({ start: { line: i, character: 0 }, end: { line: i, character: line.length } }, withEff);
@@ -402,7 +402,7 @@ function headerRemoveEffectEdit(text: string, func: string): TextEdit | null {
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? '';
-    if (/^To\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line) && /It performs/i.test(line)) {
+    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line) && /It performs/i.test(line)) {
       const cleaned = line.replace(/\. It performs (IO|CPU):/i, ':');
       return TextEdit.replace({ start: { line: i, character: 0 }, end: { line: i, character: line.length } }, cleaned);
     }
@@ -418,10 +418,10 @@ function addEffectVarToSignature(text: string, func: string, varName: string): T
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? '';
     // 查找函数签名：支持 CNL 和 formal 两种语法
-    // CNL: "To funcName with params, produce Type:"
+    // CNL: "Rule funcName given params:"
     // Formal: "fn funcName(params): RetType" 或 "fn funcName of T, E(params): RetType"
 
-    if (/^To\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line)) {
+    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line)) {
       // CNL 语法暂不支持效应变量，跳过
       return null;
     }
@@ -537,8 +537,8 @@ function addConsentAnnotation(text: string, func: string): TextEdit | null {
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? '';
-    // 查找 CNL 语法: "To funcName ..."
-    if (/^To\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line)) {
+    // 查找 CNL 语法: "Rule funcName ..."
+    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line)) {
       // 在函数定义前插入 @consent_required 注解
       const indent = line.match(/^(\s*)/)?.[1] || '';
       return TextEdit.insert(

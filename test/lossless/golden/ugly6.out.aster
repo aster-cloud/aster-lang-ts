@@ -1,4 +1,4 @@
-This module is demo.punct.
+Module demo.punct.
 
-To cmp with x,  y,  produce:
+Rule cmp given x,  y,  produce:
   Return 0.

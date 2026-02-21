@@ -84,7 +84,7 @@ export const TEMPLATE: Lexicon = {
     // 模块声明
     // ----------------------------------------------------------
 
-    /** 模块声明 - 英语 "this module is" / 中文 "【模块】" */
+    /** 模块声明 - 英语 "Module" / 中文 "模块" */
     [SemanticTokenKind.MODULE_DECL]: '', // TODO: 翻译
 
     /** 导入声明 - 英语 "use" / 中文 "引用" */
@@ -97,11 +97,14 @@ export const TEMPLATE: Lexicon = {
     // 类型定义
     // ----------------------------------------------------------
 
-    /** 类型定义 - 英语 "define" / 中文 "【定义】" */
+    /** 类型定义 - 英语 "define" / 中文 "定义" */
     [SemanticTokenKind.TYPE_DEF]: '', // TODO: 翻译
 
     /** 类型字段 - 英语 "with" / 中文 "包含" */
     [SemanticTokenKind.TYPE_WITH]: '', // TODO: 翻译
+
+    /** 类型拥有 - 英语 "has" / 中文 "包含" */
+    [SemanticTokenKind.TYPE_HAS]: '', // TODO: 翻译
 
     /** 枚举类型 - 英语 "as one of" / 中文 "为以下之一" */
     [SemanticTokenKind.TYPE_ONE_OF]: '', // TODO: 翻译
@@ -112,6 +115,9 @@ export const TEMPLATE: Lexicon = {
 
     /** 函数入参 - 英语 "to" / 中文 "入参" */
     [SemanticTokenKind.FUNC_TO]: '', // TODO: 翻译
+
+    /** 函数给定参数 - 英语 "given" / 中文 "给定" */
+    [SemanticTokenKind.FUNC_GIVEN]: '', // TODO: 翻译
 
     /** 函数产出 - 英语 "produce" / 中文 "产出" */
     [SemanticTokenKind.FUNC_PRODUCE]: '', // TODO: 翻译
@@ -134,6 +140,9 @@ export const TEMPLATE: Lexicon = {
 
     /** 匹配分支 - 英语 "when" / 中文 "当" */
     [SemanticTokenKind.WHEN]: '', // TODO: 翻译
+
+    /** 结果声明 - 英语 "the result is" / 中文 "结果为" */
+    [SemanticTokenKind.RESULT_IS]: '', // TODO: 翻译
 
     /** 返回语句 - 英语 "return" / 中文 "返回" */
     [SemanticTokenKind.RETURN]: '', // TODO: 翻译
@@ -198,6 +207,15 @@ export const TEMPLATE: Lexicon = {
 
     /** 大于 - 英语 "greater than" / 中文 "大于" */
     [SemanticTokenKind.GREATER_THAN]: '', // TODO: 翻译
+
+    /** 不足/低于 - 英语 "under" / 中文 "不足" */
+    [SemanticTokenKind.UNDER]: '', // TODO: 翻译
+
+    /** 超过/高于 - 英语 "over" / 中文 "超过" */
+    [SemanticTokenKind.OVER]: '', // TODO: 翻译
+
+    /** 多于 - 英语 "more than" / 中文 "多于" */
+    [SemanticTokenKind.MORE_THAN]: '', // TODO: 翻译
 
     /** 等于 - 英语 "equals to" / 中文 "等于" */
     [SemanticTokenKind.EQUALS_TO]: '', // TODO: 翻译
@@ -273,10 +291,10 @@ export const TEMPLATE: Lexicon = {
     // 工作流
     // ----------------------------------------------------------
 
-    /** 工作流定义 - 英语 "workflow" / 中文 "【流程】" */
+    /** 工作流定义 - 英语 "workflow" / 中文 "流程" */
     [SemanticTokenKind.WORKFLOW]: '', // TODO: 翻译
 
-    /** 步骤定义 - 英语 "step" / 中文 "【步骤】" */
+    /** 步骤定义 - 英语 "step" / 中文 "步骤" */
     [SemanticTokenKind.STEP]: '', // TODO: 翻译
 
     /** 依赖声明 - 英语 "depends" / 中文 "依赖" */
@@ -394,10 +412,8 @@ export const TEMPLATE: Lexicon = {
     },
 
     /**
-     * 标记符号（可选，用于 【模块】【定义】 等醒目标记）
-     * - 英语: 不使用
-     * - 中文: '【' / '】'
-     * - 日语: '【' / '】' 或 '「' / '」'
+     * 标记符号（可选）
+     * - 目前未使用
      *
      * 如果不需要标记符号，可以删除此字段或注释掉
      */

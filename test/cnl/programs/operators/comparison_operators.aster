@@ -1,10 +1,10 @@
-This module is demo.comparison.
+Module demo.comparison.
 
-To testGreaterThanOrEqual with a, b, produce:
+Rule testGreaterThanOrEqual given a, b, produce:
   Return 0.
-To testLessThanOrEqual with a, b, produce:
+Rule testLessThanOrEqual given a, b, produce:
   Return 0.
-To testNotEqual with a, b, produce:
+Rule testNotEqual given a, b, produce:
   Return 0.
-To testInRange with value, min, max, produce:
+Rule testInRange given value, min, max, produce:
   Return 0.

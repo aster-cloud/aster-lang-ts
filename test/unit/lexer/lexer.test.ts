@@ -18,14 +18,14 @@ describe('词法分析器', () => {
   test('应该识别模块声明中的标识符序列', () => {
     const tokens = significant(
       tokenize(`
-This module is test.lexer.basic.
+Module test.lexer.basic.
 `)
     );
     const words = tokens
       .filter(t => t.kind === TokenKind.IDENT || t.kind === TokenKind.TYPE_IDENT)
       .map(t => (t.value as string).toLowerCase());
 
-    assert.deepEqual(words.slice(0, 3), ['this', 'module', 'is']);
+    assert.deepEqual(words.slice(0, 1), ['module']);
     assert.equal(tokens.some(t => t.kind === TokenKind.DOT), true, '模块名应该拆分出 DOT');
   });
 
@@ -60,7 +60,7 @@ This module is test.lexer.basic.
   test('应该跟踪换行与缩进生成 INDENT/DEDENT', () => {
     const tokens = significant(
       tokenize(`
-To sample, produce Int:
+Rule sample, produce Int:
   Return 1.
 `)
     );
@@ -147,7 +147,7 @@ Return 1.
     it('应该在奇数缩进时报错并允许 2 空格缩进', () => {
       assert.throws(
         () =>
-          tokenize(`To broken, produce Int:
+          tokenize(`Rule broken, produce Int:
    Return 1.
 `),
         error => {
@@ -156,7 +156,7 @@ Return 1.
         }
       );
 
-      const okTokens = tokenize(`To fine, produce Int:
+      const okTokens = tokenize(`Rule fine, produce Int:
   Return 1.
 `);
       const indentCount = okTokens.filter(token => token.kind === TokenKind.INDENT).length;

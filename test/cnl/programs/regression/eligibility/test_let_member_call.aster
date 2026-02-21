@@ -1,10 +1,10 @@
-This module is test.let.member.call.
+Module test.let.member.call.
 
-Define Patient with patientId, insuranceType.
+Define Patient has patientId, insuranceType.
 
-Define Service with serviceCode.
+Define Service has serviceCode.
 
-To helper with insuranceType, service, produce:
+Rule helper given insuranceType, service, produce:
   Return 0.
-To test with patient, service, produce:
+Rule test given patient, service, produce:
   Return 0.

@@ -1,24 +1,24 @@
-This module is aster.finance.personal_lending.
+Module aster.finance.personal_lending.
 
-Define PersonalInfo with applicantId, age, educationLevel, employmentStatus, occupation, yearsAtJob, monthsAtAddress, maritalStatus, dependents.
+Define PersonalInfo has applicantId, age, educationLevel, employmentStatus, occupation, yearsAtJob, monthsAtAddress, maritalStatus, dependents.
 
-Define IncomeProfile with monthlyIncome, additionalIncome, spouseIncome, rentIncome, incomeStability, incomeGrowthRate.
+Define IncomeProfile has monthlyIncome, additionalIncome, spouseIncome, rentIncome, incomeStability, incomeGrowthRate.
 
-Define CreditProfile with creditScore, creditHistory, activeLoans, creditCardCount, creditUtilization, latePayments, defaults, bankruptcies, inquiries.
+Define CreditProfile has creditScore, creditHistory, activeLoans, creditCardCount, creditUtilization, latePayments, defaults, bankruptcies, inquiries.
 
-Define DebtProfile with totalMonthlyDebt, mortgagePayment, carPayment, studentLoanPayment, creditCardMinPayment, otherDebtPayment.
+Define DebtProfile has totalMonthlyDebt, mortgagePayment, carPayment, studentLoanPayment, creditCardMinPayment, otherDebtPayment.
 
-Define LoanRequest with requestedAmount, purpose, termMonths, downPayment, collateralValue.
+Define LoanRequest has requestedAmount, purpose, termMonths, downPayment, collateralValue.
 
-Define LoanDecision with approved, approvedAmount, interestRateBps, termMonths, monthlyPayment, downPaymentRequired, conditions, riskLevel, decisionScore, reasonCode, recommendations.
+Define LoanDecision has approved, approvedAmount, interestRateBps, termMonths, monthlyPayment, downPaymentRequired, conditions, riskLevel, decisionScore, reasonCode, recommendations.
 
-Define CreditAssessment with scoreGrade, historyGrade, utilizationRatio, negativeMarks, riskIndicator, maxLoanAmount.
+Define CreditAssessment has scoreGrade, historyGrade, utilizationRatio, negativeMarks, riskIndicator, maxLoanAmount.
 
-Define IncomeAssessment with totalMonthlyIncome, stabilityGrade, adequacy, loanCapacity.
+Define IncomeAssessment has totalMonthlyIncome, stabilityGrade, adequacy, loanCapacity.
 
-Define AffordabilityAnalysis with debtToIncomeRatio, residualIncome, affordabilityGrade, maxMonthlyPayment.
+Define AffordabilityAnalysis has debtToIncomeRatio, residualIncome, affordabilityGrade, maxMonthlyPayment.
 
-To assessCredit with profile, produce:
+Rule assessCredit given profile, produce:
   Let utilizationRatio be profile.creditUtilization.
   Let negativeMarks be (profile.latePayments plus (profile.defaults times 3)) plus (profile.bankruptcies times 5).
   If profile.creditScore at least 750:
@@ -29,7 +29,7 @@ To assessCredit with profile, produce:
     Return CreditAssessment("FAIR", "ADEQUATE", utilizationRatio, negativeMarks, "MEDIUM", 20000).
   Return CreditAssessment("POOR", "LIMITED", utilizationRatio, negativeMarks, "HIGH", 10000).
 
-To assessIncome with personal, income, produce:
+Rule assessIncome given personal, income, produce:
   Let totalIncome be income.monthlyIncome plus income.additionalIncome plus income.spouseIncome plus income.rentIncome.
   Let loanCapacity be totalIncome times 6.
   If income.incomeStability equals to "PERMANENT":
@@ -38,7 +38,7 @@ To assessIncome with personal, income, produce:
     Return IncomeAssessment(totalIncome, "FAIR", "LOW", loanCapacity).
   Return IncomeAssessment(totalIncome, "POOR", "VERY_LOW", 0).
 
-To assessAffordability with income, debt, request, produce:
+Rule assessAffordability given income, debt, request, produce:
   Let totalIncome be income.monthlyIncome plus income.additionalIncome plus income.spouseIncome plus income.rentIncome.
   Let totalDebt be debt.totalMonthlyDebt.
   Let estimatedPayment be (request.requestedAmount times 8) divided by 1000.
@@ -52,7 +52,7 @@ To assessAffordability with income, debt, request, produce:
     Return AffordabilityAnalysis(dtiWithLoan, residual, "FAIR", maxPayment).
   Return AffordabilityAnalysis(dtiWithLoan, residual, "POOR", maxPayment).
 
-To calculateStabilityScore with personal, income, produce:
+Rule calculateStabilityScore given personal, income, produce:
   Let score be 0.
   If personal.age at least 35:
     Let score be score plus 10.
@@ -64,7 +64,7 @@ To calculateStabilityScore with personal, income, produce:
     Let score be score plus 5.
   Return score.
 
-To calculatePurposeAdjustment with purpose, produce:
+Rule calculatePurposeAdjustment given purpose, produce:
   If purpose equals to "HOME_RENOVATION":
     Return 105.
   If purpose equals to "EDUCATION":
@@ -83,7 +83,7 @@ To calculatePurposeAdjustment with purpose, produce:
     Return 80.
   Return 85.
 
-To evaluatePersonalLoan with personal, income, credit, debt, request, produce:
+Rule evaluatePersonalLoan given personal, income, credit, debt, request, produce:
   If credit.bankruptcies greater than 0:
     Return LoanDecision(false, 0, 0, 0, 0, 0, "Declined", "HIGH_RISK", 0, "BANKRUPTCY_HISTORY", "Previous bankruptcy on record").
   Let creditAssessment be assessCredit(credit).

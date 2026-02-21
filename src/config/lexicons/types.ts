@@ -65,7 +65,7 @@ export interface PunctuationConfig {
     readonly close: string;
   };
 
-  /** 标记符号 (用于 【模块】 【定义】 等，可选) */
+  /** 标记符号 (可选) */
   readonly markers?: {
     /** 开始标记 (中文 '【') */
     readonly open: string;

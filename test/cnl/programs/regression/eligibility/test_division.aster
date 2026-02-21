@@ -1,9 +1,9 @@
-This module is test.division.
+Module test.division.
 
-To divide with x, y, produce:
+Rule divide given x, y, produce:
   Return x divided by y.
 
-To multiplyAndDivide with x, y, z, produce:
+Rule multiplyAndDivide given x, y, z, produce:
   Let product be x times y.
   Let result be product divided by z.
   Return result.

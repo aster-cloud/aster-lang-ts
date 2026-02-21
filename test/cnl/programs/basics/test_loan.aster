@@ -1,8 +1,8 @@
-This module is aster.finance.loan.
+Module aster.finance.loan.
 
-Define LoanApplication with applicantId, amount.
+Define LoanApplication has applicantId, amount.
 
-Define LoanDecision with approved, reason.
+Define LoanDecision has approved, reason.
 
-To test with x, produce:
+Rule test given x, produce:
   Return false.

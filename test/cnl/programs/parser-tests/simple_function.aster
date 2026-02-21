@@ -1,4 +1,4 @@
-This module is simple.
+Module simple.
 
-To main, produce:
+Rule main, produce:
   Return 42.

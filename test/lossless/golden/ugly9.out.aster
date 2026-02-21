@@ -1,4 +1,4 @@
-This module is demo.cm.
+Module demo.cm.
 
-To val with m, k, produce:
+Rule val given m, k, produce:
   Return 0.

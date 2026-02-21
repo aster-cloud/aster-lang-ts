@@ -1,4 +1,4 @@
-This module is test.pii.result.
+Module test.pii.result.
 
-To get_email, produce:
+Rule get_email, produce:
   Return "test@example.com".

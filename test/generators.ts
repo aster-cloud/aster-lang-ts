@@ -4,15 +4,15 @@ export type SumTemplate = { base: string; variants: string[] };
 
 export function generateLargeProgram(size: number): string {
   const lines = [
-    'This module is benchmark.test.',
+    'Module benchmark.test.',
     '',
-    'Define User with id: Text and name: Text and email: Text.',
+    'Define User has id: Text and name: Text and email: Text.',
     'Define Status as one of Active or Inactive or Pending.',
     '',
   ];
 
   for (let i = 0; i < size; i++) {
-    lines.push(`To process${i} with user: User, produce Status:`);
+    lines.push(`Rule process${i} given user: User, produce Status:`);
     lines.push(`  Let id be user.id.`);
     lines.push(`  Let name be user.name.`);
     lines.push(`  If name,:`);
@@ -42,36 +42,36 @@ export function generateMediumProject(moduleCount = 40, baseSeed = 42): Map<stri
 /** 生成通用模块，提供共享类型与函数 */
 export function generateCommonModule(): string {
   const lines = [
-    'This module is benchmark.medium.common.',
+    'Module benchmark.medium.common.',
     '',
     'Define LogLevel as one of Info or Warn or Error or Debug.',
     'Define HttpMethod as one of Get or Post or Put or Delete.',
     '',
-    'Define RequestContext with requestId: Text and path: Text and method: Text and retries: Number.',
-    'Define ResponseContext with status: Number and payload: Text and success: Boolean.',
+    'Define RequestContext has requestId: Text and path: Text and method: Text and retries: Number.',
+    'Define ResponseContext has status: Number and payload: Text and success: Boolean.',
     '',
-    'To buildRequestId with prefix: Text and id: Number, produce Text:',
+    'Rule buildRequestId given prefix: Text and id: Number, produce Text:',
     '  Let base be prefix.',
     '  If base,:',
     '    Return base.',
     '  Return "req-default".',
     '',
-    'To defaultLogLevel, produce LogLevel:',
+    'Rule defaultLogLevel, produce LogLevel:',
     '  Return Info.',
     '',
-    'To ensureSuccess with response: ResponseContext, produce Boolean:',
+    'Rule ensureSuccess given response: ResponseContext, produce Boolean:',
     '  Let flag be response.success.',
     '  If flag,:',
     '    Return true.',
     '  Return false.',
     '',
-    'To renderPath with ctx: RequestContext, produce Text:',
+    'Rule renderPath given ctx: RequestContext, produce Text:',
     '  Let path be ctx.path.',
     '  If path,:',
     '    Return path.',
     '  Return "/".',
     '',
-    'To emitLog with message: Text and level: LogLevel, produce Text. It performs io:',
+    'Rule emitLog given message: Text and level: LogLevel, produce Text. It performs io:',
     '  Let text be message.',
     '  If text,:',
     '    Return text.',
@@ -92,7 +92,7 @@ export function generateBusinessModule(name: string, seed: number, needsImport: 
   const sums = [] as { name: string; variants: string[] }[];
 
   const lines: string[] = [];
-  lines.push(`This module is ${name}.`);
+  lines.push(`Module ${name}.`);
   lines.push('');
 
   if (needsImport) {
@@ -107,7 +107,7 @@ export function generateBusinessModule(name: string, seed: number, needsImport: 
     const template = recordTemplates[(seed + i) % recordTemplates.length]!;
     const typeName = `${template.base}${seed}${i}`;
     const fieldParts = template.fields.map(field => `${field.name}: ${field.type}`);
-    lines.push(`Define ${typeName} with ${fieldParts.join(' and ')}.`);
+    lines.push(`Define ${typeName} has ${fieldParts.join(' and ')}.`);
     lines.push('');
     records.push({ name: typeName, fields: template.fields });
   }
@@ -146,7 +146,7 @@ export function generateBusinessModule(name: string, seed: number, needsImport: 
 export function generateEffectfulFunction(seed: number, fnIndex: number): string[] {
   const functionName = `fetch${seed}${fnIndex}`;
   return [
-    `To ${functionName} with resource: Text, produce Text. It performs io:`,
+    `Rule ${functionName} given resource: Text, produce Text. It performs io:`,
     '  Let value be resource.',
     '  If value,:',
     '    Return value.',
@@ -194,7 +194,7 @@ export function generateRoutineFunction(
     case 0: {
       const functionName = `format${seed}${fnIndex}`;
       parts.push(
-        `To ${functionName} with item: ${recordA.name}, produce Text:`,
+        `Rule ${functionName} given item: ${recordA.name}, produce Text:`,
         `  Let value be item.${textFieldA}.`,
         '  If value,:',
         '    Return value.',
@@ -205,7 +205,7 @@ export function generateRoutineFunction(
     case 1: {
       const functionName = `evaluate${seed}${fnIndex}`;
       parts.push(
-        `To ${functionName} with item: ${recordA.name} and status: ${sum.name}, produce ${sum.name}:`,
+        `Rule ${functionName} given item: ${recordA.name} and status: ${sum.name}, produce ${sum.name}:`,
         `  Let active be item.${booleanFieldA}.`,
         '  If active,:',
         '    Let current be status.',
@@ -219,7 +219,7 @@ export function generateRoutineFunction(
     case 2: {
       const functionName = `compare${seed}${fnIndex}`;
       parts.push(
-        `To ${functionName} with left: ${recordA.name} and right: ${recordB.name}, produce Boolean:`,
+        `Rule ${functionName} given left: ${recordA.name} and right: ${recordB.name}, produce Boolean:`,
         `  Let first be left.${textFieldA}.`,
         `  Let second be right.${textFieldB}.`,
         '  If first,:',
@@ -232,7 +232,7 @@ export function generateRoutineFunction(
     default: {
       const functionName = `current${seed}${fnIndex}`;
       parts.push(
-        `To ${functionName}, produce Text:`,
+        `Rule ${functionName}, produce Text:`,
         `  Let mark be "${recordA.name}-${fnIndex}".`,
         '  If mark,:',
         `    Return mark.`,

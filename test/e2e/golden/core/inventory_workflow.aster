@@ -1,9 +1,9 @@
-This module is test.golden.inventory.
+Module test.golden.inventory.
 
 // Inventory capability workflow test
 // Tests Inventory.reserve and Inventory.release with compensation
 
-To manageInventory with orderId, items, produce with IO. It performs io [Inventory]:
+Rule manageInventory given orderId, items, produce with IO. It performs io [Inventory]:
 
   workflow:
     step reserve_inventory:

@@ -1,6 +1,6 @@
-This module is demo.lambdamatchmaybe.
+Module demo.lambdamatchmaybe.
 
-To fromMaybe with value, fallback, produce:
+Rule fromMaybe given value, fallback, produce:
   Let f be function with candidate, produce:
     Match candidate:
       When null, Return fallback.

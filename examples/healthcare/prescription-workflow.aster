@@ -3,11 +3,11 @@
 // HIPAA Compliant Medication Handling
 // ========================================
 
-This module is examples.healthcare.prescription_workflow.
+Module examples.healthcare.prescription_workflow.
 
 // 处方数据结构
 // 注意：实际生产环境中应使用 @pii 注解标记敏感字段
-Define Prescription with
+Define Prescription has
   prescription_id,
   patient_id,
   patient_name,
@@ -17,45 +17,45 @@ Define Prescription with
   prescriber_id,
   prescriber_name.
 
-Define DrugInteraction with
+Define DrugInteraction has
   drug_a,
   drug_b,
   severity,
   description.
 
-Define PharmacyVerification with
+Define PharmacyVerification has
   verified,
   pharmacist_id,
   timestamp,
   notes.
 
-Define VerificationStep with
+Define VerificationStep has
   step_name,
   passed,
   message.
 
 // 药物相互作用检查（简化版）
 // 返回描述文本而非完整结构，简化类型推断
-To check_warfarin_aspirin_interaction with medication, has_aspirin, produce:
+Rule check_warfarin_aspirin_interaction given medication, has_aspirin, produce:
   If medication equals to "warfarin":
     If has_aspirin:
       Return ok of "Increased bleeding risk".
   Return err of "No interaction".
 
 // 验证处方医生执照
-To validate_prescriber with prescriber_id, produce:
+Rule validate_prescriber given prescriber_id, produce:
   If prescriber_id equals to "":
     Return VerificationStep with step_name = "validate_prescriber", passed = false, message = "Prescriber ID required".
   Return VerificationStep with step_name = "validate_prescriber", passed = true, message = "Prescriber validated".
 
 // 验证剂量合理性
-To verify_dosage with medication, dosage, produce:
+Rule verify_dosage given medication, dosage, produce:
   If dosage equals to "":
     Return VerificationStep with step_name = "verify_dosage", passed = false, message = "Dosage required".
   Return VerificationStep with step_name = "verify_dosage", passed = true, message = "Dosage verified".
 
 // 处方验证工作流（简化版）
-To verify_prescription with rx, has_aspirin, produce:
+Rule verify_prescription given rx, has_aspirin, produce:
   Let prescriber_check be validate_prescriber(rx.prescriber_id).
   If prescriber_check.passed equals to false:
     Return err of prescriber_check.message.
@@ -69,15 +69,15 @@ To verify_prescription with rx, has_aspirin, produce:
   Return ok of verification.
 
 // 安全传输处方（脱敏患者信息）
-To transmit_prescription_safe with rx, produce:
+Rule transmit_prescription_safe given rx, produce:
   Return Text.concat("Rx ", rx.prescription_id, " for ", redact(rx.patient_name), ": ", rx.medication, " ", rx.dosage).
 
 // 示例：无相互作用的处方验证
-To demo_safe_prescription, produce:
+Rule demo_safe_prescription, produce:
   Let rx be Prescription with prescription_id = "RX-001", patient_id = "P-001", patient_name = "John Doe", medication = "lisinopril", dosage = "10mg", frequency = "once daily", prescriber_id = "DR-001", prescriber_name = "Dr. Smith".
   Return verify_prescription(rx, false).
 
 // 示例：有药物相互作用的处方验证
-To demo_interaction_prescription, produce:
+Rule demo_interaction_prescription, produce:
   Let rx be Prescription with prescription_id = "RX-002", patient_id = "P-002", patient_name = "Jane Doe", medication = "warfarin", dosage = "5mg", frequency = "once daily", prescriber_id = "DR-002", prescriber_name = "Dr. Jones".
   Return verify_prescription(rx, true).

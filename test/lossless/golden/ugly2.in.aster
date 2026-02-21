@@ -1,4 +1,4 @@
-This module is test.lossless.golden.ugly2.in.
+Module test.lossless.golden.ugly2.in.
 
-To main, produce:
+Rule main, produce:
   Return 0.

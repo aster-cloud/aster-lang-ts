@@ -1,6 +1,6 @@
-This module is demo.types.
+Module demo.types.
 
-Define Box with items.
+Define Box has items.
 
-To headMap with b, produce:
+Rule headMap given b, produce:
   Return 0.

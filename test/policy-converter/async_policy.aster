@@ -1,9 +1,9 @@
-This module is test.async.
+Module test.async.
 
-To processAsync with userId, produce:
+Rule processAsync given userId, produce:
   Start task as async loadUser(userId).
   Wait for task.
   Return "Processed: " plus task.
 
-To loadUser with id, produce:
+Rule loadUser given id, produce:
   Return "User-" plus id.

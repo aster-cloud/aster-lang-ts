@@ -62,7 +62,7 @@ export function parse(tokens) {
       } else {
         error("Expected 'with' or 'as one of' after type name");
       }
-    } else if (isKeyword(KW.TO)) {
+    } else if (isKeyword(KW.RULE)) {
       // Function
       nextWord();
       const name = parseIdent();

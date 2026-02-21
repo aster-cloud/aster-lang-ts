@@ -1,4 +1,4 @@
-This module is demo.capcaps.enforce_missing_ai.
+Module demo.capcaps.enforce_missing_ai.
 
-To bad, produce. It performs io [Http]:
+Rule bad, produce. It performs io [Http]:
   Return Ai.predict("hello").

@@ -1,4 +1,4 @@
-This module is demo.capcaps.bare.
+Module demo.capcaps.bare.
 
-To ping, produce. It performs io:
+Rule ping, produce. It performs io:
   Return "ok".

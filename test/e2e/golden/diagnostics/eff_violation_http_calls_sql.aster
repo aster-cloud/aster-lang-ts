@@ -1,4 +1,4 @@
-This module is test.eff.violation.http_calls_sql.
+Module test.eff.violation.http_calls_sql.
 
-To fetch_data, produce. It performs io [Http]:
+Rule fetch_data, produce. It performs io [Http]:
   Return Sql.query("SELECT * FROM users").

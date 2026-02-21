@@ -1,4 +1,4 @@
-This module is test.eff.violation.missing_http.
+Module test.eff.violation.missing_http.
 
-To api_call, produce. It performs io [Sql]:
+Rule api_call, produce. It performs io [Sql]:
   Return Http.get("/health").

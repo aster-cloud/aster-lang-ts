@@ -1,6 +1,6 @@
-This module is demo.ifp.
+Module demo.ifp.
 
-To choose with flag, produce:
+Rule choose given flag, produce:
   If flag:
     Return "Y".
   Otherwise:

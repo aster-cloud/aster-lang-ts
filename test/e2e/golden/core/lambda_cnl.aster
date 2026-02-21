@@ -1,4 +1,4 @@
-This module is demo.lambdacnl.
+Module demo.lambdacnl.
 
-To greet with pfx, produce:
+Rule greet given pfx, produce:
   Return f("there").

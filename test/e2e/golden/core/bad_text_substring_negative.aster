@@ -1,4 +1,4 @@
-This module is error.text.substring.
+Module error.text.substring.
 
-To main, produce:
+Rule main, produce:
   Return Text.substring("abc", sub(0, 1)).

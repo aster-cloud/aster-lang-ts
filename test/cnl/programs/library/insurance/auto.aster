@@ -1,22 +1,22 @@
-This module is aster.insurance.auto.
+Module aster.insurance.auto.
 
-Define Driver with driverId, age, yearsLicensed, accidentCount, violationCount, creditScore.
+Define Driver has driverId, age, yearsLicensed, accidentCount, violationCount, creditScore.
 
-Define Vehicle with vin, year, make, model, value, safetyRating.
+Define Vehicle has vin, year, make, model, value, safetyRating.
 
-Define PolicyQuote with approved, reason, monthlyPremium, deductible, coverageLimit.
+Define PolicyQuote has approved, reason, monthlyPremium, deductible, coverageLimit.
 
-To generateAutoQuote with driver, vehicle, coverageType, produce:
+Rule generateAutoQuote given driver, vehicle, coverageType, produce:
   Return 0.
-To calculateBasePremium with driver, vehicle, produce:
+Rule calculateBasePremium given driver, vehicle, produce:
   Return 0.
-To calculateAgeFactor with age, produce:
+Rule calculateAgeFactor given age, produce:
   Return 0.
-To calculateVehicleFactor with vehicle, produce:
+Rule calculateVehicleFactor given vehicle, produce:
   Return 0.
-To calculateRiskMultiplier with driver, vehicle, produce:
+Rule calculateRiskMultiplier given driver, vehicle, produce:
   Return 0.
-To determineDeductible with coverageType, creditScore, produce:
+Rule determineDeductible given coverageType, creditScore, produce:
   Return 0.
-To determineCoverageLimit with coverageType, vehicleValue, produce:
+Rule determineCoverageLimit given coverageType, vehicleValue, produce:
   Return 0.

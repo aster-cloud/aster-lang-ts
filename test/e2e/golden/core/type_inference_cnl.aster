@@ -1,4 +1,4 @@
-This module is tests.type_inference_cnl.
+Module tests.type_inference_cnl.
 
 // ============================================================
 // CNL 自然语言风格类型推断示例
@@ -26,11 +26,11 @@ This module is tests.type_inference_cnl.
 // --------------------------------------------------
 
 // 传统语法 (Traditional syntax with explicit types):
-// Define LoanApplication with applicantId: Text, loanAmount: Float, termMonths: Int, isApproved: Bool.
+// Define LoanApplication has applicantId: Text, loanAmount: Float, termMonths: Int, isApproved: Bool.
 
 // CNL 自然语言语法 (CNL natural language syntax):
 // 字段类型根据命名约定自动推断
-Define LoanApplication with
+Define LoanApplication has
   applicantId,
   loanAmount,
   termMonths,
@@ -48,7 +48,7 @@ Define LoanApplication with
 // --------------------------------------------------
 
 // 约束驱动类型推断 (Constraint-driven type inference):
-Define ApplicantProfile with
+Define ApplicantProfile has
   age between 18 and 120,
   creditScore between 300 and 850,
   annualIncome,
@@ -68,7 +68,7 @@ Define ApplicantProfile with
 // --------------------------------------------------
 
 // 推断类型与显式类型可以混合使用
-Define LoanDecision with
+Define LoanDecision has
   isApproved,
   approvalReason required,
   approvedAmount,
@@ -87,7 +87,7 @@ Define LoanDecision with
 // Example 4: User Info - Various Type Inference
 // --------------------------------------------------
 
-Define UserInfo with
+Define UserInfo has
   // Text 类型推断
   userId,
   userCode,
@@ -125,7 +125,7 @@ Define UserInfo with
 // Example 5: Evaluation Function - Using Inferred Types
 // --------------------------------------------------
 
-To evaluateLoan with application, applicant, produce:
+Rule evaluateLoan given application, applicant, produce:
   If applicant.age less than 18:
     Return LoanDecision with isApproved = false, approvalReason = "Underage", approvedAmount = 0.0, interestRate = 0.0, termMonths = 0.
 
@@ -136,7 +136,7 @@ To evaluateLoan with application, applicant, produce:
 
   Return LoanDecision with isApproved = true, approvalReason = "Approved", approvedAmount = application.loanAmount, interestRate = baseRate, termMonths = application.termMonths.
 
-To calculateBaseRate with score, produce:
+Rule calculateBaseRate given score, produce:
   If score less than 670:
     Return 0.15.
   If score less than 740:

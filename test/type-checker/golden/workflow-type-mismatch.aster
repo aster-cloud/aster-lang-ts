@@ -1,6 +1,6 @@
-This module is tests.workflow.type_error.
+Module tests.workflow.type_error.
 
-To brokenWorkflow, produce. It performs io:
+Rule brokenWorkflow, produce. It performs io:
   
   workflow:
     step danger:

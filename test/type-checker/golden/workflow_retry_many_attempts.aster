@@ -1,6 +1,6 @@
-This module is tests.typecheck.workflow.retry_many.
+Module tests.typecheck.workflow.retry_many.
 
-To retryManyTimes, produce. It performs io:
+Rule retryManyTimes, produce. It performs io:
   
   workflow:
     step only:

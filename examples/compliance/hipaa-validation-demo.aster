@@ -3,10 +3,10 @@
 // §164.312 - Access Control & Audit Controls
 // ========================================
 
-This module is examples.compliance.hipaa_validation_demo.
+Module examples.compliance.hipaa_validation_demo.
 
 // HIPAA 访问控制级别（服务端定义，不可客户端伪造）
-Define AccessLevel with
+Define AccessLevel has
   level_name,
   can_view_demographics,
   can_view_medical,
@@ -14,14 +14,14 @@ Define AccessLevel with
   can_modify.
 
 // PHI 数据分类
-Define PHICategory with
+Define PHICategory has
   category,
   sensitivity,
   requires_consent,
   retention_years.
 
 // 访问请求
-Define PHIAccessRequest with
+Define PHIAccessRequest has
   user_id,
   user_role,
   phi_category_name,
@@ -29,14 +29,14 @@ Define PHIAccessRequest with
   has_consent.
 
 // HIPAA 验证结果
-Define HIPAAValidation with
+Define HIPAAValidation has
   is_compliant,
   passed_count,
   failed_count,
   message.
 
 // 定义访问级别（服务端权威函数）
-To get_access_level with role, produce:
+Rule get_access_level given role, produce:
   If role equals to "physician":
     Return AccessLevel with level_name = "FULL", can_view_demographics = true, can_view_medical = true, can_view_financial = false, can_modify = true.
   If role equals to "nurse":
@@ -48,7 +48,7 @@ To get_access_level with role, produce:
   Return AccessLevel with level_name = "NONE", can_view_demographics = false, can_view_medical = false, can_view_financial = false, can_modify = false.
 
 // 定义 PHI 类别
-To get_phi_category with category_name, produce:
+Rule get_phi_category given category_name, produce:
   If category_name equals to "demographics":
     Return PHICategory with category = "DEMOGRAPHICS", sensitivity = "L2", requires_consent = false, retention_years = 6.
   If category_name equals to "medical":
@@ -60,7 +60,7 @@ To get_phi_category with category_name, produce:
   Return PHICategory with category = "UNKNOWN", sensitivity = "L3", requires_consent = true, retention_years = 10.
 
 // HIPAA §164.312(a) - 访问控制验证
-To validate_access_control with request, produce:
+Rule validate_access_control given request, produce:
   Let level be get_access_level(request.user_role).
   Let category be get_phi_category(request.phi_category_name).
   If category.category equals to "MEDICAL":
@@ -75,7 +75,7 @@ To validate_access_control with request, produce:
   Return ok of Text.concat("Access validated for role: ", request.user_role).
 
 // HIPAA §164.508 - 同意验证
-To validate_consent with request, produce:
+Rule validate_consent given request, produce:
   Let category be get_phi_category(request.phi_category_name).
   If category.requires_consent:
     If request.has_consent equals to false:
@@ -83,7 +83,7 @@ To validate_consent with request, produce:
   Return ok of "Consent validated".
 
 // HIPAA §164.512 - 使用目的验证
-To validate_purpose with request, produce:
+Rule validate_purpose given request, produce:
   If request.purpose equals to "treatment":
     Return ok of "Purpose validated".
   If request.purpose equals to "payment":
@@ -93,7 +93,7 @@ To validate_purpose with request, produce:
   Return err of Text.concat("HIPAA: Purpose ", request.purpose, " is not permitted").
 
 // 完整 HIPAA 合规验证（简化版 - 仅检查访问控制）
-To validate_hipaa_compliance with request, produce:
+Rule validate_hipaa_compliance given request, produce:
   Let access_result be validate_access_control(request).
   Let consent_result be validate_consent(request).
   Let purpose_result be validate_purpose(request).
@@ -104,23 +104,23 @@ To validate_hipaa_compliance with request, produce:
   Return HIPAAValidation with is_compliant = false, passed_count = 0, failed_count = 1, message = "HIPAA compliance failed".
 
 // 生成 HIPAA 合规报告
-To generate_hipaa_report with user_id, validation, produce:
+Rule generate_hipaa_report given user_id, validation, produce:
   If validation.is_compliant:
     Return Text.concat("HIPAA COMPLIANCE: PASSED for ", user_id).
   Otherwise:
     Return Text.concat("HIPAA COMPLIANCE: FAILED for ", user_id, ". Failed checks: ", Int.toString(validation.failed_count)).
 
 // 示例：医生访问医疗记录（合规）
-To demo_compliant_access, produce:
+Rule demo_compliant_access, produce:
   Let request be PHIAccessRequest with user_id = "DR-001", user_role = "physician", phi_category_name = "medical", purpose = "treatment", has_consent = true.
   Return validate_hipaa_compliance(request).
 
 // 示例：账单人员访问医疗记录（不合规）
-To demo_non_compliant_access, produce:
+Rule demo_non_compliant_access, produce:
   Let request be PHIAccessRequest with user_id = "BILL-001", user_role = "billing", phi_category_name = "medical", purpose = "payment", has_consent = false.
   Return validate_hipaa_compliance(request).
 
 // 示例：攻击者尝试伪造权限
-To demo_spoofed_access_blocked, produce:
+Rule demo_spoofed_access_blocked, produce:
   Let request be PHIAccessRequest with user_id = "ATTACKER-001", user_role = "admin", phi_category_name = "medical", purpose = "curiosity", has_consent = false.
   Return validate_hipaa_compliance(request).

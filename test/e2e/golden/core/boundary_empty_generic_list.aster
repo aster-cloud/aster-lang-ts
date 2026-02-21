@@ -1,4 +1,4 @@
-This module is test.boundary.empty_list.
+Module test.boundary.empty_list.
 
-To make_list with dummy, produce:
+Rule make_list given dummy, produce:
   Return List.empty().

@@ -164,7 +164,7 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     let tokens = lex(canonical, lexicon);
 
     // Step 3: Translate non-English tokens to English for parser compatibility
-    // Parser uses hardcoded English keywords (e.g., 'this module is', 'if', 'return')
+    // Parser uses hardcoded English keywords (e.g., 'Module', 'if', 'return')
     // so we need to translate German/Chinese tokens to English before parsing
     if (lexicon && needsKeywordTranslation(lexicon)) {
       const translator = createKeywordTranslator(lexicon);
@@ -506,7 +506,7 @@ export function extractSchema(source: string, options?: SchemaOptions): SchemaRe
       } else if (typeKind === 'primitive' && dataDecls.has(param.name)) {
         // 当参数类型为基本类型但参数名与 Data 定义匹配时，
         // 推断参数类型为该 Data 类型（支持中文无类型参数语法）
-        // 例如：【函数】评估贷款 包含 申请人，产出：
+        // 例如：规则 评估贷款 给定 申请人：
         // 此时参数名"申请人"与 Data "申请人"匹配，推断类型为结构体
         typeName = param.name;
         typeKind = 'struct';

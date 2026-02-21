@@ -1,6 +1,6 @@
-This module is tests.workflow.missing_io_effect.
+Module tests.workflow.missing_io_effect.
 
-To orchestrate, produce:
+Rule orchestrate, produce:
   
   workflow:
     step fetch:

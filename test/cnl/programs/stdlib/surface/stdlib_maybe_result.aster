@@ -1,19 +1,19 @@
-This module is std.maybe_result.
+Module std.maybe_result.
 
-To inc with x, produce:
+Rule inc given x, produce:
   Return x.
 
-To maybeWithDefault with x, d, produce:
+Rule maybeWithDefault given x, d, produce:
   Return Maybe.withDefault(x, d).
 
-To mapMaybe with x, produce:
+Rule mapMaybe given x, produce:
   Return Maybe.map(x, inc).
 
-To logErr with e, produce:
+Rule logErr given e, produce:
   Return e.
 
-To mapOk with r, produce:
+Rule mapOk given r, produce:
   Return Result.mapOk(r, inc).
 
-To tapError with r, produce:
+Rule tapError given r, produce:
   Return Result.tapError(r, logErr).

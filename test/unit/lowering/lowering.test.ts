@@ -59,11 +59,11 @@ function makeFunc(options: {
 describe('降级至 Core IR', () => {
   it('模块降级后应保留名称与声明数量', () => {
     const core = lower(`
-This module is test.lowering.basic.
+Module test.lowering.basic.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To ping, produce Text:
+Rule ping, produce Text:
   Return "pong".
 `);
     assert.equal(core.kind, 'Module');
@@ -73,9 +73,9 @@ To ping, produce Text:
 
   it('函数降级后应保留参数与返回类型', () => {
     const core = lower(`
-This module is test.lowering.func_types.
+Module test.lowering.func_types.
 
-To repeat with text: Text and times: Int, produce Text:
+Rule repeat given text: Text and times: Int, produce Text:
   Return text.
 `);
     const func = core.decls.find(d => d.kind === 'Func') as Core.Func | undefined;
@@ -88,9 +88,9 @@ To repeat with text: Text and times: Int, produce Text:
 
   it('Return 语句应降级为 Core.Return', () => {
     const core = lower(`
-This module is test.lowering.return_stmt.
+Module test.lowering.return_stmt.
 
-To identity with value: Int, produce Int:
+Rule identity given value: Int, produce Int:
   Return value.
 `);
     const func = core.decls.find(d => d.kind === 'Func') as Core.Func;
@@ -101,11 +101,11 @@ To identity with value: Int, produce Int:
 
   it('Match 语句应降级并保留所有分支', () => {
     const core = lower(`
-This module is test.lowering.match_stmt.
+Module test.lowering.match_stmt.
 
 Define Result as one of Ok, Err.
 
-To handle with result: Result, produce Int:
+Rule handle given result: Result, produce Int:
   Match result:
     When Ok, Return 1.
     When Err, Return 0.
@@ -120,9 +120,9 @@ To handle with result: Result, produce Int:
 
   it('Maybe 类型应降级为 Core.Maybe 包装类型', () => {
     const core = lower(`
-This module is test.lowering.maybe_type.
+Module test.lowering.maybe_type.
 
-To safeHead with items: List of Int, produce Int?:
+Rule safeHead given items: List of Int, produce Int?:
   Return None.
 `);
     const func = core.decls.find(d => d.kind === 'Func') as Core.Func;
@@ -134,9 +134,9 @@ To safeHead with items: List of Int, produce Int?:
 
   it('Lambda 表达式应降级为 Core.Lambda 并保留参数信息', () => {
     const core = lower(`
-This module is test.lowering.lambda_arrows.
+Module test.lowering.lambda_arrows.
 
-To makeIdentity, produce Fn1:
+Rule makeIdentity, produce Fn1:
   Return (value: Text) => value.
 `);
     const func = core.decls.find(d => d.kind === 'Func') as Core.Func;

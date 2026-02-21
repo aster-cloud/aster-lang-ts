@@ -1,6 +1,6 @@
-This module is tests.workflow.undeclared_capability.
+Module tests.workflow.undeclared_capability.
 
-To undeclaredCapWorkflow, produce. It performs io [Sql]:
+Rule undeclaredCapWorkflow, produce. It performs io [Sql]:
   
   workflow:
     step rotate:

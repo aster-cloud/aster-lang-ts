@@ -27,9 +27,9 @@ export function buildWorkflowSource(
 ): string {
   const caps = capabilities.length > 0 ? ` [${capabilities.join(', ')}]` : '';
   return `
-This module is ${moduleName}.
+Module ${moduleName}.
 
-To ${funcName}, produce Result of Text with IO. It performs io${caps}:
+Rule ${funcName}, produce Result of Text with IO. It performs io${caps}:
 
   workflow:
 ${steps}

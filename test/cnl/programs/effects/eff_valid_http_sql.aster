@@ -1,5 +1,5 @@
-This module is test.eff.valid.http_sql.
+Module test.eff.valid.http_sql.
 
-To fetch_user, produce. It performs io [Http, Sql]:
+Rule fetch_user, produce. It performs io [Http, Sql]:
   Let data be Http.get("/api/user").
   Return Db.insert("users", data).

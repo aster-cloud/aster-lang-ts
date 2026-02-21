@@ -1,6 +1,6 @@
-This module is tests.runtime.retry.max_attempts.
+Module tests.runtime.retry.max_attempts.
 
-To retryMaxAttempts, produce. It performs io:
+Rule retryMaxAttempts, produce. It performs io:
 
   workflow:
     step processPayment:

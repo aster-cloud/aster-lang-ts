@@ -1,4 +1,4 @@
-This module is demo.generic.
+Module demo.generic.
 
-To identity with x, produce:
+Rule identity given x, produce:
   Return x.

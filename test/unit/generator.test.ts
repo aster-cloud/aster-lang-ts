@@ -51,7 +51,7 @@ describe('AI Generator', () => {
 
     // Mock LLMProvider
     const mockGenerate = mock.fn(async (request) => ({
-      content: 'This module is ai.generated.\n\nTo test, produce Int:\n  Return 42.',
+      content: 'Module ai.generated.\n\nRule test, produce Int:\n  Return 42.',
       model: 'gpt-4',
       usage: {
         promptTokens: 100,
@@ -101,13 +101,13 @@ describe('AI Generator', () => {
     assert.equal(mockValidator.validate.mock.calls.length, 1);
     const validateCall = mockValidator.validate.mock.calls[0];
     assert.ok(validateCall);
-    assert.equal(validateCall.arguments[0], 'This module is ai.generated.\n\nTo test, produce Int:\n  Return 42.');
+    assert.equal(validateCall.arguments[0], 'Module ai.generated.\n\nRule test, produce Int:\n  Return 42.');
 
     assert.equal(mockProvenance.addProvenanceToCode.mock.calls.length, 1);
 
     // 驗證返回結果
     assert.ok(result.code.includes('// Generated header'));
-    assert.equal(result.rawCode, 'This module is ai.generated.\n\nTo test, produce Int:\n  Return 42.');
+    assert.equal(result.rawCode, 'Module ai.generated.\n\nRule test, produce Int:\n  Return 42.');
     assert.equal(result.validation.valid, true);
     assert.equal(result.metadata.model, 'gpt-4');
     assert.equal(result.metadata.provider, 'openai');

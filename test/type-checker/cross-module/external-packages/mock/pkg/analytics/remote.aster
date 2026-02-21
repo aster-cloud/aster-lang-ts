@@ -1,4 +1,4 @@
-This module is mock.pkg.analytics.remote.
+Module mock.pkg.analytics.remote.
 
-To fetch_remote, produce. It performs io:
+Rule fetch_remote, produce. It performs io:
   Return "ok".

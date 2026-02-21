@@ -1,4 +1,4 @@
-This module is boundary.result.errcase.
+Module boundary.result.errcase.
 
-To main, produce:
+Rule main, produce:
   Return Err(null).

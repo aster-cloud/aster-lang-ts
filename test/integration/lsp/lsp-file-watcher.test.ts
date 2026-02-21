@@ -113,7 +113,7 @@ async function testPollingMode(): Promise<void> {
 
     // 创建一个.aster文件
     const testFile = join(testDir, 'test.aster');
-    await fs.writeFile(testFile, 'This module is test.\n', 'utf8');
+    await fs.writeFile(testFile, 'Module test.\n', 'utf8');
 
     // 等待足够时间让轮询检测到变化
     await sleep(1000);
@@ -139,7 +139,7 @@ async function testConcurrentPollingProtection(): Promise<void> {
     for (let i = 0; i < fileCount; i++) {
       await fs.writeFile(
         join(testDir, `file${i}.aster`),
-        `This module is test${i}.\n`.repeat(50)
+        `Module test${i}.\n`.repeat(50)
       );
     }
 
@@ -223,8 +223,8 @@ async function testPathMatching(): Promise<void> {
     // 在两个目录中创建文件
     const file1 = join(dir1, 'file1.aster');
     const file2 = join(dir2, 'file2.aster');
-    await fs.writeFile(file1, 'This module is bar.\n');
-    await fs.writeFile(file2, 'This module is barista.\n');
+    await fs.writeFile(file1, 'Module bar.\n');
+    await fs.writeFile(file2, 'Module barista.\n');
 
     configureFileWatcher({
       mode: 'polling',
@@ -347,7 +347,7 @@ async function testExcludePatterns(): Promise<void> {
     // 在各目录中创建文件
     await fs.writeFile(join(nodeModules, 'dep.aster'), 'module dep.\n');
     await fs.writeFile(join(gitDir, 'config.aster'), 'module git.\n');
-    await fs.writeFile(join(srcDir, 'main.aster'), 'This module is main.\n');
+    await fs.writeFile(join(srcDir, 'main.aster'), 'Module main.\n');
 
     configureFileWatcher({
       mode: 'polling',
@@ -389,7 +389,7 @@ async function testFileCreationAndDeletion(): Promise<void> {
     const testFile = join(testDir, 'temp.aster');
 
     // 创建文件
-    await fs.writeFile(testFile, 'This module is temp.\n');
+    await fs.writeFile(testFile, 'Module temp.\n');
     await sleep(500);
 
     let status = getWatcherStatus();
@@ -440,8 +440,8 @@ async function testMultiInstanceIsolation(): Promise<void> {
     });
 
     // 在两个目录中创建不同的文件
-    await fs.writeFile(join(testDir1, 'file1.aster'), 'This module is watcher1.\n');
-    await fs.writeFile(join(testDir2, 'file2.aster'), 'This module is watcher2.\n');
+    await fs.writeFile(join(testDir1, 'file1.aster'), 'Module watcher1.\n');
+    await fs.writeFile(join(testDir2, 'file2.aster'), 'Module watcher2.\n');
 
     // 分别启动两个实例
     watcher1.start([testDir1]);

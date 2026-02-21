@@ -11,9 +11,9 @@ const basicMetadata: ProvenanceMetadata = {
   validated: true,
 };
 
-const simpleCNL = `This module is demo.hello.
+const simpleCNL = `Module demo.hello.
 
-To greet, produce Text:
+Rule greet, produce Text:
   Return "Hello, World!".
 `;
 
@@ -38,7 +38,7 @@ describe('Provenance Tracker', () => {
 
     // 檢查註釋頭在代碼之前
     assert.ok(annotated.startsWith('//'));
-    assert.ok(annotated.includes('This module is demo.hello.'));
+    assert.ok(annotated.includes('Module demo.hello.'));
 
     // 檢查原始代碼完整保留
     assert.ok(annotated.includes(simpleCNL));
@@ -177,9 +177,9 @@ describe('Provenance Tracker', () => {
 
   test('生成的代碼應該保持原始代碼的格式', () => {
     const tracker = new ProvenanceTracker();
-    const codeWithIndentation = `This module is demo.test.
+    const codeWithIndentation = `Module demo.test.
 
-To calculate with x: Int, y: Int, produce Int:
+Rule calculate given x: Int, y: Int, produce Int:
   Let sum be x plus y.
   Let double be sum times 2.
   Return double.

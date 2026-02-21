@@ -1,6 +1,6 @@
-This module is test.loan.
+Module test.loan.
 
-Define Decision with approved, reason.
+Define Decision has approved, reason.
 
-To check with age, produce:
+Rule check given age, produce:
   Return Decision with approved = true, reason = "OK".

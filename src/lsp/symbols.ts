@@ -65,12 +65,12 @@ export function registerSymbolsHandlers(
       }
 
       // Link module header to target module file
-      const m = text.match(/This module is ([A-Za-z][A-Za-z0-9_.]*)\./);
+      const m = text.match(/Module ([A-Za-z][A-Za-z0-9_.]*)\./);
       if (m) {
         const mod = m[1]!;
         const rec = modulesByName.get(mod);
         if (rec && ensureUri(rec.uri) !== ensureUri(doc.uri)) {
-          const startOff = (m.index ?? 0) + 'This module is '.length;
+          const startOff = (m.index ?? 0) + m[0]!.length - mod.length - 1;
           const endOff = startOff + mod.length;
           out.push({
             range: {

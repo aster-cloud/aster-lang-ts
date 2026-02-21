@@ -1,27 +1,27 @@
 // English Functions - Function definitions and calls
-This module is test.functions.
+Module test.functions.
 
-Define Result with success, message.
+Define Result has success, message.
 
 // Simple function with one parameter
-To double with x, produce:
+Rule double given x, produce:
   Return x times 2.
 
 // Function with multiple parameters
-To add with a, b, produce:
+Rule add given a, b, produce:
   Return a plus b.
 
 // Function calling another function
-To quadruple with x, produce:
+Rule quadruple given x, produce:
   Let doubled be double(x).
   Return double(doubled).
 
 // Function returning a record
-To createResult with ok, msg, produce:
+Rule createResult given ok, msg, produce:
   Return Result with success = ok, message = msg.
 
 // Function with local variables
-To calculate with base, multiplier, offset, produce:
+Rule calculate given base, multiplier, offset, produce:
   Let product be base times multiplier.
   Let result be product plus offset.
   Return result.

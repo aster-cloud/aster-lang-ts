@@ -1,6 +1,6 @@
-This module is test.eff.violation.multiple_errors.
+Module test.eff.violation.multiple_errors.
 
-To bad_func, produce. It performs io [Http]:
+Rule bad_func, produce. It performs io [Http]:
   Let secret be Secrets.get("KEY").
   Let data be Db.query("SELECT 1").
   Let ts be Time.now().

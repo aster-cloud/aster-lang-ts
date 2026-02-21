@@ -1,6 +1,6 @@
-This module is demo.match.
+Module demo.match.
 
-Define User with id, name.
+Define User has id, name.
 
-To greet with u, produce:
+Rule greet given u, produce:
   Return 0.

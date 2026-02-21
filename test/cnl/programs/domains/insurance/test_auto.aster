@@ -1,66 +1,66 @@
-This module is test.insurance.auto.
+Module test.insurance.auto.
 
-Define Driver with driverId, age, yearsLicensed, accidentCount, violationCount, creditScore.
+Define Driver has driverId, age, yearsLicensed, accidentCount, violationCount, creditScore.
 
-Define Vehicle with vin, year, make, model, value, safetyRating.
+Define Vehicle has vin, year, make, model, value, safetyRating.
 
-Define PolicyQuote with approved, reason, monthlyPremium, deductible, coverageLimit.
+Define PolicyQuote has approved, reason, monthlyPremium, deductible, coverageLimit.
 
-To calculateAgeFactor with age, produce:
+Rule calculateAgeFactor given age, produce:
   Return 0.
-To calculateVehicleFactor with vehicle, produce:
+Rule calculateVehicleFactor given vehicle, produce:
   Return 0.
-To calculateBasePremium with driver, vehicle, produce:
+Rule calculateBasePremium given driver, vehicle, produce:
   Return 0.
-To calculateRiskMultiplier with driver, vehicle, produce:
+Rule calculateRiskMultiplier given driver, vehicle, produce:
   Return 0.
-To determineDeductible with coverageType, creditScore, produce:
+Rule determineDeductible given coverageType, creditScore, produce:
   Return 0.
-To determineCoverageLimit with coverageType, vehicleValue, produce:
+Rule determineCoverageLimit given coverageType, vehicleValue, produce:
   Return 0.
-To generateAutoQuote with driver, vehicle, coverageType, produce:
+Rule generateAutoQuote given driver, vehicle, coverageType, produce:
   Return 0.
-To testDriverUnder18, produce:
+Rule testDriverUnder18, produce:
   Return 0.
-To testTooManyAccidents, produce:
+Rule testTooManyAccidents, produce:
   Return 0.
-To testTooManyViolations, produce:
+Rule testTooManyViolations, produce:
   Return 0.
-To testYoungDriverPremiumCoverage, produce:
+Rule testYoungDriverPremiumCoverage, produce:
   Return 0.
-To testMiddleAgedDriverStandardCoverage, produce:
+Rule testMiddleAgedDriverStandardCoverage, produce:
   Return 0.
-To testSeniorDriverBasicCoverage, produce:
+Rule testSeniorDriverBasicCoverage, produce:
   Return 0.
-To testPerfectDriverNewCar, produce:
+Rule testPerfectDriverNewCar, produce:
   Return 0.
-To testHighRiskDriverOldCar, produce:
+Rule testHighRiskDriverOldCar, produce:
   Return 0.
-To testLowCreditScore, produce:
+Rule testLowCreditScore, produce:
   Return 0.
-To testHighValueVehicle, produce:
+Rule testHighValueVehicle, produce:
   Return 0.
-To testOldVehicle, produce:
+Rule testOldVehicle, produce:
   Return 0.
-To testCalculateAgeFactorYoung, produce:
+Rule testCalculateAgeFactorYoung, produce:
   Return 0.
-To testCalculateAgeFactorMiddle, produce:
+Rule testCalculateAgeFactorMiddle, produce:
   Return 0.
-To testCalculateAgeFactorSenior, produce:
+Rule testCalculateAgeFactorSenior, produce:
   Return 0.
-To testCalculateVehicleFactorNew, produce:
+Rule testCalculateVehicleFactorNew, produce:
   Return 0.
-To testCalculateVehicleFactorOld, produce:
+Rule testCalculateVehicleFactorOld, produce:
   Return 0.
-To testCalculateRiskMultiplierClean, produce:
+Rule testCalculateRiskMultiplierClean, produce:
   Return 0.
-To testCalculateRiskMultiplierHighRisk, produce:
+Rule testCalculateRiskMultiplierHighRisk, produce:
   Return 0.
-To testDetermineDeductiblePremiumHigh, produce:
+Rule testDetermineDeductiblePremiumHigh, produce:
   Return 0.
-To testDetermineDeductibleStandardLow, produce:
+Rule testDetermineDeductibleStandardLow, produce:
   Return 0.
-To testDetermineCoverageLimitPremium, produce:
+Rule testDetermineCoverageLimitPremium, produce:
   Return 0.
-To testDetermineCoverageLimitBasicHighValue, produce:
+Rule testDetermineCoverageLimitBasicHighValue, produce:
   Return 0.

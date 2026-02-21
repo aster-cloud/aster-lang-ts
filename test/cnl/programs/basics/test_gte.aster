@@ -1,4 +1,4 @@
-This module is test.
+Module test.
 
-To compare with x, produce:
+Rule compare given x, produce:
   Return x at least 100.

@@ -60,7 +60,7 @@ describe('registerCodeActionHandlers', () => {
   });
 
   it('应该对 EFF_MISSING_IO 提供 Quick Fix', async () => {
-    const text = 'To fetchData:\n  return "data".';
+    const text = 'Rule fetchData:\n  return "data".';
     const connection = createMockConnection();
     const documents = createMockDocuments(text);
     const getOrParse = createMockGetOrParse();
@@ -92,7 +92,7 @@ describe('registerCodeActionHandlers', () => {
   });
 
   it('应该对 EFF_MISSING_CPU 提供 Quick Fix', async () => {
-    const text = 'To compute:\n  return 42.';
+    const text = 'Rule compute:\n  return 42.';
     const connection = createMockConnection();
     const documents = createMockDocuments(text);
     const getOrParse = createMockGetOrParse();
@@ -122,7 +122,7 @@ describe('registerCodeActionHandlers', () => {
   });
 
   it('应该对 EFF_SUPERFLUOUS_IO 提供移除 Quick Fix', async () => {
-    const text = 'To getData. It performs IO:\n  return "data".';
+    const text = 'Rule getData. It performs IO:\n  return "data".';
     const connection = createMockConnection();
     const documents = createMockDocuments(text);
     const getOrParse = createMockGetOrParse();
@@ -340,7 +340,7 @@ describe('辅助函数测试', () => {
   describe('extractFuncNameFromMessage', () => {
     it('应该从诊断消息中提取函数名', () => {
       // 通过创建一个包含该函数的诊断来间接测试
-      const text = 'To fetchData:\n  return "data".';
+      const text = 'Rule fetchData:\n  return "data".';
       const connection = createMockConnection();
       const documents = createMockDocuments(text);
       const getOrParse = createMockGetOrParse();
@@ -374,7 +374,7 @@ describe('辅助函数测试', () => {
 
   describe('extractModuleName', () => {
     it('应该从文本中提取模块名', async () => {
-      const text = 'This module is examples.test.\nTo func:\n  return 1.';
+      const text = 'Module examples.test.\nRule func:\n  return 1.';
       const connection = createMockConnection();
       const documents = createMockDocuments(text);
       const getOrParse = createMockGetOrParse();
@@ -411,7 +411,7 @@ describe('辅助函数测试', () => {
 
   describe('headerInsertEffectEdit', () => {
     it('应该在函数声明行插入效果声明', async () => {
-      const text = 'To fetchData:\n  return "data".';
+      const text = 'Rule fetchData:\n  return "data".';
       const connection = createMockConnection();
       const documents = createMockDocuments(text);
       const getOrParse = createMockGetOrParse();
@@ -444,7 +444,7 @@ describe('辅助函数测试', () => {
     });
 
     it('应该在已有效果声明时返回 null', async () => {
-      const text = 'To fetchData. It performs IO:\n  return "data".';
+      const text = 'Rule fetchData. It performs IO:\n  return "data".';
       const connection = createMockConnection();
       const documents = createMockDocuments(text);
       const getOrParse = createMockGetOrParse();
@@ -477,7 +477,7 @@ describe('辅助函数测试', () => {
 
   describe('headerRemoveEffectEdit', () => {
     it('应该移除函数声明行的效果声明', async () => {
-      const text = 'To getData. It performs IO:\n  return "data".';
+      const text = 'Rule getData. It performs IO:\n  return "data".';
       const connection = createMockConnection();
       const documents = createMockDocuments(text);
       const getOrParse = createMockGetOrParse();
@@ -507,7 +507,7 @@ describe('辅助函数测试', () => {
       const edits = removeAction.edit.changes['file:///test.aster'];
       assert.ok(Array.isArray(edits), 'should have text edits');
       assert.ok(!edits[0]?.newText?.includes('It performs IO'), 'should remove effect declaration');
-      assert.ok(edits[0]?.newText?.includes('To getData:'), 'should keep function header');
+      assert.ok(edits[0]?.newText?.includes('Rule getData:'), 'should keep function header');
     });
   });
 

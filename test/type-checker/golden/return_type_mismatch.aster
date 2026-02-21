@@ -1,4 +1,4 @@
-This module is tests.typecheck.mismatch.return.
+Module tests.typecheck.mismatch.return.
 
-To returnMismatch, produce:
+Rule returnMismatch, produce:
   Return "invalid".

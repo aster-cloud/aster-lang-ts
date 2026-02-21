@@ -1,5 +1,5 @@
-This module is boundary.list.slice.zero.
+Module boundary.list.slice.zero.
 
-To main, produce:
+Rule main, produce:
   Let xs be List.empty().
   Return List.slice(xs, 0, 0).

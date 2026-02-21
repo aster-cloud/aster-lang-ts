@@ -1,12 +1,12 @@
-This module is aster.finance.loan.
+Module aster.finance.loan.
 
-Define LoanApplication with applicantId required, amount, termMonths between 0 and 600, purpose required.
+Define LoanApplication has applicantId required, amount, termMonths between 0 and 600, purpose required.
 
-Define ApplicantProfile with age between 0 and 120, creditScore between 300 and 850, annualIncome.
+Define ApplicantProfile has age between 0 and 120, creditScore between 300 and 850, annualIncome.
 
-Define LoanDecision with approved, reason, approvedAmount, interestRateBps, termMonths.
+Define LoanDecision has approved, reason, approvedAmount, interestRateBps, termMonths.
 
-To evaluateLoanEligibility with application, applicant, produce:
+Rule evaluateLoanEligibility given application, applicant, produce:
   Return 0.
-To determineInterestRateBps with creditScore between 300 and 850, produce:
+Rule determineInterestRateBps given creditScore between 300 and 850, produce:
   Return 350.

@@ -33,9 +33,9 @@ function findFunc(module: Module, name: string): Extract<Declaration, { kind: 'F
 describe('语法分析器', () => {
   test('应该解析模块名称', () => {
     const module = parseSource(`
-This module is test.parser.module_name.
+Module test.parser.module_name.
 
-To ping, produce Text:
+Rule ping, produce Text:
   Return "pong".
 `);
     assert.equal(module.name, 'test.parser.module_name');
@@ -43,9 +43,9 @@ To ping, produce Text:
 
   test('应该解析数据类型字段', () => {
     const module = parseSource(`
-This module is test.parser.data_decl.
+Module test.parser.data_decl.
 
-Define User with id: Text, name: Text, age: Int.
+Define User has id: Text, name: Text, age: Int.
 `);
     const data = findDecl(module, 'Data');
     assert.equal(data.fields.length, 3);
@@ -56,7 +56,7 @@ Define User with id: Text, name: Text, age: Int.
 
   test('应该解析枚举变体列表', () => {
     const module = parseSource(`
-This module is test.parser.enum_decl.
+Module test.parser.enum_decl.
 
 Define Status as one of Pending, Success, Failure.
 `);
@@ -66,9 +66,9 @@ Define Status as one of Pending, Success, Failure.
 
   test('应该解析函数的参数与返回类型', () => {
     const module = parseSource(`
-This module is test.parser.func_signature.
+Module test.parser.func_signature.
 
-To format with name: Text and times: Int, produce Text:
+Rule format given name: Text and times: Int, produce Text:
   Return Text.concat(name, Text.toString(times)).
 `);
     const func = findDecl(module, 'Func');
@@ -80,9 +80,9 @@ To format with name: Text and times: Int, produce Text:
 
   test('应该解析函数体中的 Return 语句', () => {
     const module = parseSource(`
-This module is test.parser.return_stmt.
+Module test.parser.return_stmt.
 
-To identity with value: Text, produce Text:
+Rule identity given value: Text, produce Text:
   Return value.
 `);
     const func = findDecl(module, 'Func');
@@ -93,9 +93,9 @@ To identity with value: Text, produce Text:
 
   test('应该解析 Let 语句并构建调用表达式', () => {
     const module = parseSource(`
-This module is test.parser.let_stmt.
+Module test.parser.let_stmt.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Let trimmed be Text.trim(name).
   Return Text.concat("Hi, ", trimmed).
 `);
@@ -108,9 +108,9 @@ To greet with name: Text, produce Text:
 
   test('应该解析 If 语句并生成 then/else 分支', () => {
     const module = parseSource(`
-This module is test.parser.if_stmt.
+Module test.parser.if_stmt.
 
-To classify with score: Int, produce Text:
+Rule classify given score: Int, produce Text:
   If score at least 800:
     Return "Top".
   Otherwise:
@@ -128,11 +128,11 @@ To classify with score: Int, produce Text:
 
   test('应该解析 Match 表达式及其分支', () => {
     const module = parseSource(`
-This module is test.parser.match_stmt.
+Module test.parser.match_stmt.
 
-Define User with id: Text, name: Text.
+Define User has id: Text, name: Text.
 
-To welcome with user: User?, produce Text:
+Rule welcome given user: User?, produce Text:
   Match user:
     When null, Return "Guest".
     When User(id, name), Return Text.concat("Hi ", name).
@@ -147,14 +147,14 @@ To welcome with user: User?, produce Text:
 
   test('应该解析 Start/Wait 异步语句', () => {
     const module = parseSource(`
-This module is test.parser.async_stmt.
+Module test.parser.async_stmt.
 
-To runTasks, produce Text. It performs io:
+Rule runTasks, produce Text. It performs io:
   Start task as async fetch().
   Wait for task.
   Return "done".
 
-To fetch, produce Text:
+Rule fetch, produce Text:
   Return "ok".
 `);
     const func = findDecl(module, 'Func');
@@ -167,9 +167,9 @@ To fetch, produce Text:
     assert.throws(
       () =>
         parseSource(`
-This module is test.parser.error.
+Module test.parser.error.
 
-Define Broken with x: Int
+Define Broken has x: Int
 `),
       /expected '.'/i
     );
@@ -178,11 +178,11 @@ Define Broken with x: Int
   describe('边界场景', () => {
     it('应该解析 import 别名并保持调用目标一致', () => {
       const module = parseSource(`
-This module is test.parser.import_alias.
+Module test.parser.import_alias.
 
 Use Http as H.
 
-To call, produce Text:
+Rule call, produce Text:
   Return H.get().
 `);
       const importDecl = findDecl(module, 'Import');
@@ -209,11 +209,11 @@ To call, produce Text:
 
     it('应该解析空效果列表与多基础效果组合', () => {
       const module = parseSource(`
-This module is test.parser.effects_basic.
+Module test.parser.effects_basic.
 
-To audit, produce Int. It performs [].
+Rule audit, produce Int. It performs [].
 
-To compute with value: Int, produce Int. It performs io and cpu.
+Rule compute given value: Int, produce Int. It performs io and cpu.
 `);
       const audit = findFunc(module, 'audit');
       assert.deepEqual(audit.effects, []);
@@ -236,9 +236,9 @@ To compute with value: Int, produce Int. It performs io and cpu.
 
     it('应该解析显式 capability 列表并保留效果体', () => {
       const module = parseSource(`
-This module is test.parser.effects_explicit.
+Module test.parser.effects_explicit.
 
-To fetch, produce Text. It performs io with Http and Sql:
+Rule fetch, produce Text. It performs io with Http and Sql:
   Return "ok".
 `);
       const func = findFunc(module, 'fetch');
@@ -250,13 +250,13 @@ To fetch, produce Text. It performs io with Http and Sql:
 
     it('应该解析 CNL 约束并保留参数信息', () => {
       const module = parseSource(`
-This module is test.parser.constraints.
+Module test.parser.constraints.
 
-Define User with
+Define User has
   id: Text required,
   age: Int between 0 and 120 matching "^[0-9]+$".
 
-To validate with input: Text required, produce Bool:
+Rule validate given input: Text required, produce Bool:
   Return true.
 `);
       const data = findDecl(module, 'Data');
@@ -301,13 +301,13 @@ To validate with input: Text required, produce Bool:
 
     it('应该解析无类型声明的字段和参数约束', () => {
       const module = parseSource(`
-This module is test.parser.inline_constraints.
+Module test.parser.inline_constraints.
 
-Define LoanApplication with applicantId required, amount, termMonths between 0 and 600, purpose required.
+Define LoanApplication has applicantId required, amount, termMonths between 0 and 600, purpose required.
 
-Define ApplicantProfile with age between 0 and 120, creditScore between 300 and 850, annualIncome.
+Define ApplicantProfile has age between 0 and 120, creditScore between 300 and 850, annualIncome.
 
-To determineInterestRateBps with creditScore between 300 and 850, produce:
+Rule determineInterestRateBps given creditScore between 300 and 850, produce:
   Return 350.
 `);
       const loanDecl = module.decls.find(
@@ -362,9 +362,9 @@ To determineInterestRateBps with creditScore between 300 and 850, produce:
       assert.throws(
         () =>
           parseSource(`
-This module is test.parser.error.missing_separator.
+Module test.parser.error.missing_separator.
 
-To broken with first: Int second: Int, produce Int:
+Rule broken given first: Int second: Int, produce Int:
   Return first.
 `),
         error => {
@@ -378,9 +378,9 @@ To broken with first: Int second: Int, produce Int:
       assert.throws(
         () =>
           parseSource(`
-This module is test.parser.error.parentheses.
+Module test.parser.error.parentheses.
 
-To fail with value: Text, produce Text:
+Rule fail given value: Text, produce Text:
   Return (value.
 `),
         error => {
@@ -397,9 +397,9 @@ To fail with value: Text, produce Text:
   describe('函数类型参数解析', () => {
     test('应该解析单一显式类型参数并绑定到参数类型', () => {
       const module = parseSource(`
-This module is test.parser.func_type_params.single.
+Module test.parser.func_type_params.single.
 
-To wrap of T with value: T, produce List of T:
+Rule wrap of T given value: T, produce List of T:
   Return List.build(value).
 `);
       const func = findFunc(module, 'wrap');
@@ -420,9 +420,9 @@ To wrap of T with value: T, produce List of T:
 
     test('应该解析多个显式类型参数并保持顺序', () => {
       const module = parseSource(`
-This module is test.parser.func_type_params.multi.
+Module test.parser.func_type_params.multi.
 
-To pair of Left and Right with left: Left and right: Right, produce Result of Left or Right:
+Rule pair of Left and Right given left: Left and right: Right, produce Result of Left or Right:
   Return Result.ok(left).
 `);
       const func = findFunc(module, 'pair');
@@ -449,9 +449,9 @@ To pair of Left and Right with left: Left and right: Right, produce Result of Le
 
     test('应该支持逗号与 and 混合的类型参数列表', () => {
       const module = parseSource(`
-This module is test.parser.func_type_params.mixed.
+Module test.parser.func_type_params.mixed.
 
-To compose of Input, Middle and Output with first: Input, second: Middle, produce Output:
+Rule compose of Input, Middle and Output given first: Input, second: Middle, produce Output:
   Return second.
 `);
       const func = findFunc(module, 'compose');
@@ -467,9 +467,9 @@ To compose of Input, Middle and Output with first: Input, second: Middle, produc
 
     test('应该允许类型参数参与复杂返回类型', () => {
       const module = parseSource(`
-This module is test.parser.func_type_params.complex.
+Module test.parser.func_type_params.complex.
 
-To pipeline of Source and Target with items: List of Source, produce Result of Map Source to Target or Text:
+Rule pipeline of Source and Target given items: List of Source, produce Result of Map Source to Target or Text:
   Return Result.err("empty").
 `);
       const func = findFunc(module, 'pipeline');
@@ -501,11 +501,11 @@ To pipeline of Source and Target with items: List of Source, produce Result of M
   });
 
   describe('多行参数列表与缩进', () => {
-    test('应该解析 with 子句的多行参数', () => {
+    test('应该解析 given 子句的多行参数', () => {
       const module = parseSource(`
-This module is test.parser.params.multiline_with.
+Module test.parser.params.multiline_with.
 
-To summarize with
+Rule summarize given
   first: Text,
   second: Text,
   third: Text, produce Text:
@@ -521,9 +521,9 @@ To summarize with
 
     test('应该在多行参数后继续解析效果声明', () => {
       const module = parseSource(`
-This module is test.parser.params.multiline_effect.
+Module test.parser.params.multiline_effect.
 
-To compute with
+Rule compute given
   value: Int,
   factor: Int, produce Int. It performs cpu:
   Return value times factor.
@@ -539,9 +539,9 @@ To compute with
 
     test('应该在多行参数中保留约束', () => {
       const module = parseSource(`
-This module is test.parser.params.multiline_constraints.
+Module test.parser.params.multiline_constraints.
 
-To filter with
+Rule filter given
   query: Text required,
   limit: Int, produce List of Text:
   Return List.empty().
@@ -561,9 +561,9 @@ To filter with
   describe('Let 内联 lambda 解析', () => {
     test('应该将内联函数解析为 Lambda 节点', () => {
       const module = parseSource(`
-This module is test.parser.let.lambda.basic.
+Module test.parser.let.lambda.basic.
 
-To operate with value: Int, produce Int:
+Rule operate given value: Int, produce Int:
   Let increment be function with input: Int, produce Int:
     Return input plus 1.
   Return increment(value).
@@ -583,9 +583,9 @@ To operate with value: Int, produce Int:
 
     test('应该支持带可选 a function 的写法', () => {
       const module = parseSource(`
-This module is test.parser.let.lambda.article.
+Module test.parser.let.lambda.article.
 
-To demo, produce Int:
+Rule demo, produce Int:
   Let noop be a function with value: Int, produce Int:
     Return value.
   Return noop(0).
@@ -602,9 +602,9 @@ To demo, produce Int:
 
     test('应该保留 lambda 内部的语句块', () => {
       const module = parseSource(`
-This module is test.parser.let.lambda.body.
+Module test.parser.let.lambda.body.
 
-To compose, produce Int:
+Rule compose, produce Int:
   Let combine be function with left: Int and right: Int, produce Int:
     Let sum be left plus right.
     Return sum.
@@ -628,9 +628,9 @@ To compose, produce Int:
   describe('Set 语句解析', () => {
     test('应该解析基本的赋值语句', () => {
       const module = parseSource(`
-This module is test.parser.set.basic.
+Module test.parser.set.basic.
 
-To update with value: Int, produce Int:
+Rule update given value: Int, produce Int:
   Let total be 0.
   Set total to total plus value.
   Return total.
@@ -648,9 +648,9 @@ To update with value: Int, produce Int:
 
     test('应该在嵌套块中解析 Set 语句', () => {
       const module = parseSource(`
-This module is test.parser.set.nested.
+Module test.parser.set.nested.
 
-To configure, produce Text:
+Rule configure, produce Text:
   Within scope:
     Let state be "initial".
     Set state to "ready".
@@ -676,9 +676,9 @@ To configure, produce Text:
       assert.throws(
         () =>
           parseSource(`
-This module is test.parser.set.error_missing_to.
+Module test.parser.set.error_missing_to.
 
-To broken, produce Int:
+Rule broken, produce Int:
   Set total value.
   Return 0.
 `),
@@ -693,9 +693,9 @@ To broken, produce Int:
       assert.throws(
         () =>
           parseSource(`
-This module is test.parser.set.error_missing_period.
+Module test.parser.set.error_missing_period.
 
-To broken, produce Int:
+Rule broken, produce Int:
   Set total to 1
   Return total.
 `),
@@ -710,9 +710,9 @@ To broken, produce Int:
   describe('Return 效果采集', () => {
     test('应该收集 Return 语句后的效果说明', () => {
       const module = parseSource(`
-This module is test.parser.return.effects.inline.
+Module test.parser.return.effects.inline.
 
-To fetch, produce Text:
+Rule fetch, produce Text:
   Return "ok". It performs io.
 `);
       const func = findFunc(module, 'fetch');
@@ -730,9 +730,9 @@ To fetch, produce Text:
 
     test('应该合并函数体收集的效果', () => {
       const module = parseSource(`
-This module is test.parser.return.effects.merge.
+Module test.parser.return.effects.merge.
 
-To compute, produce Int. It performs cpu:
+Rule compute, produce Int. It performs cpu:
   Return 1. It performs io.
 `);
       const func = findFunc(module, 'compute');
@@ -753,9 +753,9 @@ To compute, produce Int. It performs cpu:
   describe('If not 条件', () => {
     test('应该将 If not 条件转换为 not 调用', () => {
       const module = parseSource(`
-This module is test.parser.if.not.basic.
+Module test.parser.if.not.basic.
 
-To guard with flag: Bool, produce Text:
+Rule guard given flag: Bool, produce Text:
   If not flag:
     Return "blocked".
   Otherwise:
@@ -782,9 +782,9 @@ To guard with flag: Bool, produce Text:
 
     test('应该在复合条件中保持原始表达式', () => {
       const module = parseSource(`
-This module is test.parser.if.not.complex.
+Module test.parser.if.not.complex.
 
-To score with value: Int, produce Text:
+Rule score given value: Int, produce Text:
   If not (value at least 600):
     Return "retry".
   Otherwise:
@@ -814,9 +814,9 @@ To score with value: Int, produce Text:
   describe('List/Map/Result 复杂类型', () => {
     test('应该解析问号表示的 Maybe 类型', () => {
       const module = parseSource(`
-This module is test.parser.types.maybe.
+Module test.parser.types.maybe.
 
-To handle with token: Text?, produce Bool:
+Rule handle given token: Text?, produce Bool:
   Return true.
 `);
       const func = findFunc(module, 'handle');
@@ -834,9 +834,9 @@ To handle with token: Text?, produce Bool:
 
     test('应该解析 Option of 与 Maybe 组合', () => {
       const module = parseSource(`
-This module is test.parser.types.option.
+Module test.parser.types.option.
 
-To parse with payload: Option of Text?, produce Bool:
+Rule parse given payload: Option of Text?, produce Bool:
   Return true.
 `);
       const func = findFunc(module, 'parse');
@@ -858,9 +858,9 @@ To parse with payload: Option of Text?, produce Bool:
 
     test('应该解析 Result of 基本组合', () => {
       const module = parseSource(`
-This module is test.parser.types.result.
+Module test.parser.types.result.
 
-To convert with input: Result of Int or Text, produce Int:
+Rule convert given input: Result of Int or Text, produce Int:
   Return 0.
 `);
       const func = findFunc(module, 'convert');
@@ -880,9 +880,9 @@ To convert with input: Result of Int or Text, produce Int:
 
     test('应该解析 List of Map 嵌套类型', () => {
       const module = parseSource(`
-This module is test.parser.types.list_map.
+Module test.parser.types.list_map.
 
-To collect with rows: List of Map Text to Int, produce Int:
+Rule collect given rows: List of Map Text to Int, produce Int:
   Return 0.
 `);
       const func = findFunc(module, 'collect');
@@ -906,9 +906,9 @@ To collect with rows: List of Map Text to Int, produce Int:
 
     test('应该解析自定义类型应用', () => {
       const module = parseSource(`
-This module is test.parser.types.type_app_single.
+Module test.parser.types.type_app_single.
 
-To adapt with response: Text, produce Promise of Text:
+Rule adapt given response: Text, produce Promise of Text:
   Return Promise.success(response).
 `);
       const func = findFunc(module, 'adapt');
@@ -924,9 +924,9 @@ To adapt with response: Text, produce Promise of Text:
 
     test('应该解析多层 List 嵌套', () => {
       const module = parseSource(`
-This module is test.parser.types.list_nested.
+Module test.parser.types.list_nested.
 
-To flatten with input: List of List of Int, produce List of Int:
+Rule flatten given input: List of List of Int, produce List of Int:
   Return input.
 `);
       const func = findFunc(module, 'flatten');
@@ -948,9 +948,9 @@ To flatten with input: List of List of Int, produce List of Int:
 
     test('应该解析带 @pii 注解的类型', () => {
       const module = parseSource(`
-This module is test.parser.types.pii.
+Module test.parser.types.pii.
 
-To secure with field: @pii(L2, email) Text, produce Text:
+Rule secure given field: @pii(L2, email) Text, produce Text:
   Return field.
 `);
       const func = findFunc(module, 'secure');
@@ -970,9 +970,9 @@ To secure with field: @pii(L2, email) Text, produce Text:
 
     test('应该解析 Map 到 Result 的组合', () => {
       const module = parseSource(`
-This module is test.parser.types.map_result.
+Module test.parser.types.map_result.
 
-To inspect with entry: Map Text to Result of Int or Text, produce Bool:
+Rule inspect given entry: Map Text to Result of Int or Text, produce Bool:
   Return true.
 `);
       const func = findFunc(module, 'inspect');
@@ -996,9 +996,9 @@ To inspect with entry: Map Text to Result of Int or Text, produce Bool:
 
     test('应该解析 Result of 中嵌套 Option', () => {
       const module = parseSource(`
-This module is test.parser.types.result_option.
+Module test.parser.types.result_option.
 
-To decide with payload: Result of Option of Text or List of Text, produce Bool:
+Rule decide given payload: Result of Option of Text or List of Text, produce Bool:
   Return true.
 `);
       const func = findFunc(module, 'decide');
@@ -1026,9 +1026,9 @@ To decide with payload: Result of Option of Text or List of Text, produce Bool:
 
     test('应该解析多个参数的类型应用', () => {
       const module = parseSource(`
-This module is test.parser.types.type_app_multi.
+Module test.parser.types.type_app_multi.
 
-To choose with picker: Text, produce Either of Text and Int:
+Rule choose given picker: Text, produce Either of Text and Int:
   Return Either.left(picker).
 `);
       const func = findFunc(module, 'choose');
@@ -1048,12 +1048,12 @@ To choose with picker: Text, produce Either of Text and Int:
   describe('类型变量作用域', () => {
     test('显式类型参数不会泄漏到后续函数', () => {
       const module = parseSource(`
-This module is test.parser.type_scope.explicit.
+Module test.parser.type_scope.explicit.
 
-To first of T with value: T, produce T:
+Rule first of T given value: T, produce T:
   Return value.
 
-To second with value: T, produce T:
+Rule second given value: T, produce T:
   Return value.
 `);
       const firstFunc = findFunc(module, 'first');
@@ -1071,11 +1071,11 @@ To second with value: T, produce T:
 
     test('推断不会误将数据类型视为类型变量', () => {
       const module = parseSource(`
-This module is test.parser.type_scope.declared.
+Module test.parser.type_scope.declared.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To fetch with id: User, produce User:
+Rule fetch given id: User, produce User:
   Return User.new(id).
 `);
       const func = findFunc(module, 'fetch');
@@ -1091,12 +1091,12 @@ To fetch with id: User, produce User:
 
     test('推断的类型变量在不同函数间独立', () => {
       const module = parseSource(`
-This module is test.parser.type_scope.independent.
+Module test.parser.type_scope.independent.
 
-To box with value: Alpha, produce Alpha:
+Rule box given value: Alpha, produce Alpha:
   Return value.
 
-To unwrap with value: Beta, produce Beta:
+Rule unwrap given value: Beta, produce Beta:
   Return value.
 `);
       const box = findFunc(module, 'box');
@@ -1109,9 +1109,9 @@ To unwrap with value: Beta, produce Beta:
   describe('效果和能力解析', () => {
     test('应该解析带显式能力列表的效果声明', () => {
       const module = parseSource(`
-This module is test.parser.effects.explicit_caps.
+Module test.parser.effects.explicit_caps.
 
-To fetch, produce Text. It performs io [Http, Sql].
+Rule fetch, produce Text. It performs io [Http, Sql].
 `);
       const func = findFunc(module, 'fetch');
       assert.deepEqual(func.effects, ['io']);
@@ -1121,9 +1121,9 @@ To fetch, produce Text. It performs io [Http, Sql].
 
     test('应该解析混合效果与显式能力', () => {
       const module = parseSource(`
-This module is test.parser.effects.mixed.
+Module test.parser.effects.mixed.
 
-To sync, produce Int. It performs io and cpu and Http.
+Rule sync, produce Int. It performs io and cpu and Http.
 `);
       const func = findFunc(module, 'sync');
       assert.deepEqual(func.effects, ['io', 'cpu']);
@@ -1135,9 +1135,9 @@ To sync, produce Int. It performs io and cpu and Http.
       assert.throws(
         () =>
           parseSource(`
-This module is test.parser.effects.unknown_cap.
+Module test.parser.effects.unknown_cap.
 
-To risky, produce Text. It performs io with Blockchain.
+Rule risky, produce Text. It performs io with Blockchain.
 `),
         error => {
           assert.match(String(error), /Unknown capability 'Blockchain'/);
@@ -1148,9 +1148,9 @@ To risky, produce Text. It performs io with Blockchain.
 
     test('应该在仅声明 cpu 时推导能力', () => {
       const module = parseSource(`
-This module is test.parser.effects.cpu_only.
+Module test.parser.effects.cpu_only.
 
-To crunch, produce Int. It performs cpu.
+Rule crunch, produce Int. It performs cpu.
 `);
       const func = findFunc(module, 'crunch');
       assert.deepEqual(func.effects, ['cpu']);
@@ -1162,9 +1162,9 @@ To crunch, produce Int. It performs cpu.
   describe('其他高优场景', () => {
     test('应该解析 Within scope 块语句', () => {
       const module = parseSource(`
-This module is test.parser.misc.within_scope.
+Module test.parser.misc.within_scope.
 
-To wrap, produce Text:
+Rule wrap, produce Text:
   Within scope:
     Let temp be "a".
     Return temp.
@@ -1182,9 +1182,9 @@ To wrap, produce Text:
 
     test('应该解析 Wait for 多个名称列表', () => {
       const module = parseSource(`
-This module is test.parser.misc.wait_many.
+Module test.parser.misc.wait_many.
 
-To waitAll, produce Text:
+Rule waitAll, produce Text:
   Let taskOne be start().
   Let taskTwo be start().
   Let taskThree be start().
@@ -1202,9 +1202,9 @@ To waitAll, produce Text:
 
     test('应该解析 await 调用语句', () => {
       const module = parseSource(`
-This module is test.parser.misc.await_stmt.
+Module test.parser.misc.await_stmt.
 
-To sync, produce Text:
+Rule sync, produce Text:
   Let result be await(fetch()).
   Return result.
 `);
@@ -1224,9 +1224,9 @@ To sync, produce Text:
 
     test('应该保留裸调用语句', () => {
       const module = parseSource(`
-This module is test.parser.misc.expression_stmt.
+Module test.parser.misc.expression_stmt.
 
-To log, produce Text:
+Rule log, produce Text:
   Text.log("started").
   Return "ok".
 `);
@@ -1241,9 +1241,9 @@ To log, produce Text:
 
     test('应该解析 Match 分支中的名称模式', () => {
       const module = parseSource(`
-This module is test.parser.misc.match_name.
+Module test.parser.misc.match_name.
 
-To unwrap with option: Option of Text, produce Text:
+Rule unwrap given option: Option of Text, produce Text:
   Match option:
     When value, Return value.
     When null, Return "none".
@@ -1265,9 +1265,9 @@ To unwrap with option: Option of Text, produce Text:
 
     test('应该解析 Start 语句的绑定与调用目标', () => {
       const module = parseSource(`
-This module is test.parser.misc.start_detail.
+Module test.parser.misc.start_detail.
 
-To spawn, produce Text:
+Rule spawn, produce Text:
   Start worker as async Http.fetch().
   Return "done".
 `);
@@ -1289,9 +1289,9 @@ To spawn, produce Text:
   describe('parseWithLexicon 多语言支持', () => {
     test('应该使用 en-US lexicon 直接解析（无翻译）', () => {
       const source = `
-This module is test.parser.lexicon.en.
+Module test.parser.lexicon.en.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return Text.concat("Hello, ", name).
 `;
       const canonical = canonicalize(source, EN_US);
@@ -1306,9 +1306,9 @@ To greet with name: Text, produce Text:
 
     test('应该使用 zh-CN lexicon 自动翻译并解析', () => {
       const zhSource = `
-【模块】测试。
+模块 测试。
 
-【函数】 identity 包含 value：整数，产出：
+规则 identity 包含 value：整数，产出：
   返回 value。
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
@@ -1326,9 +1326,9 @@ To greet with name: Text, produce Text:
 
     test('应该解析中文 CNL 的类型定义', () => {
       const zhSource = `
-【模块】测试。
+模块 测试。
 
-【定义】 User 包含 age：整数。
+定义 User 包含 age：整数。
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
       const tokens = lex(canonical, ZH_CN);
@@ -1346,9 +1346,9 @@ To greet with name: Text, produce Text:
 
     test('应该解析中文 CNL 的 If 语句', () => {
       const zhSource = `
-【模块】测试。
+模块 测试。
 
-【函数】 check 包含 x：整数，产出：
+规则 check 包含 x：整数，产出：
   如果 x 大于 0：
     返回 1。
   否则：
@@ -1370,9 +1370,9 @@ To greet with name: Text, produce Text:
 
     test('应该解析中文 CNL 的 Match 语句（若...为）', () => {
       const zhSource = `
-【模块】测试。
+模块 测试。
 
-【函数】 describe 包含 status：整数，产出：
+规则 describe 包含 status：整数，产出：
   若 status：
     为 1，返回 「成功」。
     为 0，返回 「失败」。
@@ -1393,9 +1393,9 @@ To greet with name: Text, produce Text:
 
     test('应该解析中文 CNL 的 Let...为 语句', () => {
       const zhSource = `
-【模块】测试。
+模块 测试。
 
-【函数】 calc 包含 x：整数，产出：
+规则 calc 包含 x：整数，产出：
   令 result 为 x 加 1。
   返回 result。
 `;

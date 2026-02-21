@@ -1,6 +1,6 @@
-This module is tests.typecheck.workflow.timeout_long.
+Module tests.typecheck.workflow.timeout_long.
 
-To longTimeout, produce. It performs io:
+Rule longTimeout, produce. It performs io:
   
   workflow:
     step only:

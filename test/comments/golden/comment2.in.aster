@@ -1,6 +1,6 @@
-This module is demo.morecomments.
+Module demo.morecomments.
 
-To compute, produce: // header comment
+Rule compute, produce: // header comment
   Let x be 1. // x init
   Return x plus 1. // add one
 

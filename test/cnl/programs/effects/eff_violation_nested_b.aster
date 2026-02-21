@@ -1,10 +1,10 @@
-This module is test.eff.violation.nested_b.
+Module test.eff.violation.nested_b.
 
-To db_query, produce. It performs io [Sql]:
+Rule db_query, produce. It performs io [Sql]:
   Return Db.query("SELECT 1").
 
-To http_call, produce. It performs io [Http]:
+Rule http_call, produce. It performs io [Http]:
   Return db_query().
 
-To top_level, produce. It performs cpu:
+Rule top_level, produce. It performs cpu:
   Return http_call().

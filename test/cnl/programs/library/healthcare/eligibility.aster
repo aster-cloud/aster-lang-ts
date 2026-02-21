@@ -1,18 +1,18 @@
-This module is aster.healthcare.eligibility.
+Module aster.healthcare.eligibility.
 
-Define Patient with patientId, age, hasInsurance, insuranceType, chronicConditions.
+Define Patient has patientId, age, hasInsurance, insuranceType, chronicConditions.
 
-Define Service with serviceCode, serviceName, basePrice, requiresPreAuth.
+Define Service has serviceCode, serviceName, basePrice, requiresPreAuth.
 
-Define EligibilityCheck with eligible, reason, coveragePercent, estimatedCost, requiresPreAuth.
+Define EligibilityCheck has eligible, reason, coveragePercent, estimatedCost, requiresPreAuth.
 
-To checkServiceEligibility with patient, service, produce:
+Rule checkServiceEligibility given patient, service, produce:
   Return 0.
-To determineMinorCoverage with insuranceType, service, produce:
+Rule determineMinorCoverage given insuranceType, service, produce:
   Return 0.
-To determineSeniorCoverage with insuranceType, service, produce:
+Rule determineSeniorCoverage given insuranceType, service, produce:
   Return 0.
-To determineStandardCoverage with insuranceType, service, chronicConditions, produce:
+Rule determineStandardCoverage given insuranceType, service, chronicConditions, produce:
   Return 0.
-To calculatePatientCost with basePrice, coveragePercent, produce:
+Rule calculatePatientCost given basePrice, coveragePercent, produce:
   Return 0.

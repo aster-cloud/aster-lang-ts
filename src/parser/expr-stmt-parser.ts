@@ -1170,8 +1170,8 @@ export function parseParamList(
   error: (msg: string, tok?: import('../types.js').Token) => never
 ): Parameter[] {
   const params: Parameter[] = [];
-  // 'with' params
-  if (ctx.isKeyword(KW.WITH)) {
+  // 'with' / 'given' params
+  if (ctx.isKeyword(KW.WITH) || ctx.isKeyword(KW.GIVEN)) {
     ctx.nextWord();
     let hasMore = true;
     while (hasMore) {

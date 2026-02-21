@@ -1,5 +1,5 @@
 Define AuthErr as one of InvalidCreds, Locked.
 
-To show with e, produce:
+Rule show given e, produce:
   Match e:
     When InvalidCreds, Return "bad".

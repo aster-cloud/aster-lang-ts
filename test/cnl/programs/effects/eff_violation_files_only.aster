@@ -1,4 +1,4 @@
-This module is test.eff.violation.files_only.
+Module test.eff.violation.files_only.
 
-To read_file, produce. It performs io [Files]:
+Rule read_file, produce. It performs io [Files]:
   Return Files.read("/tmp/data.txt").

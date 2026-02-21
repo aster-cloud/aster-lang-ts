@@ -1,6 +1,6 @@
-This module is demo.lambdamatchresult.
+Module demo.lambdamatchresult.
 
-To fromResult with result, produce:
+Rule fromResult given result, produce:
   Let f be function with candidate, produce:
     Match candidate:
       When Ok(value), Return value.

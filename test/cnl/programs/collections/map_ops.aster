@@ -1,7 +1,7 @@
-This module is demo.map.
+Module demo.map.
 
-To val with m, k, produce:
+Rule val given m, k, produce:
   Return Map.get(m, k).
 
-To valStrict with m, k, produce:
+Rule valStrict given m, k, produce:
   Return Map.get(m, k).

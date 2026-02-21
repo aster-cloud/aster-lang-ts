@@ -1,7 +1,7 @@
-This module is test.eff.valid.cpu_only.
+Module test.eff.valid.cpu_only.
 
-To heavy_compute, produce. It performs cpu:
+Rule heavy_compute, produce. It performs cpu:
   Return (42 times 58) plus 100.
 
-To process_cpu, produce. It performs cpu:
+Rule process_cpu, produce. It performs cpu:
   Return heavy_compute() plus 1.

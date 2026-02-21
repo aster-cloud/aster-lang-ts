@@ -1,10 +1,10 @@
-This module is app.service.
+Module app.service.
 
-Define User with id, name.
+Define User has id, name.
 
 Define AuthErr as one of InvalidCreds, Locked.
 
-To login with user, pass, produce. It performs io:
+Rule login given user, pass, produce. It performs io:
   Let ok be AuthRepo.verify(user, pass).
   If not (ok):
     Return err of InvalidCreds.

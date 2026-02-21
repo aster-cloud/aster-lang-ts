@@ -3,36 +3,36 @@ import assert from 'node:assert/strict';
 import { PolicyValidator } from '../../src/ai/validator.js';
 
 // 测试数据
-const validCNL = `This module is tests.ai.valid.
+const validCNL = `Module tests.ai.valid.
 
-To add with x: Int, y: Int, produce Int:
+Rule add given x: Int, y: Int, produce Int:
   Return x plus y.
 `;
 
-const validCNLComplex = `This module is tests.ai.complex.
+const validCNLComplex = `Module tests.ai.complex.
 
-To greet with name: Text, produce Text:
+Rule greet given name: Text, produce Text:
   Return "Hello".
 
-To double with n: Int, produce Int:
+Rule double given n: Int, produce Int:
   Return n times 2.
 `;
 
-const invalidCNL_TypeMismatch = `This module is tests.ai.invalid.
+const invalidCNL_TypeMismatch = `Module tests.ai.invalid.
 
-To returnMismatch, produce Int:
+Rule returnMismatch produce Int:
   Return "invalid".
 `;
 
-const invalidCNL_SyntaxError = `This module is tests.ai.syntax.
+const invalidCNL_SyntaxError = `Module tests.ai.syntax.
 
-To badSyntax, produce Int:
+Rule badSyntax produce Int:
   Return x plus.
 `;
 
-const invalidCNL_UndefinedVariable = `This module is tests.ai.undefined.
+const invalidCNL_UndefinedVariable = `Module tests.ai.undefined.
 
-To useUndefined, produce Int:
+Rule useUndefined produce Int:
   Return undefinedVar.
 `;
 
@@ -162,7 +162,7 @@ describe('Policy Validator', () => {
 
   test('應該處理僅包含模塊聲明的代碼', async () => {
     const validator = new PolicyValidator();
-    const result = await validator.validate('This module is tests.ai.minimal.');
+    const result = await validator.validate('Module tests.ai.minimal.');
 
     // 僅有模塊聲明可能會通過或產生警告（取決於類型檢查器）
     // 至少不應該崩潰
@@ -182,10 +182,10 @@ describe('Policy Validator', () => {
 
   test('應該處理包含註釋的 CNL 代碼', async () => {
     const cnlWithComments = `// This is a comment
-This module is tests.ai.comments.
+Module tests.ai.comments.
 
 // Add two numbers
-To add with x: Int, y: Int, produce Int:
+Rule add given x: Int, y: Int, produce Int:
   Return x plus y.
 `;
 

@@ -10,8 +10,8 @@ type Sample = { text: string; can: string };
 function main(): void {
   // Choose a sample that avoids unsupported syntax (e.g., '?' suffix) for lexer
   const text = [
-    'This module is demo.perf.',
-    'To join with left: Text and right: Text, produce Text:',
+    'Module demo.perf.',
+    'Rule join given left: Text and right: Text, produce Text:',
     '  Return Text.concat(left, right).',
     ''
   ].join('\n');

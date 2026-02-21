@@ -1,8 +1,8 @@
-This module is test.pii.mixed.
+Module test.pii.mixed.
 
-To get_user_info, produce:
+Rule get_user_info, produce:
   Let email be "user@example.com".
   Return Ok(email).
 
-To get_optional_phone, produce:
+Rule get_optional_phone, produce:
   Return Some("+1-555-0100").

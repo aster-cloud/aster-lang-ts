@@ -29,17 +29,20 @@ describe('canonicalizer', () => {
 
   describe('多词关键字替换', () => {
     it('应该将多词关键字统一为小写', () => {
-      const input = 'THIS MODULE IS Example.\nWAIT FOR OPTION OF value.';
+      const input = 'MODULE Example.\nWAIT FOR OPTION OF value.';
       const result = canonicalize(input);
 
-      assert.strictEqual(result, 'this module is Example.\nwait for option of value.');
+      // 单词关键字（MODULE）不被 canonicalizer 处理，由 parser 的 case-insensitive 匹配处理
+      // 多词关键字（WAIT FOR, OPTION OF）被 canonicalizer 统一为小写
+      assert.strictEqual(result, 'MODULE Example.\nwait for option of value.');
     });
 
     it('应该避免误匹配紧凑单词', () => {
-      const input = 'Return WaitFor result and Module island is scenic.';
+      const input = 'Return WaitFor result and Module island scenic.';
       const result = canonicalize(input);
 
-      assert.strictEqual(result, 'Return WaitFor result and Module island is scenic.');
+      // 单词 Module 不被 canonicalizer 小写化（由 parser 处理）
+      assert.strictEqual(result, 'Return WaitFor result and Module island scenic.');
     });
   });
 
@@ -93,7 +96,7 @@ describe('canonicalizer', () => {
 
   describe('幂等性', () => {
     it('应该在重复规范化后保持不变', () => {
-      const input = ['THIS MODULE IS Example.', 'Return  value ,  next.', '  Next line   '].join('\n');
+      const input = ['Module Example.', 'Return  value ,  next.', '  Next line   '].join('\n');
       const once = canonicalize(input);
       const twice = canonicalize(once);
 
@@ -121,17 +124,19 @@ describe('canonicalizer', () => {
 
   describe('关键字大小写扩展', () => {
     it('应该统一多词关键字的大小写', () => {
-      const input = ['THIS MODULE IS Sample.', 'WAIT FOR OPTION OF value.', 'ERR OF Issue.'].join('\n');
+      const input = ['MODULE Sample.', 'WAIT FOR OPTION OF value.', 'ERR OF Issue.'].join('\n');
       const result = canonicalize(input);
 
-      assert.strictEqual(result, ['this module is Sample.', 'wait for option of value.', 'err of Issue.'].join('\n'));
+      // 单词关键字（MODULE）不被 canonicalizer 处理
+      assert.strictEqual(result, ['MODULE Sample.', 'wait for option of value.', 'err of Issue.'].join('\n'));
     });
 
     it('应该在多行语句中保持关键字规范化', () => {
-      const input = ['It PERFORMS duty.', 'THIS MODULE IS Example.', 'WAIT FOR option OF value.'].join('\n');
+      const input = ['It PERFORMS duty.', 'MODULE Example.', 'WAIT FOR option OF value.'].join('\n');
       const result = canonicalize(input);
 
-      assert.strictEqual(result, ['it performs duty.', 'this module is Example.', 'wait for option of value.'].join('\n'));
+      // 多词关键字 "it performs" 被小写化，单词关键字 MODULE 不变
+      assert.strictEqual(result, ['it performs duty.', 'MODULE Example.', 'wait for option of value.'].join('\n'));
     });
   });
 
@@ -237,23 +242,24 @@ describe('canonicalizer', () => {
 
   describe('结构保持', () => {
     it('应该保留语句关键结构与缩进', () => {
-      const input = ['To greet, produce Text:', '\tReturn value.'].join('\r\n');
+      const input = ['Rule greet produce Text:', '\tReturn value.'].join('\r\n');
       const result = canonicalize(input);
 
-      assert.strictEqual(result, ['To greet, produce Text:', '  Return value.'].join('\n'));
+      assert.strictEqual(result, ['Rule greet produce Text:', '  Return value.'].join('\n'));
     });
   });
 
   describe('组合场景', () => {
     it('应该在组合场景下完成规范化', () => {
-      const input = ['THIS MODULE IS Sample', '\tWait FOR Option OF value , please.', '# comment', 'Return "Tab\tInside".'].join(
+      const input = ['MODULE Sample', '\tWait FOR Option OF value , please.', '# comment', 'Return "Tab\tInside".'].join(
         '\r\n'
       );
       const result = canonicalize(input);
 
+      // 单词 MODULE 不被 canonicalizer 小写化
       assert.strictEqual(
         result,
-        ['this module is Sample', '  wait for option of value, please.', '', 'Return "Tab  Inside".'].join('\n')
+        ['MODULE Sample', '  wait for option of value, please.', '', 'Return "Tab  Inside".'].join('\n')
       );
     });
   });

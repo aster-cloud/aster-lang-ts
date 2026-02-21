@@ -29,17 +29,17 @@ function compileAndGetDiagnostics(source: string): Array<{ severity: string; mes
 describe('异步调度 - Wait-before-Start', () => {
   it('应检测 Wait 在 Start 之前', () => {
     const source = `
-This module is test.async.schedule.wait_before_start.simple.
+Module test.async.schedule.wait_before_start.simple.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To orchestrate with u: User, produce Text. It performs io:
+Rule orchestrate given u: User, produce Text. It performs io:
   Wait for job.
   Start job as async launch(u.id).
   Wait for job.
   Return "Done".
 
-To launch with id: Text, produce Text. It performs io:
+Rule launch given id: Text, produce Text. It performs io:
   Return "job".
 `;
 
@@ -52,16 +52,16 @@ To launch with id: Text, produce Text. It performs io:
 
   it('不应报错在 Start 之后正常 Wait', () => {
     const source = `
-This module is test.async.schedule.wait_after_start.
+Module test.async.schedule.wait_after_start.
 
-Define User with id: Text.
+Define User has id: Text.
 
-To orchestrate with u: User, produce Text. It performs io:
+Rule orchestrate given u: User, produce Text. It performs io:
   Start task as async launch(u.id).
   Wait for task.
   Return "Done".
 
-To launch with id: Text, produce Text. It performs io:
+Rule launch given id: Text, produce Text. It performs io:
   Return "ok".
 `;
 
@@ -73,16 +73,16 @@ To launch with id: Text, produce Text. It performs io:
 
   it('应检测嵌套块中的顺序违规', () => {
     const source = `
-This module is test.async.schedule.wait_in_branch.
+Module test.async.schedule.wait_in_branch.
 
-To orchestrate with enabled: Bool, produce Text. It performs io:
+Rule orchestrate given enabled: Bool, produce Text. It performs io:
   If enabled:
     Wait for task.
   Start task as async launch().
   Wait for task.
   Return "Done".
 
-To launch, produce Text. It performs io:
+Rule launch produce Text. It performs io:
   Return "ok".
 `;
 
@@ -97,9 +97,9 @@ To launch, produce Text. It performs io:
 describe('异步调度 - 条件分支', () => {
   it('不应误报 If 互斥分支的重复 Start', () => {
     const source = `
-This module is test.async.schedule.if_branch.
+Module test.async.schedule.if_branch.
 
-To orchestrate with tier: Text, produce Text. It performs io:
+Rule orchestrate given tier: Text, produce Text. It performs io:
   If tier equals to "vip":
     Start session as async startVip().
   Otherwise:
@@ -107,10 +107,10 @@ To orchestrate with tier: Text, produce Text. It performs io:
   Wait for session.
   Return "Done".
 
-To startVip, produce Text. It performs io:
+Rule startVip produce Text. It performs io:
   Return "vip".
 
-To startStandard, produce Text. It performs io:
+Rule startStandard produce Text. It performs io:
   Return "standard".
 `;
 
@@ -122,11 +122,11 @@ To startStandard, produce Text. It performs io:
 
   it('不应误报 Match 互斥分支的重复 Start', () => {
     const source = `
-This module is test.async.schedule.match_branch.
+Module test.async.schedule.match_branch.
 
 Define Choice as one of Primary, Secondary.
 
-To orchestrate with choice: Choice, produce Text. It performs io:
+Rule orchestrate given choice: Choice, produce Text. It performs io:
   Match choice:
     When Primary:
       Start session as async startPrimary().
@@ -135,10 +135,10 @@ To orchestrate with choice: Choice, produce Text. It performs io:
   Wait for session.
   Return "Done".
 
-To startPrimary, produce Text. It performs io:
+Rule startPrimary produce Text. It performs io:
   Return "primary".
 
-To startSecondary, produce Text. It performs io:
+Rule startSecondary produce Text. It performs io:
   Return "secondary".
 `;
 
@@ -150,18 +150,18 @@ To startSecondary, produce Text. It performs io:
 
   it('应报告同一执行路径上的重复 Start', () => {
     const source = `
-This module is test.async.schedule.duplicate_start.path.
+Module test.async.schedule.duplicate_start.path.
 
-To orchestrate, produce Text. It performs io:
+Rule orchestrate produce Text. It performs io:
   Start session as async startOne().
   Start session as async startTwo().
   Wait for session.
   Return "Done".
 
-To startOne, produce Text. It performs io:
+Rule startOne produce Text. It performs io:
   Return "one".
 
-To startTwo, produce Text. It performs io:
+Rule startTwo produce Text. It performs io:
   Return "two".
 `;
 

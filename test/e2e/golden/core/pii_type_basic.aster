@@ -1,4 +1,4 @@
-This module is test.pii.basic.
+Module test.pii.basic.
 
-To get_email, produce:
+Rule get_email, produce:
   Return "user@example.com".

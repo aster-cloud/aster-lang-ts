@@ -8,9 +8,9 @@ type EffectCache = Map<string, EffectSignature>;
 
 const MODULE_NOT_FOUND = 'MODULE_NOT_FOUND';
 const MODULE_PARSE_ERROR = 'MODULE_PARSE_ERROR';
-const FUNCTION_PATTERN = /\bTo\s+([A-Za-z0-9_]+)/i;
+const FUNCTION_PATTERN = /\bRule\s+([A-Za-z0-9_]+)/i;
 const EFFECT_PATTERN = /It\s+performs\s+([A-Za-z]+)/i;
-const MODULE_PATTERN = /^\s*This\s+module\s+is\s+([A-Za-z0-9_.-]+)\./i;
+const MODULE_PATTERN = /^\s*Module\s+([A-Za-z0-9_.-]+)\./i;
 
 export interface CacheEffectOptions {
   moduleName: string;

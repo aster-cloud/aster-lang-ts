@@ -3,15 +3,15 @@
  *
  * 简体中文词法表 - Aster CNL 的中文皮肤。
  *
- * **设计策略**：混合策略
- * - 法律文书风格：声明类关键词使用【】标记，如【模块】【定义】
+ * **设计策略**：自然语言风格
+ * - 声明关键词使用中文词汇：模块、定义、规则
  * - 若为结构：模式匹配使用"若 X：为 Y"结构
- * - 直觉自然：控制流关键词使用日常中文，如"若"、"否则"、"返回"
+ * - 直觉自然：控制流关键词使用日常中文，如"如果"、"否则"、"返回"
+ * - 工作流关键词：流程、步骤
  *
  * **标点符号**：
  * - 使用中文标点：。，、：
  * - 字符串使用直角引号：「」
- * - 标记使用方括号：【】
  */
 
 import { SemanticTokenKind } from '../token-kind.js';
@@ -26,21 +26,20 @@ export const ZH_CN: Lexicon = {
   direction: 'ltr',
 
   keywords: {
-    // 模块声明（使用【】标记增强辨识度）
-    [SemanticTokenKind.MODULE_DECL]: '【模块】',
+    // 模块声明
+    [SemanticTokenKind.MODULE_DECL]: '模块',
     [SemanticTokenKind.IMPORT]: '引用',
     [SemanticTokenKind.IMPORT_ALIAS]: '作为',
 
-    // 类型定义（使用【】标记）
-    [SemanticTokenKind.TYPE_DEF]: '【定义】',
+    // 类型定义
+    [SemanticTokenKind.TYPE_DEF]: '定义',
     [SemanticTokenKind.TYPE_WITH]: '包含',
+    [SemanticTokenKind.TYPE_HAS]: '包含',
     [SemanticTokenKind.TYPE_ONE_OF]: '为以下之一',
 
     // 函数定义
-    // FUNC_TO is the function definition start keyword (like English "To...")
-    // Chinese uses "【函数】" as a marker for clarity
-    [SemanticTokenKind.FUNC_TO]: '【函数】',
-    // TYPE_WITH will handle "入参" for parameters
+    [SemanticTokenKind.FUNC_TO]: '规则',
+    [SemanticTokenKind.FUNC_GIVEN]: '给定',
     [SemanticTokenKind.FUNC_PRODUCE]: '产出',
     [SemanticTokenKind.FUNC_PERFORMS]: '执行',
 
@@ -50,6 +49,7 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.MATCH]: '若',
     [SemanticTokenKind.WHEN]: '为',
     [SemanticTokenKind.RETURN]: '返回',
+    [SemanticTokenKind.RESULT_IS]: '结果为',
     [SemanticTokenKind.FOR_EACH]: '对每个',
     [SemanticTokenKind.IN]: '在',
 
@@ -75,6 +75,9 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.GREATER_THAN]: '大于',
     [SemanticTokenKind.EQUALS_TO]: '等于',
     [SemanticTokenKind.IS]: '是',
+    [SemanticTokenKind.UNDER]: '不足',
+    [SemanticTokenKind.OVER]: '超过',
+    [SemanticTokenKind.MORE_THAN]: '多于',
 
     // 类型构造
     [SemanticTokenKind.MAYBE]: '可选',
@@ -100,9 +103,9 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.IO]: '输入输出',
     [SemanticTokenKind.CPU]: '计算',
 
-    // 工作流（使用【】标记）
-    [SemanticTokenKind.WORKFLOW]: '【流程】',
-    [SemanticTokenKind.STEP]: '【步骤】',
+    // 工作流
+    [SemanticTokenKind.WORKFLOW]: '流程',
+    [SemanticTokenKind.STEP]: '步骤',
     [SemanticTokenKind.DEPENDS]: '依赖',
     [SemanticTokenKind.ON]: '于',
     [SemanticTokenKind.COMPENSATE]: '补偿',
@@ -137,10 +140,6 @@ export const ZH_CN: Lexicon = {
       open: '「',
       close: '」',
     },
-    markers: {
-      open: '【',
-      close: '】',
-    },
   },
 
   canonicalization: {
@@ -154,6 +153,9 @@ export const ZH_CN: Lexicon = {
     // "为" 在不同上下文中有不同含义：模式匹配 (WHEN) 和变量赋值 (BE)
     allowedDuplicates: [
       [SemanticTokenKind.WHEN, SemanticTokenKind.BE], // "为" 用于 match/when 和 let/be
+      [SemanticTokenKind.TYPE_WITH, SemanticTokenKind.TYPE_HAS], // "包含" 用于旧/新类型字段语法
+      [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN], // 均映射为 "<" 符号
+      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN], // 均映射为 ">" 符号
     ],
 
     // 复合关键词模式 - 定义上下文敏感的关键词组合

@@ -1,5 +1,5 @@
-This module is test.eff.valid.exact_match.
+Module test.eff.valid.exact_match.
 
-To exact, produce. It performs io [Http, Sql]:
+Rule exact, produce. It performs io [Http, Sql]:
   Let resp be Http.get("/users").
   Return Db.insert("cache", resp).

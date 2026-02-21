@@ -1,5 +1,5 @@
-This module is test.pii.propagation.
+Module test.pii.propagation.
 
-To process_user with name, produce. It performs io [Http]:
+Rule process_user given name, produce. It performs io [Http]:
   Let user_name be name.
   Return Http.post("/api/users", user_name).

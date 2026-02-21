@@ -1,5 +1,5 @@
-This module is fixture.bar.
+Module fixture.bar.
 
-To call, produce:
+Rule call, produce:
   Return fixture.foo.greet.
 

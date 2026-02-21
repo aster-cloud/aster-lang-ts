@@ -1,4 +1,4 @@
-This module is test.eff.violation.empty_caps.
+Module test.eff.violation.empty_caps.
 
-To fetch, produce. It performs io:
+Rule fetch, produce. It performs io:
   Return Http.get("/data").

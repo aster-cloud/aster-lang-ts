@@ -1,6 +1,6 @@
-This module is test.eff.violation.mixed_caps.
+Module test.eff.violation.mixed_caps.
 
-To mixed, produce. It performs io [Http, Files]:
+Rule mixed, produce. It performs io [Http, Files]:
   Let secret be Secrets.get("TOKEN").
   Let resp be Http.get("/api").
   Return File.write("/tmp/out.txt", resp).

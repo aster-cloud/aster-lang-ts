@@ -27,9 +27,9 @@ function writePackageModule(root: string, moduleName: string, effectText: string
   const filePath = join(root, ...segments) + '.aster';
   mkdirSync(dirname(filePath), { recursive: true });
   const functionName = segments[segments.length - 1];
-  const source = `This module is ${moduleName}.
+  const source = `Module ${moduleName}.
 
-To ${functionName}, produce Text. It performs ${effectText}:
+Rule ${functionName}, produce Text. It performs ${effectText}:
   Return "ok".
 `;
   writeFileSync(filePath, source, 'utf8');
@@ -90,9 +90,9 @@ describe('ModuleCache 包加载', () => {
 
     writeFileSync(
       filePath,
-      `This module is ${moduleName}.
+      `Module ${moduleName}.
 
-To reload, produce Text. It performs cpu:
+Rule reload, produce Text. It performs cpu:
   Return "ok".
 `,
       'utf8'

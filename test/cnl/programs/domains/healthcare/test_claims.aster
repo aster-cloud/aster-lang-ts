@@ -1,44 +1,44 @@
-This module is test.healthcare.claims.
+Module test.healthcare.claims.
 
-Define Claim with claimId, patientId, providerId, serviceDate, amount, diagnosisCode.
+Define Claim has claimId, patientId, providerId, serviceDate, amount, diagnosisCode.
 
-Define Provider with providerId, inNetwork, specialtyType, qualityScore.
+Define Provider has providerId, inNetwork, specialtyType, qualityScore.
 
-Define ClaimDecision with approved, reason, approvedAmount, denialCode, requiresReview.
+Define ClaimDecision has approved, reason, approvedAmount, denialCode, requiresReview.
 
-To calculateClaimApproval with claimAmount, coverage, specialty, produce:
+Rule calculateClaimApproval given claimAmount, coverage, specialty, produce:
   Return 0.
-To processClaim with claim, provider, patientCoverage, produce:
+Rule processClaim given claim, provider, patientCoverage, produce:
   Return 0.
-To validateClaimDocumentation with claim, hasPreAuth, hasReferral, produce:
+Rule validateClaimDocumentation given claim, hasPreAuth, hasReferral, produce:
   Return 0.
-To testOutOfNetworkProvider, produce:
+Rule testOutOfNetworkProvider, produce:
   Return 0.
-To testAmountExceedsLimit, produce:
+Rule testAmountExceedsLimit, produce:
   Return 0.
-To testLowQualityProvider, produce:
+Rule testLowQualityProvider, produce:
   Return 0.
-To testGeneralProviderNormalClaim, produce:
+Rule testGeneralProviderNormalClaim, produce:
   Return 0.
-To testSpecialistProvider, produce:
+Rule testSpecialistProvider, produce:
   Return 0.
-To testSurgeryProvider, produce:
+Rule testSurgeryProvider, produce:
   Return 0.
-To testHighAmountInNetworkClaim, produce:
+Rule testHighAmountInNetworkClaim, produce:
   Return 0.
-To testMinimalAmountClaim, produce:
+Rule testMinimalAmountClaim, produce:
   Return 0.
-To testValidDocumentationWithPreAuth, produce:
+Rule testValidDocumentationWithPreAuth, produce:
   Return 0.
-To testInvalidDocumentationNoPreAuth, produce:
+Rule testInvalidDocumentationNoPreAuth, produce:
   Return 0.
-To testInvalidDocumentationNoReferral, produce:
+Rule testInvalidDocumentationNoReferral, produce:
   Return 0.
-To testLowAmountNoPreAuthRequired, produce:
+Rule testLowAmountNoPreAuthRequired, produce:
   Return 0.
-To testCalculateClaimApprovalGeneral, produce:
+Rule testCalculateClaimApprovalGeneral, produce:
   Return 0.
-To testCalculateClaimApprovalSpecialist, produce:
+Rule testCalculateClaimApprovalSpecialist, produce:
   Return 0.
-To testCalculateClaimApprovalSurgery, produce:
+Rule testCalculateClaimApprovalSurgery, produce:
   Return 0.

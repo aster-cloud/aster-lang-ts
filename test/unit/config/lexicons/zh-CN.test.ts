@@ -46,9 +46,8 @@ const countTokenKind = (tokens: Token[], kind: TokenKind): number =>
  * 跨语言 token 类型分布比较的容差值。
  *
  * 允许较大差异，因为：
- * 1. 中文使用【】标记增加了额外 token
- * 2. 中文语法结构与英文有差异（如「入参」「产出」vs「to...with...produce」）
- * 3. 中文标点处理方式不同
+ * 1. 中文语法结构与英文有差异（如「入参」「产出」vs「to...with...produce」）
+ * 2. 中文标点处理方式不同
  */
 const CROSS_LANG_IDENT_TOLERANCE = 15;
 
@@ -83,7 +82,7 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
 
     it('应正确映射类型定义关键字', () => {
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.TYPE_DEF], '【定义】');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.TYPE_DEF], '定义');
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.TYPE_WITH], '包含');
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.TYPE_ONE_OF], '为以下之一');
     });
@@ -122,9 +121,8 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.strictEqual(ZH_CN.punctuation.stringQuotes.close, '」');
     });
 
-    it('应使用方括号作为标记', () => {
-      assert.strictEqual(ZH_CN.punctuation.markers?.open, '【');
-      assert.strictEqual(ZH_CN.punctuation.markers?.close, '】');
+    it('不应有方括号标记（已移除）', () => {
+      assert.strictEqual(ZH_CN.punctuation.markers, undefined);
     });
   });
 
@@ -164,11 +162,11 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
 
     it('应正确解析包含 若...为 和 为以下之一 的程序', () => {
-      const source = `【模块】测试。
+      const source = `模块 测试。
 
-【定义】状态 为以下之一 成功、失败。
+定义 状态 为以下之一 成功、失败。
 
-【函数】检查 包含 状态，产出 文本：
+规则 检查 包含 状态，产出 文本：
   若 状态：
     为 成功，返回 「成功」。
     为 失败，返回 「失败」。`;
@@ -236,13 +234,13 @@ describe('ZH_CN Lexicon 测试套件', () => {
 
     it('应移除英文冠词但保留中文', () => {
       // 英文模式移除冠词
-      const enInput = 'define the User with a name.';
+      const enInput = 'define the User has a name.';
       const enResult = canonicalize(enInput, EN_US);
       assert.ok(!enResult.includes(' the '));
       assert.ok(!enResult.includes(' a '));
 
       // 中文模式不移除冠词（中文没有冠词）
-      const zhInput = '【定义】 用户 包含 名字。';
+      const zhInput = '定义 用户 包含 名字。';
       const zhResult = canonicalize(zhInput, ZH_CN);
       assert.strictEqual(zhResult, zhInput);
     });
@@ -337,7 +335,7 @@ describe('ZH_CN Lexicon 测试套件', () => {
 
   describe('英文兼容性（默认行为）', () => {
     it('无 lexicon 参数时应使用英文默认行为', () => {
-      const input = 'define User with name.';
+      const input = 'define User has name.';
       const result = canonicalize(input);
       // 应移除冠词
       assert.ok(!result.includes(' the '));
@@ -348,7 +346,7 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
 
     it('显式传递 EN_US 应与默认行为一致', () => {
-      const input = 'define User with name.';
+      const input = 'define User has name.';
       const defaultResult = canonicalize(input);
       const explicitResult = canonicalize(input, EN_US);
       assert.strictEqual(defaultResult, explicitResult);
@@ -368,12 +366,10 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.strictEqual(commaTokens.length, 2);
     });
 
-    it('应识别方括号标记', () => {
-      const tokens = lex('【模块】', ZH_CN);
-      const hasOpen = tokens.some((t: Token) => t.kind === TokenKind.LBRACKET);
-      const hasClose = tokens.some((t: Token) => t.kind === TokenKind.RBRACKET);
-      assert.ok(hasOpen, '应有左方括号');
-      assert.ok(hasClose, '应有右方括号');
+    it('应识别模块关键字', () => {
+      const tokens = lex('模块', ZH_CN);
+      const hasModule = tokens.some((t: Token) => t.kind === TokenKind.IDENT && t.value === '模块');
+      assert.ok(hasModule, '应有「模块」标识符');
     });
 
     it('英文模式应使用英文标点', () => {
@@ -681,47 +677,40 @@ describe('ZH_CN Lexicon 测试套件', () => {
 
   describe('中文工作流语法', () => {
     it('应正确词法分析流程声明', () => {
-      const input = '【流程】订单处理：\n  【步骤】验证订单。\n  【步骤】处理支付。';
+      const input = '流程 订单处理：\n  步骤 验证订单。\n  步骤 处理支付。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      // 【流程】和【步骤】被解析为 [ 流程 ] 和 [ 步骤 ]
+      // 流程和步骤作为纯关键字直接解析
       assert.ok(findIdent(tokens, '流程'), '应识别「流程」标识符');
       assert.strictEqual(countIdent(tokens, '步骤'), 2, '应有2个「步骤」');
-      // Token 结构验证（Codex 审查建议）
-      assert.strictEqual(countTokenKind(tokens, TokenKind.LBRACKET), 3, '应有3个左方括号');
-      assert.strictEqual(countTokenKind(tokens, TokenKind.RBRACKET), 3, '应有3个右方括号');
+      // Token 结构验证
       assert.strictEqual(countTokenKind(tokens, TokenKind.COLON), 1, '应有1个冒号');
       assert.strictEqual(countTokenKind(tokens, TokenKind.DOT), 2, '应有2个句号');
     });
 
     it('应正确词法分析带依赖的步骤', () => {
-      const input = '【流程】构建：\n  【步骤】编译 依赖 于 下载。\n  【步骤】下载。';
+      const input = '流程 构建：\n  步骤 编译 依赖 于 下载。\n  步骤 下载。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       assert.ok(findIdent(tokens, '依赖'), '应识别「依赖」标识符');
       assert.ok(findIdent(tokens, '于'), '应识别「于」标识符');
-      // Token 结构验证
-      assert.strictEqual(countTokenKind(tokens, TokenKind.LBRACKET), 3, '应有3个左方括号');
-      assert.strictEqual(countTokenKind(tokens, TokenKind.RBRACKET), 3, '应有3个右方括号');
     });
 
     it('应正确词法分析带补偿的步骤', () => {
-      const input = '【步骤】扣款 补偿 退款。';
+      const input = '步骤 扣款 补偿 退款。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       assert.ok(findIdent(tokens, '步骤'), '应识别「步骤」标识符');
       assert.ok(findIdent(tokens, '补偿'), '应识别「补偿」标识符');
       // Token 结构验证
-      assert.strictEqual(countTokenKind(tokens, TokenKind.LBRACKET), 1, '应有1个左方括号');
-      assert.strictEqual(countTokenKind(tokens, TokenKind.RBRACKET), 1, '应有1个右方括号');
       assert.strictEqual(countTokenKind(tokens, TokenKind.DOT), 1, '应有1个句号');
     });
 
     it('应正确词法分析带重试策略的步骤', () => {
-      const input = '【步骤】调用服务 重试 最多尝试 3 退避 指数。';
+      const input = '步骤 调用服务 重试 最多尝试 3 退避 指数。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
@@ -730,43 +719,35 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.ok(findIdent(tokens, '退避'), '应识别「退避」标识符');
       // Token 结构验证
       assert.strictEqual(countTokenKind(tokens, TokenKind.INT), 1, '应有1个整数（重试次数）');
-      assert.strictEqual(countTokenKind(tokens, TokenKind.LBRACKET), 1, '应有1个左方括号');
-      assert.strictEqual(countTokenKind(tokens, TokenKind.RBRACKET), 1, '应有1个右方括号');
     });
 
     it('应正确词法分析带超时的步骤', () => {
-      const input = '【步骤】长时间操作 超时 30。';
+      const input = '步骤 长时间操作 超时 30。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       assert.ok(findIdent(tokens, '超时'), '应识别「超时」标识符');
       // Token 结构验证
       assert.strictEqual(countTokenKind(tokens, TokenKind.INT), 1, '应有1个整数（超时值）');
-      assert.strictEqual(countTokenKind(tokens, TokenKind.LBRACKET), 1, '应有1个左方括号');
-      assert.strictEqual(countTokenKind(tokens, TokenKind.RBRACKET), 1, '应有1个右方括号');
     });
   });
 
   describe('中文 CNL 完整语法', () => {
     it('应正确词法分析模块声明', () => {
-      const input = '【模块】应用。';
+      const input = '模块 应用。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      // 【模块】被解析为 [ 模块 ] 三个 token
+      // 模块作为纯关键字直接解析为 IDENT
       const hasModule = tokens.some((t: Token) =>
         t.kind === TokenKind.IDENT && t.value === '模块'
       );
-      const hasLBracket = tokens.some((t: Token) => t.kind === TokenKind.LBRACKET);
-      const hasRBracket = tokens.some((t: Token) => t.kind === TokenKind.RBRACKET);
 
       assert.ok(hasModule, '应识别「模块」标识符');
-      assert.ok(hasLBracket, '应识别左方括号');
-      assert.ok(hasRBracket, '应识别右方括号');
     });
 
     it('应正确词法分析类型定义', () => {
-      const input = '【定义】用户 包含 编号：文本，名字：文本。';
+      const input = '定义 用户 包含 编号：文本，名字：文本。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
@@ -794,9 +775,9 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
 
     it('应正确词法分析完整中文程序', () => {
-      const program = `【模块】应用。
+      const program = `模块 应用。
 
-【定义】用户 包含 编号：文本，名字：文本。
+定义 用户 包含 编号：文本，名字：文本。
 
 问候 入参 用户：可选 用户，产出 文本：
   若 用户：
@@ -821,19 +802,19 @@ describe('ZH_CN Lexicon 测试套件', () => {
   describe('中英文对照验证', () => {
     it('中英文程序应产生相似的 token 结构', () => {
       // 英文程序（Codex Round 6 建议：添加数字字面量以验证 INT 统计）
-      const enProgram = `This module is app.
+      const enProgram = `Module app.
 
-Define User with id: Text, name: Text, age: Int.
+Define User has id: Text, name: Text, age: Int.
 
-To greet with user: User?, produce Text:
+Rule greet given user: User?, produce Text:
   Match user:
     When null, Return "Hi, guest".
     When User(id, name, 42), Return "Welcome, " plus name.`;
 
       // 对应的中文程序（Codex Round 6 建议：添加数字字面量以验证 INT 统计）
-      const zhProgram = `【模块】应用。
+      const zhProgram = `模块 应用。
 
-【定义】用户 包含 编号：文本，名字：文本，年龄：整数。
+定义 用户 包含 编号：文本，名字：文本，年龄：整数。
 
 问候 入参 用户：可选 用户，产出 文本：
   若 用户：
@@ -906,14 +887,11 @@ To greet with user: User?, produce Text:
       assert.strictEqual(zhDist.lparen, enDist.lparen, '中英文左圆括号数量应相等');
       assert.strictEqual(zhDist.rparen, enDist.rparen, '中英文右圆括号数量应相等');
 
-      // Codex Round 4 & 5 建议：验证方括号（中文【】被解析为[]）
-      // 中文使用【】标记增加了额外的方括号
-      assert.strictEqual(zhDist.lbracket, zhDist.rbracket, '中文左右方括号应平衡');
-      // Codex Round 5 建议：英文程序无方括号，应显式断言为 0
+      // 新语法移除了【】标记，中英文都不应有方括号
       assert.strictEqual(enDist.lbracket, 0, '英文程序不含方括号，应为0');
       assert.strictEqual(enDist.rbracket, 0, '英文程序不含方括号，应为0');
-      // 中文程序使用【定义】【模块】标记，有方括号
-      assert.ok(zhDist.lbracket > 0, '中文程序应有方括号（【】标记）');
+      assert.strictEqual(zhDist.lbracket, 0, '中文程序不再使用【】标记，方括号应为0');
+      assert.strictEqual(zhDist.rbracket, 0, '中文程序不再使用【】标记，方括号应为0');
     });
 
     it('如果/if 和 否则/otherwise 应正确识别为标识符', () => {
@@ -1016,10 +994,8 @@ To greet with user: User?, produce Text:
     it('hello.aster 应正确解析', () => {
       const { tokens } = parseZhCNFile('hello.aster');
 
-      // 验证模块声明关键词（【模块】被分词为 LBRACKET + IDENT(模块) + RBRACKET）
+      // 验证模块声明关键词（模块 作为纯关键字直接解析为 IDENT）
       assert.ok(findIdent(tokens, '模块'), '应有 模块 关键词');
-      // 验证方括号标记存在
-      assert.ok(tokens.some((t: Token) => t.kind === TokenKind.LBRACKET), '应有【标记');
 
       // 验证函数关键词
       assert.ok(findIdent(tokens, '入参'), '应有 入参 关键词');
@@ -1034,7 +1010,7 @@ To greet with user: User?, produce Text:
     it('loan_decision.aster 应正确解析', () => {
       const { tokens } = parseZhCNFile('loan_decision.aster');
 
-      // 验证类型定义关键词（【定义】被分词为 LBRACKET + IDENT(定义) + RBRACKET）
+      // 验证类型定义关键词（定义 作为纯关键字直接解析为 IDENT）
       assert.ok(findIdent(tokens, '定义'), '应有 定义 关键词');
       assert.ok(findIdent(tokens, '包含'), '应有 包含 关键词');
 
@@ -1054,12 +1030,11 @@ To greet with user: User?, produce Text:
       const intTokens = tokens.filter((t: Token) => t.kind === TokenKind.INT);
       assert.ok(intTokens.length >= 2, '应有整数字面量（18, 100000）');
 
-      // Codex 审查建议：验证特殊标点 token
-      // 验证方括号标记（【定义】【模块】）
+      // 新语法不再使用【】标记
       const lbracketCount = countTokenKind(tokens, TokenKind.LBRACKET);
       const rbracketCount = countTokenKind(tokens, TokenKind.RBRACKET);
-      assert.ok(lbracketCount >= 2, '应有【标记（模块、定义）');
-      assert.strictEqual(lbracketCount, rbracketCount, '左右方括号应平衡');
+      assert.strictEqual(lbracketCount, 0, '不应有方括号标记（已移除【】语法）');
+      assert.strictEqual(rbracketCount, 0, '不应有方括号标记（已移除【】语法）');
 
       // 验证中文冒号（类型声明和条件语句）
       const colonCount = countTokenKind(tokens, TokenKind.COLON);
@@ -1142,14 +1117,12 @@ To greet with user: User?, produce Text:
       const loanRparen = countTokenKind(loanTokens, TokenKind.RPAREN);
       assert.strictEqual(loanLparen, loanRparen, '贷款程序的左右圆括号应平衡');
 
+      // 新语法不再使用【】标记，方括号应为 0
       const loanLbracket = countTokenKind(loanTokens, TokenKind.LBRACKET);
-      const loanRbracket = countTokenKind(loanTokens, TokenKind.RBRACKET);
-      assert.strictEqual(loanLbracket, loanRbracket, '贷款程序的左右方括号应平衡');
+      assert.strictEqual(loanLbracket, 0, '贷款程序不应有方括号标记');
 
-      // 验证 hello.aster 结构完整性
       const helloLbracket = countTokenKind(helloTokens, TokenKind.LBRACKET);
-      const helloRbracket = countTokenKind(helloTokens, TokenKind.RBRACKET);
-      assert.strictEqual(helloLbracket, helloRbracket, 'hello程序的左右方括号应平衡');
+      assert.strictEqual(helloLbracket, 0, 'hello程序不应有方括号标记');
     });
   });
 });

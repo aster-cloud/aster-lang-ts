@@ -1,6 +1,6 @@
-This module is demo.workflow.linear.
+Module demo.workflow.linear.
 
-To testWorkflow, produce. It performs io:
+Rule testWorkflow, produce. It performs io:
   
   workflow:
     step validate:

@@ -1,22 +1,22 @@
-This module is aster.finance.enterprise_lending.
+Module aster.finance.enterprise_lending.
 
-Define EnterpriseInfo with companyId, companyName, industry, yearsInBusiness, employeeCount, annualRevenue, revenueGrowthRate, profitMargin.
+Define EnterpriseInfo has companyId, companyName, industry, yearsInBusiness, employeeCount, annualRevenue, revenueGrowthRate, profitMargin.
 
-Define FinancialPosition with totalAssets, currentAssets, totalLiabilities, currentLiabilities, equity, cashFlow, outstandingDebt.
+Define FinancialPosition has totalAssets, currentAssets, totalLiabilities, currentLiabilities, equity, cashFlow, outstandingDebt.
 
-Define BusinessHistory with previousLoans, defaultCount, latePayments, creditUtilization, largestLoanAmount, relationshipYears.
+Define BusinessHistory has previousLoans, defaultCount, latePayments, creditUtilization, largestLoanAmount, relationshipYears.
 
-Define LoanApplication with requestedAmount, loanPurpose, termMonths, collateralValue, guarantorCount.
+Define LoanApplication has requestedAmount, loanPurpose, termMonths, collateralValue, guarantorCount.
 
-Define LendingDecision with approved, approvedAmount, interestRateBps, termMonths, collateralRequired, specialConditions, riskCategory, confidenceScore, reasonCode, detailedAnalysis.
+Define LendingDecision has approved, approvedAmount, interestRateBps, termMonths, collateralRequired, specialConditions, riskCategory, confidenceScore, reasonCode, detailedAnalysis.
 
-Define LiquidityAnalysis with currentRatio, quickRatio, isHealthy, recommendation.
+Define LiquidityAnalysis has currentRatio, quickRatio, isHealthy, recommendation.
 
-Define LeverageAnalysis with debtToEquity, debtToAssets, riskLevel, maxLoanCapacity.
+Define LeverageAnalysis has debtToEquity, debtToAssets, riskLevel, maxLoanCapacity.
 
-Define ProfitabilityAnalysis with returnOnAssets, returnOnEquity, profitabilityGrade, repaymentCapacity.
+Define ProfitabilityAnalysis has returnOnAssets, returnOnEquity, profitabilityGrade, repaymentCapacity.
 
-To assessLiquidity with position, produce:
+Rule assessLiquidity given position, produce:
   Let currentRatio be (position.currentAssets times 100) divided by position.currentLiabilities.
   Let quickRatio be (position.currentAssets times 100) divided by position.currentLiabilities.
   If currentRatio at least 200:
@@ -27,7 +27,7 @@ To assessLiquidity with position, produce:
     Return LiquidityAnalysis(currentRatio, quickRatio, true, "Adequate liquidity").
   Return LiquidityAnalysis(currentRatio, quickRatio, false, "Poor liquidity").
 
-To assessLeverage with position, produce:
+Rule assessLeverage given position, produce:
   If position.equity equals to 0:
     Return LeverageAnalysis(0, 0, "CRITICAL", 0).
   Let debtToEquity be (position.totalLiabilities times 100) divided by position.equity.
@@ -41,7 +41,7 @@ To assessLeverage with position, produce:
     Return LeverageAnalysis(debtToEquity, debtToAssets, "HIGH", baseCapacity).
   Return LeverageAnalysis(debtToEquity, debtToAssets, "CRITICAL", 0).
 
-To assessProfitability with enterprise, position, produce:
+Rule assessProfitability given enterprise, position, produce:
   Let returnOnAssets be enterprise.profitMargin.
   Let returnOnEquity be enterprise.profitMargin.
   Let annualCashFlow be position.cashFlow times 12.
@@ -54,7 +54,7 @@ To assessProfitability with enterprise, position, produce:
     Return ProfitabilityAnalysis(returnOnAssets, returnOnEquity, "FAIR", repaymentCapacity).
   Return ProfitabilityAnalysis(returnOnAssets, returnOnEquity, "POOR", repaymentCapacity).
 
-To calculateIndustryFactor with industry, produce:
+Rule calculateIndustryFactor given industry, produce:
   If industry equals to "Healthcare":
     Return 105.
   If industry equals to "Education":
@@ -73,7 +73,7 @@ To calculateIndustryFactor with industry, produce:
     Return 90.
   Return 100.
 
-To assessMaturityScore with enterprise, history, produce:
+Rule assessMaturityScore given enterprise, history, produce:
   Let score be 0.
   If enterprise.yearsInBusiness at least 10:
     Let score be score plus 30.
@@ -89,7 +89,7 @@ To assessMaturityScore with enterprise, history, produce:
     Let score be score plus 10.
   Return score.
 
-To evaluateEnterpriseLoan with enterprise, position, history, application, produce:
+Rule evaluateEnterpriseLoan given enterprise, position, history, application, produce:
   If history.defaultCount greater than 0:
     Return LendingDecision(false, 0, 0, 0, 0, "Declined", "HIGH_RISK", 0, "PREVIOUS_DEFAULT", "Previous defaults on record").
   If position.equity at most 0:

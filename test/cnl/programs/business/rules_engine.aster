@@ -1,4 +1,4 @@
-This module is test.cnl.programs.business.rules_engine.
+Module test.cnl.programs.business.rules_engine.
 
-To main, produce:
+Rule main, produce:
   Return 0.
