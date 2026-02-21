@@ -23,6 +23,20 @@
 import type { Lexicon } from '../config/lexicons/types.js';
 import { getMultiWordKeywords } from '../config/lexicons/types.js';
 import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/index.js';
+import type { IdentifierIndex } from '../config/lexicons/identifiers/types.js';
+import { vocabularyRegistry } from '../config/lexicons/identifiers/registry.js';
+
+/**
+ * 规范化器选项。
+ */
+export interface CanonicalizerOptions {
+  /** 词法表，默认使用 en-US */
+  lexicon?: Lexicon;
+  /** 领域标识符（如 'insurance.auto'），启用标识符翻译 */
+  domain?: string;
+  /** 语言代码（如 'zh-CN'），与 domain 配合使用 */
+  locale?: string;
+}
 
 // 默认正则表达式（英语）
 const LINE_COMMENT_RE = /^\s*(?:\/\/|#)/;
@@ -126,7 +140,7 @@ function isEscaped(str: string, index: number): boolean {
  * 7. 规范化多词关键字大小写
  *
  * @param input - 原始 CNL 源代码字符串
- * @param lexicon - 可选的词法表，默认使用英语（en-US）配置
+ * @param lexiconOrOptions - 可选的词法表或选项对象
  * @returns 规范化后的 CNL 源代码
  *
  * @example
@@ -139,9 +153,30 @@ function isEscaped(str: string, index: number): boolean {
  * // 中文
  * import { ZH_CN } from './config/lexicons/zh-CN.js';
  * const zhCanonical = canonicalize(raw, ZH_CN);
+ *
+ * // 带领域词汇表翻译
+ * const withDomain = canonicalize(raw, {
+ *   lexicon: ZH_CN,
+ *   domain: 'insurance.auto',
+ *   locale: 'zh-CN',
+ * });
  * ```
  */
-export function canonicalize(input: string, lexicon?: Lexicon): string {
+export function canonicalize(input: string, lexiconOrOptions?: Lexicon | CanonicalizerOptions): string {
+  // 解析参数
+  let lexicon: Lexicon | undefined;
+  let identifierIndex: IdentifierIndex | undefined;
+
+  if (lexiconOrOptions && 'keywords' in lexiconOrOptions) {
+    lexicon = lexiconOrOptions as Lexicon;
+  } else if (lexiconOrOptions && typeof lexiconOrOptions === 'object') {
+    const opts = lexiconOrOptions as CanonicalizerOptions;
+    lexicon = opts.lexicon;
+    if (opts.domain && opts.locale) {
+      identifierIndex = vocabularyRegistry.getIndex(opts.domain, opts.locale);
+    }
+  }
+
   // 缓存有效的词法表，确保所有配置访问都使用同一来源
   const effectiveLexicon = getEffectiveLexicon(lexicon);
   const quotes = effectiveLexicon.punctuation.stringQuotes;
@@ -251,6 +286,11 @@ export function canonicalize(input: string, lexicon?: Lexicon): string {
   }
   // Do not collapse newlines globally.
   marked = marked.replace(/^\s+$/gm, '');
+
+  // 标识符翻译（如果提供了领域词汇表）
+  if (identifierIndex) {
+    marked = translateIdentifiers(marked, identifierIndex, quotes);
+  }
 
   // Final whitespace normalization to ensure idempotency after article/macro passes
   marked = marked
@@ -420,4 +460,41 @@ function normalizeRest(
       return normalized;
     })
     .join('');
+}
+
+/**
+ * 使用词汇表索引翻译代码中的标识符。
+ *
+ * 将本地化标识符（如中文）转换为规范化名称（英文）。
+ * 字符串字面量内的内容不做翻译。
+ */
+function translateIdentifiers(
+  source: string,
+  index: IdentifierIndex,
+  quotes: { open: string; close: string },
+): string {
+  const segments = segmentString(source, quotes);
+
+  return segments
+    .map(segment => {
+      if (segment.inString) return segment.text;
+      return translateIdentifiersInSegment(segment.text, index);
+    })
+    .join('');
+}
+
+/**
+ * 翻译单个代码片段中的标识符。
+ *
+ * 识别标识符边界（字母/下划线/中文字符序列），
+ * 用词汇表索引将本地化名称替换为规范化名称。
+ */
+function translateIdentifiersInSegment(text: string, index: IdentifierIndex): string {
+  // 标识符匹配模式：ASCII 标识符 + 中文字符序列
+  const IDENT_RE = /[a-zA-Z_\u4e00-\u9fa5][\w\u4e00-\u9fa5]*/g;
+
+  return text.replace(IDENT_RE, match => {
+    const canonical = index.toCanonical.get(match);
+    return canonical ?? match;
+  });
 }

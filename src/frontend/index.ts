@@ -11,6 +11,7 @@
  */
 
 export { canonicalize } from './canonicalizer.js';
+export type { CanonicalizerOptions } from './canonicalizer.js';
 export { lex } from './lexer.js';
 export { TokenKind, KW } from './tokens.js';
 export {
