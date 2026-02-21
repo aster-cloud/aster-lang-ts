@@ -71,7 +71,7 @@ const TS_LEXICONS: Record<string, Lexicon> = {
   'de-DE': DE_DE,
 };
 
-function main() {
+function main(): void {
   const jsonPath = process.argv[2]
     ?? resolve(__dirname, '../../../aster-lang-core/build/generated/lexicons/lexicons.json');
 

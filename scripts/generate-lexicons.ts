@@ -201,7 +201,7 @@ function quote(s: string): string {
 
 // ─── 主流程 ──────────────────────────────────────────────────
 
-function main() {
+function main(): void {
   const jsonPath = process.argv[2]
     ?? resolve(__dirname, '../../aster-lang-core/build/generated/lexicons/lexicons.json');
 
