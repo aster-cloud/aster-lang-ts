@@ -380,7 +380,7 @@ export function translateTokensWithMarkers(
       // - 在 "let x 为 ..." 结构中，"为" → "be"
       // - 否则，"为" → "when"（默认，用于 match 块）
       let translated = index.get(valueLower);
-      if (translated === 'when' && result.length >= 2) {
+      if (translated?.toLowerCase() === 'when' && result.length >= 2) {
         // 在 "令 x 为 ..." 结构中：
         // - result[-1] 是变量名 "x"（IDENT）
         // - result[-2] 是关键字 "let"

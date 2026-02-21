@@ -32,14 +32,15 @@ describe('关键词翻译器', () => {
       const index = buildKeywordTranslationIndex(ZH_CN, EN_US);
 
       // 验证控制流关键词（普通关键词，不含【】）
-      assert.strictEqual(index.get('如果'), 'if');
-      assert.strictEqual(index.get('若'), 'match');
+      // 翻译值来自 Java 源 en-US lexicon，部分关键词首字母大写
+      assert.strictEqual(index.get('如果'), 'If');
+      assert.strictEqual(index.get('若'), 'Match');
       // 注意：'为' 同时用于 WHEN 和 BE（复合关键词），由于构建顺序 WHEN 会覆盖 BE
       // 实际解析时依赖上下文：match 块内为 when，let 语句后为 be
-      assert.strictEqual(index.get('为'), 'when');
-      assert.strictEqual(index.get('返回'), 'return');
-      assert.strictEqual(index.get('否则'), 'otherwise');
-      assert.strictEqual(index.get('令'), 'let');
+      assert.strictEqual(index.get('为'), 'When');
+      assert.strictEqual(index.get('返回'), 'Return');
+      assert.strictEqual(index.get('否则'), 'Otherwise');
+      assert.strictEqual(index.get('令'), 'Let');
 
       // 验证普通类型定义关键词（不含【】）
       assert.strictEqual(index.get('包含'), 'with');
@@ -49,9 +50,9 @@ describe('关键词翻译器', () => {
       assert.strictEqual(index.get('产出'), 'produce');
 
       // 验证类型关键词
-      assert.strictEqual(index.get('整数'), 'int');
-      assert.strictEqual(index.get('文本'), 'text');
-      assert.strictEqual(index.get('布尔'), 'bool');
+      assert.strictEqual(index.get('整数'), 'Int');
+      assert.strictEqual(index.get('文本'), 'Text');
+      assert.strictEqual(index.get('布尔'), 'Bool');
 
       // 验证布尔字面量
       assert.strictEqual(index.get('真'), 'true');
@@ -63,7 +64,7 @@ describe('关键词翻译器', () => {
       const index = buildKeywordTranslationIndex(ZH_CN, EN_US);
 
       // 中文关键词没有大小写问题，但英文关键词应保持原始大小写
-      assert.strictEqual(index.get('如果'), 'if');
+      assert.strictEqual(index.get('如果'), 'If');
     });
 
     it('对相同词法表应返回空索引', () => {
@@ -77,13 +78,13 @@ describe('关键词翻译器', () => {
       const { index, markerIndex } = buildFullTranslationIndex(ZH_CN, EN_US);
 
       // 验证普通关键词在 index 中
-      assert.strictEqual(index.get('如果'), 'if');
-      assert.strictEqual(index.get('若'), 'match');
-      assert.strictEqual(index.get('返回'), 'return');
+      assert.strictEqual(index.get('如果'), 'If');
+      assert.strictEqual(index.get('若'), 'Match');
+      assert.strictEqual(index.get('返回'), 'Return');
       assert.strictEqual(index.get('包含'), 'with');
 
       // 中文不再使用【】标记，所有关键词都在 index 中
-      assert.strictEqual(index.get('定义'), 'define');
+      assert.strictEqual(index.get('定义'), 'Define');
       assert.strictEqual(index.get('模块'), 'Module');
       assert.strictEqual(index.get('流程'), 'workflow');
       assert.strictEqual(index.get('步骤'), 'step');
@@ -119,7 +120,7 @@ describe('关键词翻译器', () => {
       };
 
       const translated = translateToken(token, index);
-      assert.strictEqual(translated.value, 'if');
+      assert.strictEqual(translated.value, 'If');
       assert.strictEqual(translated.kind, TokenKind.IDENT);
     });
 
@@ -162,10 +163,10 @@ describe('关键词翻译器', () => {
       ];
 
       const translated = translateTokens(tokens, index);
-      assert.strictEqual(translated[0]!.value, 'if');
+      assert.strictEqual(translated[0]!.value, 'If');
       assert.strictEqual(translated[1]!.value, 'x');
       assert.strictEqual(translated[2]!.kind, TokenKind.COLON);
-      assert.strictEqual(translated[3]!.value, 'return');
+      assert.strictEqual(translated[3]!.value, 'Return');
     });
 
     it('不应修改原数组', () => {
@@ -203,9 +204,9 @@ describe('关键词翻译器', () => {
     it('getTranslation 应返回正确的翻译', () => {
       const translator = createKeywordTranslator(ZH_CN);
 
-      assert.strictEqual(translator.getTranslation('如果'), 'if');
-      assert.strictEqual(translator.getTranslation('若'), 'match');
-      assert.strictEqual(translator.getTranslation('返回'), 'return');
+      assert.strictEqual(translator.getTranslation('如果'), 'If');
+      assert.strictEqual(translator.getTranslation('若'), 'Match');
+      assert.strictEqual(translator.getTranslation('返回'), 'Return');
       assert.strictEqual(translator.getTranslation('驾驶员'), undefined);
     });
   });
@@ -225,17 +226,17 @@ describe('关键词翻译器', () => {
       const translator = createKeywordTranslator(ZH_CN);
       const translatedTokens = translator.translateTokens(tokens);
 
-      // 验证关键词已翻译（注意：翻译后值来自 en-US lexicon，保持其大小写）
+      // 验证关键词已翻译（翻译值来自 Java 源 en-US lexicon）
       const allTokens = translatedTokens;
       const hasRule = allTokens.some(t => (t.value as string)?.toLowerCase() === 'rule');
-      const hasWith = allTokens.some(t => t.value === 'with');
-      const hasProduce = allTokens.some(t => t.value === 'produce');
-      const hasReturn = allTokens.some(t => t.value === 'return');
+      const hasWith = allTokens.some(t => (t.value as string)?.toLowerCase() === 'with');
+      const hasProduce = allTokens.some(t => (t.value as string)?.toLowerCase() === 'produce');
+      const hasReturn = allTokens.some(t => (t.value as string)?.toLowerCase() === 'return');
 
       assert.ok(hasRule, '应有翻译后的 "Rule" 关键词');
       assert.ok(hasWith, '应有翻译后的 "with" 关键词');
       assert.ok(hasProduce, '应有翻译后的 "produce" 关键词');
-      assert.ok(hasReturn, '应有翻译后的 "return" 关键词');
+      assert.ok(hasReturn, '应有翻译后的 "Return" 关键词');
 
       // 步骤 4: 解析（使用翻译后的 token）
       const ast = parse(translatedTokens);
@@ -255,15 +256,15 @@ describe('关键词翻译器', () => {
       const translator = createKeywordTranslator(ZH_CN);
       const translatedTokens = translator.translateTokens(tokens);
 
-      // 验证关键词翻译（注意：翻译后值来自 en-US lexicon）
+      // 验证关键词翻译（翻译值来自 Java 源 en-US lexicon）
       const allTokens = translatedTokens;
       const hasDefine = allTokens.some(t => (t.value as string)?.toLowerCase() === 'define');
-      const hasWith = allTokens.some(t => t.value === 'with');
-      const hasInt = allTokens.some(t => t.value === 'int');
+      const hasWith = allTokens.some(t => (t.value as string)?.toLowerCase() === 'with');
+      const hasInt = allTokens.some(t => (t.value as string)?.toLowerCase() === 'int');
 
-      assert.ok(hasDefine, '应有翻译后的 "define" 关键词');
+      assert.ok(hasDefine, '应有翻译后的 "Define" 关键词');
       assert.ok(hasWith, '应有翻译后的 "with" 关键词');
-      assert.ok(hasInt, '应有翻译后的 "int" 类型');
+      assert.ok(hasInt, '应有翻译后的 "Int" 类型');
 
       // 解析
       const ast = parse(translatedTokens);
@@ -287,13 +288,13 @@ describe('关键词翻译器', () => {
       const translator = createKeywordTranslator(ZH_CN);
       const translatedTokens = translator.translateTokens(tokens);
 
-      // 验证关键词翻译
+      // 验证关键词翻译（使用大小写不敏感比较，值来自 Java 源 en-US lexicon）
       const identTokens = translatedTokens.filter(t => t.kind === TokenKind.IDENT);
-      const hasIf = identTokens.some(t => t.value === 'if');
-      const hasReturn = identTokens.some(t => t.value === 'return');
+      const hasIf = identTokens.some(t => (t.value as string)?.toLowerCase() === 'if');
+      const hasReturn = identTokens.some(t => (t.value as string)?.toLowerCase() === 'return');
 
-      assert.ok(hasIf, '应有翻译后的 "if" 关键词');
-      assert.ok(hasReturn, '应有翻译后的 "return" 关键词');
+      assert.ok(hasIf, '应有翻译后的 "If" 关键词');
+      assert.ok(hasReturn, '应有翻译后的 "Return" 关键词');
 
       // 解析
       const ast = parse(translatedTokens);

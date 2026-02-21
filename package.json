@@ -105,6 +105,8 @@
     "lint:fix": "eslint src scripts --ext .ts --fix",
     "format": "prettier --write src scripts",
     "format:check": "prettier --check src scripts",
+    "generate:lexicons": "npx tsx scripts/generate-lexicons.ts",
+    "verify:lexicons": "pnpm run build && node dist/scripts/verify-lexicon-sync.js",
     "verify:lexicon-sync": "pnpm run build && node dist/scripts/verify-lexicon-sync.js",
     "typecheck": "tsc --noEmit",
     "lsp": "node dist/src/lsp/server.js --stdio",

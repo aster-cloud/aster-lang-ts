@@ -1,49 +1,25 @@
-/**
- * @module config/lexicons/zh-CN
- *
- * 简体中文词法表 - Aster CNL 的中文皮肤。
- *
- * **设计策略**：自然语言风格
- * - 声明关键词使用中文词汇：模块、定义、规则
- * - 若为结构：模式匹配使用"若 X：为 Y"结构
- * - 直觉自然：控制流关键词使用日常中文，如"如果"、"否则"、"返回"
- * - 工作流关键词：流程、步骤
- *
- * **标点符号**：
- * - 使用中文标点：。，、：
- * - 字符串使用直角引号：「」
- */
+// @generated — 由 scripts/generate-lexicons.ts 自动生成，请勿手动修改
 
 import { SemanticTokenKind } from '../token-kind.js';
 import type { Lexicon } from './types.js';
 
-/**
- * 简体中文词法表。
- */
 export const ZH_CN: Lexicon = {
   id: 'zh-CN',
   name: '简体中文',
   direction: 'ltr',
 
   keywords: {
-    // 模块声明
     [SemanticTokenKind.MODULE_DECL]: '模块',
     [SemanticTokenKind.IMPORT]: '引用',
     [SemanticTokenKind.IMPORT_ALIAS]: '作为',
-
-    // 类型定义
     [SemanticTokenKind.TYPE_DEF]: '定义',
     [SemanticTokenKind.TYPE_WITH]: '包含',
     [SemanticTokenKind.TYPE_HAS]: '包含',
     [SemanticTokenKind.TYPE_ONE_OF]: '为以下之一',
-
-    // 函数定义
     [SemanticTokenKind.FUNC_TO]: '规则',
     [SemanticTokenKind.FUNC_GIVEN]: '给定',
     [SemanticTokenKind.FUNC_PRODUCE]: '产出',
     [SemanticTokenKind.FUNC_PERFORMS]: '执行',
-
-    // 控制流
     [SemanticTokenKind.IF]: '如果',
     [SemanticTokenKind.OTHERWISE]: '否则',
     [SemanticTokenKind.MATCH]: '若',
@@ -52,25 +28,17 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.RESULT_IS]: '结果为',
     [SemanticTokenKind.FOR_EACH]: '对每个',
     [SemanticTokenKind.IN]: '在',
-
-    // 变量操作
     [SemanticTokenKind.LET]: '令',
     [SemanticTokenKind.BE]: '为',
     [SemanticTokenKind.SET]: '将',
     [SemanticTokenKind.TO_WORD]: '设为',
-
-    // 布尔运算
     [SemanticTokenKind.OR]: '或',
     [SemanticTokenKind.AND]: '且',
     [SemanticTokenKind.NOT]: '非',
-
-    // 算术运算
     [SemanticTokenKind.PLUS]: '加',
     [SemanticTokenKind.MINUS_WORD]: '减',
     [SemanticTokenKind.TIMES]: '乘',
     [SemanticTokenKind.DIVIDED_BY]: '除以',
-
-    // 比较运算
     [SemanticTokenKind.LESS_THAN]: '小于',
     [SemanticTokenKind.GREATER_THAN]: '大于',
     [SemanticTokenKind.EQUALS_TO]: '等于',
@@ -78,8 +46,6 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.UNDER]: '不足',
     [SemanticTokenKind.OVER]: '超过',
     [SemanticTokenKind.MORE_THAN]: '多于',
-
-    // 类型构造
     [SemanticTokenKind.MAYBE]: '可选',
     [SemanticTokenKind.OPTION_OF]: '选项',
     [SemanticTokenKind.RESULT_OF]: '结果',
@@ -87,23 +53,15 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.ERR_OF]: '失败',
     [SemanticTokenKind.SOME_OF]: '有值',
     [SemanticTokenKind.NONE]: '无',
-
-    // 字面量
     [SemanticTokenKind.TRUE]: '真',
     [SemanticTokenKind.FALSE]: '假',
     [SemanticTokenKind.NULL]: '空',
-
-    // 基础类型
     [SemanticTokenKind.TEXT]: '文本',
     [SemanticTokenKind.INT_TYPE]: '整数',
     [SemanticTokenKind.FLOAT_TYPE]: '小数',
     [SemanticTokenKind.BOOL_TYPE]: '布尔',
-
-    // 效果声明
     [SemanticTokenKind.IO]: '输入输出',
     [SemanticTokenKind.CPU]: '计算',
-
-    // 工作流
     [SemanticTokenKind.WORKFLOW]: '流程',
     [SemanticTokenKind.STEP]: '步骤',
     [SemanticTokenKind.DEPENDS]: '依赖',
@@ -113,16 +71,12 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.TIMEOUT]: '超时',
     [SemanticTokenKind.MAX_ATTEMPTS]: '最多尝试',
     [SemanticTokenKind.BACKOFF]: '退避',
-
-    // 异步操作
     [SemanticTokenKind.WITHIN]: '范围',
     [SemanticTokenKind.SCOPE]: '域',
     [SemanticTokenKind.START]: '启动',
     [SemanticTokenKind.ASYNC]: '异步',
     [SemanticTokenKind.AWAIT]: '等待',
     [SemanticTokenKind.WAIT_FOR]: '等候',
-
-    // 约束声明
     [SemanticTokenKind.REQUIRED]: '必填',
     [SemanticTokenKind.BETWEEN]: '介于',
     [SemanticTokenKind.AT_LEAST]: '至少',
@@ -143,36 +97,29 @@ export const ZH_CN: Lexicon = {
   },
 
   canonicalization: {
-    fullWidthToHalf: true, // 全角数字和运算符转半角
-    whitespaceMode: 'chinese', // 中文不使用空格分隔
-    removeArticles: false, // 中文没有冠词
-    // 引号规范化已在 canonicalizer 中统一处理（支持智能引号和直引号）
-    // 不再需要自定义规则
-
-    // 允许共享同一关键字的语义令牌组
-    // "为" 在不同上下文中有不同含义：模式匹配 (WHEN) 和变量赋值 (BE)
+    fullWidthToHalf: true,
+    whitespaceMode: 'chinese',
+    removeArticles: false,
     allowedDuplicates: [
-      [SemanticTokenKind.WHEN, SemanticTokenKind.BE], // "为" 用于 match/when 和 let/be
-      [SemanticTokenKind.TYPE_WITH, SemanticTokenKind.TYPE_HAS], // "包含" 用于旧/新类型字段语法
-      [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN], // 均映射为 "<" 符号
-      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN], // 均映射为 ">" 符号
+      [SemanticTokenKind.BE, SemanticTokenKind.WHEN],
+      [SemanticTokenKind.TYPE_HAS, SemanticTokenKind.TYPE_WITH],
+      [SemanticTokenKind.LESS_THAN, SemanticTokenKind.UNDER],
+      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
     ],
-
-    // 复合关键词模式 - 定义上下文敏感的关键词组合
     compoundPatterns: [
       {
         name: 'match-when',
-        opener: SemanticTokenKind.MATCH, // "若"
+        opener: SemanticTokenKind.MATCH,
         contextualKeywords: [
-          SemanticTokenKind.WHEN, // "为" - 仅在 match 块内有效
+          SemanticTokenKind.WHEN,
         ],
         closer: 'DEDENT',
       },
       {
         name: 'let-be',
-        opener: SemanticTokenKind.LET, // "令"
+        opener: SemanticTokenKind.LET,
         contextualKeywords: [
-          SemanticTokenKind.BE, // "为" - 在 let 语句中用作赋值
+          SemanticTokenKind.BE,
         ],
         closer: 'NEWLINE',
       },
@@ -181,10 +128,10 @@ export const ZH_CN: Lexicon = {
 
   messages: {
     unexpectedToken: '意外的符号：{token}',
-    expectedKeyword: '期望关键词「{keyword}」',
+    expectedKeyword: '期望关键词：{keyword}',
     undefinedVariable: '未定义的变量：{name}',
     typeMismatch: '类型不匹配：期望 {expected}，实际 {actual}',
-    unterminatedString: '未终止的字符串',
-    invalidIndentation: '无效的缩进：必须是2个空格的倍数',
+    unterminatedString: '未终止的字符串字面量',
+    invalidIndentation: '无效的缩进：必须是 2 个空格的倍数',
   },
 };
