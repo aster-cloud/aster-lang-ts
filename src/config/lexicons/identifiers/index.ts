@@ -49,6 +49,12 @@ export {
   type VocabularyEntry,
 } from './registry.js';
 
-// 领域词汇表导出
-export { INSURANCE_AUTO_ZH_CN } from './domains/insurance.auto.zh-CN.js';
-export { FINANCE_LOAN_ZH_CN } from './domains/finance.loan.zh-CN.js';
+// 领域词汇表导出（@generated 文件，由 Java 真源生成）
+export {
+  FINANCE_LOAN_DE_DE,
+  FINANCE_LOAN_EN_US,
+  FINANCE_LOAN_ZH_CN,
+  INSURANCE_AUTO_DE_DE,
+  INSURANCE_AUTO_EN_US,
+  INSURANCE_AUTO_ZH_CN,
+} from './domains/index.js';

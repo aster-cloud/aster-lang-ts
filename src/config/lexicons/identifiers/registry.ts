@@ -17,9 +17,13 @@ import {
   validateVocabulary,
 } from './types.js';
 
-// 内置领域词汇表
+// 内置领域词汇表（@generated 文件，由 Java 真源生成）
 import { INSURANCE_AUTO_ZH_CN } from './domains/insurance.auto.zh-CN.js';
 import { FINANCE_LOAN_ZH_CN } from './domains/finance.loan.zh-CN.js';
+import { INSURANCE_AUTO_EN_US } from './domains/insurance.auto.en-US.js';
+import { FINANCE_LOAN_EN_US } from './domains/finance.loan.en-US.js';
+import { INSURANCE_AUTO_DE_DE } from './domains/insurance.auto.de-DE.js';
+import { FINANCE_LOAN_DE_DE } from './domains/finance.loan.de-DE.js';
 
 /**
  * 词汇表注册条目。
@@ -233,6 +237,10 @@ export function initBuiltinVocabularies(): void {
   builtinsInitialized = true;
   vocabularyRegistry.register(INSURANCE_AUTO_ZH_CN);
   vocabularyRegistry.register(FINANCE_LOAN_ZH_CN);
+  vocabularyRegistry.register(INSURANCE_AUTO_EN_US);
+  vocabularyRegistry.register(FINANCE_LOAN_EN_US);
+  vocabularyRegistry.register(INSURANCE_AUTO_DE_DE);
+  vocabularyRegistry.register(FINANCE_LOAN_DE_DE);
 }
 
 // 导出类型供外部使用

@@ -118,6 +118,7 @@
     "format": "prettier --write src scripts",
     "format:check": "prettier --check src scripts",
     "generate:lexicons": "npx tsx scripts/generate-lexicons.ts",
+    "generate:vocabularies": "npx tsx scripts/generate-vocabularies.ts",
     "verify:lexicons": "pnpm run build && node dist/scripts/verify-lexicon-sync.js",
     "verify:lexicon-sync": "pnpm run build && node dist/scripts/verify-lexicon-sync.js",
     "typecheck": "tsc --noEmit",
