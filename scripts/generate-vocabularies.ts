@@ -208,7 +208,8 @@ function quote(s: string): string {
 // ─── 主流程 ──────────────────────────────────────────────────
 
 function main(): void {
-  const jsonPath = process.argv[2]
+  const args = process.argv.slice(2).filter(a => a !== '--');
+  const jsonPath = args[0]
     ?? resolve(__dirname, '../../aster-lang-core/build/generated/vocabularies/vocabularies.json');
 
   let json: VocabulariesJson;
