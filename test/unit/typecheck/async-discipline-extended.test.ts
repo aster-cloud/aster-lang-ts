@@ -58,14 +58,14 @@ describe('异步纪律补充测试', () => {
     const diagnostics = runTypecheck(`
 Module test.async.nested_missing_wait.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule process given u: User, produce Text. It performs io:
-  If u.id equals to "1":
+Rule process given u as User, produce Text. It performs io:
+  If u.id equals to "1"
     Start profile as async fetchProfile(u.id).
   Return "done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "profile".
 `);
     const missingWait = diagnostics.filter(d => d.code === ErrorCode.ASYNC_START_NOT_WAITED);

@@ -118,6 +118,12 @@ export interface CanonicalizationConfig {
    * 提供元数据，并在错误上下文使用关键词时提供更清晰的诊断信息。
    */
   readonly compoundPatterns?: readonly CompoundPattern[];
+
+  /** 翻译前变换器名称列表（在关键字翻译之前应用） */
+  readonly preTranslationTransformers?: readonly string[];
+
+  /** 翻译后变换器名称列表（在关键字翻译之后应用） */
+  readonly postTranslationTransformers?: readonly string[];
 }
 
 /**

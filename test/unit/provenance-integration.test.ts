@@ -13,7 +13,7 @@ describe('Provenance Integration Tests', () => {
 
     const cnlCode = `Module ai.generated.simple.
 
-Rule add given x: Int, y: Int, produce Int:
+Rule add given x as Int, y as Int, produce Int:
   Return x plus y.
 `;
 
@@ -39,13 +39,13 @@ Rule add given x: Int, y: Int, produce Int:
 
     const cnlCode = `Module ai.generated.complex.
 
-Rule greet given name: Text, produce Text:
+Rule greet given name as Text, produce Text:
   Return "Hello".
 
-Rule double given n: Int, produce Int:
+Rule double given n as Int, produce Int:
   Return n times 2.
 
-Rule calculate given x: Int, y: Int, produce Int:
+Rule calculate given x as Int, y as Int, produce Int:
   Let sum be x plus y.
   Return sum times 2.
 `;
@@ -71,7 +71,7 @@ Rule calculate given x: Int, y: Int, produce Int:
 
     const cnlCode = `Module ai.generated.longprompt.
 
-Rule identity given x: Int, produce Int:
+Rule identity given x as Int, produce Int:
   Return x.
 `;
 
@@ -97,7 +97,7 @@ Rule identity given x: Int, produce Int:
 
     const cnlCode = `Module ai.generated.multiline.
 
-Rule multiply given x: Int, y: Int, produce Int:
+Rule multiply given x as Int, y as Int, produce Int:
   Return x times y.
 `;
 

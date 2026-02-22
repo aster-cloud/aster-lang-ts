@@ -37,35 +37,35 @@ Define VerificationStep has
 // 药物相互作用检查（简化版）
 // 返回描述文本而非完整结构，简化类型推断
 Rule check_warfarin_aspirin_interaction given medication, has_aspirin, produce:
-  If medication equals to "warfarin":
-    If has_aspirin:
+  If medication equals to "warfarin"
+    If has_aspirin
       Return ok of "Increased bleeding risk".
   Return err of "No interaction".
 
 // 验证处方医生执照
 Rule validate_prescriber given prescriber_id, produce:
-  If prescriber_id equals to "":
-    Return VerificationStep with step_name = "validate_prescriber", passed = false, message = "Prescriber ID required".
-  Return VerificationStep with step_name = "validate_prescriber", passed = true, message = "Prescriber validated".
+  If prescriber_id equals to ""
+    Return VerificationStep with step_name set to "validate_prescriber", passed set to false, message set to "Prescriber ID required".
+  Return VerificationStep with step_name set to "validate_prescriber", passed set to true, message set to "Prescriber validated".
 
 // 验证剂量合理性
 Rule verify_dosage given medication, dosage, produce:
-  If dosage equals to "":
-    Return VerificationStep with step_name = "verify_dosage", passed = false, message = "Dosage required".
-  Return VerificationStep with step_name = "verify_dosage", passed = true, message = "Dosage verified".
+  If dosage equals to ""
+    Return VerificationStep with step_name set to "verify_dosage", passed set to false, message set to "Dosage required".
+  Return VerificationStep with step_name set to "verify_dosage", passed set to true, message set to "Dosage verified".
 
 // 处方验证工作流（简化版）
 Rule verify_prescription given rx, has_aspirin, produce:
   Let prescriber_check be validate_prescriber(rx.prescriber_id).
-  If prescriber_check.passed equals to false:
+  If prescriber_check.passed equals to false
     Return err of prescriber_check.message.
   Let interaction_check be check_warfarin_aspirin_interaction(rx.medication, has_aspirin).
-  If Result.isOk(interaction_check):
+  If Result.isOk(interaction_check)
     Return err of "Drug interaction detected".
   Let dosage_check be verify_dosage(rx.medication, rx.dosage).
-  If dosage_check.passed equals to false:
+  If dosage_check.passed equals to false
     Return err of dosage_check.message.
-  Let verification be PharmacyVerification with verified = true, pharmacist_id = "PH-001", timestamp = "2025-11-27T10:00:00Z", notes = "All checks passed".
+  Let verification be PharmacyVerification with verified set to true, pharmacist_id set to "PH-001", timestamp set to "2025-11-27T10:00:00Z", notes set to "All checks passed".
   Return ok of verification.
 
 // 安全传输处方（脱敏患者信息）
@@ -74,10 +74,10 @@ Rule transmit_prescription_safe given rx, produce:
 
 // 示例：无相互作用的处方验证
 Rule demo_safe_prescription, produce:
-  Let rx be Prescription with prescription_id = "RX-001", patient_id = "P-001", patient_name = "John Doe", medication = "lisinopril", dosage = "10mg", frequency = "once daily", prescriber_id = "DR-001", prescriber_name = "Dr. Smith".
+  Let rx be Prescription with prescription_id set to "RX-001", patient_id set to "P-001", patient_name set to "John Doe", medication set to "lisinopril", dosage set to "10mg", frequency set to "once daily", prescriber_id set to "DR-001", prescriber_name set to "Dr. Smith".
   Return verify_prescription(rx, false).
 
 // 示例：有药物相互作用的处方验证
 Rule demo_interaction_prescription, produce:
-  Let rx be Prescription with prescription_id = "RX-002", patient_id = "P-002", patient_name = "Jane Doe", medication = "warfarin", dosage = "5mg", frequency = "once daily", prescriber_id = "DR-002", prescriber_name = "Dr. Jones".
+  Let rx be Prescription with prescription_id set to "RX-002", patient_id set to "P-002", patient_name set to "Jane Doe", medication set to "warfarin", dosage set to "5mg", frequency set to "once daily", prescriber_id set to "DR-002", prescriber_name set to "Dr. Jones".
   Return verify_prescription(rx, true).

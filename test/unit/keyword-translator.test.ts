@@ -248,7 +248,7 @@ describe('关键词翻译器', () => {
 
     it('应能解析翻译后的中文 CNL 类型定义', () => {
       // 中文类型定义
-      const zhSource = '定义 Driver 包含 age：整数。';
+      const zhSource = '定义 Driver 包含 age 作为 整数。';
 
       // 完整编译流程
       const canonical = canonicalize(zhSource, ZH_CN);
@@ -278,7 +278,7 @@ describe('关键词翻译器', () => {
     it('应能解析翻译后的中文 CNL If 语句', () => {
       // 中文 If 语句 - 使用 规则 标记关键词
       const zhSource = `规则 check 包含 x，产出：
-  如果 1 小于 2：
+  如果 1 小于 2
     返回 1。
   返回 0。`;
 

@@ -106,6 +106,8 @@ export const EN_US: Lexicon = {
       [SemanticTokenKind.LESS_THAN, SemanticTokenKind.UNDER],
       [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
     ],
+    preTranslationTransformers: ['english-possessive'],
+    postTranslationTransformers: ['result-is'],
   },
 
   messages: {

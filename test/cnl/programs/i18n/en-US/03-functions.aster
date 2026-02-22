@@ -18,7 +18,7 @@ Rule quadruple given x, produce:
 
 // Function returning a record
 Rule createResult given ok, msg, produce:
-  Return Result with success = ok, message = msg.
+  Return Result with success set to ok, message set to msg.
 
 // Function with local variables
 Rule calculate given base, multiplier, offset, produce:

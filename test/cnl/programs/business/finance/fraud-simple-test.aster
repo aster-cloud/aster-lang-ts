@@ -6,4 +6,4 @@ Define FraudResult has riskScore.
 
 Rule detectSimple given transaction, produce:
   Let score be transaction.amount.
-  Return FraudResult with riskScore = score.
+  Return FraudResult with riskScore set to score.

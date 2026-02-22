@@ -25,7 +25,7 @@ describe('类型推导与诊断', () => {
     const diagnostics = runTypecheck(`
 Module test.typecheck.identity.
 
-Rule identity of T given value: T, produce T:
+Rule identity of T given value as T, produce T:
   Return value.
 `);
     assert.equal(diagnostics.length, 0);
@@ -35,7 +35,7 @@ Rule identity of T given value: T, produce T:
     const diagnostics = runTypecheck(`
 Module test.typecheck.unused_type_param.
 
-Rule constant of T given value: Int, produce Int:
+Rule constant of T given value as Int, produce Int:
   Return value.
 `);
     assert.equal(diagnostics.some(d => d.code === ErrorCode.TYPE_PARAM_UNUSED), true);
@@ -57,7 +57,7 @@ Rule demo, produce Int:
     const diagnostics = runTypecheck(`
 Module test.typecheck.return_mismatch.
 
-Rule describe given value: Int, produce Text:
+Rule describe given value as Int, produce Text:
   Return value.
 `);
     assert.equal(diagnostics.some(d => d.code === ErrorCode.RETURN_TYPE_MISMATCH), true);
@@ -79,7 +79,7 @@ Module test.typecheck.match_mismatch.
 
 Define Result as one of Ok, Err.
 
-Rule handle given outcome: Result, produce Int:
+Rule handle given outcome as Result, produce Int:
   Match outcome:
     When Ok, Return 1.
     When Err, Return "bad".
@@ -91,10 +91,10 @@ Rule handle given outcome: Result, produce Int:
     const diagnostics = runTypecheck(`
 Module test.typecheck.unknown_field.
 
-Define User has id: Text, name: Text.
+Define User has id as Text, name as Text.
 
 Rule buildUser, produce User:
-  Return User with id = "42", nickname = "Anon", name = "Alice".
+  Return User with id set to "42", nickname set to "Anon", name set to "Alice".
 `);
     assert.equal(diagnostics.some(d => d.code === ErrorCode.UNKNOWN_FIELD), true);
   });
@@ -103,10 +103,10 @@ Rule buildUser, produce User:
     const diagnostics = runTypecheck(`
 Module test.typecheck.field_type.
 
-Define User has id: Text, name: Text.
+Define User has id as Text, name as Text.
 
 Rule buildUser, produce User:
-  Return User with id = 42, name = "Alice".
+  Return User with id set to 42, name set to "Alice".
 `);
     assert.equal(diagnostics.some(d => d.code === ErrorCode.FIELD_TYPE_MISMATCH), true);
   });
@@ -115,10 +115,10 @@ Rule buildUser, produce User:
     const diagnostics = runTypecheck(`
 Module test.typecheck.missing_field.
 
-Define User has id: Text, name: Text.
+Define User has id as Text, name as Text.
 
 Rule buildUser, produce User:
-  Return User with id = "42".
+  Return User with id set to "42".
 `);
     assert.equal(diagnostics.some(d => d.code === ErrorCode.MISSING_REQUIRED_FIELD), true);
   });
@@ -127,7 +127,7 @@ Rule buildUser, produce User:
     const diagnostics = runTypecheck(`
 Module test.typecheck.await_type.
 
-Rule badAwait given value: Int, produce Int:
+Rule badAwait given value as Int, produce Int:
   Return await(value).
 `);
     assert.equal(diagnostics.some(d => d.code === ErrorCode.AWAIT_TYPE), true);

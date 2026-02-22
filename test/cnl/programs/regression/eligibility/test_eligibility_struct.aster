@@ -12,4 +12,4 @@ Rule calculatePatientCost given basePrice, coveragePercent, produce:
   Return patientCost.
 
 Rule checkServiceEligibility given patient, service, produce:
-  Return EligibilityCheck with eligible = true, reason = "Has insurance", coveragePercent = 80, estimatedCost = calculatePatientCost(service.basePrice, 80), requiresPreAuth = service.requiresPreAuth.
+  Return EligibilityCheck with eligible set to true, reason set to "Has insurance", coveragePercent set to 80, estimatedCost set to calculatePatientCost(service.basePrice, 80), requiresPreAuth set to service.requiresPreAuth.

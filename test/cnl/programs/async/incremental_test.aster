@@ -7,4 +7,4 @@ Define ApplicantProfile has age, creditScore, annualIncome, monthlyDebt, yearsEm
 Define LoanDecision has approved, reason, approvedAmount, interestRate, termMonths.
 
 Rule evaluateLoanEligibility given application, applicant, produce:
-  Return LoanDecision with approved = true, reason = "OK", approvedAmount = 0, interestRate = 0, termMonths = 0.
+  Return LoanDecision with approved set to true, reason set to "OK", approvedAmount set to 0, interestRate set to 0, termMonths set to 0.

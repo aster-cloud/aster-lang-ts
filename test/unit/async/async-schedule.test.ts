@@ -31,15 +31,15 @@ describe('异步调度 - Wait-before-Start', () => {
     const source = `
 Module test.async.schedule.wait_before_start.simple.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule orchestrate given u: User, produce Text. It performs io:
+Rule orchestrate given u as User, produce Text. It performs io:
   Wait for job.
   Start job as async launch(u.id).
   Wait for job.
   Return "Done".
 
-Rule launch given id: Text, produce Text. It performs io:
+Rule launch given id as Text, produce Text. It performs io:
   Return "job".
 `;
 
@@ -54,14 +54,14 @@ Rule launch given id: Text, produce Text. It performs io:
     const source = `
 Module test.async.schedule.wait_after_start.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule orchestrate given u: User, produce Text. It performs io:
+Rule orchestrate given u as User, produce Text. It performs io:
   Start task as async launch(u.id).
   Wait for task.
   Return "Done".
 
-Rule launch given id: Text, produce Text. It performs io:
+Rule launch given id as Text, produce Text. It performs io:
   Return "ok".
 `;
 
@@ -75,8 +75,8 @@ Rule launch given id: Text, produce Text. It performs io:
     const source = `
 Module test.async.schedule.wait_in_branch.
 
-Rule orchestrate given enabled: Bool, produce Text. It performs io:
-  If enabled:
+Rule orchestrate given enabled as Bool, produce Text. It performs io:
+  If enabled
     Wait for task.
   Start task as async launch().
   Wait for task.
@@ -99,10 +99,10 @@ describe('异步调度 - 条件分支', () => {
     const source = `
 Module test.async.schedule.if_branch.
 
-Rule orchestrate given tier: Text, produce Text. It performs io:
-  If tier equals to "vip":
+Rule orchestrate given tier as Text, produce Text. It performs io:
+  If tier equals to "vip"
     Start session as async startVip().
-  Otherwise:
+  Otherwise
     Start session as async startStandard().
   Wait for session.
   Return "Done".
@@ -126,7 +126,7 @@ Module test.async.schedule.match_branch.
 
 Define Choice as one of Primary, Secondary.
 
-Rule orchestrate given choice: Choice, produce Text. It performs io:
+Rule orchestrate given choice as Choice, produce Text. It performs io:
   Match choice:
     When Primary:
       Start session as async startPrimary().

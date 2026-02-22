@@ -91,7 +91,7 @@ describe('模式匹配 Result/Maybe 绑定', () => {
     const diagnostics = runTypecheck(`
 Module test.typecheck.pattern.result_ok.
 
-Rule unwrap given value: Result of Int and Text, produce Int:
+Rule unwrap given value as Result of Int and Text, produce Int:
   Match value:
     When Ok(number), Return number.
     When Err(err), Return 0.
@@ -103,7 +103,7 @@ Rule unwrap given value: Result of Int and Text, produce Int:
     const diagnostics = runTypecheck(`
 Module test.typecheck.pattern.maybe_some.
 
-Rule unwrap given value: Option of Text, produce Text:
+Rule unwrap given value as Option of Text, produce Text:
   Match value:
     When Some(text), Return text.
     When None, Return "fallback".
@@ -117,10 +117,10 @@ describe('构造器字段诊断', () => {
     const diagnostics = runTypecheck(`
 Module test.typecheck.construct.missing.
 
-Define Profile has id: Int, name: Text.
+Define Profile has id as Int, name as Text.
 
 Rule build, produce Profile:
-  Return Profile with id = 1.
+  Return Profile with id set to 1.
 `);
     assert.equal(
       diagnostics.some(d => d.code === ErrorCode.MISSING_REQUIRED_FIELD),
@@ -133,10 +133,10 @@ Rule build, produce Profile:
     const diagnostics = runTypecheck(`
 Module test.typecheck.construct.duplicate.
 
-Define Profile has id: Int, name: Text.
+Define Profile has id as Int, name as Text.
 
 Rule build, produce Profile:
-  Return Profile with id = 1, id = "oops", name = "Alice".
+  Return Profile with id set to 1, id set to "oops", name set to "Alice".
 `);
     const mismatch = diagnostics.find(d => d.code === ErrorCode.FIELD_TYPE_MISMATCH);
     assert.ok(mismatch, '重复字段类型不符应报错');

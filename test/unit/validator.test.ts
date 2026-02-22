@@ -5,16 +5,16 @@ import { PolicyValidator } from '../../src/ai/validator.js';
 // 测试数据
 const validCNL = `Module tests.ai.valid.
 
-Rule add given x: Int, y: Int, produce Int:
+Rule add given x as Int, y as Int, produce Int:
   Return x plus y.
 `;
 
 const validCNLComplex = `Module tests.ai.complex.
 
-Rule greet given name: Text, produce Text:
+Rule greet given name as Text, produce Text:
   Return "Hello".
 
-Rule double given n: Int, produce Int:
+Rule double given n as Int, produce Int:
   Return n times 2.
 `;
 
@@ -185,7 +185,7 @@ describe('Policy Validator', () => {
 Module tests.ai.comments.
 
 // Add two numbers
-Rule add given x: Int, y: Int, produce Int:
+Rule add given x as Int, y as Int, produce Int:
   Return x plus y.
 `;
 

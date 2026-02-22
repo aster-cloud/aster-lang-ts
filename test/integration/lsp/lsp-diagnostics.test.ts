@@ -33,9 +33,9 @@ function createMockGetOrParse() {
 async function testBasicDiagnostics(): Promise<void> {
   const code = `Module test_app.
 
-Define User has id: Text, name: Text.
+Define User has id as Text, name as Text.
 
-Rule greet given user: User, produce Text:
+Rule greet given user as User, produce Text:
   Return "Hello, {user.name}".
 `;
 
@@ -50,7 +50,7 @@ Rule greet given user: User, produce Text:
 }
 
 async function testMissingModuleHeader(): Promise<void> {
-  const code = `Define User has id: Text.`;
+  const code = `Define User has id as Text.`;
 
   const doc = TextDocument.create('file:///test.aster', 'aster', 1, code);
   const getOrParse = createMockGetOrParse();

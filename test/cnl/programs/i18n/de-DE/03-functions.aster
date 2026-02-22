@@ -18,7 +18,7 @@ Um vierfach mit wert, liefert:
 
 // Funktion die einen Datensatz zurueckgibt
 Um ergebnisErstellen mit ok, msg, liefert:
-  gib zurueck Ergebnis mit erfolg = ok, nachricht = msg.
+  gib zurueck Ergebnis mit erfolg setze auf ok, nachricht setze auf msg.
 
 // Funktion mit lokalen Variablen
 Um berechnen mit basis, faktor, offset, liefert:

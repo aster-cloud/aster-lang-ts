@@ -259,17 +259,14 @@ export function parseStatement(
     const ifTok = ctx.peek();
     ctx.nextWord();
     const cond = parseExpr(ctx, error);
-    // CNL 改进: 移除冗余逗号，只保留冒号 (If condition: → 更自然)
-    if (!ctx.at(TokenKind.COLON)) error("Expected ':' after condition in If");
-    ctx.next();
+    // 可选逗号分隔（If condition, → If condition）
+    if (ctx.at(TokenKind.COMMA)) ctx.next();
     expectNewline(ctx, error);
     const thenBlock = parseBlock(ctx, error);
     let elseBlock: Block | null = null;
     if (ctx.isKeyword(KW.OTHERWISE)) {
       ctx.nextWord();
-      // CNL 改进: 移除冗余逗号，只保留冒号 (Otherwise: → 更自然)
-      if (!ctx.at(TokenKind.COLON)) error("Expected ':' after Otherwise");
-      ctx.next();
+      if (ctx.at(TokenKind.COMMA)) ctx.next();
       expectNewline(ctx, error);
       elseBlock = parseBlock(ctx, error);
     }
@@ -829,8 +826,9 @@ function parsePrimary(
         let ptype: Type;
         let colonTok: Token | undefined;
         let typeInferred = false;
-        if (ctx.at(TokenKind.COLON)) {
-          colonTok = ctx.next();
+        if (ctx.isKeyword(KW.AS)) {
+          colonTok = ctx.peek();
+          ctx.nextWord();
           ptype = parseType(ctx, error);
         } else {
           typeInferred = true;
@@ -976,9 +974,11 @@ function parsePrimary(
       while (hasMore) {
         const nameTok = ctx.peek();
         const name = parseIdent(ctx, error);
-        if (!ctx.at(TokenKind.EQUALS)) error("Expected '=' in construction");
+        if (!ctx.isKeyword(KW.SET)) error("Expected 'set to' in construction");
         const equalsTok = ctx.peek();
-        ctx.next();
+        ctx.nextWord();
+        if (!ctx.isKeyword(KW.TO_WORD)) error("Expected 'to' after 'set' in construction");
+        ctx.nextWord();
         const e = parseExpr(ctx, error);
         const fld: ConstructField = {
           name,
@@ -1170,7 +1170,7 @@ export function parseParamList(
   error: (msg: string, tok?: import('../types.js').Token) => never
 ): Parameter[] {
   const params: Parameter[] = [];
-  // 'with' / 'given' params
+  // 'with' / 'given' params — type annotation uses 'as' keyword
   if (ctx.isKeyword(KW.WITH) || ctx.isKeyword(KW.GIVEN)) {
     ctx.nextWord();
     let hasMore = true;
@@ -1184,8 +1184,9 @@ export function parseParamList(
       let type: Type;
       let colonTok: Token | undefined;
       let typeInferred = false;
-      if (ctx.at(TokenKind.COLON)) {
-        colonTok = ctx.next();
+      if (ctx.isKeyword(KW.AS)) {
+        colonTok = ctx.peek();
+        ctx.nextWord();
         type = parseType(ctx, error);
       } else {
         typeInferred = true;
@@ -1235,8 +1236,8 @@ export function parseParamList(
     }
     return params;
   }
-  // Bare params: name: Type [constraints] [(and|,) name: Type [constraints]]*
-  if (ctx.at(TokenKind.IDENT) && ctx.tokens[ctx.index + 1] && ctx.tokens[ctx.index + 1]!.kind === TokenKind.COLON) {
+  // Bare params: name as Type [constraints] [(and|,) name as Type [constraints]]*
+  if (ctx.at(TokenKind.IDENT) && ctx.tokens[ctx.index + 1] && tokLowerAt(ctx, ctx.index + 1) === KW.AS) {
     let hasMore = true;
     while (hasMore) {
       // 在开始解析参数前，先消费换行和缩进，支持多行格式
@@ -1248,8 +1249,9 @@ export function parseParamList(
       let type: Type;
       let colonTok: Token | undefined;
       let typeInferred = false;
-      if (ctx.at(TokenKind.COLON)) {
-        colonTok = ctx.next();
+      if (ctx.isKeyword(KW.AS)) {
+        colonTok = ctx.peek();
+        ctx.nextWord();
         type = parseType(ctx, error);
       } else {
         typeInferred = true;

@@ -90,7 +90,7 @@ Rule greet produce Text:
       const source = `
 Module test.params.
 
-Rule double given x: Int, produce Int:
+Rule double given x as Int, produce Int:
   Return x plus x.
 `;
 
@@ -108,9 +108,9 @@ Rule double given x: Int, produce Int:
       const source = `
 Module test.data.
 
-Define User has name: Text, age: Int.
+Define User has name as Text, age as Int.
 
-Rule createUser given n: Text, a: Int, produce User:
+Rule createUser given n as Text, a as Int, produce User:
   Return User(n, a).
 `;
 
@@ -231,9 +231,9 @@ Rule greet produce Text:
       const source = `
 Module test.structure.
 
-Define User has name: Text.
+Define User has name as Text.
 
-Rule createUser given n: Text, produce User:
+Rule createUser given n as Text, produce User:
   Return User(n).
 `;
 
@@ -292,8 +292,8 @@ ${functions.join('\n')}
       const source = `
 Module test.nested.
 
-Rule simpleIf given x: Int, produce Int:
-  If x greater than 10:
+Rule simpleIf given x as Int, produce Int:
+  If x greater than 10
     Return 1.
   Return 0.
 `;
@@ -313,7 +313,7 @@ Rule simpleIf given x: Int, produce Int:
       const source = `
 Module test.generic.
 
-Rule identity of T, given x: T, produce T:
+Rule identity of T, given x as T, produce T:
   Return x.
 `;
 
@@ -331,10 +331,10 @@ Rule identity of T, given x: T, produce T:
       const source = `
 Module test.generics.
 
-Rule identity of T, given x: T, produce T:
+Rule identity of T, given x as T, produce T:
   Return x.
 
-Rule pair of Ta and Tb, given a: Ta, b: Tb, produce Text:
+Rule pair of Ta and Tb, given a as Ta, b as Tb, produce Text:
   Return "pair".
 `;
 
@@ -354,16 +354,16 @@ Rule pair of Ta and Tb, given a: Ta, b: Tb, produce Text:
       const source = `
 Module test.async.
 
-Rule fetchDashboard given userId: Text, produce Text. It performs io:
+Rule fetchDashboard given userId as Text, produce Text. It performs io:
   Start profile as async fetchProfile(userId).
   Start timeline as async fetchTimeline(userId).
   Wait for profile and timeline.
   Return "Dashboard".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 
-Rule fetchTimeline given id: Text, produce Text. It performs io:
+Rule fetchTimeline given id as Text, produce Text. It performs io:
   Return "Timeline".
 `;
 

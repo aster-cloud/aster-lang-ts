@@ -6,6 +6,6 @@ Define AuthErr as one of InvalidCreds, Locked.
 
 Rule login given user, pass, produce. It performs io:
   Let ok be io.verify(user, pass).
-  If not (ok):
+  If not (ok)
     Return err of InvalidCreds.
-  Return ok of User with id = UUID.randomUUID(), name = user.
+  Return ok of User with id set to UUID.randomUUID(), name set to user.

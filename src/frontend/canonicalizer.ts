@@ -25,6 +25,7 @@ import { getMultiWordKeywords } from '../config/lexicons/types.js';
 import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/index.js';
 import type { IdentifierIndex } from '../config/lexicons/identifiers/types.js';
 import { vocabularyRegistry, initBuiltinVocabularies } from '../config/lexicons/identifiers/registry.js';
+import { applyTransformers } from './transformers.js';
 
 /**
  * 规范化器选项。
@@ -85,7 +86,8 @@ function getArticleRegex(lexicon?: Lexicon): RegExp | null {
     return null;
   }
 
-  const pattern = `\\b(${articles.join('|')})\\b(?=\\s)`;
+  // 冠词后面跟 'as' 关键字时不移除（如 `a as Int` 中的 `a` 是参数名）
+  const pattern = `\\b(${articles.join('|')})\\b(?=\\s)(?!\\s+as\\b)`;
   return new RegExp(pattern, 'gi');
 }
 
@@ -223,6 +225,11 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
     }
   }
 
+  // 翻译前变换器（如英语所有格 driver's age → driver.age）
+  if (effectiveLexicon.canonicalization.preTranslationTransformers?.length) {
+    s = applyTransformers(s, effectiveLexicon.canonicalization.preTranslationTransformers);
+  }
+
   // 全角转半角（如果配置启用）
   if (effectiveLexicon.canonicalization.fullWidthToHalf) {
     s = fullWidthToHalfWidth(s);
@@ -272,6 +279,12 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
       keywordMarkers.set(marker, m.toLowerCase());
       return marker;
     });
+  }
+
+  // Step 1.5: 翻译后变换器（如 "The result is X" → "Return X", "Set X to Y" → "Let X be Y"）
+  // 必须在冠词移除之前执行，否则 "The" 会被先移除导致 result-is 无法匹配
+  if (effectiveLexicon.canonicalization.postTranslationTransformers?.length) {
+    marked = applyTransformers(marked, effectiveLexicon.canonicalization.postTranslationTransformers);
   }
 
   // Step 2: Remove articles in allowed contexts (lightweight; parser will enforce correctness)

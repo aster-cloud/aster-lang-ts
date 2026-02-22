@@ -88,7 +88,7 @@ async function testReferencesHandler(): Promise<void> {
   clearIndex();
   const code = `Module test_app.
 
-Rule greet given name: Text, produce Text:
+Rule greet given name as Text, produce Text:
   Return "Hello " plus name.
 
 Rule main produce Text:
@@ -140,7 +140,7 @@ async function testRenameHandler(): Promise<void> {
   clearIndex();
   const code = `Module test_app.
 
-Rule greet given name: Text, produce Text:
+Rule greet given name as Text, produce Text:
   Return "Hello " plus name.
 
 Rule main produce Text:
@@ -187,7 +187,7 @@ async function testHoverHandler(): Promise<void> {
   clearIndex();
   const code = `Module test_app.
 
-Rule greet given name: Text, produce Text:
+Rule greet given name as Text, produce Text:
   Return "Hello " plus name.
 `;
 
@@ -223,7 +223,7 @@ async function testDocumentSymbolHandler(): Promise<void> {
   clearIndex();
   const code = `Module test_app.
 
-Rule greet given name: Text, produce Text:
+Rule greet given name as Text, produce Text:
   Return "Hello " plus name.
 
 Define User as:
@@ -260,7 +260,7 @@ async function testDefinitionHandler(): Promise<void> {
   clearIndex();
   const code = `Module test_app.
 
-Rule greet given name: Text, produce Text:
+Rule greet given name as Text, produce Text:
   Return "Hello " plus name.
 
 Rule main produce Text:
@@ -321,7 +321,7 @@ async function testPrepareRenameHandler(): Promise<void> {
   clearIndex();
   const code = `Module test_app.
 
-Rule greet given name: Text, produce Text:
+Rule greet given name as Text, produce Text:
   Return "Hello " plus name.
 
 Rule main produce Text:

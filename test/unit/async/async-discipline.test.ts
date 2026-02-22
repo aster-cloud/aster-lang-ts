@@ -45,13 +45,13 @@ describe('异步纪律检查', () => {
       const source = `
 Module test.async.start_not_waited.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -67,21 +67,21 @@ Rule fetchProfile given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.multiple_not_waited.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start timeline as async fetchTimeline(u.id).
   Start settings as async fetchSettings(u.id).
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 
-Rule fetchTimeline given id: Text, produce Text. It performs io:
+Rule fetchTimeline given id as Text, produce Text. It performs io:
   Return "Timeline".
 
-Rule fetchSettings given id: Text, produce Text. It performs io:
+Rule fetchSettings given id as Text, produce Text. It performs io:
   Return "Settings".
 `;
 
@@ -101,9 +101,9 @@ Rule fetchSettings given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.wait_not_started.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Wait for profile.
   Return "Done".
 `;
@@ -120,9 +120,9 @@ Rule fetchData given u: User, produce Text. It performs io:
       const source = `
 Module test.async.multiple_wait_not_started.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Wait for profile and timeline and settings.
   Return "Done".
 `;
@@ -143,15 +143,15 @@ Rule fetchData given u: User, produce Text. It performs io:
       const source = `
 Module test.async.duplicate_start.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start profile as async fetchProfile(u.id).
   Wait for profile.
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -168,16 +168,16 @@ Rule fetchProfile given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.triple_start.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start profile as async fetchProfile(u.id).
   Start profile as async fetchProfile(u.id).
   Wait for profile.
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -195,15 +195,15 @@ Rule fetchProfile given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.duplicate_wait.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Wait for profile.
   Wait for profile.
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -220,16 +220,16 @@ Rule fetchProfile given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.triple_wait.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Wait for profile.
   Wait for profile.
   Wait for profile.
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -247,14 +247,14 @@ Rule fetchProfile given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.normal_single.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Wait for profile.
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -270,22 +270,22 @@ Rule fetchProfile given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.normal_multiple.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start timeline as async fetchTimeline(u.id).
   Start settings as async fetchSettings(u.id).
   Wait for profile and timeline and settings.
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 
-Rule fetchTimeline given id: Text, produce Text. It performs io:
+Rule fetchTimeline given id as Text, produce Text. It performs io:
   Return "Timeline".
 
-Rule fetchSettings given id: Text, produce Text. It performs io:
+Rule fetchSettings given id as Text, produce Text. It performs io:
   Return "Settings".
 `;
 
@@ -301,9 +301,9 @@ Rule fetchSettings given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.normal_batched.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start timeline as async fetchTimeline(u.id).
   Wait for profile.
@@ -311,13 +311,13 @@ Rule fetchData given u: User, produce Text. It performs io:
   Wait for timeline and settings.
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 
-Rule fetchTimeline given id: Text, produce Text. It performs io:
+Rule fetchTimeline given id as Text, produce Text. It performs io:
   Return "Timeline".
 
-Rule fetchSettings given id: Text, produce Text. It performs io:
+Rule fetchSettings given id as Text, produce Text. It performs io:
   Return "Settings".
 `;
 
@@ -335,9 +335,9 @@ Rule fetchSettings given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.mixed_errors.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
   Start profile as async fetchProfile(u.id).
   Start timeline as async fetchTimeline(u.id).
@@ -346,10 +346,10 @@ Rule fetchData given u: User, produce Text. It performs io:
   Wait for settings.
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 
-Rule fetchTimeline given id: Text, produce Text. It performs io:
+Rule fetchTimeline given id as Text, produce Text. It performs io:
   Return "Timeline".
 `;
 
@@ -382,14 +382,14 @@ Rule fetchTimeline given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.wait_before_start.simple.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Wait for profile.
   Start profile as async fetchProfile(u.id).
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -404,15 +404,15 @@ Rule fetchProfile given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.wait_before_start.branch.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Wait for profile.
-  If u.id equals to "vip":
+  If u.id equals to "vip"
     Start profile as async fetchProfile(u.id).
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
       const diagnostics = compileAndGetDiagnostics(source);
@@ -428,17 +428,17 @@ Rule fetchProfile given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.branch_duplicate.if.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
-  If u.id equals to "vip":
+Rule fetchData given u as User, produce Text. It performs io:
+  If u.id equals to "vip"
     Start profile as async fetchProfile(u.id).
-  Otherwise:
+  Otherwise
     Start profile as async fetchProfile(u.id).
   Wait for profile.
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -454,17 +454,17 @@ Rule fetchProfile given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.branch_duplicate.multi_paths.
 
-Define User has id: Text, tier: Text.
+Define User has id as Text, tier as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
-  If u.tier equals to "vip":
+Rule fetchData given u as User, produce Text. It performs io:
+  If u.tier equals to "vip"
     Start profile as async fetchProfile(u.id).
-  If u.tier equals to "premium":
+  If u.tier equals to "premium"
     Start profile as async fetchProfile(u.id).
   Wait for profile.
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -482,17 +482,17 @@ Rule fetchProfile given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.nested_missing_wait.branch.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
-  If u.id equals to "vip":
+Rule fetchData given u as User, produce Text. It performs io:
+  If u.id equals to "vip"
     Start audit as async fetchAudit(u.id).
-    If u.id equals to "vip":
+    If u.id equals to "vip"
       Start deeper as async fetchAudit(u.id).
   Wait for audit.
   Return "Done".
 
-Rule fetchAudit given id: Text, produce Text. It performs io:
+Rule fetchAudit given id as Text, produce Text. It performs io:
   Return "Audit".
 `;
 
@@ -507,16 +507,16 @@ Rule fetchAudit given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.nested_duplicate_start.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Start profile as async fetchProfile(u.id).
-  If u.id equals to "vip":
+  If u.id equals to "vip"
     Start profile as async fetchProfile(u.id).
   Wait for profile.
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
 
@@ -534,17 +534,17 @@ Rule fetchProfile given id: Text, produce Text. It performs io:
       const source = `
 Module test.async.combo.branch_wait_first.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetchData given u: User, produce Text. It performs io:
+Rule fetchData given u as User, produce Text. It performs io:
   Wait for profile.
-  If u.id equals to "vip":
+  If u.id equals to "vip"
     Start profile as async fetchProfile(u.id).
-  Otherwise:
+  Otherwise
     Start profile as async fetchProfile(u.id).
   Return "Done".
 
-Rule fetchProfile given id: Text, produce Text. It performs io:
+Rule fetchProfile given id as Text, produce Text. It performs io:
   Return "Profile".
 `;
 

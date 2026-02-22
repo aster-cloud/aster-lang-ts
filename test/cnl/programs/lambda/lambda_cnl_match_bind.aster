@@ -11,8 +11,8 @@ Rule greetUser given user, prefix, produce:
 
 Rule posOrZero given count, produce:
   Let sel be function with value, produce:
-    If value greater than 0:
+    If value greater than 0
       Return value.
-    Otherwise:
+    Otherwise
       Return 0.
   Return sel(count).

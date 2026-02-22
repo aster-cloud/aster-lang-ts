@@ -61,7 +61,7 @@ describe('降级至 Core IR', () => {
     const core = lower(`
 Module test.lowering.basic.
 
-Define User has id: Text.
+Define User has id as Text.
 
 Rule ping, produce Text:
   Return "pong".
@@ -75,7 +75,7 @@ Rule ping, produce Text:
     const core = lower(`
 Module test.lowering.func_types.
 
-Rule repeat given text: Text and times: Int, produce Text:
+Rule repeat given text as Text and times as Int, produce Text:
   Return text.
 `);
     const func = core.decls.find(d => d.kind === 'Func') as Core.Func | undefined;
@@ -90,7 +90,7 @@ Rule repeat given text: Text and times: Int, produce Text:
     const core = lower(`
 Module test.lowering.return_stmt.
 
-Rule identity given value: Int, produce Int:
+Rule identity given value as Int, produce Int:
   Return value.
 `);
     const func = core.decls.find(d => d.kind === 'Func') as Core.Func;
@@ -105,7 +105,7 @@ Module test.lowering.match_stmt.
 
 Define Result as one of Ok, Err.
 
-Rule handle given result: Result, produce Int:
+Rule handle given result as Result, produce Int:
   Match result:
     When Ok, Return 1.
     When Err, Return 0.
@@ -122,7 +122,7 @@ Rule handle given result: Result, produce Int:
     const core = lower(`
 Module test.lowering.maybe_type.
 
-Rule safeHead given items: List of Int, produce Int?:
+Rule safeHead given items as List of Int, produce Int?:
   Return None.
 `);
     const func = core.decls.find(d => d.kind === 'Func') as Core.Func;
@@ -137,7 +137,7 @@ Rule safeHead given items: List of Int, produce Int?:
 Module test.lowering.lambda_arrows.
 
 Rule makeIdentity, produce Fn1:
-  Return (value: Text) => value.
+  Return (value as Text) => value.
 `);
     const func = core.decls.find(d => d.kind === 'Func') as Core.Func;
     const lambda = (func.body.statements[0] as Core.Return).expr as Core.Lambda;

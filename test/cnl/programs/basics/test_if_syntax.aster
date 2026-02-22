@@ -3,4 +3,4 @@ Module test.loan.
 Define Decision has approved, reason.
 
 Rule check given age, produce:
-  Return Decision with approved = true, reason = "OK".
+  Return Decision with approved set to true, reason set to "OK".

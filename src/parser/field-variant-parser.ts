@@ -62,11 +62,10 @@ export function parseFieldList(
     let colonTok: Token | undefined;
     let typeInferred = false;
 
-    // 检查是否有显式类型声明（冒号）
-    if (ctx.at(TokenKind.COLON)) {
-      // 显式类型路径 - 向后兼容
+    // 检查是否有显式类型声明（as）
+    if (ctx.isKeyword(KW.AS)) {
       colonTok = ctx.peek();
-      ctx.next();
+      ctx.nextWord();
       t = parseType(ctx, error);
     } else {
       // 类型推断路径 - CNL 自然语言风格

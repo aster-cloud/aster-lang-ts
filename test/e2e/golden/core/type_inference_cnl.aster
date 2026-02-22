@@ -126,21 +126,21 @@ Define UserInfo has
 // --------------------------------------------------
 
 Rule evaluateLoan given application, applicant, produce:
-  If applicant.age less than 18:
-    Return LoanDecision with isApproved = false, approvalReason = "Underage", approvedAmount = 0.0, interestRate = 0.0, termMonths = 0.
+  If applicant.age less than 18
+    Return LoanDecision with isApproved set to false, approvalReason set to "Underage", approvedAmount set to 0.0, interestRate set to 0.0, termMonths set to 0.
 
-  If applicant.creditScore less than 650:
-    Return LoanDecision with isApproved = false, approvalReason = "Low credit", approvedAmount = 0.0, interestRate = 0.0, termMonths = 0.
+  If applicant.creditScore less than 650
+    Return LoanDecision with isApproved set to false, approvalReason set to "Low credit", approvedAmount set to 0.0, interestRate set to 0.0, termMonths set to 0.
 
   Let baseRate be calculateBaseRate(applicant.creditScore).
 
-  Return LoanDecision with isApproved = true, approvalReason = "Approved", approvedAmount = application.loanAmount, interestRate = baseRate, termMonths = application.termMonths.
+  Return LoanDecision with isApproved set to true, approvalReason set to "Approved", approvedAmount set to application.loanAmount, interestRate set to baseRate, termMonths set to application.termMonths.
 
 Rule calculateBaseRate given score, produce:
-  If score less than 670:
+  If score less than 670
     Return 0.15.
-  If score less than 740:
+  If score less than 740
     Return 0.10.
-  If score less than 800:
+  If score less than 800
     Return 0.07.
   Return 0.05.

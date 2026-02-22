@@ -45,7 +45,7 @@ Rule ping, produce Text:
     const module = parseSource(`
 Module test.parser.data_decl.
 
-Define User has id: Text, name: Text, age: Int.
+Define User has id as Text, name as Text, age as Int.
 `);
     const data = findDecl(module, 'Data');
     assert.equal(data.fields.length, 3);
@@ -68,7 +68,7 @@ Define Status as one of Pending, Success, Failure.
     const module = parseSource(`
 Module test.parser.func_signature.
 
-Rule format given name: Text and times: Int, produce Text:
+Rule format given name as Text and times as Int, produce Text:
   Return Text.concat(name, Text.toString(times)).
 `);
     const func = findDecl(module, 'Func');
@@ -82,7 +82,7 @@ Rule format given name: Text and times: Int, produce Text:
     const module = parseSource(`
 Module test.parser.return_stmt.
 
-Rule identity given value: Text, produce Text:
+Rule identity given value as Text, produce Text:
   Return value.
 `);
     const func = findDecl(module, 'Func');
@@ -95,7 +95,7 @@ Rule identity given value: Text, produce Text:
     const module = parseSource(`
 Module test.parser.let_stmt.
 
-Rule greet given name: Text, produce Text:
+Rule greet given name as Text, produce Text:
   Let trimmed be Text.trim(name).
   Return Text.concat("Hi, ", trimmed).
 `);
@@ -110,10 +110,10 @@ Rule greet given name: Text, produce Text:
     const module = parseSource(`
 Module test.parser.if_stmt.
 
-Rule classify given score: Int, produce Text:
-  If score at least 800:
+Rule classify given score as Int, produce Text:
+  If score at least 800
     Return "Top".
-  Otherwise:
+  Otherwise
     Return "Regular".
 `);
     const func = findDecl(module, 'Func');
@@ -130,9 +130,9 @@ Rule classify given score: Int, produce Text:
     const module = parseSource(`
 Module test.parser.match_stmt.
 
-Define User has id: Text, name: Text.
+Define User has id as Text, name as Text.
 
-Rule welcome given user: User?, produce Text:
+Rule welcome given user as User?, produce Text:
   Match user:
     When null, Return "Guest".
     When User(id, name), Return Text.concat("Hi ", name).
@@ -169,7 +169,7 @@ Rule fetch, produce Text:
         parseSource(`
 Module test.parser.error.
 
-Define Broken has x: Int
+Define Broken has x as Int
 `),
       /expected '.'/i
     );
@@ -213,7 +213,7 @@ Module test.parser.effects_basic.
 
 Rule audit, produce Int. It performs [].
 
-Rule compute given value: Int, produce Int. It performs io and cpu.
+Rule compute given value as Int, produce Int. It performs io and cpu.
 `);
       const audit = findFunc(module, 'audit');
       assert.deepEqual(audit.effects, []);
@@ -253,10 +253,10 @@ Rule fetch, produce Text. It performs io with Http and Sql:
 Module test.parser.constraints.
 
 Define User has
-  id: Text required,
-  age: Int between 0 and 120 matching "^[0-9]+$".
+  id as Text required,
+  age as Int between 0 and 120 matching "^[0-9]+$".
 
-Rule validate given input: Text required, produce Bool:
+Rule validate given input as Text required, produce Bool:
   Return true.
 `);
       const data = findDecl(module, 'Data');
@@ -364,7 +364,7 @@ Rule determineInterestRateBps given creditScore between 300 and 850, produce:
           parseSource(`
 Module test.parser.error.missing_separator.
 
-Rule broken given first: Int second: Int, produce Int:
+Rule broken given first as Int second as Int, produce Int:
   Return first.
 `),
         error => {
@@ -380,7 +380,7 @@ Rule broken given first: Int second: Int, produce Int:
           parseSource(`
 Module test.parser.error.parentheses.
 
-Rule fail given value: Text, produce Text:
+Rule fail given value as Text, produce Text:
   Return (value.
 `),
         error => {
@@ -399,7 +399,7 @@ Rule fail given value: Text, produce Text:
       const module = parseSource(`
 Module test.parser.func_type_params.single.
 
-Rule wrap of T given value: T, produce List of T:
+Rule wrap of T given value as T, produce List of T:
   Return List.build(value).
 `);
       const func = findFunc(module, 'wrap');
@@ -422,7 +422,7 @@ Rule wrap of T given value: T, produce List of T:
       const module = parseSource(`
 Module test.parser.func_type_params.multi.
 
-Rule pair of Left and Right given left: Left and right: Right, produce Result of Left or Right:
+Rule pair of Left and Right given left as Left and right as Right, produce Result of Left or Right:
   Return Result.ok(left).
 `);
       const func = findFunc(module, 'pair');
@@ -451,7 +451,7 @@ Rule pair of Left and Right given left: Left and right: Right, produce Result of
       const module = parseSource(`
 Module test.parser.func_type_params.mixed.
 
-Rule compose of Input, Middle and Output given first: Input, second: Middle, produce Output:
+Rule compose of Input, Middle and Output given first as Input, second as Middle, produce Output:
   Return second.
 `);
       const func = findFunc(module, 'compose');
@@ -469,7 +469,7 @@ Rule compose of Input, Middle and Output given first: Input, second: Middle, pro
       const module = parseSource(`
 Module test.parser.func_type_params.complex.
 
-Rule pipeline of Source and Target given items: List of Source, produce Result of Map Source to Target or Text:
+Rule pipeline of Source and Target given items as List of Source, produce Result of Map Source to Target or Text:
   Return Result.err("empty").
 `);
       const func = findFunc(module, 'pipeline');
@@ -506,9 +506,9 @@ Rule pipeline of Source and Target given items: List of Source, produce Result o
 Module test.parser.params.multiline_with.
 
 Rule summarize given
-  first: Text,
-  second: Text,
-  third: Text, produce Text:
+  first as Text,
+  second as Text,
+  third as Text, produce Text:
   Return Text.concat(first, second).
 `);
       const func = findFunc(module, 'summarize');
@@ -524,8 +524,8 @@ Rule summarize given
 Module test.parser.params.multiline_effect.
 
 Rule compute given
-  value: Int,
-  factor: Int, produce Int. It performs cpu:
+  value as Int,
+  factor as Int, produce Int. It performs cpu:
   Return value times factor.
 `);
       const func = findFunc(module, 'compute');
@@ -542,8 +542,8 @@ Rule compute given
 Module test.parser.params.multiline_constraints.
 
 Rule filter given
-  query: Text required,
-  limit: Int, produce List of Text:
+  query as Text required,
+  limit as Int, produce List of Text:
   Return List.empty().
 `);
       const func = findFunc(module, 'filter');
@@ -563,8 +563,8 @@ Rule filter given
       const module = parseSource(`
 Module test.parser.let.lambda.basic.
 
-Rule operate given value: Int, produce Int:
-  Let increment be function with input: Int, produce Int:
+Rule operate given value as Int, produce Int:
+  Let increment be function with input as Int, produce Int:
     Return input plus 1.
   Return increment(value).
 `);
@@ -586,7 +586,7 @@ Rule operate given value: Int, produce Int:
 Module test.parser.let.lambda.article.
 
 Rule demo, produce Int:
-  Let noop be a function with value: Int, produce Int:
+  Let noop be a function with value as Int, produce Int:
     Return value.
   Return noop(0).
 `);
@@ -605,7 +605,7 @@ Rule demo, produce Int:
 Module test.parser.let.lambda.body.
 
 Rule compose, produce Int:
-  Let combine be function with left: Int and right: Int, produce Int:
+  Let combine be function with left as Int and right as Int, produce Int:
     Let sum be left plus right.
     Return sum.
   Return combine(1, 2).
@@ -630,7 +630,7 @@ Rule compose, produce Int:
       const module = parseSource(`
 Module test.parser.set.basic.
 
-Rule update given value: Int, produce Int:
+Rule update given value as Int, produce Int:
   Let total be 0.
   Set total to total plus value.
   Return total.
@@ -705,6 +705,25 @@ Rule broken, produce Int:
         }
       );
     });
+
+    test('Set 语句不应被 canonicalizer 转换为 Let（回归测试）', () => {
+      // 确保 set-to transformer 不会将 "Set x to y" 语句错误地转换为 "Let x be y"
+      const module = parseSource(`
+Module test.parser.set.not_transformed.
+
+Rule accumulate, produce Int:
+  Let sum be 0.
+  Set sum to sum plus 1.
+  Set sum to sum plus 2.
+  Return sum.
+`);
+      const func = findFunc(module, 'accumulate');
+      const statements = func.body?.statements ?? [];
+      const setStmts = statements.filter(stmt => stmt.kind === 'Set');
+      assert.equal(setStmts.length, 2, '应保留 2 个 Set 语句，不被转换为 Let');
+      const letStmts = statements.filter(stmt => stmt.kind === 'Let');
+      assert.equal(letStmts.length, 1, '应只有 1 个原始 Let 语句');
+    });
   });
 
   describe('Return 效果采集', () => {
@@ -755,10 +774,10 @@ Rule compute, produce Int. It performs cpu:
       const module = parseSource(`
 Module test.parser.if.not.basic.
 
-Rule guard given flag: Bool, produce Text:
-  If not flag:
+Rule guard given flag as Bool, produce Text:
+  If not flag
     Return "blocked".
-  Otherwise:
+  Otherwise
     Return "ok".
 `);
       const func = findFunc(module, 'guard');
@@ -784,10 +803,10 @@ Rule guard given flag: Bool, produce Text:
       const module = parseSource(`
 Module test.parser.if.not.complex.
 
-Rule score given value: Int, produce Text:
-  If not (value at least 600):
+Rule score given value as Int, produce Text:
+  If not (value at least 600)
     Return "retry".
-  Otherwise:
+  Otherwise
     Return "pass".
 `);
       const func = findFunc(module, 'score');
@@ -816,7 +835,7 @@ Rule score given value: Int, produce Text:
       const module = parseSource(`
 Module test.parser.types.maybe.
 
-Rule handle given token: Text?, produce Bool:
+Rule handle given token as Text?, produce Bool:
   Return true.
 `);
       const func = findFunc(module, 'handle');
@@ -836,7 +855,7 @@ Rule handle given token: Text?, produce Bool:
       const module = parseSource(`
 Module test.parser.types.option.
 
-Rule parse given payload: Option of Text?, produce Bool:
+Rule parse given payload as Option of Text?, produce Bool:
   Return true.
 `);
       const func = findFunc(module, 'parse');
@@ -860,7 +879,7 @@ Rule parse given payload: Option of Text?, produce Bool:
       const module = parseSource(`
 Module test.parser.types.result.
 
-Rule convert given input: Result of Int or Text, produce Int:
+Rule convert given input as Result of Int or Text, produce Int:
   Return 0.
 `);
       const func = findFunc(module, 'convert');
@@ -882,7 +901,7 @@ Rule convert given input: Result of Int or Text, produce Int:
       const module = parseSource(`
 Module test.parser.types.list_map.
 
-Rule collect given rows: List of Map Text to Int, produce Int:
+Rule collect given rows as List of Map Text to Int, produce Int:
   Return 0.
 `);
       const func = findFunc(module, 'collect');
@@ -908,7 +927,7 @@ Rule collect given rows: List of Map Text to Int, produce Int:
       const module = parseSource(`
 Module test.parser.types.type_app_single.
 
-Rule adapt given response: Text, produce Promise of Text:
+Rule adapt given response as Text, produce Promise of Text:
   Return Promise.success(response).
 `);
       const func = findFunc(module, 'adapt');
@@ -926,7 +945,7 @@ Rule adapt given response: Text, produce Promise of Text:
       const module = parseSource(`
 Module test.parser.types.list_nested.
 
-Rule flatten given input: List of List of Int, produce List of Int:
+Rule flatten given input as List of List of Int, produce List of Int:
   Return input.
 `);
       const func = findFunc(module, 'flatten');
@@ -950,7 +969,7 @@ Rule flatten given input: List of List of Int, produce List of Int:
       const module = parseSource(`
 Module test.parser.types.pii.
 
-Rule secure given field: @pii(L2, email) Text, produce Text:
+Rule secure given field as @pii(L2, email) Text, produce Text:
   Return field.
 `);
       const func = findFunc(module, 'secure');
@@ -972,7 +991,7 @@ Rule secure given field: @pii(L2, email) Text, produce Text:
       const module = parseSource(`
 Module test.parser.types.map_result.
 
-Rule inspect given entry: Map Text to Result of Int or Text, produce Bool:
+Rule inspect given entry as Map Text to Result of Int or Text, produce Bool:
   Return true.
 `);
       const func = findFunc(module, 'inspect');
@@ -998,7 +1017,7 @@ Rule inspect given entry: Map Text to Result of Int or Text, produce Bool:
       const module = parseSource(`
 Module test.parser.types.result_option.
 
-Rule decide given payload: Result of Option of Text or List of Text, produce Bool:
+Rule decide given payload as Result of Option of Text or List of Text, produce Bool:
   Return true.
 `);
       const func = findFunc(module, 'decide');
@@ -1028,7 +1047,7 @@ Rule decide given payload: Result of Option of Text or List of Text, produce Boo
       const module = parseSource(`
 Module test.parser.types.type_app_multi.
 
-Rule choose given picker: Text, produce Either of Text and Int:
+Rule choose given picker as Text, produce Either of Text and Int:
   Return Either.left(picker).
 `);
       const func = findFunc(module, 'choose');
@@ -1050,10 +1069,10 @@ Rule choose given picker: Text, produce Either of Text and Int:
       const module = parseSource(`
 Module test.parser.type_scope.explicit.
 
-Rule first of T given value: T, produce T:
+Rule first of T given value as T, produce T:
   Return value.
 
-Rule second given value: T, produce T:
+Rule second given value as T, produce T:
   Return value.
 `);
       const firstFunc = findFunc(module, 'first');
@@ -1073,9 +1092,9 @@ Rule second given value: T, produce T:
       const module = parseSource(`
 Module test.parser.type_scope.declared.
 
-Define User has id: Text.
+Define User has id as Text.
 
-Rule fetch given id: User, produce User:
+Rule fetch given id as User, produce User:
   Return User.new(id).
 `);
       const func = findFunc(module, 'fetch');
@@ -1093,10 +1112,10 @@ Rule fetch given id: User, produce User:
       const module = parseSource(`
 Module test.parser.type_scope.independent.
 
-Rule box given value: Alpha, produce Alpha:
+Rule box given value as Alpha, produce Alpha:
   Return value.
 
-Rule unwrap given value: Beta, produce Beta:
+Rule unwrap given value as Beta, produce Beta:
   Return value.
 `);
       const box = findFunc(module, 'box');
@@ -1243,7 +1262,7 @@ Rule log, produce Text:
       const module = parseSource(`
 Module test.parser.misc.match_name.
 
-Rule unwrap given option: Option of Text, produce Text:
+Rule unwrap given option as Option of Text, produce Text:
   Match option:
     When value, Return value.
     When null, Return "none".
@@ -1291,7 +1310,7 @@ Rule spawn, produce Text:
       const source = `
 Module test.parser.lexicon.en.
 
-Rule greet given name: Text, produce Text:
+Rule greet given name as Text, produce Text:
   Return Text.concat("Hello, ", name).
 `;
       const canonical = canonicalize(source, EN_US);
@@ -1308,7 +1327,7 @@ Rule greet given name: Text, produce Text:
       const zhSource = `
 模块 测试。
 
-规则 identity 包含 value：整数，产出：
+规则 identity 包含 value 作为 整数，产出：
   返回 value。
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
@@ -1328,7 +1347,7 @@ Rule greet given name: Text, produce Text:
       const zhSource = `
 模块 测试。
 
-定义 User 包含 age：整数。
+定义 User 包含 age 作为 整数。
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
       const tokens = lex(canonical, ZH_CN);
@@ -1348,10 +1367,10 @@ Rule greet given name: Text, produce Text:
       const zhSource = `
 模块 测试。
 
-规则 check 包含 x：整数，产出：
-  如果 x 大于 0：
+规则 check 包含 x 作为 整数，产出：
+  如果 x 大于 0
     返回 1。
-  否则：
+  否则
     返回 0。
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
@@ -1372,7 +1391,7 @@ Rule greet given name: Text, produce Text:
       const zhSource = `
 模块 测试。
 
-规则 describe 包含 status：整数，产出：
+规则 describe 包含 status 作为 整数，产出：
   若 status：
     为 1，返回 「成功」。
     为 0，返回 「失败」。
@@ -1395,7 +1414,7 @@ Rule greet given name: Text, produce Text:
       const zhSource = `
 模块 测试。
 
-规则 calc 包含 x：整数，产出：
+规则 calc 包含 x 作为 整数，产出：
   令 result 为 x 加 1。
   返回 result。
 `;
