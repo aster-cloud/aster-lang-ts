@@ -105,6 +105,56 @@ export function buildFullTranslationIndex(
   const markerOpen = markers?.open || '【';
   const markerClose = markers?.close || '】';
 
+  // 构建规范化规则（从词法表的 customRules 中提取简单替换规则）
+  const canonRules: { pattern: RegExp; replacement: string }[] = [];
+  if (sourceLexicon.canonicalization?.customRules) {
+    for (const rule of sourceLexicon.canonicalization.customRules) {
+      if (rule.pattern && rule.replacement) {
+        try {
+          canonRules.push({ pattern: new RegExp(rule.pattern, 'g'), replacement: rule.replacement });
+        } catch {
+          // 跳过无效的正则表达式
+        }
+      }
+    }
+  }
+
+  /**
+   * 应用词法表的规范化规则（如 ue→ü, oe→ö, ae→ä）到关键词，
+   * 使翻译索引同时包含 ASCII 形式和规范化形式。
+   */
+  function applyCanonRules(text: string): string {
+    let result = text;
+    for (const rule of canonRules) {
+      rule.pattern.lastIndex = 0;
+      result = result.replace(rule.pattern, rule.replacement);
+    }
+    return result;
+  }
+
+  /**
+   * 向索引中添加映射，遵循优先级规则。
+   * 同时添加规范化变体（如 "zurueck" 和 "zurück"）。
+   */
+  function addToIndex(srcLower: string, target: string, isHighPriority: boolean): void {
+    const existingPriority = indexPriority.get(srcLower);
+    if (!index.has(srcLower) || (isHighPriority && !existingPriority)) {
+      index.set(srcLower, target);
+      indexPriority.set(srcLower, isHighPriority);
+    }
+    // 同时添加规范化变体
+    if (canonRules.length > 0) {
+      const canonicalized = applyCanonRules(srcLower);
+      if (canonicalized !== srcLower) {
+        const canonExistingPriority = indexPriority.get(canonicalized);
+        if (!index.has(canonicalized) || (isHighPriority && !canonExistingPriority)) {
+          index.set(canonicalized, target);
+          indexPriority.set(canonicalized, isHighPriority);
+        }
+      }
+    }
+  }
+
   // 遍历所有 SemanticTokenKind
   for (const kind of Object.values(SemanticTokenKind)) {
     const sourceKeyword = sourceLexicon.keywords[kind];
@@ -119,15 +169,7 @@ export function buildFullTranslationIndex(
         markerIndex.set(innerValue.toLowerCase(), targetKeyword);
       } else {
         const srcLower = sourceKeyword.toLowerCase();
-        const existingPriority = indexPriority.get(srcLower);
-
-        // 只在以下情况添加映射：
-        // 1. 源词尚未有映射
-        // 2. 当前是高优先级且现有不是高优先级
-        if (!index.has(srcLower) || (isHighPriority && !existingPriority)) {
-          index.set(srcLower, targetKeyword);
-          indexPriority.set(srcLower, isHighPriority);
-        }
+        addToIndex(srcLower, targetKeyword, isHighPriority);
 
         // 对于多词关键词短语，同时添加逐词映射
         // 例如 "Dieses Modul ist" -> "this module is"
@@ -138,13 +180,8 @@ export function buildFullTranslationIndex(
           for (let i = 0; i < sourceParts.length; i++) {
             const srcWord = sourceParts[i]!;
             const tgtWord = targetParts[i]!;
-            const existingWordPriority = indexPriority.get(srcWord);
-            // 添加逐词映射（遵循相同的优先级规则）
             if (srcWord !== tgtWord) {
-              if (!index.has(srcWord) || (isHighPriority && !existingWordPriority)) {
-                index.set(srcWord, tgtWord);
-                indexPriority.set(srcWord, isHighPriority);
-              }
+              addToIndex(srcWord, tgtWord, isHighPriority);
             }
           }
         }
