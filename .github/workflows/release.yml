@@ -86,9 +86,9 @@ jobs:
           draft: false
 
       - name: Trigger aster-cloud dependency upgrade
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.CROSS_REPO_TOKEN }}
-          repository: aster-cloud/aster-cloud
-          event-type: lang-ts-released
-          client-payload: '{"version": "${{ github.ref_name }}"}'
+        run: |
+          gh workflow run auto-upgrade.yml \
+            --repo aster-cloud/aster-cloud \
+            --field version=${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
