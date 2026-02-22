@@ -419,16 +419,16 @@ async function main(): Promise<void> {
   // Smoke: ensure both forms parse and capture identical capability lists
   {
     const srcCnl = [
-      'This module is smoke.aster.',
+      'Module smoke.aster.',
       '',
-      'To ping, produce Text. It performs io with Http and Sql and Time:',
+      'Rule ping, produce Text. It performs io with Http and Sql and Time:',
       '  Return "ok".',
       ''
     ].join('\n');
     const srcBracket = [
-      'This module is smoke.aster.',
+      'Module smoke.aster.',
       '',
-      'To ping, produce Text. It performs io [Http, Sql, Time]:',
+      'Rule ping, produce Text. It performs io [Http, Sql, Time]:',
       '  Return "ok".',
       ''
     ].join('\n');
