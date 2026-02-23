@@ -81,7 +81,7 @@ function makeFunc({
     kind: 'Func',
     name,
     typeParams: [],
-    params: params.map(param => ({ ...param, annotations: param.annotations ?? [] })),
+    params: params.map(param => ({ ...param })),
     ret,
     effects,
     effectCaps: [],
@@ -130,7 +130,7 @@ describe('PII Diagnostics', () => {
 
       const func = makeFunc({
         name: 'leakPii',
-        params: [{ name: 'piiData', type: piiType, annotations: [] }],
+        params: [{ name: 'piiData', type: piiType }],
         body: makeBlock([makeReturn(httpCallWithPii)]),
       });
 
@@ -168,7 +168,7 @@ describe('PII Diagnostics', () => {
 
       const func = makeFunc({
         name: 'leakPii',
-        params: [{ name: 'piiData', type: piiType, annotations: [] }],
+        params: [{ name: 'piiData', type: piiType }],
         body: makeBlock([makeReturn(httpCallWithPii)]),
       });
 
@@ -209,7 +209,7 @@ describe('PII Diagnostics', () => {
 
       const func = makeFunc({
         name: 'sendEmail',
-        params: [{ name: 'userEmail', type: piiType, annotations: [] }],
+        params: [{ name: 'userEmail', type: piiType }],
         body: makeBlock([makeReturn(httpCallWithPii)]),
       });
 
@@ -253,7 +253,7 @@ describe('PII Diagnostics', () => {
 
       const func = makeFunc({
         name: 'noLeak',
-        params: [{ name: 'safeData', type: stringType, annotations: [] }],
+        params: [{ name: 'safeData', type: stringType }],
         body: makeBlock([makeReturn(httpCallWithoutPii)]),
       });
 

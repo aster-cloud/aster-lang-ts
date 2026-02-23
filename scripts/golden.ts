@@ -520,8 +520,6 @@ function prune(obj: unknown): unknown {
       if (k === 'typeParams' && Array.isArray(v) && v.length === 0) continue;
       // Drop empty constraints arrays to maintain backward compatibility
       if (k === 'constraints' && Array.isArray(v) && v.length === 0) continue;
-      // Drop empty annotations arrays to maintain backward compatibility
-      if (k === 'annotations' && Array.isArray(v) && v.length === 0) continue;
       // Drop provenance/ancillary fields from comparisons
       if (k === 'span' || k === 'file' || k === 'origin' || k === 'nameSpan' || k === 'variantSpans') continue;
       out[k] = prune(v as unknown);

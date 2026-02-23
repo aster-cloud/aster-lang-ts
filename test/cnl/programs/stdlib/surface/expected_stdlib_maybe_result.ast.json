@@ -13,16 +13,14 @@
           "name": "x",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -52,8 +50,7 @@
           "name": "x",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         },
@@ -61,16 +58,14 @@
           "name": "d",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -113,16 +108,14 @@
           "name": "x",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -165,16 +158,14 @@
           "name": "e",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -204,16 +195,14 @@
           "name": "r",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -256,16 +245,14 @@
           "name": "r",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],

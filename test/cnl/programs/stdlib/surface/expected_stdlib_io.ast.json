@@ -13,16 +13,14 @@
           "name": "msg",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [
         "io"
@@ -68,8 +66,7 @@
       "params": [],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [
         "io"
@@ -112,16 +109,14 @@
           "name": "path",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [
         "io"
@@ -169,8 +164,7 @@
           "name": "path",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         },
@@ -178,16 +172,14 @@
           "name": "contents",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [
         "io"

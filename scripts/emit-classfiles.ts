@@ -74,59 +74,10 @@ function renderDtoField(field: CoreIR.Field, isLast: boolean, imports: Set<strin
     annotations.push('@NotNull');
     imports.add('jakarta.validation.constraints.NotNull');
   }
-  annotations.push(...renderFieldAnnotations(field, imports));
   const lines = annotations.map(a => `  ${a}`);
   const suffix = isLast ? '' : ',';
   lines.push(`  ${typeInfo.type} ${field.name}${suffix}`);
   return lines.join('\n');
-}
-
-function renderFieldAnnotations(field: CoreIR.Field, imports: Set<string>): string[] {
-  if (!field.annotations || field.annotations.length === 0) return [];
-  const result: string[] = [];
-  for (const ann of field.annotations) {
-    switch (ann.name) {
-      case 'Range': {
-        imports.add('io.aster.validation.constraints.Range');
-        const params = renderAnnotationParams(ann.params);
-        result.push(params ? `@Range(${params})` : '@Range');
-        break;
-      }
-      case 'NotEmpty': {
-        imports.add('io.aster.validation.constraints.NotEmpty');
-        result.push('@NotEmpty');
-        break;
-      }
-      case 'Pattern': {
-        imports.add('io.aster.validation.constraints.Pattern');
-        const params = renderAnnotationParams(ann.params);
-        result.push(params ? `@Pattern(${params})` : '@Pattern');
-        break;
-      }
-      default: {
-        result.push(`@${ann.name}`);
-        break;
-      }
-    }
-  }
-  return result;
-}
-
-function renderAnnotationParams(params: Readonly<Record<string, unknown>> | undefined): string {
-  if (!params || Object.keys(params).length === 0) return '';
-  return Object.entries(params)
-    .map(([key, value]) => `${key} = ${formatAnnotationValue(value)}`)
-    .join(', ');
-}
-
-function formatAnnotationValue(value: unknown): string {
-  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toString();
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  return `"${escapeJavaString(String(value))}"`;
-}
-
-function escapeJavaString(input: string): string {
-  return input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 function resolveJavaType(t: CoreIR.Type): JavaTypeInfo {

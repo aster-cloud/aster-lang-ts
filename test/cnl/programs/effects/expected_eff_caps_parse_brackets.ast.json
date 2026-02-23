@@ -11,8 +11,7 @@
       "params": [],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [
         "io"

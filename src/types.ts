@@ -153,14 +153,6 @@ export interface Data extends Base.BaseData<Span, Type> {
   span: Span;
 }
 
-/**
- * @deprecated 使用 Constraint 类型替代
- */
-export interface Annotation {
-  readonly name: string;
-  readonly params: ReadonlyMap<string, unknown>;
-}
-
 // ============================================================
 // CNL 约束类型
 // ============================================================
@@ -198,8 +190,6 @@ export interface ConstraintPattern {
 export type Constraint = ConstraintRequired | ConstraintRange | ConstraintPattern;
 
 export interface Field extends Base.BaseField<Type> {
-  /** @deprecated 使用 constraints 替代 */
-  readonly annotations?: readonly Annotation[];
   /** CNL 约束列表 */
   readonly constraints?: readonly Constraint[];
   /** 标记类型是否为推断得出（用于诊断和文档生成） */
@@ -222,8 +212,6 @@ export interface Func extends Base.BaseFunc<Span, readonly string[], Type> {
 }
 
 export interface Parameter extends Base.BaseParameter<Type> {
-  /** @deprecated 使用 constraints 替代 */
-  readonly annotations?: readonly Annotation[];
   /** CNL 约束列表 */
   readonly constraints?: readonly Constraint[];
   /** 标记类型是否为推断得出（用于诊断和文档生成） */
@@ -451,7 +439,6 @@ export interface TypePii extends AstNode {
 }
 
 export interface TypeName extends Base.BaseTypeName<Span> {
-  readonly annotations: readonly Annotation[];
   span: Span;
 }
 
@@ -507,12 +494,6 @@ export namespace Core {
     readonly fields: readonly Field[];
   }
 
-  /** @deprecated 使用 Constraint 类型替代 */
-  export interface Annotation {
-    readonly name: string;
-    readonly params: Readonly<Record<string, unknown>>;
-  }
-
   // Core IR 约束类型
   export interface ConstraintRequired {
     readonly kind: 'Required';
@@ -532,8 +513,6 @@ export namespace Core {
   export type Constraint = ConstraintRequired | ConstraintRange | ConstraintPattern;
 
   export interface Field extends Base.BaseField<Type> {
-    /** @deprecated 使用 constraints 替代 */
-    readonly annotations?: readonly Annotation[];
     /** CNL 约束列表 */
     readonly constraints?: readonly Constraint[];
   }
@@ -554,8 +533,6 @@ export namespace Core {
   }
 
   export interface Parameter extends Base.BaseParameter<Type> {
-    /** @deprecated 使用 constraints 替代 */
-    readonly annotations?: readonly Annotation[];
     /** CNL 约束列表 */
     readonly constraints?: readonly Constraint[];
     /** 标记类型是否为推断得出（用于诊断和文档生成） */

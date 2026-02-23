@@ -12,16 +12,14 @@
           "type": {
             "kind": "TypeName",
             "name": "Int"
-          },
-          "annotations": []
+          }
         },
         {
           "name": "b",
           "type": {
             "kind": "TypeName",
             "name": "Int"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {

@@ -13,16 +13,14 @@
           "name": "pfx",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -40,16 +38,14 @@
                   "name": "x",
                   "type": {
                     "kind": "TypeName",
-                    "name": "Text",
-                    "annotations": []
+                    "name": "Text"
                   },
                   "typeInferred": true
                 }
               ],
               "retType": {
                 "kind": "TypeName",
-                "name": "Unknown",
-                "annotations": []
+                "name": "Unknown"
               },
               "body": {
                 "kind": "Block",
@@ -88,16 +84,14 @@
                   "name": "y",
                   "type": {
                     "kind": "TypeName",
-                    "name": "Text",
-                    "annotations": []
+                    "name": "Text"
                   },
                   "typeInferred": true
                 }
               ],
               "retType": {
                 "kind": "TypeName",
-                "name": "Unknown",
-                "annotations": []
+                "name": "Unknown"
               },
               "body": {
                 "kind": "Block",
@@ -179,8 +173,7 @@
           "name": "x",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         },
@@ -188,16 +181,14 @@
           "name": "y",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],

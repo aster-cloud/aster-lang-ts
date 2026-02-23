@@ -12,16 +12,14 @@
           "type": {
             "kind": "TypeName",
             "name": "Int"
-          },
-          "annotations": []
+          }
         },
         {
           "name": "y",
           "type": {
             "kind": "TypeName",
             "name": "Int"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {
@@ -131,8 +129,7 @@
           "type": {
             "kind": "TypeName",
             "name": "Bool"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {

@@ -5,7 +5,7 @@
 
 import type { Connection } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { typeText, formatAnnotations } from '../completion.js';
+import { typeText } from '../completion.js';
 import {
   findDottedCallRangeAt,
   describeDottedCallAt,
@@ -100,11 +100,8 @@ export function registerHoverHandler(
           if (nameAt) {
             const param = f.params.find(p => p.name === nameAt);
             if (param) {
-              const annots = formatAnnotations(param.annotations);
-              const annotPrefix = annots ? `${annots} ` : '';
-              // 检查是否是 PII 参数，添加合规提示
               const piiHint = buildPiiComplianceHint(param, lexicon);
-              const baseInfo = `${ui.parameterLabel} ${annotPrefix}**${param.name}**: ${typeText(param.type)}`;
+              const baseInfo = `${ui.parameterLabel} **${param.name}**: ${typeText(param.type)}`;
               return { contents: { kind: 'markdown', value: piiHint ? `${baseInfo}\n\n${piiHint}` : baseInfo } };
             }
             const localInfo = findLocalLetWithExpr(f.body as AstBlock | null, nameAt);
@@ -117,11 +114,7 @@ export function registerHoverHandler(
         }
         if (isAstData(decl)) {
           const d = decl;
-          const fields = d.fields.map(f => {
-            const annots = formatAnnotations(f.annotations);
-            const annotPrefix = annots ? `${annots} ` : '';
-            return `${annotPrefix}**${f.name}**: ${typeText(f.type)}`;
-          }).join(', ');
+          const fields = d.fields.map(f => `**${f.name}**: ${typeText(f.type)}`).join(', ');
           return { contents: { kind: 'markdown', value: `${ui.typeLabel} ${d.name}${fields ? ' — ' + fields : ''}` } };
         }
         if (isAstEnum(decl)) {
@@ -139,23 +132,16 @@ export function registerHoverHandler(
 /**
  * 为 PII 参数构建合规提示信息
  */
-function buildPiiComplianceHint(param: { name: string; type: any; annotations?: readonly any[] | undefined }, lexicon?: Lexicon): string | null {
-  // 检查是否有 @pii 注解
-  const piiAnnot = param.annotations?.find(
-    (a: any) => a.name?.toLowerCase() === 'pii' || a.kind === 'pii'
-  );
-
+function buildPiiComplianceHint(param: { name: string; type: any }, lexicon?: Lexicon): string | null {
   // 检查类型是否为 PII 类型
   const isPiiType = param.type?.kind === 'PiiType' ||
     param.type?.name?.toLowerCase()?.includes('pii');
 
-  if (!piiAnnot && !isPiiType) return null;
+  if (!isPiiType) return null;
 
   // 提取 PII 等级
   let level = 'L1';
-  if (piiAnnot?.args?.level) {
-    level = piiAnnot.args.level;
-  } else if (param.type?.level) {
+  if (param.type?.level) {
     level = param.type.level;
   }
 

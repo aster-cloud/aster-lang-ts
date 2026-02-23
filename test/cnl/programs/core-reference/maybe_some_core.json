@@ -12,8 +12,7 @@
           "type": {
             "kind": "TypeName",
             "name": "Int"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {
@@ -52,8 +51,7 @@
           "type": {
             "kind": "TypeName",
             "name": "String"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {
@@ -95,16 +93,14 @@
               "kind": "TypeName",
               "name": "Int"
             }
-          },
-          "annotations": []
+          }
         },
         {
           "name": "defaultValue",
           "type": {
             "kind": "TypeName",
             "name": "Int"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {

@@ -12,8 +12,7 @@
           "type": {
             "kind": "TypeName",
             "name": "Int"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {
@@ -75,8 +74,7 @@
           "type": {
             "kind": "TypeName",
             "name": "Bool"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {
@@ -134,8 +132,7 @@
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {
@@ -184,8 +181,7 @@
           "type": {
             "kind": "TypeName",
             "name": "Int"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {
@@ -289,16 +285,14 @@
           "type": {
             "kind": "TypeName",
             "name": "Int"
-          },
-          "annotations": []
+          }
         },
         {
           "name": "b",
           "type": {
             "kind": "TypeName",
             "name": "Int"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {

@@ -167,7 +167,7 @@ export const Node = {
   Await: (expr: AST.Expression): AST.Await => ({ kind: 'Await', expr, span: createEmptySpan() }),
 
   // Types
-  TypeName: (name: string): AST.TypeName => ({ kind: 'TypeName', name, annotations: [], span: createEmptySpan() }),
+  TypeName: (name: string): AST.TypeName => ({ kind: 'TypeName', name, span: createEmptySpan() }),
   Maybe: (type: AST.Type): AST.Maybe => ({ kind: 'Maybe', type, span: createEmptySpan() }),
   Option: (type: AST.Type): AST.Option => ({ kind: 'Option', type, span: createEmptySpan() }),
   Result: (ok: AST.Type, err: AST.Type): AST.Result => ({

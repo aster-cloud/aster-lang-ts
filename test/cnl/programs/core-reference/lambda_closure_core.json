@@ -12,8 +12,7 @@
           "type": {
             "kind": "TypeName",
             "name": "Int"
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {
@@ -46,8 +45,7 @@
                   "type": {
                     "kind": "TypeName",
                     "name": "Int"
-                  },
-                  "annotations": []
+                  }
                 }
               ],
               "ret": {

@@ -294,19 +294,10 @@ function runPiiVisitor(block: Core.Block, env: Env, diagnostics: Diagnostic[]): 
 }
 
 /**
- * 检查函数是否有同意相关的注解
+ * 检查函数是否有同意相关标记（预留扩展点）
  */
-function hasConsentAnnotation(func: Core.Func): boolean {
-  const annotations = (func as any).annotations as readonly any[] | undefined;
-  if (!annotations) return false;
-  return annotations.some((a: any) => {
-    const name = (a.name ?? a.kind ?? '').toLowerCase();
-    return name === 'consent_required' ||
-           name === 'consentrequired' ||
-           name === 'gdpr_consent' ||
-           name === 'requires_consent' ||
-           name === 'consent';
-  });
+function hasConsentAnnotation(_func: Core.Func): boolean {
+  return false;
 }
 
 /**

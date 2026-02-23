@@ -45,8 +45,8 @@ describe('JVM 代码生成器', () => {
   it('应生成数据类型对应的 Java 类', async () => {
     const module = Core.Module('test.emitter.data', [
       Core.Data('User', [
-        { name: 'id', type: Core.TypeName('Text'), annotations: [] },
-        { name: 'age', type: Core.TypeName('Int'), annotations: [] },
+        { name: 'id', type: Core.TypeName('Text') },
+        { name: 'age', type: Core.TypeName('Int') },
       ]),
     ]);
     const { outDir, cleanup } = await emitToTemp(module);
@@ -81,7 +81,7 @@ describe('JVM 代码生成器', () => {
     const funcDecl: CoreTypes.Func = Core.Func(
       'ping',
       [],
-      [{ name: 'input', type: Core.TypeName('Text'), annotations: [] }],
+      [{ name: 'input', type: Core.TypeName('Text') }],
       Core.TypeName('Text'),
       [],
       funcBody
@@ -104,7 +104,7 @@ describe('JVM 代码生成器', () => {
     const matcher = Core.Func(
       'classify',
       [],
-      [{ name: 'status', type: Core.TypeName('Status'), annotations: [] }],
+      [{ name: 'status', type: Core.TypeName('Status') }],
       Core.TypeName('int'),
       [],
       Core.Block([
@@ -130,13 +130,13 @@ describe('JVM 代码生成器', () => {
 
   it('嵌套数据匹配应生成 instanceof 守卫与解构', async () => {
     const pairData = Core.Data('Pair', [
-      { name: 'left', type: Core.TypeName('Object'), annotations: [] },
-      { name: 'right', type: Core.TypeName('Object'), annotations: [] },
+      { name: 'left', type: Core.TypeName('Object') },
+      { name: 'right', type: Core.TypeName('Object') },
     ]);
     const matcher = Core.Func(
       'unwrap',
       [],
-      [{ name: 'value', type: Core.TypeName('Pair'), annotations: [] }],
+      [{ name: 'value', type: Core.TypeName('Pair') }],
       Core.TypeName('Object'),
       [],
       Core.Block([
@@ -168,11 +168,10 @@ describe('JVM 代码生成器', () => {
   it('数据类应对 List 与 Map 字段生成泛型类型', async () => {
     const module = Core.Module('test.emitter.collections', [
       Core.Data('Catalog', [
-        { name: 'items', type: Core.List(Core.TypeName('Int')), annotations: [] },
+        { name: 'items', type: Core.List(Core.TypeName('Int')) },
         {
           name: 'metadata',
           type: Core.Map(Core.TypeName('Text'), Core.TypeName('Text')),
-          annotations: [],
         },
       ]),
     ]);
@@ -199,7 +198,7 @@ describe('JVM 代码生成器', () => {
     const funcDecl: CoreTypes.Func = Core.Func(
       'withScope',
       [],
-      [{ name: 'result', type: Core.TypeName('int'), annotations: [] }],
+      [{ name: 'result', type: Core.TypeName('int') }],
       Core.TypeName('int'),
       [],
       scopedBody
@@ -265,7 +264,7 @@ describe('JVM 代码生成器', () => {
   it('javaType 应将 Maybe<Text> 映射为可空字符串', async () => {
     const module = Core.Module('test.emitter.java_type_maybe_text', [
       Core.Data('MaybeSample', [
-        { name: 'value', type: Core.Maybe(Core.TypeName('Text')), annotations: [] },
+        { name: 'value', type: Core.Maybe(Core.TypeName('Text')) },
       ]),
     ]);
     const content = await emitJavaClassContent(module, [
@@ -280,10 +279,10 @@ describe('JVM 代码生成器', () => {
   it('javaType 应将 Maybe 自定义类型保持引用类型', async () => {
     const module = Core.Module('test.emitter.java_type_maybe_custom', [
       Core.Data('Profile', [
-        { name: 'name', type: Core.TypeName('Text'), annotations: [] },
+        { name: 'name', type: Core.TypeName('Text') },
       ]),
       Core.Data('Wrapper', [
-        { name: 'payload', type: Core.Maybe(Core.TypeName('Profile')), annotations: [] },
+        { name: 'payload', type: Core.Maybe(Core.TypeName('Profile')) },
       ]),
     ]);
     const content = await emitJavaClassContent(module, [
@@ -298,7 +297,7 @@ describe('JVM 代码生成器', () => {
   it('javaType 应将 Option<Bool> 映射为布尔类型', async () => {
     const module = Core.Module('test.emitter.java_type_option_bool', [
       Core.Data('FlagHolder', [
-        { name: 'active', type: Core.Option(Core.TypeName('Bool')), annotations: [] },
+        { name: 'active', type: Core.Option(Core.TypeName('Bool')) },
       ]),
     ]);
     const content = await emitJavaClassContent(module, [
@@ -316,7 +315,6 @@ describe('JVM 代码生成器', () => {
         {
           name: 'state',
           type: Core.Result(Core.TypeName('Text'), Core.TypeName('Int')),
-          annotations: [],
         },
       ]),
     ]);
@@ -352,7 +350,7 @@ describe('JVM 代码生成器', () => {
     const func = Core.Func(
       'assignValue',
       [],
-      [{ name: 'value', type: Core.TypeName('int'), annotations: [] }],
+      [{ name: 'value', type: Core.TypeName('int') }],
       Core.TypeName('int'),
       [],
       Core.Block([Core.Set('value', Core.Int(10)), Core.Return(Core.Name('value'))])
@@ -394,7 +392,7 @@ describe('JVM 代码生成器', () => {
     const func = Core.Func(
       'chooseValue',
       [],
-      [{ name: 'flag', type: Core.TypeName('boolean'), annotations: [] }],
+      [{ name: 'flag', type: Core.TypeName('boolean') }],
       Core.TypeName('int'),
       [],
       Core.Block([
@@ -450,7 +448,7 @@ describe('JVM 代码生成器', () => {
     const func = Core.Func(
       'score',
       [],
-      [{ name: 'status', type: Core.TypeName('Status'), annotations: [] }],
+      [{ name: 'status', type: Core.TypeName('Status') }],
       Core.TypeName('int'),
       [],
       Core.Block([
@@ -477,7 +475,7 @@ describe('JVM 代码生成器', () => {
     const func = Core.Func(
       'mapCode',
       [],
-      [{ name: 'code', type: Core.TypeName('int'), annotations: [] }],
+      [{ name: 'code', type: Core.TypeName('int') }],
       Core.TypeName('int'),
       [],
       Core.Block([
@@ -504,7 +502,7 @@ describe('JVM 代码生成器', () => {
     const func = Core.Func(
       'describe',
       [],
-      [{ name: 'input', type: Core.TypeName('Object'), annotations: [] }],
+      [{ name: 'input', type: Core.TypeName('Object') }],
       Core.TypeName('String'),
       [],
       Core.Block([
@@ -716,7 +714,7 @@ describe('JVM 代码生成器', () => {
     const func = Core.Func(
       'identity',
       ['T'],
-      [{ name: 'value', type: Core.TypeVar('T'), annotations: [] }],
+      [{ name: 'value', type: Core.TypeVar('T') }],
       Core.TypeVar('T'),
       [],
       Core.Block([Core.Return(Core.Name('value'))])
@@ -739,7 +737,6 @@ describe('JVM 代码生成器', () => {
         {
           name: 'future',
           type: Core.TypeApp('Future', [Core.TypeName('Text')]),
-          annotations: [],
         },
       ],
       Core.TypeName('void'),
@@ -765,7 +762,7 @@ describe('JVM 代码生成器', () => {
     const func = Core.Func(
       'apply',
       [],
-      [{ name: 'fn', type: fnType, annotations: [] }],
+      [{ name: 'fn', type: fnType }],
       Core.TypeName('boolean'),
       [],
       Core.Block([Core.Return(Core.Bool(true))])
@@ -784,7 +781,7 @@ describe('JVM 代码生成器', () => {
     const func = Core.Func(
       'size',
       [],
-      [{ name: 'items', type: Core.List(Core.TypeName('Object')), annotations: [] }],
+      [{ name: 'items', type: Core.List(Core.TypeName('Object')) }],
       Core.TypeName('int'),
       [],
       Core.Block([
@@ -805,7 +802,7 @@ describe('JVM 代码生成器', () => {
     const func = Core.Func(
       'getItem',
       [],
-      [{ name: 'items', type: Core.List(Core.TypeName('Object')), annotations: [] }],
+      [{ name: 'items', type: Core.List(Core.TypeName('Object')) }],
       Core.TypeName('Object'),
       [],
       Core.Block([
@@ -828,7 +825,7 @@ describe('JVM 代码生成器', () => {
     const func = Core.Func(
       'head',
       [],
-      [{ name: 'items', type: Core.List(Core.TypeName('Object')), annotations: [] }],
+      [{ name: 'items', type: Core.List(Core.TypeName('Object')) }],
       Core.TypeName('Object'),
       [],
       Core.Block([
@@ -856,7 +853,6 @@ describe('JVM 代码生成器', () => {
         {
           name: 'mapping',
           type: Core.Map(Core.TypeName('String'), Core.TypeName('String')),
-          annotations: [],
         },
       ],
       Core.TypeName('String'),
@@ -929,8 +925,8 @@ describe('JVM 代码生成器', () => {
   it('Construct 表达式应生成类型实例化', async () => {
     const module = Core.Module('test.emitter.construct', [
       Core.Data('User', [
-        { name: 'name', type: Core.TypeName('String'), annotations: [] },
-        { name: 'age', type: Core.TypeName('int'), annotations: [] },
+        { name: 'name', type: Core.TypeName('String') },
+        { name: 'age', type: Core.TypeName('int') },
       ]),
       Core.Func(
         'build',
@@ -959,13 +955,13 @@ describe('JVM 代码生成器', () => {
 
   it('Match 多分支应解构数据字段', async () => {
     const pair = Core.Data('Pair', [
-      { name: 'left', type: Core.TypeName('Object'), annotations: [] },
-      { name: 'right', type: Core.TypeName('Object'), annotations: [] },
+      { name: 'left', type: Core.TypeName('Object') },
+      { name: 'right', type: Core.TypeName('Object') },
     ]);
     const func = Core.Func(
       'describePair',
       [],
-      [{ name: 'value', type: Core.TypeName('Pair'), annotations: [] }],
+      [{ name: 'value', type: Core.TypeName('Pair') }],
       Core.TypeName('Object'),
       [],
       Core.Block([
@@ -993,12 +989,12 @@ describe('JVM 代码生成器', () => {
 
   it('Match 混合 Null 与构造体应按序生成守卫', async () => {
     const wrapper = Core.Data('Wrapper', [
-      { name: 'payload', type: Core.TypeName('Object'), annotations: [] },
+      { name: 'payload', type: Core.TypeName('Object') },
     ]);
     const func = Core.Func(
       'analyze',
       [],
-      [{ name: 'input', type: Core.TypeName('Wrapper'), annotations: [] }],
+      [{ name: 'input', type: Core.TypeName('Wrapper') }],
       Core.TypeName('String'),
       [],
       Core.Block([
@@ -1161,7 +1157,6 @@ describe('JVM 代码生成器', () => {
         {
           name: 'items',
           type: Core.List(Core.TypeName('String')),
-          annotations: [],
         },
       ],
       Core.Map(Core.TypeName('String'), Core.TypeName('String')),

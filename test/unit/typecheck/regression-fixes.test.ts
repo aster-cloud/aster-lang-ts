@@ -97,8 +97,8 @@ describe('回归测试：重复符号检测', () => {
       name: 'badFunc',
       typeParams: [],
       params: [
-        { name: 'x', type: typeName('Int'), annotations: [] },
-        { name: 'x', type: typeName('Text'), annotations: [] }, // 重复参数名
+        { name: 'x', type: typeName('Int') },
+        { name: 'x', type: typeName('Text') }, // 重复参数名
       ],
       effects: [],
       effectCaps: [],
@@ -395,7 +395,7 @@ describe('回归测试：效应参数诊断', () => {
       typeParams: [],
       effectParams: ['E'], // 声明效应参数 E，但未使用
       params: [
-        { name: 'x', type: typeName('Int'), annotations: [] },
+        { name: 'x', type: typeName('Int') },
       ],
       effects: [],
       effectCaps: [],
@@ -430,8 +430,8 @@ describe('回归测试：KNOWN_SCALARS 扩展', () => {
       name: 'useBuiltinTypes',
       typeParams: [],
       params: [
-        { name: 'a', type: typeName('Long'), annotations: [] },
-        { name: 'b', type: typeName('Double'), annotations: [] },
+        { name: 'a', type: typeName('Long') },
+        { name: 'b', type: typeName('Double') },
       ],
       effects: [],
       effectCaps: [],
@@ -475,12 +475,12 @@ describe('回归测试：KNOWN_SCALARS 扩展', () => {
       name: 'useContainerTypes',
       typeParams: [],
       params: [
-        { name: 'r', type: resultType(typeName('Int'), typeName('Text')), annotations: [] },
-        { name: 'o', type: Core.Option(typeName('Int')), annotations: [] },
-        { name: 'l', type: Core.List(typeName('Int')), annotations: [] },
-        { name: 'm', type: mapType, annotations: [] },
-        { name: 's', type: setType, annotations: [] },
-        { name: 'w', type: workflowType, annotations: [] },
+        { name: 'r', type: resultType(typeName('Int'), typeName('Text')) },
+        { name: 'o', type: Core.Option(typeName('Int')) },
+        { name: 'l', type: Core.List(typeName('Int')) },
+        { name: 'm', type: mapType },
+        { name: 's', type: setType },
+        { name: 'w', type: workflowType },
       ],
       effects: [],
       effectCaps: [],
@@ -514,7 +514,7 @@ describe('回归测试：KNOWN_SCALARS 扩展', () => {
       name: 'useUnknownType',
       typeParams: [],
       params: [
-        { name: 'x', type: typeName('UnknownCustomType'), annotations: [] },
+        { name: 'x', type: typeName('UnknownCustomType') },
       ],
       effects: [],
       effectCaps: [],

@@ -14,11 +14,10 @@ const TEXT = (): Core.Type => CoreBuilder.TypeName('Text');
 const piiType = (level: 'L1' | 'L2' | 'L3', category: Core.PiiType['category']): Core.Type =>
   CoreBuilder.Pii(TEXT(), level, category);
 
-const plainParam = (name: string): Core.Parameter => ({ name, type: TEXT(), annotations: [] });
+const plainParam = (name: string): Core.Parameter => ({ name, type: TEXT() });
 const piiParam = (name: string, level: 'L1' | 'L2' | 'L3'): Core.Parameter => ({
   name,
   type: piiType(level, 'email'),
-  annotations: [],
 });
 
 function makeFunc(options: {

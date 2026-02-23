@@ -650,8 +650,8 @@ describe('TypeSystem.unify', () => {
 
     it('inferFunctionType 应该克隆参数类型并推断返回类型', () => {
       const params: Core.Parameter[] = [
-        { name: 'x', type: { kind: 'TypeName', name: 'Int' }, annotations: [] },
-        { name: 'label', type: { kind: 'TypeName', name: 'Text' }, annotations: [] }
+        { name: 'x', type: { kind: 'TypeName', name: 'Int' } },
+        { name: 'label', type: { kind: 'TypeName', name: 'Text' } }
       ];
       const body: readonly Core.Statement[] = [
         {

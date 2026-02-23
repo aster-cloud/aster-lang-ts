@@ -15,8 +15,7 @@
               "kind": "TypeName",
               "name": "Int"
             }
-          },
-          "annotations": []
+          }
         }
       ],
       "ret": {
