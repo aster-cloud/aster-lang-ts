@@ -86,6 +86,7 @@ import type { Core as CoreTypes, Token, Module as AstModule } from './types.js';
 import type { Lexicon } from './config/lexicons/types.js';
 import { typecheckBrowser as _typecheckBrowser } from './typecheck/browser.js';
 import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
+import { attachTypeInferenceRules } from './config/lexicons/type-inference-rules.js';
 import { DiagnosticError } from './diagnostics/diagnostics.js';
 
 /**
@@ -184,7 +185,8 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     }
 
     // Step 4: Parse to AST (now with English tokens)
-    const ast = parse(tokens);
+    const effectiveLex = lexicon ? attachTypeInferenceRules(lexicon) : undefined;
+    const ast = parse(tokens, effectiveLex);
 
     // Check for parse errors
     if ('error' in ast || !ast) {
@@ -200,7 +202,7 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       return result;
     }
 
-    // Step 4: Lower to Core IR
+    // Step 5: Lower to Core IR
     const core = lowerModule(ast);
 
     const result: CompileResult = {
@@ -276,7 +278,8 @@ export function validateSyntaxWithSpan(source: string, lexicon?: Lexicon): Valid
       tokens = translator.translateTokens(tokens);
     }
 
-    const ast = parse(tokens);
+    const effectiveLexForValidation = lexicon ? attachTypeInferenceRules(lexicon) : undefined;
+    const ast = parse(tokens, effectiveLexForValidation);
 
     if ('error' in ast) {
       return [{ message: (ast as { error: string }).error }];
@@ -457,7 +460,8 @@ export function extractSchema(source: string, options?: SchemaOptions): SchemaRe
     }
 
     // Parse to AST
-    const ast = parse(tokens);
+    const effectiveLexForSchema = lexicon ? attachTypeInferenceRules(lexicon) : undefined;
+    const ast = parse(tokens, effectiveLexForSchema);
 
     if ('error' in ast || !ast) {
       return {

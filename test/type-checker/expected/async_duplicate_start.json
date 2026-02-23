@@ -22,7 +22,7 @@
     {
       "code": "E205",
       "severity": "error",
-      "message": "函数 'launchTwice' 缺少 @io 效果声明，推断要求 IO。"
+      "message": "Function 'launchTwice' missing @io effect declaration, inference requires IO."
     }
   ]
 }

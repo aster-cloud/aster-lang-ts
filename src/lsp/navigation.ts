@@ -34,12 +34,13 @@ export function registerNavigationHandlers(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined; keys(): string[] },
   getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any },
-  getDocumentSettings: (uri: string) => Promise<any>
+  getDocumentSettings: (uri: string) => Promise<any>,
+  getLexiconForDoc?: (uri: string) => import('../config/lexicons/types.js').Lexicon | undefined,
 ): void {
   // 注册各个处理器
   registerReferencesHandler(connection, documents, getDocumentSettings);
   registerRenameHandlers(connection, documents, getOrParse, getDocumentSettings);
-  registerHoverHandler(connection, documents, getOrParse);
+  registerHoverHandler(connection, documents, getOrParse, getLexiconForDoc);
   registerDefinitionHandler(connection, documents, getOrParse);
   registerDocumentSymbolHandler(connection, documents, getOrParse);
 }

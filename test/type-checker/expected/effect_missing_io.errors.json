@@ -9,7 +9,7 @@
     {
       "code": "E205",
       "severity": "error",
-      "message": "函数 'fetchUser' 缺少 @io 效果声明，推断要求 IO。"
+      "message": "Function 'fetchUser' missing @io effect declaration, inference requires IO."
     }
   ]
 }

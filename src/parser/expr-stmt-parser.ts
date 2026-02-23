@@ -832,7 +832,7 @@ function parsePrimary(
           ptype = parseType(ctx, error);
         } else {
           typeInferred = true;
-          ptype = inferFieldType(pname);
+          ptype = inferFieldType(pname, [], ctx.lexicon);
           assignSpan(ptype, spanFromTokens(nameTok, nameTok));
         }
         const param: Parameter = {
@@ -1190,7 +1190,7 @@ export function parseParamList(
         type = parseType(ctx, error);
       } else {
         typeInferred = true;
-        type = inferFieldType(name);
+        type = inferFieldType(name, [], ctx.lexicon);
         assignSpan(type, spanFromTokens(nameTok, nameTok));
       }
 
@@ -1255,7 +1255,7 @@ export function parseParamList(
         type = parseType(ctx, error);
       } else {
         typeInferred = true;
-        type = inferFieldType(name);
+        type = inferFieldType(name, [], ctx.lexicon);
         assignSpan(type, spanFromTokens(nameTok, nameTok));
       }
 

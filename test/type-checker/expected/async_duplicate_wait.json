@@ -22,7 +22,7 @@
     {
       "code": "E205",
       "severity": "error",
-      "message": "函数 'processUser' 缺少 @io 效果声明，推断要求 IO。"
+      "message": "Function 'processUser' missing @io effect declaration, inference requires IO."
     }
   ]
 }

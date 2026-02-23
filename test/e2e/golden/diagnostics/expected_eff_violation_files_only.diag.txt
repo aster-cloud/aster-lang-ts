@@ -1,2 +1,2 @@
 WARNING: Function 'read_file' declares @io but no obvious I/O found.
-WARNING: 函数 'read_file' 声明了 @io，但推断未发现 IO 副作用。
+WARNING: Function 'read_file' declares @io but no IO side effects inferred.

@@ -1,4 +1,5 @@
 import type { Token } from '../types.js';
+import type { Lexicon } from '../config/lexicons/types.js';
 import { TokenKind } from '../frontend/tokens.js';
 import { ConfigService } from '../config/config-service.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
@@ -10,6 +11,7 @@ import { createLogger } from '../utils/logger.js';
  */
 export interface ParserContext {
   readonly tokens: readonly Token[];
+  readonly lexicon?: Lexicon;
   index: number;
   moduleName: string | null;
   declaredTypes: Set<string>;
@@ -77,11 +79,12 @@ export function tokLowerAt(ctx: ParserContext, idx: number): string | null {
 
 const parserLogger = createLogger('parser');
 
-export function createParserContext(tokens: readonly Token[]): ParserContext {
+export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon): ParserContext {
   const compoundContextStack: string[] = [];
 
   const ctx: ParserContext = {
     tokens,
+    ...(lexicon !== undefined && { lexicon }),
     index: 0,
     moduleName: null,
     declaredTypes: new Set<string>(),

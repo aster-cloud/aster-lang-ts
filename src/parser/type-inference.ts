@@ -25,21 +25,10 @@
 
 import { Node } from '../ast/ast.js';
 import type { Constraint, ConstraintRange, Type } from '../types.js';
+import type { TypeInferenceRule, PrimitiveTypeName } from '../types/type-inference.js';
+import type { Lexicon } from '../config/lexicons/types.js';
 
-/** 基础类型名称 */
-type PrimitiveTypeName = 'Text' | 'Int' | 'Float' | 'Bool' | 'DateTime';
-
-/**
- * 类型推断规则接口
- */
-export interface TypeInferenceRule {
-  /** 字段名匹配模式 */
-  readonly pattern: RegExp;
-  /** 推断的类型 */
-  readonly type: PrimitiveTypeName;
-  /** 优先级（数值越大优先级越高） */
-  readonly priority: number;
-}
+export type { TypeInferenceRule, PrimitiveTypeName };
 
 /**
  * 默认的字段命名类型推断规则
@@ -54,129 +43,28 @@ export interface TypeInferenceRule {
  * - 分类类型（Type、Status、Category）
  * - 产品属性（Make、Model）
  */
-export const NAMING_RULES: readonly TypeInferenceRule[] = [
-  // 明确的文本字段（避免误匹配 age 等数值后缀）
+/**
+ * 语言无关的通用基线命名规则。
+ * 语言特定规则（英文布尔前缀、中文前缀、德语后缀等）
+ * 已拆分至 config/lexicons/type-inference-rules.ts（overlay 模式）。
+ */
+export const BASE_NAMING_RULES: readonly TypeInferenceRule[] = [
+  // 明确文本
   { pattern: /(?:Message|Dosage)$/i, type: 'Text', priority: 11 },
-
-  // ID 类型 - 各种标识符
+  // ID/标识符（所有语言通用）
   { pattern: /(?:Id|ID|Identifier)$/i, type: 'Text', priority: 10 },
   { pattern: /(?:Code|Key|Token|Uuid|Guid|Vin)$/i, type: 'Text', priority: 8 },
-
-  // 金额/价格类型 - 金融相关（Float 表示精确小数）
-  {
-    pattern: /(?:Amount|Price|Cost|Fee|Total|Balance|Salary|Income|Payment|Percentage|Ratio)$/i,
-    type: 'Float',
-    priority: 10,
-  },
-  // 利率类型 - 通常为小数（APR/APY 在业务中常用整数基点表示，见下方规则）
-  {
-    pattern: /(?:Rate|Interest)$/i,
-    type: 'Float',
-    priority: 9,
-  },
-  // 利率/费率（中文）
-  {
-    pattern: /(?:利率|费率|比率|百分比)$/,
-    type: 'Float',
-    priority: 9,
-  },
-
-  // 计数/数量类型 - 整数相关（英文）
-  {
-    pattern: /(?:Count|Number|Qty|Quantity|Age|Score|Level|Rank|Index|Size|Length|Width|Height)$/i,
-    type: 'Int',
-    priority: 10,
-  },
-  // 计数/数量类型 - 整数相关（中文）
-  // 评分/年龄/数量/次数/额度 等
-  {
-    pattern: /(?:评分|年龄|数量|次数|额度|金额|保费|免赔额|账龄|卡数)$/,
-    type: 'Int',
-    priority: 10,
-  },
-  {
-    pattern: /(?:Checked)$/i,
-    type: 'Int',
-    priority: 8,
-  },
-  // 业务指标类型 - 整数（评级、限额、保费等）
-  {
-    pattern: /(?:Rating|Limit|Premium|Deductible|Multiplier|Deposit|Line|Utilization|Inquiries|Rent|Debt|Cards|Value|Payments)$/i,
-    type: 'Int',
-    priority: 9,
-  },
-  // 经验/工龄类型 - 整数
-  {
-    pattern: /(?:Licensed|Employed|Job|Experience)$/i,
-    type: 'Int',
-    priority: 8,
-  },
-  // 基点表示（整数）
-  {
-    pattern: /(?:Bps|APR|APY)$/i,
-    type: 'Int',
-    priority: 9,
-  },
-  // 时间单位（整数）
-  {
-    pattern: /(?:Years?|Months?|Weeks?|Days?|Hours?|Minutes?|Seconds?)$/i,
-    type: 'Int',
-    priority: 9,
-  },
-
-  // 布尔类型 - 前缀匹配（英文）
-  {
-    pattern: /^(?:is|has|can|should|was|will|did|does|allow|enable|disable|active|valid|require)/i,
-    type: 'Bool',
-    priority: 11,
-  },
-  // 布尔类型 - 前缀匹配（中文）
-  // 是否* = "whether", 有无* = "has/have", 能否* = "can", 可否* = "may"
-  {
-    pattern: /^(?:是否|有无|能否|可否|允许|启用|禁用)/,
-    type: 'Bool',
-    priority: 11,
-  },
-  // 布尔类型 - 后缀匹配（英文）
-  {
-    pattern: /(?:Flag|Enabled|Disabled|Active|Valid|Approved|Rejected|Completed|Confirmed|Sufficient|Success|Passed|Verified)$/i,
-    type: 'Bool',
-    priority: 8,
-  },
-  // 布尔类型 - 后缀匹配（中文）
-  // 仅包含明确的布尔语义词汇，排除可能是状态枚举的词（成功/失败/完成）
-  {
-    pattern: /(?:批准|通过|有效|合格|可疑|确认|验证)$/,
-    type: 'Bool',
-    priority: 8,
-  },
-
-  // 日期时间类型
-  {
-    pattern: /(?:Date|Time|At|Timestamp|Created|Updated|Modified|Expired|Birthday|Anniversary)$/i,
-    type: 'DateTime',
-    priority: 10,
-  },
-
-  // 分类/状态类型 - 文本
-  {
-    pattern: /(?:Type|Status|Category|Kind|Mode)$/i,
-    type: 'Text',
-    priority: 8,
-  },
-  // 产品/车辆属性 - 文本
-  {
-    pattern: /(?:Make|Model|Brand|Manufacturer)$/i,
-    type: 'Text',
-    priority: 7,
-  },
-  // 名称/描述类型 - 明确为文本
-  {
-    pattern: /(?:Name|Title|Description|Comment|Note|Remark|Address|Email|Phone|Url|Path|Reason|Recommendation|Factors|Purpose)$/i,
-    type: 'Text',
-    priority: 7,
-  },
+  // 金额/价格
+  { pattern: /(?:Amount|Price|Cost|Fee|Total|Balance|Salary|Income|Payment|Percentage|Ratio)$/i, type: 'Float', priority: 10 },
+  { pattern: /(?:Rate|Interest)$/i, type: 'Float', priority: 9 },
+  // 计数/数量
+  { pattern: /(?:Count|Number|Qty|Quantity|Age|Score|Level|Rank|Index|Size|Length|Width|Height)$/i, type: 'Int', priority: 10 },
+  // 时间单位
+  { pattern: /(?:Years?|Months?|Weeks?|Days?|Hours?|Minutes?|Seconds?)$/i, type: 'Int', priority: 9 },
 ];
+
+/** @deprecated 使用 BASE_NAMING_RULES */
+export const NAMING_RULES = BASE_NAMING_RULES;
 
 /** 默认推断类型 */
 const DEFAULT_TYPE: PrimitiveTypeName = 'Text';
@@ -227,20 +115,17 @@ export function inferTypeFromConstraints(constraints: readonly Constraint[]): Pr
  * @param constraints 可选的约束列表
  * @returns 推断的类型 AST 节点
  */
-export function inferFieldType(fieldName: string, constraints: readonly Constraint[] = []): Type {
-  // 优先使用约束推断
+export function inferFieldType(
+  fieldName: string,
+  constraints: readonly Constraint[] = [],
+  lexicon?: Lexicon,
+): Type {
   const constraintDriven = inferTypeFromConstraints(constraints);
-  if (constraintDriven) {
-    return createPrimitiveType(constraintDriven);
-  }
+  if (constraintDriven) return createPrimitiveType(constraintDriven);
 
-  // 其次使用命名推断
-  const nameDriven = inferFromName(fieldName);
-  if (nameDriven) {
-    return createPrimitiveType(nameDriven);
-  }
+  const nameDriven = inferFromName(fieldName, lexicon);
+  if (nameDriven) return createPrimitiveType(nameDriven);
 
-  // 默认类型
   return createPrimitiveType(DEFAULT_TYPE);
 }
 
@@ -314,17 +199,28 @@ function hasFractionalBound(range: ConstraintRange): boolean {
   );
 }
 
+/** 规则缓存（按 lexicon id） */
+const ruleCache = new Map<string, readonly TypeInferenceRule[]>();
+
+function getMergedRules(lexicon?: Lexicon): readonly TypeInferenceRule[] {
+  if (!lexicon?.typeInferenceRules) return BASE_NAMING_RULES;
+  const id = lexicon.id;
+  const cached = ruleCache.get(id);
+  if (cached) return cached;
+  const merged = [...BASE_NAMING_RULES, ...lexicon.typeInferenceRules];
+  ruleCache.set(id, merged);
+  return merged;
+}
+
 /**
  * 从字段名推断类型
  */
-function inferFromName(fieldName: string): PrimitiveTypeName | null {
+function inferFromName(fieldName: string, lexicon?: Lexicon): PrimitiveTypeName | null {
+  const rules = getMergedRules(lexicon);
   let matchedRule: TypeInferenceRule | null = null;
 
-  for (const rule of NAMING_RULES) {
-    if (!rule.pattern.test(fieldName)) {
-      continue;
-    }
-    // 选择优先级最高的匹配规则
+  for (const rule of rules) {
+    if (!rule.pattern.test(fieldName)) continue;
     if (!matchedRule || rule.priority > matchedRule.priority) {
       matchedRule = rule;
     }

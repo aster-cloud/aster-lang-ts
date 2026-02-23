@@ -286,12 +286,12 @@ export const Diagnostics = {
 
   unknownEffect: (effect: string, validEffects: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L102_UnknownEffect)
-      .withMessage(`未知的 effect '${effect}'，有效值为：${validEffects}`)
+      .withMessage(`Unknown effect '${effect}', valid values: ${validEffects}`)
       .withPosition(pos),
 
   unknownStmtKind: (kind: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L103_UnknownStmtKind)
-      .withMessage(`lowerStmt: 未处理的语句类型 '${kind}'`)
+      .withMessage(`lowerStmt: unhandled statement kind '${kind}'`)
       .withPosition(pos),
 
   unknownExprKind: (kind: string, pos: Position): DiagnosticBuilder =>

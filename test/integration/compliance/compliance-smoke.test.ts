@@ -21,6 +21,10 @@ import { parse } from '../../../src/parser.js';
 import { lowerModule } from '../../../src/lower_to_core.js';
 import { typecheckModule } from '../../../src/typecheck.js';
 import type { Module as AstModule, Core } from '../../../src/types.js';
+import { EN_US } from '../../../src/config/lexicons/en-US.js';
+import { attachTypeInferenceRules } from '../../../src/config/lexicons/type-inference-rules.js';
+
+const enUS = attachTypeInferenceRules(EN_US);
 
 // 项目根目录（从源文件位置计算，而非编译后的 dist 位置）
 // 测试运行时从项目根目录运行，所以使用 process.cwd()
@@ -78,7 +82,7 @@ function compileEnd2End(source: string): {
     const tokens = lex(canonical);
 
     // 阶段 3: 语法分析
-    const ast = parse(tokens) as AstModule;
+    const ast = parse(tokens, enUS) as AstModule;
 
     // 阶段 4: 降级到核心
     const core = lowerModule(ast);

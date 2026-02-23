@@ -4,7 +4,7 @@
     {
       "code": "W106",
       "severity": "warning",
-      "message": "Workflow timeout 配置可能不合理: timeout=1000ms (1秒) 过短，可能导致正常操作超时"
+      "message": "Workflow timeout configuration may be unreasonable: timeout=1000ms (1s) too short, may cause normal operations to time out"
     },
     {
       "code": "E003",

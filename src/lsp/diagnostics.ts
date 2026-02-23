@@ -19,6 +19,8 @@ import {
 } from '../typecheck.js';
 import { parse } from '../parser.js';
 import { lowerModule } from '../lower_to_core.js';
+import type { Lexicon } from '../config/lexicons/types.js';
+import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
 import { DiagnosticError } from '../diagnostics/diagnostics.js';
 import { collectSemanticDiagnostics } from './analysis.js';
 import type { CapabilityManifest } from '../effects/capabilities.js';
@@ -253,7 +255,8 @@ export function setDiagnosticConfig(config: Partial<DiagnosticConfig>): void {
  */
 export async function computeDiagnostics(
   textDocument: TextDocument,
-  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any }
+  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any },
+  lexicon?: Lexicon,
 ): Promise<Diagnostic[]> {
   const startTime = Date.now();
 
@@ -301,7 +304,7 @@ export async function computeDiagnostics(
         const typecheckStart = Date.now();
         const manifest = await loadCapabilityManifest();
         const moduleSearchPaths = buildModuleSearchPaths(uri);
-        const typecheckOptions = { uri, moduleSearchPaths };
+        const typecheckOptions = { uri, moduleSearchPaths, lexicon };
         tdiags = manifest
           ? typecheckModuleWithCapabilities(core, manifest, typecheckOptions)
           : typecheckModule(core, typecheckOptions);
@@ -413,10 +416,11 @@ export async function computeDiagnostics(
     // 如果缺少模块头，添加温和的警告
     const a = ast ?? parse(tokens);
     if (!a || !(a as any).name) {
+      const ui = getLspUiTexts(lexicon);
       diagnostics.push({
         severity: DiagnosticSeverity.Warning,
         range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-        message: 'Missing module header. Add "This module is <name>."',
+        message: ui.missingModuleHeader,
         source: 'aster',
       });
     }
@@ -517,6 +521,7 @@ export async function computeWorkspaceDiagnostics(
 let connectionRef: Connection | null = null;
 let documentsRef: { get(uri: string): TextDocument | undefined } | null = null;
 let getOrParseRef: ((doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any }) | null = null;
+let getLexiconForDocRef: ((uri: string) => Lexicon | undefined) | null = null;
 
 /**
  * 推送诊断到客户端（push-based diagnostics）。
@@ -534,7 +539,8 @@ export async function pushDiagnostics(uri: string): Promise<void> {
   }
 
   try {
-    const diagnostics = await computeDiagnostics(doc, getOrParseRef);
+    const lexicon = getLexiconForDocRef?.(uri);
+    const diagnostics = await computeDiagnostics(doc, getOrParseRef, lexicon);
     connectionRef.sendDiagnostics({
       uri,
       version: doc.version,
@@ -555,12 +561,14 @@ export async function pushDiagnostics(uri: string): Promise<void> {
 export function registerDiagnosticHandlers(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined },
-  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any }
+  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any },
+  getLexiconForDoc?: (uri: string) => Lexicon | undefined,
 ): void {
   // 保存引用用于推送诊断
   connectionRef = connection;
   documentsRef = documents;
   getOrParseRef = getOrParse;
+  getLexiconForDocRef = getLexiconForDoc ?? null;
   // LSP 3.17+ pull diagnostics handler
   connection.onRequest(
     DocumentDiagnosticRequest.type,
@@ -570,7 +578,8 @@ export function registerDiagnosticHandlers(
         if (!doc) {
           return { kind: DocumentDiagnosticReportKind.Full, items: [] };
         }
-        const items = await computeDiagnostics(doc, getOrParse);
+        const lexicon = getLexiconForDoc?.(params.textDocument.uri);
+        const items = await computeDiagnostics(doc, getOrParse, lexicon);
         return { kind: DocumentDiagnosticReportKind.Full, items };
       } catch (error) {
         console.error(error);
@@ -602,7 +611,8 @@ export function registerDiagnosticHandlers(
             try {
               let diagnostics: Diagnostic[];
               if (doc) {
-                diagnostics = await computeDiagnostics(doc, getOrParse);
+                const docLexicon = getLexiconForDoc?.(rec.uri);
+                diagnostics = await computeDiagnostics(doc, getOrParse, docLexicon);
               } else if (cached) {
                 diagnostics = cached.diagnostics;
               } else {

@@ -1,2 +1,2 @@
 ERROR: Function 'call_partial_match' may perform I/O but is missing @io effect.
-ERROR: 函数 'call_partial_match' 缺少 @io 效果声明，推断要求 IO。
+ERROR: Function 'call_partial_match' missing @io effect declaration, inference requires IO.

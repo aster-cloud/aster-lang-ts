@@ -285,7 +285,7 @@ Rule makeIdentity, produce Fn1:
     const moduleAst = Node.Module('test.lowering.effectcaps.unknown', [funcDecl]);
     assert.throws(
       () => lowerAst(moduleAst),
-      /未知的 effect/
+      /Unknown effect/
     );
   });
 

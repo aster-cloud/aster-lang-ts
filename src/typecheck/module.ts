@@ -54,7 +54,10 @@ export function typecheckModule(m: Core.Module, options?: TypecheckOptions): Typ
   try {
     const moduleCache = options?.moduleCache ?? defaultModuleCache;
     const moduleSearchPaths = normalizeModuleSearchPaths(options?.moduleSearchPaths);
-    const diagnostics = new DiagnosticBuilder();
+    const diagnostics = new DiagnosticBuilder({
+      diagnosticMessages: options?.lexicon?.diagnosticMessages,
+      diagnosticHelp: options?.lexicon?.diagnosticHelp,
+    });
     const ctx: ModuleContext = {
       datas: new Map(),
       enums: new Map(),
@@ -192,7 +195,10 @@ export function typecheckModuleWithCapabilities(
   const baseDiagnostics = typecheckModule(m, options);
   if (!normalizedManifest) return baseDiagnostics;
 
-  const builder = new DiagnosticBuilder();
+  const builder = new DiagnosticBuilder({
+    diagnosticMessages: options?.lexicon?.diagnosticMessages,
+    diagnosticHelp: options?.lexicon?.diagnosticHelp,
+  });
   const capCtx: CapabilityContext = { moduleName: m.name ?? '' };
 
   for (const d of m.decls) {

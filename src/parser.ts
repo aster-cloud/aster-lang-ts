@@ -23,6 +23,7 @@ import {
   createKeywordTranslator,
   needsKeywordTranslation,
 } from './frontend/keyword-translator.js';
+import { attachTypeInferenceRules } from './config/lexicons/type-inference-rules.js';
 import { EN_US } from './config/lexicons/en-US.js';
 
 /**
@@ -34,9 +35,9 @@ import { EN_US } from './config/lexicons/en-US.js';
  * @param tokens 词法标记数组（应为英文关键词或已翻译的 token）
  * @returns 模块 AST
  */
-export function parse(tokens: readonly Token[]): Module {
+export function parse(tokens: readonly Token[], lexicon?: Lexicon): Module {
   const moduleStart = firstSignificantToken(tokens);
-  const ctx = createParserContext(tokens);
+  const ctx = createParserContext(tokens, lexicon);
   const tools = createParserTools(ctx);
   const decls = collectTopLevelDecls(ctx, tools);
   const moduleNode = Node.Module(ctx.moduleName, decls);
@@ -83,5 +84,7 @@ export function parseWithLexicon(
   const translator = createKeywordTranslator(lexicon);
   const translatedTokens = translator.translateTokens(tokens);
 
-  return parse(translatedTokens);
+  // 附加类型推断规则后传递给 parse
+  const effective = attachTypeInferenceRules(lexicon);
+  return parse(translatedTokens, effective);
 }

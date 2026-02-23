@@ -10,6 +10,8 @@
  */
 
 import { SemanticTokenKind } from '../token-kind.js';
+import type { TypeInferenceRule } from '../../types/type-inference.js';
+import type { ValueGenerationRule } from '../../parser/input-generator.js';
 
 /**
  * 词法表接口 - 定义一种自然语言的 CNL 词法。
@@ -37,6 +39,18 @@ export interface Lexicon {
 
   /** 错误消息模板 */
   readonly messages: ErrorMessages;
+
+  /** 语言特定的类型推断命名规则（overlay，合并到基线之上） */
+  readonly typeInferenceRules?: readonly TypeInferenceRule[];
+
+  /** 语言特定的输入值生成规则（overlay，优先于英文基线） */
+  readonly inputGenerationRules?: readonly ValueGenerationRule[];
+
+  /** 诊断消息翻译（覆盖 ERROR_MESSAGES 中对应条目） */
+  readonly diagnosticMessages?: Readonly<Partial<Record<string, string>>>;
+
+  /** 帮助文本翻译（覆盖 ERROR_METADATA.help 中对应条目） */
+  readonly diagnosticHelp?: Readonly<Partial<Record<string, string>>>;
 }
 
 /**

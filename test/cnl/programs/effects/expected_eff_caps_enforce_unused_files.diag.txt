@@ -1,2 +1,2 @@
 INFO: Function 'onlyFiles' declares Time capability but it is not used.
-WARNING: 函数 'onlyFiles' 声明了 @io，但推断未发现 IO 副作用。
+WARNING: Function 'onlyFiles' declares @io but no IO side effects inferred.

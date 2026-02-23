@@ -31,6 +31,8 @@ import type {
   Module as AstModule,
   Block as AstBlock,
 } from '../../types.js';
+import type { Lexicon } from '../../config/lexicons/types.js';
+import { getLspUiTexts } from '../../config/lexicons/lsp-ui-texts.js';
 
 /**
  * 注册 Hover 处理器
@@ -41,7 +43,8 @@ import type {
 export function registerHoverHandler(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined },
-  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any }
+  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any },
+  getLexiconForDoc?: (uri: string) => Lexicon | undefined,
 ): void {
   connection.onHover(async params => {
     const doc = documents.get(params.textDocument.uri);
@@ -79,6 +82,8 @@ export function registerHoverHandler(
     }
     // Semantic hover: decls/params/locals/types using AST spans and tokens
     try {
+      const lexicon = getLexiconForDoc?.(params.textDocument.uri);
+      const ui = getLspUiTexts(lexicon);
       const ast2 = (ast as AstModule) || (parse(toks) as AstModule);
       const decl = findDeclAt(ast2, pos);
       if (decl) {
@@ -90,7 +95,7 @@ export function registerHoverHandler(
           const patInfo = nameAt ? findPatternBindingDetail(f, nameAt, pos) : null;
           if (patInfo) {
             const ofTxt = patInfo.ofType ? ` of ${patInfo.ofType}` : '';
-            return { contents: { kind: 'markdown', value: `Pattern binding ${patInfo.name}${ofTxt}` } };
+            return { contents: { kind: 'markdown', value: `${ui.patternBindingLabel} ${patInfo.name}${ofTxt}` } };
           }
           if (nameAt) {
             const param = f.params.find(p => p.name === nameAt);
@@ -98,17 +103,17 @@ export function registerHoverHandler(
               const annots = formatAnnotations(param.annotations);
               const annotPrefix = annots ? `${annots} ` : '';
               // 检查是否是 PII 参数，添加合规提示
-              const piiHint = buildPiiComplianceHint(param);
-              const baseInfo = `Parameter ${annotPrefix}**${param.name}**: ${typeText(param.type)}`;
+              const piiHint = buildPiiComplianceHint(param, lexicon);
+              const baseInfo = `${ui.parameterLabel} ${annotPrefix}**${param.name}**: ${typeText(param.type)}`;
               return { contents: { kind: 'markdown', value: piiHint ? `${baseInfo}\n\n${piiHint}` : baseInfo } };
             }
             const localInfo = findLocalLetWithExpr(f.body as AstBlock | null, nameAt);
             if (localInfo) {
               const hint = exprTypeText(localInfo.expr);
-              return { contents: { kind: 'markdown', value: `Local ${nameAt}${hint ? ': ' + hint : ''}` } };
+              return { contents: { kind: 'markdown', value: `${ui.localLabel} ${nameAt}${hint ? ': ' + hint : ''}` } };
             }
           }
-          return { contents: { kind: 'markdown', value: `Function ${f.name} — ${funcDetail(f)}` } };
+          return { contents: { kind: 'markdown', value: `${ui.functionLabel} ${f.name} — ${funcDetail(f)}` } };
         }
         if (isAstData(decl)) {
           const d = decl;
@@ -117,11 +122,11 @@ export function registerHoverHandler(
             const annotPrefix = annots ? `${annots} ` : '';
             return `${annotPrefix}**${f.name}**: ${typeText(f.type)}`;
           }).join(', ');
-          return { contents: { kind: 'markdown', value: `type ${d.name}${fields ? ' — ' + fields : ''}` } };
+          return { contents: { kind: 'markdown', value: `${ui.typeLabel} ${d.name}${fields ? ' — ' + fields : ''}` } };
         }
         if (isAstEnum(decl)) {
           const e = decl;
-          return { contents: { kind: 'markdown', value: `enum ${e.name} — ${e.variants.join(', ')}` } };
+          return { contents: { kind: 'markdown', value: `${ui.enumLabel} ${e.name} — ${e.variants.join(', ')}` } };
         }
       }
     } catch {
@@ -134,7 +139,7 @@ export function registerHoverHandler(
 /**
  * 为 PII 参数构建合规提示信息
  */
-function buildPiiComplianceHint(param: { name: string; type: any; annotations?: readonly any[] | undefined }): string | null {
+function buildPiiComplianceHint(param: { name: string; type: any; annotations?: readonly any[] | undefined }, lexicon?: Lexicon): string | null {
   // 检查是否有 @pii 注解
   const piiAnnot = param.annotations?.find(
     (a: any) => a.name?.toLowerCase() === 'pii' || a.kind === 'pii'
@@ -154,31 +159,28 @@ function buildPiiComplianceHint(param: { name: string; type: any; annotations?: 
     level = param.type.level;
   }
 
+  const ui = getLspUiTexts(lexicon);
+
   // 根据等级提供不同的合规提示
   const hints: string[] = [];
-  hints.push(`⚠️ **PII Data** (Level: ${level})`);
+  hints.push(`⚠️ **${ui.piiWarningHeader}** (Level: ${level})`);
 
   switch (level) {
     case 'L3':
-      hints.push('- 🔴 High sensitivity: SSN, passport, biometric');
-      hints.push('- GDPR: Requires explicit consent (Art. 9)');
-      hints.push('- HIPAA: PHI - encryption required');
+      hints.push(`- ${ui.piiL3Hint.split('\n').join('\n- ')}`);
       hints.push('- Must use `redact()` before logging/transmission');
       break;
     case 'L2':
-      hints.push('- 🟠 Medium sensitivity: email, phone, address');
-      hints.push('- GDPR: Lawful basis required (Art. 6)');
-      hints.push('- Consider encryption at rest');
+      hints.push(`- ${ui.piiL2Hint.split('\n').join('\n- ')}`);
       break;
     case 'L1':
     default:
-      hints.push('- 🟡 Low sensitivity: name, preferences');
-      hints.push('- GDPR: Document processing purpose');
+      hints.push(`- ${ui.piiL1Hint.split('\n').join('\n- ')}`);
       break;
   }
 
   hints.push('');
-  hints.push('*Use `redact()` or `tokenize()` before external transmission*');
+  hints.push(`*${ui.piiRedactHint}*`);
 
   return hints.join('\n');
 }

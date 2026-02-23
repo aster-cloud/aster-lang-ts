@@ -20,11 +20,15 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 
 import { canonicalize } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
-import { parse } from '../parser.js';
+import { parse, parseWithLexicon } from '../parser.js';
+import { needsKeywordTranslation } from '../frontend/keyword-translator.js';
 import type {
   Module as AstModule,
   Span,
 } from '../types.js';
+import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/index.js';
+import type { Lexicon } from '../config/lexicons/types.js';
+import { attachDiagnosticMessages } from '../config/lexicons/diagnostic-messages.js';
 import { buildIdIndex, exprTypeText } from './utils.js';
 import {
   getModuleIndex,
@@ -107,16 +111,29 @@ let currentIndexPath: string | null = null;
 let indexPersistenceActive = true;
 const workspaceFolders: string[] = [];
 
+/** per-document lexicon 追踪 */
+const documentLexicons = new Map<string, Lexicon>();
+
+/** 当前全局 locale 对应的 lexicon（含诊断消息 overlay） */
+let currentLexicon: Lexicon | undefined;
+
+function getLexiconForDoc(uri: string): Lexicon | undefined {
+  return documentLexicons.get(uri) ?? currentLexicon;
+}
+
 function getOrParse(doc: TextDocument): CachedDoc {
   const key = doc.uri;
   const prev = docCache.get(key);
   if (prev && prev.version === doc.version) return prev;
   const text = doc.getText();
-  const can = canonicalize(text);
+  const lexicon = getLexiconForDoc(doc.uri);
+  const can = canonicalize(text, lexicon);
   const tokens = lex(can);
   let ast: AstModule | null;
   try {
-    ast = parse(tokens) as AstModule;
+    ast = lexicon && needsKeywordTranslation(lexicon)
+      ? parseWithLexicon(tokens, lexicon) as AstModule
+      : parse(tokens, lexicon) as AstModule;
   } catch {
     ast = null;
   }
@@ -134,6 +151,7 @@ let hasWatchedFilesCapability = false;
 let watcherRegistered = false;
 
 connection.onInitialize(async (params: InitializeParams) => {
+  initializeDefaultLexicons();
   const capabilities = params.capabilities;
 
   // Does the client support the `workspace/configuration` request?
@@ -321,19 +339,19 @@ connection.onInitialized(() => {
   registerHealthHandlers(connection, hasWatchedFilesCapability, watcherRegistered, getAllModules, getWatcherStatus, getQueueStats);
 
   // Register diagnostic handlers
-  registerDiagnosticHandlers(connection, documents, getOrParse);
+  registerDiagnosticHandlers(connection, documents, getOrParse, getLexiconForDoc);
 
   // Register completion handlers
-  registerCompletionHandlers(connection, documents, getOrParse);
+  registerCompletionHandlers(connection, documents, getOrParse, getLexiconForDoc);
 
   // Register navigation handlers
-  registerNavigationHandlers(connection, documents, getOrParse, getDocumentSettings);
+  registerNavigationHandlers(connection, documents, getOrParse, getDocumentSettings, getLexiconForDoc);
 
   // Register formatting handlers
   registerFormattingHandlers(connection, documents, getDocumentSettings);
 
   // Register code action handlers
-  registerCodeActionHandlers(connection, documents, getOrParse, uriToFsPath);
+  registerCodeActionHandlers(connection, documents, getOrParse, uriToFsPath, getLexiconForDoc);
 
   // Register symbols handlers
   registerSymbolsHandlers(connection, documents, getAllModules, ensureUri, offsetToPos);
@@ -350,6 +368,7 @@ interface AsterSettings {
   rename?: { scope?: 'open' | 'workspace' };
   diagnostics?: { workspace?: boolean };
   streaming?: { referencesChunk?: number; renameChunk?: number; logChunks?: boolean };
+  locale?: string; // 'en-US' | 'zh-CN' | 'de-DE'
 }
 
 // The global settings, used when the `workspace/configuration` request is not supported by the client.
@@ -369,7 +388,7 @@ connection.onDidChangeConfiguration(change => {
 
   // Revalidate caches for open documents (pull diagnostics will request when needed)
   documents.all().forEach(doc => { try { void getOrParse(doc); } catch {} });
-  // Update diagnostics and index settings
+  // Update diagnostics, index, and locale settings
   getDocumentSettings('').then(s => {
     setDiagnosticConfig({
       workspaceDiagnosticsEnabled: s.diagnostics?.workspace ?? true,
@@ -383,6 +402,18 @@ connection.onDidChangeConfiguration(change => {
       indexPath: currentIndexPath ?? null,
     });
     indexPersistenceActive = persistEnabled;
+
+    // 更新 locale 对应的 lexicon
+    const locale = s.locale ?? 'en-US';
+    if (locale === 'en-US') {
+      currentLexicon = undefined;
+      documentLexicons.clear();
+    } else {
+      const lex = LexiconRegistry.has(locale) ? LexiconRegistry.get(locale) : undefined;
+      currentLexicon = lex ? attachDiagnosticMessages(lex) : undefined;
+      // 清除 docCache 以触发重新解析
+      docCache.clear();
+    }
   }).catch(() => {
     setDiagnosticConfig({
       workspaceDiagnosticsEnabled: true,
@@ -471,6 +502,7 @@ documents.onDidSave(e => {
 // Formatting handlers (rangeFormatting, documentFormatting) moved to ./formatting.js
 documents.onDidClose(e => {
   docCache.delete(e.document.uri);
+  documentLexicons.delete(e.document.uri);
   try {
     const existing = getModuleIndex(e.document.uri);
     if (existing) invalidateDocument(e.document.uri);

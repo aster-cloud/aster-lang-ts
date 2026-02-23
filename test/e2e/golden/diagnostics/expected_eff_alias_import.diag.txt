@@ -1,6 +1,6 @@
 ERROR: Function 'fetch_with_alias' may perform I/O but is missing @io effect.
 ERROR: Function 'query_with_alias' may perform I/O but is missing @io effect.
 ERROR: Function 'mixed_alias_and_direct' may perform I/O but is missing @io effect.
-ERROR: 函数 'fetch_with_alias' 缺少 @io 效果声明，推断要求 IO。
-ERROR: 函数 'query_with_alias' 缺少 @io 效果声明，推断要求 IO。
-ERROR: 函数 'mixed_alias_and_direct' 缺少 @io 效果声明，推断要求 IO。
+ERROR: Function 'fetch_with_alias' missing @io effect declaration, inference requires IO.
+ERROR: Function 'query_with_alias' missing @io effect declaration, inference requires IO.
+ERROR: Function 'mixed_alias_and_direct' missing @io effect declaration, inference requires IO.

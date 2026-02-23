@@ -1,4 +1,4 @@
 WARNING: Function 'middleCPU' declares @cpu but no obvious CPU-bound work found.
 WARNING: Function 'rootIO' declares @io but no obvious I/O found.
-ERROR: 函数 'middleCPU' 缺少 @io 效果声明，推断要求 IO。
-WARNING: 函数 'middleCPU' 同时声明 @cpu 和 @io；由于需要 @io，@cpu 可移除。
+ERROR: Function 'middleCPU' missing @io effect declaration, inference requires IO.
+WARNING: Function 'middleCPU' declares both @cpu and @io; @cpu is redundant since @io is required.

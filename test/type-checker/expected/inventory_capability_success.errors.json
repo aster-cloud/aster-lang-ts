@@ -3,12 +3,12 @@
     {
       "code": "E207",
       "severity": "warning",
-      "message": "函数 'reserveInventoryValid' 声明了 @io，但推断未发现 IO 副作用。"
+      "message": "Function 'reserveInventoryValid' declares @io but no IO side effects inferred."
     },
     {
       "code": "E207",
       "severity": "warning",
-      "message": "函数 'releaseInventoryValid' 声明了 @io，但推断未发现 IO 副作用。"
+      "message": "Function 'releaseInventoryValid' declares @io but no IO side effects inferred."
     }
   ]
 }

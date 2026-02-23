@@ -15,6 +15,16 @@ function formatMessage(template: string, params: Record<string, unknown>): strin
 
 export class DiagnosticBuilder {
   private readonly diagnostics: TypecheckDiagnostic[] = [];
+  private readonly localizedMessages: Readonly<Partial<Record<string, string>>> | undefined;
+  private readonly localizedHelp: Readonly<Partial<Record<string, string>>> | undefined;
+
+  constructor(options?: {
+    diagnosticMessages?: Readonly<Partial<Record<string, string>>> | undefined;
+    diagnosticHelp?: Readonly<Partial<Record<string, string>>> | undefined;
+  }) {
+    this.localizedMessages = options?.diagnosticMessages;
+    this.localizedHelp = options?.diagnosticHelp;
+  }
 
   error(code: ErrorCode, span: Span | undefined, params: Record<string, unknown> = {}): this {
     return this.add(code, span, params, 'error');
@@ -83,7 +93,9 @@ export class DiagnosticBuilder {
 
   private add(code: ErrorCode, span: Span | undefined, params: Record<string, unknown>, severityOverride?: Severity): this {
     const metadata = ERROR_METADATA[code];
-    const template = ERROR_MESSAGES[code] ?? metadata.message;
+    // 优先使用 lexicon 翻译，回退到英文基线
+    const template = this.localizedMessages?.[code] ?? ERROR_MESSAGES[code] ?? metadata.message;
+    const help = this.localizedHelp?.[code] ?? metadata.help;
     const severity = severityOverride ?? metadata.severity;
 
     const diagnostic: TypecheckDiagnostic = {
@@ -93,7 +105,7 @@ export class DiagnosticBuilder {
     };
 
     if (span) diagnostic.span = span;
-    if (metadata.help) diagnostic.help = metadata.help;
+    if (help) diagnostic.help = help;
     if (Object.keys(params).length > 0) diagnostic.data = params;
 
     this.diagnostics.push(diagnostic);

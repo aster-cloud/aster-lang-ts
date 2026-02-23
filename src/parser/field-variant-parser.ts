@@ -71,7 +71,7 @@ export function parseFieldList(
       // 类型推断路径 - CNL 自然语言风格
       typeInferred = true;
       // 初步推断（基于字段名），后续可能根据约束修正
-      t = inferFieldType(name);
+      t = inferFieldType(name, [], ctx.lexicon);
       assignSpan(t, spanFromTokens(nameTok, nameTok));
     }
 

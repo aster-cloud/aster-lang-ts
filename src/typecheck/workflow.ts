@@ -39,13 +39,13 @@ function estimateRetryWaitMs(retry: Core.RetryPolicy): number {
 
 function describeDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms === Number.POSITIVE_INFINITY) {
-    return '不可估算';
+    return 'incalculable';
   }
   if (ms < 1_000) return `${ms}ms`;
-  if (ms < 600_000) return `${Math.round(ms / 1_000)}秒`;
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}分钟`;
-  if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}小时`;
-  return `${Math.round(ms / 86_400_000)}天`;
+  if (ms < 600_000) return `${Math.round(ms / 1_000)}s`;
+  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}min`;
+  if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h`;
+  return `${Math.round(ms / 86_400_000)}d`;
 }
 
 export function checkRetrySemantics(workflow: Core.Workflow, diagnostics: DiagnosticBuilder): void {
@@ -62,14 +62,14 @@ export function checkRetrySemantics(workflow: Core.Workflow, diagnostics: Diagno
 
   if (timeoutMs && timeoutMs > 0 && estimatedWaitMs > timeoutMs) {
     diagnostics.warning(ErrorCode.WORKFLOW_RETRY_INCONSISTENT, originToSpan(workflow.origin), {
-      reason: `${reasonPrefix} 预估累计等待 ${describeDuration(estimatedWaitMs)}，超过 timeout=${describeDuration(timeoutMs)}`,
+      reason: `${reasonPrefix} estimated total wait ${describeDuration(estimatedWaitMs)} exceeds timeout=${describeDuration(timeoutMs)}`,
     });
     return;
   }
 
   if (maxAttempts > RETRY_RECOMMENDED_MAX_ATTEMPTS) {
     diagnostics.warning(ErrorCode.WORKFLOW_RETRY_INCONSISTENT, originToSpan(workflow.origin), {
-      reason: `${reasonPrefix} 预计累计等待 ${describeDuration(estimatedWaitMs)}，建议最多 ${RETRY_RECOMMENDED_MAX_ATTEMPTS} 次`,
+      reason: `${reasonPrefix} estimated total wait ${describeDuration(estimatedWaitMs)}, recommended max ${RETRY_RECOMMENDED_MAX_ATTEMPTS} attempts`,
     });
     return;
   }
@@ -77,7 +77,7 @@ export function checkRetrySemantics(workflow: Core.Workflow, diagnostics: Diagno
   const waitLimit = backoff === 'linear' ? RETRY_LINEAR_WAIT_LIMIT_MS : RETRY_EXPONENTIAL_WAIT_LIMIT_MS;
   if (estimatedWaitMs > waitLimit) {
     diagnostics.warning(ErrorCode.WORKFLOW_RETRY_INCONSISTENT, originToSpan(workflow.origin), {
-      reason: `${reasonPrefix} 预计累计等待 ${describeDuration(estimatedWaitMs)}，超过推荐窗口 ${describeDuration(waitLimit)}`,
+      reason: `${reasonPrefix} estimated total wait ${describeDuration(estimatedWaitMs)} exceeds recommended window ${describeDuration(waitLimit)}`,
     });
   }
 }
@@ -90,13 +90,13 @@ export function checkTimeoutSemantics(workflow: Core.Workflow, diagnostics: Diag
 
   if (milliseconds <= 1_000) {
     diagnostics.warning(ErrorCode.WORKFLOW_TIMEOUT_UNREASONABLE, originToSpan(workflow.origin), {
-      reason: `timeout=${milliseconds}ms (${Math.round(milliseconds / 1_000)}秒) 过短，可能导致正常操作超时`,
+      reason: `timeout=${milliseconds}ms (${Math.round(milliseconds / 1_000)}s) too short, may cause normal operations to time out`,
     });
   }
 
   if (milliseconds > 3_600_000) {
     diagnostics.warning(ErrorCode.WORKFLOW_TIMEOUT_UNREASONABLE, originToSpan(workflow.origin), {
-      reason: `timeout=${milliseconds}ms (${Math.round(milliseconds / 60_000)}分钟) 过长，建议不超过 1 小时`,
+      reason: `timeout=${milliseconds}ms (${Math.round(milliseconds / 60_000)}min) too long, recommended maximum 1 hour`,
     });
   }
 }

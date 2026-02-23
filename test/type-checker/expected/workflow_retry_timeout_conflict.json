@@ -5,7 +5,7 @@
     {
       "code": "W105",
       "severity": "warning",
-      "message": "Workflow retry 配置可能不合理: retry(backoff=linear, maxAttempts=5) 预估累计等待 10秒，超过 timeout=3秒"
+      "message": "Workflow retry configuration may be unreasonable: retry(backoff=linear, maxAttempts=5) estimated total wait 10s exceeds timeout=3s"
     },
     {
       "code": "E003",

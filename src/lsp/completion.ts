@@ -20,6 +20,8 @@ import type {
   Type as AstType,
   Annotation,
 } from '../types.js';
+import type { Lexicon } from '../config/lexicons/types.js';
+import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
 
 /**
  * 将 AstType 转换为可读的字符串表示
@@ -176,7 +178,7 @@ function buildSignatureInformation(f: AstFunc): SignatureInformation {
   };
   const effects = (f.effects as string[] | undefined) ?? [];
   if (effects.length > 0) {
-    info.documentation = `效果：${effects.join(', ')}`;
+    info.documentation = `Effects: ${effects.join(', ')}`;
   }
   return info;
 }
@@ -270,7 +272,8 @@ function findCallInfoAt(
 export function registerCompletionHandlers(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined },
-  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any }
+  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any },
+  getLexiconForDoc?: (uri: string) => Lexicon | undefined,
 ): void {
   // 代码补全：提供关键字和类型补全
   connection.onCompletion((): CompletionItem[] => {
@@ -308,15 +311,18 @@ export function registerCompletionHandlers(
 
   // 补全项解析：为选中的补全项提供额外信息
   connection.onCompletionResolve((item: CompletionItem): CompletionItem => {
+    // getLexiconForDoc('') 返回全局 lexicon（无 per-doc override 时的回退）
+    const lexicon = getLexiconForDoc?.('');
+    const ui = getLspUiTexts(lexicon);
     if (item.data === 'module') {
-      item.detail = 'Module declaration';
-      item.documentation = 'Declares the module name for this file';
+      item.detail = ui.moduleDeclaration;
+      item.documentation = ui.moduleDeclarationDoc;
     } else if (item.data === 'define') {
-      item.detail = 'Type definition';
-      item.documentation = 'Define a new data type or enum';
+      item.detail = ui.typeDefinition;
+      item.documentation = ui.typeDefinitionDoc;
     } else if (item.data === 'rule') {
-      item.detail = 'Function definition';
-      item.documentation = 'Define a new function';
+      item.detail = ui.functionDefinition;
+      item.documentation = ui.functionDefinitionDoc;
     }
     return item;
   });

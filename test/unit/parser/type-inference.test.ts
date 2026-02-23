@@ -8,9 +8,16 @@ import {
   inferFieldType,
   inferTypeFromConstraints,
   refineInferredType,
+  BASE_NAMING_RULES,
   NAMING_RULES,
 } from '../../../src/parser/type-inference.js';
 import type { Constraint, ConstraintRange, ConstraintPattern, Type } from '../../../src/types.js';
+import { EN_US } from '../../../src/config/lexicons/en-US.js';
+import { attachTypeInferenceRules } from '../../../src/config/lexicons/type-inference-rules.js';
+import type { Lexicon } from '../../../src/config/lexicons/types.js';
+
+/** en-US lexicon 附带类型推断规则 */
+const enUS: Lexicon = attachTypeInferenceRules(EN_US);
 
 /** 辅助函数：创建 span */
 const freshSpan = () => ({ start: { line: 1, col: 1 }, end: { line: 1, col: 1 } });
@@ -24,14 +31,21 @@ function getTypeName(type: Type): string {
 }
 
 describe('类型推断引擎', () => {
-  describe('NAMING_RULES 命名规则', () => {
-    it('应该包含所有必要的类型规则', () => {
-      const typesCovered = new Set(NAMING_RULES.map(r => r.type));
+  describe('BASE_NAMING_RULES 基线规则', () => {
+    it('基线规则应包含语言无关的通用类型', () => {
+      const typesCovered = new Set(BASE_NAMING_RULES.map(r => r.type));
       assert.ok(typesCovered.has('Text'), '应包含 Text 规则');
       assert.ok(typesCovered.has('Int'), '应包含 Int 规则');
       assert.ok(typesCovered.has('Float'), '应包含 Float 规则');
-      assert.ok(typesCovered.has('Bool'), '应包含 Bool 规则');
-      assert.ok(typesCovered.has('DateTime'), '应包含 DateTime 规则');
+    });
+
+    it('附加 en-US overlay 后应包含所有类型', () => {
+      const rules = enUS.typeInferenceRules!;
+      const overlayTypes = new Set(rules.map(r => r.type));
+      const baseTypes = new Set(BASE_NAMING_RULES.map(r => r.type));
+      const allTypes = new Set([...baseTypes, ...overlayTypes]);
+      assert.ok(allTypes.has('Bool'), '应包含 Bool 规则');
+      assert.ok(allTypes.has('DateTime'), '应包含 DateTime 规则');
     });
   });
 
@@ -110,48 +124,58 @@ describe('类型推断引擎', () => {
       });
     });
 
-    describe('布尔类型推断', () => {
+    describe('布尔类型推断（需要 en-US overlay）', () => {
       it('应该将 is* 前缀推断为 Bool', () => {
-        assert.strictEqual(getTypeName(inferFieldType('isActive')), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('isApproved')), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('isVerified')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('isActive', [], enUS)), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('isApproved', [], enUS)), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('isVerified', [], enUS)), 'Bool');
       });
 
       it('应该将 has* 前缀推断为 Bool', () => {
-        assert.strictEqual(getTypeName(inferFieldType('hasPermission')), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('hasAccess')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('hasPermission', [], enUS)), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('hasAccess', [], enUS)), 'Bool');
       });
 
       it('应该将 can*/should*/allow* 前缀推断为 Bool', () => {
-        assert.strictEqual(getTypeName(inferFieldType('canEdit')), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('shouldNotify')), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('allowAccess')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('canEdit', [], enUS)), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('shouldNotify', [], enUS)), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('allowAccess', [], enUS)), 'Bool');
       });
 
       it('应该将 *Flag/*Enabled/*Active 后缀推断为 Bool', () => {
-        assert.strictEqual(getTypeName(inferFieldType('debugFlag')), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('featureEnabled')), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('accountActive')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('debugFlag', [], enUS)), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('featureEnabled', [], enUS)), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('accountActive', [], enUS)), 'Bool');
+      });
+
+      it('无 lexicon 时不应推断 Bool', () => {
+        assert.strictEqual(getTypeName(inferFieldType('isActive')), 'Text');
+        assert.strictEqual(getTypeName(inferFieldType('hasPermission')), 'Text');
       });
     });
 
-    describe('日期时间类型推断', () => {
+    describe('日期时间类型推断（需要 en-US overlay）', () => {
       it('应该将 *Date/*Time 后缀推断为 DateTime', () => {
-        assert.strictEqual(getTypeName(inferFieldType('birthDate')), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('startTime')), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('expiryDate')), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('birthDate', [], enUS)), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('startTime', [], enUS)), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('expiryDate', [], enUS)), 'DateTime');
       });
 
       it('应该将 *At/*Timestamp 后缀推断为 DateTime', () => {
-        assert.strictEqual(getTypeName(inferFieldType('createdAt')), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('updatedAt')), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('eventTimestamp')), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('createdAt', [], enUS)), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('updatedAt', [], enUS)), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('eventTimestamp', [], enUS)), 'DateTime');
       });
 
       it('应该将 *Created/*Updated/*Modified 后缀推断为 DateTime', () => {
-        assert.strictEqual(getTypeName(inferFieldType('dateCreated')), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('lastUpdated')), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('lastModified')), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('dateCreated', [], enUS)), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('lastUpdated', [], enUS)), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('lastModified', [], enUS)), 'DateTime');
+      });
+
+      it('无 lexicon 时不应推断 DateTime', () => {
+        assert.strictEqual(getTypeName(inferFieldType('birthDate')), 'Text');
+        assert.strictEqual(getTypeName(inferFieldType('createdAt')), 'Text');
       });
     });
 
@@ -163,10 +187,10 @@ describe('类型推断引擎', () => {
         assert.strictEqual(getTypeName(inferFieldType('something')), 'Text');
       });
 
-      it('*Value 后缀应该推断为 Int（业务值/金额）', () => {
-        assert.strictEqual(getTypeName(inferFieldType('value')), 'Int');
-        assert.strictEqual(getTypeName(inferFieldType('vehicleValue')), 'Int');
-        assert.strictEqual(getTypeName(inferFieldType('totalValue')), 'Int');
+      it('*Value 后缀应该推断为 Int（需要 en-US overlay）', () => {
+        assert.strictEqual(getTypeName(inferFieldType('value', [], enUS)), 'Int');
+        assert.strictEqual(getTypeName(inferFieldType('vehicleValue', [], enUS)), 'Int');
+        assert.strictEqual(getTypeName(inferFieldType('totalValue', [], enUS)), 'Int');
       });
 
       it('明确的文本字段应该返回 Text', () => {

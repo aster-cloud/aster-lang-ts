@@ -1,6 +1,7 @@
 import type { Core, Span } from '../types.js';
 import type { EffectSignature } from '../effects/effect_signature.js';
 import type { ModuleCache } from '../lsp/module_cache.js';
+import type { Lexicon } from '../config/lexicons/types.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
@@ -34,6 +35,7 @@ export interface TypecheckOptions {
   uri?: string | null;
   moduleSearchPaths?: readonly string[];
   moduleCache?: ModuleCache;
+  lexicon?: Lexicon | undefined;
 }
 
 export function defineSymbol(

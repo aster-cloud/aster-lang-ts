@@ -12,6 +12,8 @@ import { ConfigService } from '../config/config-service.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { Lexicon } from '../config/lexicons/types.js';
+import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
 
 /**
  * 注册 CodeAction 相关的 LSP 处理器
@@ -24,7 +26,8 @@ export function registerCodeActionHandlers(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined },
   getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any },
-  uriToFsPath: (u: string) => string | null
+  uriToFsPath: (u: string) => string | null,
+  getLexiconForDoc?: (uri: string) => Lexicon | undefined,
 ): void {
   // 第一个 CodeAction 处理器：能力声明和效果相关的 Quick Fix
   connection.onCodeAction(async (params: CodeActionParams): Promise<CodeAction[]> => {
@@ -33,6 +36,8 @@ export function registerCodeActionHandlers(
     const text = doc.getText();
     const actions: CodeAction[] = [];
     const capsPath = ConfigService.getInstance().capsManifestPath || '';
+    const lexicon = getLexiconForDoc?.(params.textDocument.uri);
+    const ui = getLspUiTexts(lexicon);
 
     for (const d of params.context.diagnostics) {
       const code = (d.code as string) || '';
@@ -172,7 +177,7 @@ export function registerCodeActionHandlers(
       if (typeof d.message === 'string' && d.message.startsWith('Ambiguous interop call')) {
         // Advisory hint
         actions.push({
-          title: 'Hint: Disambiguate numeric overload (use 1L or 1.0) — see Guide: JVM Interop Overloads',
+          title: `${ui.hintPrefix} Disambiguate numeric overload (use 1L or 1.0) — see Guide: JVM Interop Overloads`,
           kind: 'quickfix' as any,
           diagnostics: [d],
         });
@@ -183,7 +188,7 @@ export function registerCodeActionHandlers(
           const edits = computeDisambiguationEdits(toks, d.range);
           if (edits.length > 0) {
             actions.push({
-              title: 'Fix: Make numeric literals unambiguous',
+              title: `${ui.fixPrefix} Make numeric literals unambiguous`,
               kind: 'quickfix' as any,
               diagnostics: [d],
               edit: {
@@ -207,7 +212,7 @@ export function registerCodeActionHandlers(
 
         if (replacement !== 'null') {
           actions.push({
-            title: `Fix: Replace null with ${replacement}`,
+            title: `${ui.fixPrefix} Replace null with ${replacement}`,
             kind: 'quickfix' as any,
             diagnostics: [d],
             edit: {
@@ -230,7 +235,7 @@ export function registerCodeActionHandlers(
         const mod = suggestModuleFromPath(fsPath);
         const header = `Module ${mod}.\n`;
         actions.push({
-          title: `Fix: Add module header (Module ${mod}.)`,
+          title: `${ui.fixPrefix} Add module header (Module ${mod}.)`,
           kind: 'quickfix' as any,
           diagnostics: [d],
           edit: { changes: { [params.textDocument.uri]: [TextEdit.insert({ line: 0, character: 0 }, header)] } },
@@ -243,7 +248,7 @@ export function registerCodeActionHandlers(
         const isColon = /:/.test(d.message);
         const ch = isColon ? ':' : '.';
         actions.push({
-          title: `Fix: add '${ch}' at end of line`,
+          title: `${ui.fixPrefix} add '${ch}' at end of line`,
           kind: 'quickfix' as any,
           diagnostics: [d],
           edit: { changes: { [params.textDocument.uri]: [TextEdit.insert(rng.end, ch)] } },
@@ -257,7 +262,7 @@ export function registerCodeActionHandlers(
         // HTTP 传输 PII：建议使用 HTTPS 或加密
         if (code === ErrorCode.PII_HTTP_UNENCRYPTED || sinkKind === 'http') {
           actions.push({
-            title: 'Hint: Use HTTPS or encrypt PII before transmission',
+            title: `${ui.hintPrefix} Use HTTPS or encrypt PII before transmission`,
             kind: CodeActionKind.QuickFix,
             diagnostics: [d],
           });
@@ -269,7 +274,7 @@ export function registerCodeActionHandlers(
             const varIndex = lineText.indexOf(varName);
             if (varIndex >= 0) {
               actions.push({
-                title: `Fix: Wrap ${varName} with redact() before sending`,
+                title: `${ui.fixPrefix} Wrap ${varName} with redact() before sending`,
                 kind: CodeActionKind.QuickFix,
                 diagnostics: [d],
                 edit: {
@@ -291,7 +296,7 @@ export function registerCodeActionHandlers(
         // Console/Log PII：建议脱敏或移除
         if (sinkKind === 'console') {
           actions.push({
-            title: 'Hint: Remove PII from logs or use redact()',
+            title: `${ui.hintPrefix} Remove PII from logs or use redact()`,
             kind: CodeActionKind.QuickFix,
             diagnostics: [d],
           });
@@ -300,7 +305,7 @@ export function registerCodeActionHandlers(
         // Database PII：建议加密存储
         if (sinkKind === 'database') {
           actions.push({
-            title: 'Hint: Encrypt PII before database storage (GDPR Art. 32)',
+            title: `${ui.hintPrefix} Encrypt PII before database storage (GDPR Art. 32)`,
             kind: CodeActionKind.QuickFix,
             diagnostics: [d],
           });
@@ -309,7 +314,7 @@ export function registerCodeActionHandlers(
         // File PII：建议访问控制
         if (sinkKind === 'file') {
           actions.push({
-            title: 'Hint: Ensure file access control for PII data',
+            title: `${ui.hintPrefix} Ensure file access control for PII data`,
             kind: CodeActionKind.QuickFix,
             diagnostics: [d],
           });
@@ -319,7 +324,7 @@ export function registerCodeActionHandlers(
         if (code === ErrorCode.PII_MISSING_CONSENT_CHECK || (d as any).data?.missingConsent) {
           const funcName = ((d as any).data?.func as string) || '';
           actions.push({
-            title: 'Hint: Add consent check before processing PII (GDPR Art. 6)',
+            title: `${ui.hintPrefix} Add consent check before processing PII (GDPR Art. 6)`,
             kind: CodeActionKind.QuickFix,
             diagnostics: [d],
           });
@@ -329,7 +334,7 @@ export function registerCodeActionHandlers(
             const edit = addConsentAnnotation(text, funcName);
             if (edit) {
               actions.push({
-                title: `Fix: Add @consent_required annotation to '${funcName}'`,
+                title: `${ui.fixPrefix} Add @consent_required annotation to '${funcName}'`,
                 kind: CodeActionKind.QuickFix,
                 diagnostics: [d],
                 edit: {
@@ -350,7 +355,7 @@ export function registerCodeActionHandlers(
       const edits = computeDisambiguationEdits(toks, params.range as any);
       if (edits.length > 0) {
         actions.push({
-          title: 'Fix: Disambiguate numeric overloads in selection',
+          title: `${ui.fixPrefix} Disambiguate numeric overloads in selection`,
           kind: 'quickfix' as any,
           edit: { changes: { [params.textDocument.uri]: edits } },
         });
