@@ -74,6 +74,10 @@ import { LexiconRegistry, initializeDefaultLexicons } from './config/lexicons/in
 export { EN_US, ZH_CN, DE_DE, LexiconRegistry, initializeDefaultLexicons } from './config/lexicons/index.js';
 export type { Lexicon } from './config/lexicons/types.js';
 
+// LSP UI texts (localized labels for hover, completion, etc.)
+export { getLspUiTexts } from './config/lexicons/lsp-ui-texts.js';
+export type { LspUiTexts } from './config/lexicons/lsp-ui-texts.js';
+
 // ============================================================================
 // High-level compilation API (browser-friendly)
 // ============================================================================
