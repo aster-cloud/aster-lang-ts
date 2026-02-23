@@ -9,20 +9,20 @@
 ## 小型示例
 
 ```
-This module is demo.greet.
+Module demo.greet.
 
-Define User with name.
+Define User has name.
 
-To greet with user, produce:
+Rule greet given user, produce:
   Return Text.concat("Hello, ", user.name).
 ```
 
 ## 控制流示例
 
 ```
-This module is demo.control_flow.
+Module demo.control_flow.
 
-To decision with score, produce:
+Rule decision given score, produce:
   If score at least 700:
     Return "approved".
   Otherwise:
@@ -32,9 +32,9 @@ To decision with score, produce:
 ## 匹配示例
 
 ```
-This module is demo.match_result.
+Module demo.match_result.
 
-To explain with result, produce:
+Rule explain given result, produce:
   Match result:
     When Ok(value), Return Text.concat("OK: ", value).
     When Err(error), Return Text.concat("ERR: ", error).
@@ -43,9 +43,9 @@ To explain with result, produce:
 ## 工作流示例
 
 ```
-This module is demo.workflow.
+Module demo.workflow.
 
-To sync_report, produce. It performs io:
+Rule sync_report, produce. It performs io:
   workflow:
     step fetch:
       Return Http.get("https://example.com/report").

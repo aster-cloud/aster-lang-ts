@@ -92,6 +92,6 @@ function optionalRange(span: Span | undefined): Range | undefined {
  * 从文本中提取模块名称
  */
 function extractModuleName(text: string): string | null {
-  const match = text.match(/This module is ([A-Za-z][A-Za-z0-9_.]*)\./);
+  const match = text.match(/Module ([A-Za-z][A-Za-z0-9_.]*)\./);
   return match?.[1] ?? null;
 }

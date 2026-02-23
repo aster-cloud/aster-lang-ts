@@ -121,9 +121,9 @@ async function main(): Promise<void> {
 
   // Open a document that declares IO and should trigger capability violation
   const content = [
-    'This module is demo.capdemo.',
+    'Module demo.capdemo.',
     '',
-    'To hello, produce Text. It performs IO:',
+    'Rule hello, produce Text. It performs IO:',
     '  Return "x".',
     '',
   ].join('\n');

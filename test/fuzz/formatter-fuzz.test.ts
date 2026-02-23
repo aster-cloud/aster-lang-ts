@@ -5,7 +5,11 @@ import * as fc from 'fast-check';
 import { formatCNL } from '../../src/formatter.js';
 
 function idempotenceOnExamples(): void {
-  const dir = path.join(process.cwd(), 'cnl', 'examples');
+  const dir = path.join(process.cwd(), 'test', 'cnl', 'programs', 'basics');
+  if (!fs.existsSync(dir)) {
+    console.log('⏭ Skipping idempotence on examples: directory not found');
+    return;
+  }
   const files = fs
     .readdirSync(dir)
     .filter(f => f.endsWith('.aster'))
@@ -47,4 +51,3 @@ function main(): void {
 }
 
 main();
-

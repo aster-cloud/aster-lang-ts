@@ -69,7 +69,7 @@ async function main(): Promise<void> {
 
   // Create a temporary CNL file and notify the server via watchedFiles
   const tmpFile = path.join(process.cwd(), 'tmp-smoke.aster');
-  try { fs.writeFileSync(tmpFile, 'This module is smoke.tmp.\n\nTo id, produce Int:\n  Return 1.\n'); } catch {}
+  try { fs.writeFileSync(tmpFile, 'Module smoke.tmp.\n\nRule id, produce Int:\n  Return 1.\n'); } catch {}
   const tmpUri = 'file://' + tmpFile;
   // FileChangeType.Created = 1
   sendNotification('workspace/didChangeWatchedFiles', { changes: [{ uri: tmpUri, type: 1 }] });

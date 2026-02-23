@@ -194,9 +194,9 @@ import { typecheckModule } from '../../../src/typecheck.js';
 describe('管线集成', () => {
   it('应该从源码生成零诊断', () => {
     const source = `
-This module is test.examples.hello.
+Module test.examples.hello.
 
-To main, produce Int.
+Rule main, produce Int:
   Return 42.
 `;
     const canonical = canonicalize(source);

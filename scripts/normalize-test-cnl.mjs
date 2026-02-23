@@ -50,7 +50,7 @@ function deriveModule(filePath) {
   const rel = path.relative(root, filePath).replace(/\\/g, '/');
   const base = rel.replace(/\.aster$/, '').replace(/[^A-Za-z0-9_./-]/g, '_');
   const mod = `test.${base.replace(/[\/]/g, '.').replace(/-+/g, '_')}`;
-  return `This module is ${mod}.`;
+  return `Module ${mod}.`;
 }
 
 function normalizeFile(filePath) {
@@ -73,7 +73,7 @@ function normalizeFile(filePath) {
       if (!inFunction) out.push(raw.trimEnd());
       continue;
     }
-    if (/^This module is\b/i.test(trimmed)) {
+    if (/^Module\b/i.test(trimmed)) {
       out.push(ensurePeriod(trimmed));
       hasModule = true;
       continue;
@@ -82,7 +82,7 @@ function normalizeFile(filePath) {
       out.push(ensurePeriod(trimmed));
       continue;
     }
-    if (/^To\b/i.test(trimmed)) {
+    if (/^Rule\b/i.test(trimmed)) {
       out.push(normalizeHeader(trimmed));
       out.push('  Return 0.');
       inFunction = true;

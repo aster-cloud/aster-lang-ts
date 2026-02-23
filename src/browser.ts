@@ -16,7 +16,7 @@
  * ```typescript
  * import { compile, compileWithDiagnostics } from '@aster-cloud/aster-lang-ts/browser';
  *
- * const source = `This module is app. To greet name String, produce String: Return "Hello, " + name.`;
+ * const source = `Module app. Rule greet given name as Text, produce Text: Return "Hello, " + name.`;
  * const result = compile(source);
  *
  * if (result.success) {
@@ -146,8 +146,8 @@ export interface CompileOptions {
  * @example
  * ```typescript
  * const result = compile(`
- *   This module is pricing.
- *   To calculate_discount amount Number, produce Number:
+ *   Module pricing.
+ *   Rule calculate_discount given amount as Number, produce Number:
  *     If amount > 100 then Return amount * 0.1
  *     Otherwise Return 0.
  * `);
@@ -299,20 +299,6 @@ export function validateSyntaxWithSpan(source: string, lexicon?: Lexicon): Valid
   }
 }
 
-/**
- * Validate CNL source code syntax without full compilation
- *
- * This is a lightweight validation that only runs lexer and parser,
- * useful for real-time editor validation.
- *
- * @param source - CNL source code
- * @param lexicon - CNL lexicon (optional, defaults to EN_US)
- * @returns Array of error messages (empty if valid)
- * @deprecated Use validateSyntaxWithSpan for position information
- */
-export function validateSyntax(source: string, lexicon?: Lexicon): string[] {
-  return validateSyntaxWithSpan(source, lexicon).map(e => e.message);
-}
 
 /**
  * Get tokens from CNL source (for syntax highlighting)
@@ -432,9 +418,9 @@ function typeToString(type: Type): string {
  * @example
  * ```typescript
  * const result = extractSchema(`
- *   This module is loan.
- *   A LoanApplication has creditScore Int, amount Float, term Int.
- *   To evaluate application LoanApplication, produce Bool:
+ *   Module loan.
+ *   Define LoanApplication has creditScore as Int, amount as Float, term as Int.
+ *   Rule evaluate given application as LoanApplication, produce Bool:
  *     If application.creditScore >= 700 then Return true
  *     Otherwise Return false.
  * `);

@@ -12,7 +12,7 @@ function cleanup(text: string): string {
   }
   let s = out.join('\n');
   // Fix header two-arg comma to 'and'
-  s = s.replace(/(To\s+[^\n]*with\s+[^:,]+:[^,\n]+),\s*([^:,\n]+:[^,\n]+)(,\s*produce\s+)/g, '$1 and $2, produce ');
+  s = s.replace(/((?:Rule|To)\s+[^\n]*(?:given|with)\s+[^:,]+:[^,\n]+),\s*([^:,\n]+:[^,\n]+)(,\s*produce\s+)/g, '$1 and $2, produce ');
   // Also fix map headers where 'Map' should be 'map' (keyword)
   s = s.replace(/Map\s+Text\s+to\s+Text/g, 'map Text to Text');
   // Replace placeholder return

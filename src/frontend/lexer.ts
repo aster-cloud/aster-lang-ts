@@ -126,7 +126,7 @@ function isLineBreak(ch: string): boolean {
  * 为后续的语法分析阶段提供输入。
  *
  * **Token 类型**：
- * - 关键字：`To`, `Return`, `Match`, `When`, `Define`, `It performs` 等
+ * - 关键字：`Rule`, `Return`, `Match`, `When`, `Define`, `It performs` 等
  * - 标识符：变量名、函数名、类型名
  * - 字面量：整数、浮点数、布尔值、字符串、null
  * - 运算符：`+`, `-`, `*`, `/`, `=`, `==`, `<`, `>` 等

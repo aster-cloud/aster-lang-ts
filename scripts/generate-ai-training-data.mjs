@@ -577,13 +577,13 @@ const newCases = [
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case1.
+      cnl: `Module ai.generated.case1.
 
-To maxOfThree with a: Int, b: Int, c: Int, produce Int:
-  If >(a, b),:
-    If >(a, c),:
+Rule maxOfThree given a as Int, b as Int, c as Int, produce Int:
+  If a greater than b:
+    If a greater than c:
       Return a.
-  If >(b, c),:
+  If b greater than c:
     Return b.
   Return c.`,
     },
@@ -596,12 +596,12 @@ To maxOfThree with a: Int, b: Int, c: Int, produce Int:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case2.
+      cnl: `Module ai.generated.case2.
 
-To clampRating with value: Int, produce Int:
-  If <(value, 0),:
+Rule clampRating given value as Int, produce Int:
+  If value less than 0:
     Return 0.
-  If >(value, 5),:
+  If value greater than 5:
     Return 5.
   Return value.`,
     },
@@ -614,9 +614,9 @@ To clampRating with value: Int, produce Int:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case3.
+      cnl: `Module ai.generated.case3.
 
-To fullName with first: Text, last: Text, produce Text:
+Rule fullName given first as Text, last as Text, produce Text:
   Let firstPart be Text.concat(first, " ").
   Return Text.concat(firstPart, last).`,
     },
@@ -629,9 +629,9 @@ To fullName with first: Text, last: Text, produce Text:
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case4.
+      cnl: `Module ai.generated.case4.
 
-To countNonEmpty with values: List of Text, produce Int:
+Rule countNonEmpty given values as List of Text, produce Int:
   If List.isEmpty(values),:
     Return 0.
   Let head be List.head(values).
@@ -650,9 +650,9 @@ To countNonEmpty with values: List of Text, produce Int:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case5.
+      cnl: `Module ai.generated.case5.
 
-To applyDiscount with price: Int, discount: Int, produce Int:
+Rule applyDiscount given price as Int, discount as Int, produce Int:
   Let result be price minus discount.
   If result less than 0,:
     Return 0.
@@ -667,9 +667,9 @@ To applyDiscount with price: Int, discount: Int, produce Int:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case6.
+      cnl: `Module ai.generated.case6.
 
-To totalDuration with prep: Int, task: Int, cleanup: Int, produce Int:
+Rule totalDuration given prep as Int, task as Int, cleanup as Int, produce Int:
   Let partial be prep plus task.
   Return partial plus cleanup.`,
     },
@@ -682,9 +682,9 @@ To totalDuration with prep: Int, task: Int, cleanup: Int, produce Int:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case7.
+      cnl: `Module ai.generated.case7.
 
-To taggedMessage with tag: Text, body: Text, produce Text:
+Rule taggedMessage given tag as Text, body as Text, produce Text:
   Let bracket be Text.concat("[", tag).
   Let label be Text.concat(bracket, "] ").
   Return Text.concat(label, body).`,
@@ -698,9 +698,9 @@ To taggedMessage with tag: Text, body: Text, produce Text:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case8.
+      cnl: `Module ai.generated.case8.
 
-To chooseTier with score: Int, produce Text:
+Rule chooseTier given score as Int, produce Text:
   If score at least 90,:
     Return "gold".
   If score at least 75,:
@@ -718,9 +718,9 @@ To chooseTier with score: Int, produce Text:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case9.
+      cnl: `Module ai.generated.case9.
 
-To extractDomain with email: Text, produce Text:
+Rule extractDomain given email as Text, produce Text:
   If not Text.contains(email, "@"),:
     Return "".
   Let parts be Text.split(email, "@").
@@ -735,9 +735,9 @@ To extractDomain with email: Text, produce Text:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case10.
+      cnl: `Module ai.generated.case10.
 
-To keywordsLine with keywords: List of Text, produce Text:
+Rule keywordsLine given keywords as List of Text, produce Text:
   If List.isEmpty(keywords),:
     Return "".
   Return Text.join(",", keywords).`,
@@ -751,9 +751,9 @@ To keywordsLine with keywords: List of Text, produce Text:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case11.
+      cnl: `Module ai.generated.case11.
 
-To loyaltyPoints with purchases: Int, multiplier: Int, produce Int:
+Rule loyaltyPoints given purchases as Int, multiplier as Int, produce Int:
   Return purchases times multiplier.`,
     },
   },
@@ -765,9 +765,9 @@ To loyaltyPoints with purchases: Int, multiplier: Int, produce Int:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case12.
+      cnl: `Module ai.generated.case12.
 
-To sumClicks with day1: Int, day2: Int, day3: Int, produce Int:
+Rule sumClicks given day1 as Int, day2 as Int, day3 as Int, produce Int:
   Let firstTwo be day1 plus day2.
   Return firstTwo plus day3.`,
     },
@@ -781,9 +781,9 @@ To sumClicks with day1: Int, day2: Int, day3: Int, produce Int:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case13.
+      cnl: `Module ai.generated.case13.
 
-To isScoreValid with score: Int, produce Bool:
+Rule isScoreValid given score as Int, produce Bool:
   If score less than 300,:
     Return false.
   If score greater than 850,:
@@ -799,9 +799,9 @@ To isScoreValid with score: Int, produce Bool:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case14.
+      cnl: `Module ai.generated.case14.
 
-To hasName with value: Text, produce Bool:
+Rule hasName given value as Text, produce Bool:
   If Text.equals(value, ""),:
     Return false.
   Return true.`,
@@ -815,9 +815,9 @@ To hasName with value: Text, produce Bool:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case15.
+      cnl: `Module ai.generated.case15.
 
-To isWithinLimit with amount: Int, limit: Int, produce Bool:
+Rule isWithinLimit given amount as Int, limit as Int, produce Bool:
   If amount greater than limit,:
     Return false.
   Return true.`,
@@ -831,9 +831,9 @@ To isWithinLimit with amount: Int, limit: Int, produce Bool:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case16.
+      cnl: `Module ai.generated.case16.
 
-To hasValidWindow with startTs: Int, endTs: Int, produce Bool:
+Rule hasValidWindow given startTs as Int, endTs as Int, produce Bool:
   If startTs greater than endTs,:
     Return false.
   Return true.`,
@@ -847,9 +847,9 @@ To hasValidWindow with startTs: Int, endTs: Int, produce Bool:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case17.
+      cnl: `Module ai.generated.case17.
 
-To isAllowedCountry with code: Text, produce Bool:
+Rule isAllowedCountry given code as Text, produce Bool:
   If Text.equals(code, "US"),:
     Return true.
   If Text.equals(code, "NZ"),:
@@ -867,9 +867,9 @@ To isAllowedCountry with code: Text, produce Bool:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case18.
+      cnl: `Module ai.generated.case18.
 
-To isConsistentTotal with subtotal: Int, tax: Int, total: Int, produce Bool:
+Rule isConsistentTotal given subtotal as Int, tax as Int, total as Int, produce Bool:
   Let computed be subtotal plus tax.
   If computed equals to total,:
     Return true.
@@ -885,9 +885,9 @@ To isConsistentTotal with subtotal: Int, tax: Int, total: Int, produce Bool:
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case19.
+      cnl: `Module ai.generated.case19.
 
-To logAudit with event: Text, produce Text. It performs io [Sql, Http]:
+Rule logAudit given event as Text, produce Text. It performs io [Sql, Http]:
   Let saved be Sql.insert("audit_log", event).
   Return Http.post("/notify", saved).`,
     },
@@ -900,9 +900,9 @@ To logAudit with event: Text, produce Text. It performs io [Sql, Http]:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case20.
+      cnl: `Module ai.generated.case20.
 
-To fetchWithFallback with url: Text, produce Text. It performs io [Http]:
+Rule fetchWithFallback given url as Text, produce Text. It performs io [Http]:
   Let primary be Http.get(url).
   If Text.equals(primary, ""),:
     Return Http.get("/fallback").
@@ -917,9 +917,9 @@ To fetchWithFallback with url: Text, produce Text. It performs io [Http]:
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case21.
+      cnl: `Module ai.generated.case21.
 
-To fetchProfilePage with userId: Text, produce Text. It performs io:
+Rule fetchProfilePage given userId as Text, produce Text. It performs io:
   Start profile as async ProfileSvc.load(userId).
   Start timeline as async FeedSvc.timeline(userId).
   Wait for profile and timeline.
@@ -934,9 +934,9 @@ To fetchProfilePage with userId: Text, produce Text. It performs io:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case22.
+      cnl: `Module ai.generated.case22.
 
-To rotateSecretAndLabel with key: Text, produce Text. It performs io [Secrets]:
+Rule rotateSecretAndLabel given key as Text, produce Text. It performs io [Secrets]:
   Let token be Secrets.rotate(key).
   Return Text.concat("rotated:", token).`,
     },
@@ -949,9 +949,9 @@ To rotateSecretAndLabel with key: Text, produce Text. It performs io [Secrets]:
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case23.
+      cnl: `Module ai.generated.case23.
 
-To timestampedPing, produce Text. It performs io [Time, Http]:
+Rule timestampedPing, produce Text. It performs io [Time, Http]:
   Let ts be Time.now().
   Let resp be Http.get("/ping").
   Let prefix be Text.concat(ts, ": ").
@@ -966,11 +966,11 @@ To timestampedPing, produce Text. It performs io [Time, Http]:
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case24.
+      cnl: `Module ai.generated.case24.
 
 Define UploadErr as one of Timeout or Forbidden.
 
-To uploadReport with body: Text, produce Result of Text and UploadErr. It performs io [Http]:
+Rule uploadReport given body as Text, produce Result of Text and UploadErr. It performs io [Http]:
   Let resp be Http.post("/reports", body).
   If Text.equals(resp, "timeout"),:
     Return err of Timeout.
@@ -987,9 +987,9 @@ To uploadReport with body: Text, produce Result of Text and UploadErr. It perfor
     difficulty: 'hard',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case25.
+      cnl: `Module ai.generated.case25.
 
-To approveOrderWorkflow with orderId: Text, produce Workflow of Result of Text and Text and IO. It performs io [Http, Sql]:
+Rule approveOrderWorkflow given orderId as Text, produce Workflow of Result of Text and Text and IO. It performs io [Http, Sql]:
   
   workflow:
     step reserve:
@@ -1018,9 +1018,9 @@ To approveOrderWorkflow with orderId: Text, produce Workflow of Result of Text a
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case26.
+      cnl: `Module ai.generated.case26.
 
-To refreshAccessToken with clientId: Text, produce Text. It performs io [Secrets, Http]:
+Rule refreshAccessToken given clientId as Text, produce Text. It performs io [Secrets, Http]:
   Let rotated be Secrets.rotate(clientId).
   Let payload be Text.concat("token=", rotated).
   Return Http.post("/oauth/refresh", payload).`,
@@ -1035,9 +1035,9 @@ To refreshAccessToken with clientId: Text, produce Text. It performs io [Secrets
     difficulty: 'easy',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case27.
+      cnl: `Module ai.generated.case27.
 
-To maskSsn with value: @pii(L3, ssn) Text, produce Text:
+Rule maskSsn given value as @pii(L3, ssn) Text, produce Text:
   Return "****-****".`,
     },
   },
@@ -1049,9 +1049,9 @@ To maskSsn with value: @pii(L3, ssn) Text, produce Text:
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case28.
+      cnl: `Module ai.generated.case28.
 
-To shareProfile with email: @pii(L2, email) Text, produce Text. It performs io [Http]:
+Rule shareProfile given email as @pii(L2, email) Text, produce Text. It performs io [Http]:
   Return Http.post("/profiles/share", email).`,
     },
   },
@@ -1063,9 +1063,9 @@ To shareProfile with email: @pii(L2, email) Text, produce Text. It performs io [
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case29.
+      cnl: `Module ai.generated.case29.
 
-To anonymizeEmail with value: @pii(L2, email) Text, produce Text:
+Rule anonymizeEmail given value as @pii(L2, email) Text, produce Text:
   If not Text.contains(value, "@"),:
     Return "invalid".
   Let parts be Text.split(value, "@").
@@ -1081,9 +1081,9 @@ To anonymizeEmail with value: @pii(L2, email) Text, produce Text:
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case30.
+      cnl: `Module ai.generated.case30.
 
-To maybeSendEmail with isSensitive: Bool, email: @pii(L2, email) Text, produce Text. It performs io [Http]:
+Rule maybeSendEmail given isSensitive as Bool, email as @pii(L2, email) Text, produce Text. It performs io [Http]:
   If isSensitive,:
     Return "blocked".
   Return Http.post("/mail/send", email).`,
@@ -1097,9 +1097,9 @@ To maybeSendEmail with isSensitive: Bool, email: @pii(L2, email) Text, produce T
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case31.
+      cnl: `Module ai.generated.case31.
 
-To hashIdentifier with value: @pii(L2, id) Text, produce Text. It performs io [Cpu]:
+Rule hashIdentifier given value as @pii(L2, id) Text, produce Text. It performs io [Cpu]:
   Return Cpu.hash(value).`,
     },
   },
@@ -1112,22 +1112,22 @@ To hashIdentifier with value: @pii(L2, id) Text, produce Text. It performs io [C
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case32.
+      cnl: `Module ai.generated.case32.
 
-Define LoanRequest with applicantId: Text, amount: Int, income: Int, creditScore: Int.
+Define LoanRequest has applicantId as Text, amount as Int, income as Int, creditScore as Int.
 
-Define LoanDecision with approved: Bool, reason: Text, rate: Int.
+Define LoanDecision has approved as Bool, reason as Text, rate as Int.
 
-To scoreLoan with request: LoanRequest, produce LoanDecision:
+Rule scoreLoan given request as LoanRequest, produce LoanDecision:
   If request.creditScore less than 620,:
-    Return LoanDecision with approved = false, reason = "Low credit", rate = 0.
+    Return LoanDecision with approved set to false, reason set to "Low credit", rate set to 0.
   If request.amount greater than (request.income times 4),:
-    Return LoanDecision with approved = false, reason = "Debt ratio", rate = 0.
+    Return LoanDecision with approved set to false, reason set to "Debt ratio", rate set to 0.
   If request.creditScore at least 760,:
-    Return LoanDecision with approved = true, reason = "Prime", rate = 4.
+    Return LoanDecision with approved set to true, reason set to "Prime", rate set to 4.
   If request.creditScore at least 700,:
-    Return LoanDecision with approved = true, reason = "Preferred", rate = 6.
-  Return LoanDecision with approved = true, reason = "Standard", rate = 8.`,
+    Return LoanDecision with approved set to true, reason set to "Preferred", rate set to 6.
+  Return LoanDecision with approved set to true, reason set to "Standard", rate set to 8.`,
     },
   },
   {
@@ -1138,22 +1138,22 @@ To scoreLoan with request: LoanRequest, produce LoanDecision:
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case33.
+      cnl: `Module ai.generated.case33.
 
-Define Order with region: Text, amount: Int, expedited: Bool.
+Define Order has region as Text, amount as Int, expedited as Bool.
 
-Define RouteDecision with warehouse: Text, expedite: Bool.
+Define RouteDecision has warehouse as Text, expedite as Bool.
 
-To chooseRoute with order: Order, produce RouteDecision:
+Rule chooseRoute given order as Order, produce RouteDecision:
   If order.expedited,:
-    Return RouteDecision with warehouse = "EXPRESS", expedite = true.
+    Return RouteDecision with warehouse set to "EXPRESS", expedite set to true.
   If Text.equals(order.region, "EU"),:
-    Return RouteDecision with warehouse = "BERLIN", expedite = false.
+    Return RouteDecision with warehouse set to "BERLIN", expedite set to false.
   If Text.equals(order.region, "APAC"),:
-    Return RouteDecision with warehouse = "SINGAPORE", expedite = false.
+    Return RouteDecision with warehouse set to "SINGAPORE", expedite set to false.
   If order.amount greater than 10000,:
-    Return RouteDecision with warehouse = "CENTRAL", expedite = false.
-  Return RouteDecision with warehouse = "LOCAL", expedite = false.`,
+    Return RouteDecision with warehouse set to "CENTRAL", expedite set to false.
+  Return RouteDecision with warehouse set to "LOCAL", expedite set to false.`,
     },
   },
   {
@@ -1164,20 +1164,20 @@ To chooseRoute with order: Order, produce RouteDecision:
     difficulty: 'medium',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case34.
+      cnl: `Module ai.generated.case34.
 
-Define Ticket with severity: Int, product: Text, customerTier: Text.
+Define Ticket has severity as Int, product as Text, customerTier as Text.
 
-Define Assignment with queue: Text, priority: Int.
+Define Assignment has queue as Text, priority as Int.
 
-To assignTicket with ticket: Ticket, produce Assignment:
+Rule assignTicket given ticket as Ticket, produce Assignment:
   If ticket.severity at least 90,:
-    Return Assignment with queue = "CRITICAL", priority = 1.
+    Return Assignment with queue set to "CRITICAL", priority set to 1.
   If Text.equals(ticket.customerTier, "platinum"),:
-    Return Assignment with queue = "VIP", priority = 2.
+    Return Assignment with queue set to "VIP", priority set to 2.
   If Text.equals(ticket.product, "payments"),:
-    Return Assignment with queue = "FINANCE", priority = 3.
-  Return Assignment with queue = "STANDARD", priority = 4.`,
+    Return Assignment with queue set to "FINANCE", priority set to 3.
+  Return Assignment with queue set to "STANDARD", priority set to 4.`,
     },
   },
   {
@@ -1188,19 +1188,19 @@ To assignTicket with ticket: Ticket, produce Assignment:
     difficulty: 'hard',
     source: {
       type: 'inline',
-      cnl: `This module is ai.generated.case35.
+      cnl: `Module ai.generated.case35.
 
-Define Metrics with total: Int, count: Int.
+Define Metrics has total as Int, count as Int.
 
-To aggregateMetrics with values: List of Int, produce Metrics:
+Rule aggregateMetrics given values as List of Int, produce Metrics:
   If List.isEmpty(values),:
-    Return Metrics with total = 0, count = 0.
+    Return Metrics with total set to 0, count set to 0.
   Let head be List.head(values).
   Let tail be List.tail(values).
   Let rest be aggregateMetrics(tail).
   Let newTotal be head plus rest.total.
   Let newCount be 1 plus rest.count.
-  Return Metrics with total = newTotal, count = newCount.`,
+  Return Metrics with total set to newTotal, count set to newCount.`,
     },
   },
 ];

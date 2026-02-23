@@ -67,9 +67,9 @@ async function main(): Promise<void> {
 
   // Open a document with missing IO effect but IO-like call
   const content = [
-    'This module is demo.capdemo.',
+    'Module demo.capdemo.',
     '',
-    'To hello, produce Text:',
+    'Rule hello, produce Text:',
     '  Return UUID.randomUUID().',
     '',
   ].join('\n');

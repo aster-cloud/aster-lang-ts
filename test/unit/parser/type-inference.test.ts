@@ -9,7 +9,6 @@ import {
   inferTypeFromConstraints,
   refineInferredType,
   BASE_NAMING_RULES,
-  NAMING_RULES,
 } from '../../../src/parser/type-inference.js';
 import type { Constraint, ConstraintRange, ConstraintPattern, Type } from '../../../src/types.js';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';

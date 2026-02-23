@@ -11,13 +11,13 @@ This guide documents the current CNL style used in this repository. Examples are
 ## Modules
 
 ```
-This module is greeting.
+Module greeting.
 ```
 
 ## Data types and enums
 
 ```
-Define User with name, age, email.
+Define User has name, age, email.
 
 Define Status as one of Pending or Approved or Rejected.
 ```
@@ -25,26 +25,26 @@ Define Status as one of Pending or Approved or Rejected.
 ## Constructors and field access
 
 ```
-To email_domain with user, produce:
+Rule email_domain given user, produce:
   Return Text.after(user.email, "@").
 ```
 
 ## Functions
 
 ```
-To greet with name, produce:
+Rule greet given name, produce:
   Return Text.concat("Hello, ", name).
 ```
 
 ```
-To is_empty with text, produce:
+Rule is_empty given text, produce:
   Return Text.equals(text, "").
 ```
 
 ## Variables
 
 ```
-To badge with user, produce:
+Rule badge given user, produce:
   Let label be Text.concat("User ", user.name).
   Return label.
 ```
@@ -52,7 +52,7 @@ To badge with user, produce:
 ## Control flow
 
 ```
-To check_access with role, produce:
+Rule check_access given role, produce:
   If role equals to "admin":
     Return true.
   Otherwise:
@@ -60,7 +60,7 @@ To check_access with role, produce:
 ```
 
 ```
-To eligibility with score, produce:
+Rule eligibility given score, produce:
   If score at least 700:
     Return "approved".
   Otherwise:
@@ -70,7 +70,7 @@ To eligibility with score, produce:
 ## Match
 
 ```
-To explain with result, produce:
+Rule explain given result, produce:
   Match result:
     When Ok(value), Return Text.concat("OK: ", value).
     When Err(error), Return Text.concat("ERR: ", error).
@@ -79,7 +79,7 @@ To explain with result, produce:
 ## Workflows (effects)
 
 ```
-To sync_report, produce. It performs io:
+Rule sync_report, produce. It performs io:
   workflow:
     step fetch:
       Return Http.get("https://example.com/report").
@@ -92,7 +92,7 @@ To sync_report, produce. It performs io:
 Use `//` for inline or standalone comments. Comments may appear after a header or at the end of a statement.
 
 ```
-To greet with name, produce: // header note
+Rule greet given name, produce: // header note
   Return Text.concat("Hi, ", name). // inline note
 ```
 

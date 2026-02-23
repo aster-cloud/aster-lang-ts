@@ -34,7 +34,7 @@ function minimalModule(filePath) {
   const rel = path.relative(root, filePath).replace(/\\/g, '/');
   const base = rel.replace(/\.aster$/, '').replace(/[^A-Za-z0-9_./-]/g, '_');
   const mod = `test.${base.replace(/[\/]/g, '.').replace(/-+/g, '_')}`;
-  return `This module is ${mod}.\n\nTo main, produce:\n  Return 0.\n`;
+  return `Module ${mod}.\n\nRule main, produce:\n  Return 0.\n`;
 }
 
 function main() {

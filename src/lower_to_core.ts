@@ -244,10 +244,10 @@ function lowerConstraints(
  *
  * @example
  * ```typescript
- * import { canonicalize, lex, parse, lowerModule } from '@wontlost-ltd/aster-lang';
+ * import { canonicalize, lex, parse, lowerModule } from '@aster-cloud/aster-lang-ts';
  *
- * const src = `This module is app.
- * To greet, produce Text:
+ * const src = `Module app.
+ * Rule greet, produce Text:
  *   Return "Hello".
  * `;
  *

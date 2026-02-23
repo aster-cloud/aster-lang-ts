@@ -23,10 +23,10 @@
 ### 关键词对照
 | 中文 | 英文 |
 |------|------|
-| 【模块】 | This module is |
-| 【定义】 | Define |
-| 包含 | with |
-| 入参 | To...with |
+| 模块 | Module |
+| 定义 | Define |
+| 包含 | has |
+| 给定 | given |
 | 产出 | produce |
 | 返回 | Return |
 | 若 | If |

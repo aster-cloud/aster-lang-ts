@@ -56,7 +56,7 @@ async function main(): Promise<void> {
   // open a document with many occurrences of the same word to trigger multiple chunks
   const uri = 'file:///streaming.aster';
   const many = 'greet '.repeat(20).trim();
-  const text = `This module is streaming.test.\n\nTo greet, produce Text:\n  Return "x".\n\n# refs below\n${many}\n`;
+  const text = `Module streaming.test.\n\nRule greet, produce Text:\n  Return "x".\n\n# refs below\n${many}\n`;
   send(server, { jsonrpc: '2.0', method: 'textDocument/didOpen', params: { textDocument: { uri, languageId: 'cnl', version: 1, text } } });
 
   // collect notifications as we send the request; expect multiple progress chunks
@@ -96,7 +96,7 @@ async function main(): Promise<void> {
     const cleanup = (): void => { clearTimeout(to); server.stdout.off('data', onData); };
     server.stdout.on('data', onData);
     // issue references with workDone and partial result tokens
-    const lineIdx = text.split(/\n/).findIndex(l => /To\s+greet\b/.test(l));
+    const lineIdx = text.split(/\n/).findIndex(l => /Rule\s+greet\b/.test(l));
     const charIdx = Math.max(0, (text.split(/\n/)[lineIdx] || '').indexOf('greet')) + 1;
     send(server, { jsonrpc: '2.0', id: 2, method: 'textDocument/references', params: { textDocument: { uri }, position: { line: lineIdx, character: charIdx }, context: { includeDeclaration: true }, workDoneToken: 'wd1', partialResultToken: 'pr1' } });
   });

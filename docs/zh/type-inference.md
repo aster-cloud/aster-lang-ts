@@ -19,14 +19,14 @@
 ## 简单示例
 
 ```
-Define User with id, name.
+Define User has id, name.
 
-To get_name with user, produce:
+Rule get_name given user, produce:
   Return user.name.
 ```
 
 ```
-To is_adult with age, produce:
+Rule is_adult given age, produce:
   If age at least 18:
     Return true.
   Return false.
@@ -48,7 +48,7 @@ To is_adult with age, produce:
 ## 实用重构模式
 
 ```
-To score_label with score, produce:
+Rule score_label given score, produce:
   Let high be score at least 90.
   If high:
     Return "high".
@@ -57,7 +57,7 @@ To score_label with score, produce:
 ```
 
 ```
-To display_name with user, produce:
+Rule display_name given user, produce:
   Let name be user.name.
   Return Text.concat("User ", name).
 ```

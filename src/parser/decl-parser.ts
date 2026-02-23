@@ -1,6 +1,6 @@
 /**
  * 顶层声明解析器
- * 负责解析数据类型定义（Define）和函数定义（To）
+ * 负责解析数据类型定义（Define）和函数定义（Rule）
  */
 
 import { KW, TokenKind } from '../frontend/tokens.js';
@@ -171,7 +171,7 @@ export function parseFuncDecl(
 ): Declaration {
   // 记录函数起始位置
   const toTok = ctx.peek();
-  ctx.nextWord(); // 消费 'To'
+  ctx.nextWord(); // 消费 'Rule'
 
   // 记录函数名位置
   const nameTok = ctx.peek();
@@ -465,7 +465,7 @@ export function collectTopLevelDecls(
     ctx.consumeNewlines();
     if (ctx.at(TokenKind.EOF)) break;
 
-    // 解析模块头: This module is foo.bar.
+    // 解析模块头: Module foo.bar.
     if (ctx.isKeywordSeq(KW.MODULE_IS)) {
       parseModuleHeader(ctx, tools.error, tools.expectDot);
     }

@@ -4,7 +4,7 @@ import * as path from 'node:path';
 
 function normalizeLine(line) {
   const trimmed = line.trimStart();
-  if (!(trimmed.startsWith('To ') || line.includes('function'))) return line;
+  if (!(trimmed.startsWith('Rule ') || trimmed.startsWith('To ') || line.includes('function'))) return line;
   const idx = line.indexOf('produce');
   if (idx === -1) return line;
   const after = line.slice(idx + 'produce'.length);

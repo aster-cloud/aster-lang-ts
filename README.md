@@ -26,9 +26,9 @@ import { canonicalize, lex, parse, lowerModule } from '@aster-cloud/aster-lang-t
 
 // Compile pipeline
 const source = `
-This module is greeting.
+Module greeting.
 
-To greet with name, produce:
+Rule greet given name, produce:
   Return Text.concat("Hello, ", name).
 `;
 
@@ -47,9 +47,9 @@ import { canonicalize, lex, parse } from '@aster-cloud/aster-lang-ts';
 import { ZH_CN } from '@aster-cloud/aster-lang-ts/lexicons/zh-CN';
 
 const zhSource = `
-【模块】问候。
+模块 问候。
 
-问候 入参 姓名，产出：
+规则 问候 给定 姓名，产出：
   返回「你好，」 加 姓名。
 `;
 

@@ -1,5 +1,5 @@
 /**
- * @module @wontlost-ltd/aster-lang
+ * @module @aster-cloud/aster-lang-ts
  *
  * Aster 语言编译器的主要 API 接口。
  *
@@ -13,9 +13,9 @@
  *
  * @example 基础用法
  * ```typescript
- * import { canonicalize, lex, parse, lowerModule } from '@wontlost-ltd/aster-lang';
+ * import { canonicalize, lex, parse, lowerModule } from '@aster-cloud/aster-lang-ts';
  *
- * const src = `This module is app. To id, produce Int: Return 1.`;
+ * const src = `Module app. Rule id, produce Int: Return 1.`;
  * const canonical = canonicalize(src);  // 规范化源代码
  * const tokens = lex(canonical);         // 词法分析
  * const ast = parse(tokens);             // 语法分析

@@ -293,35 +293,3 @@ function parseMatchingConstraint(
   return { constraint, endToken: regexpTok };
 }
 
-/**
- * 将旧的 Annotation 转换为新的 Constraint（用于迁移）
- *
- * @deprecated 仅用于迁移期间的兼容性
- */
-export function annotationToConstraint(
-  annotation: { name: string; params: ReadonlyMap<string, unknown> },
-  span: Span
-): Constraint | null {
-  switch (annotation.name) {
-    case 'NotEmpty':
-      return { kind: 'Required', span };
-    case 'Range': {
-      const min = annotation.params.get('min') as number | undefined;
-      const max = annotation.params.get('max') as number | undefined;
-      // 使用条件扩展确保 exactOptionalPropertyTypes 兼容
-      return {
-        kind: 'Range',
-        ...(min !== undefined && { min }),
-        ...(max !== undefined && { max }),
-        span,
-      } as ConstraintRange;
-    }
-    case 'Pattern': {
-      const regexp = annotation.params.get('regexp') as string;
-      if (!regexp) return null;
-      return { kind: 'Pattern', regexp, span };
-    }
-    default:
-      return null;
-  }
-}

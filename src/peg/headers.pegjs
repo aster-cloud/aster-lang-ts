@@ -6,36 +6,23 @@
 }
 
 Start
-  = _ h:(Module / Import / Data / DataHas / Enum / FuncHeader / FuncHeaderLegacy) _ { return h; }
+  = _ h:(Module / Import / Data / Enum / FuncHeader) _ { return h; }
 
-// 新语法: Module X.Y.Z.
 Module
   = "Module"i _ n:DottedIdent _ "." { return { kind: 'Module', name: n }; }
-  / "this module is"i _ n:DottedIdent _ "." { return { kind: 'Module', name: n }; }
 
 Import
   = "use"i _ n:DottedIdent _ a:("as"i _ a:Ident { return a; })? _ "." { return { kind: 'Import', name: n, asName: a ?? null }; }
 
-// 新语法: Define Type has fields.
-DataHas
-  = "define"i _ t:TypeIdent _ "has"i _ fs:FieldList _ "." { return { kind: 'Data', name: t, fields: fs }; }
-
-// 旧语法: Define Type with fields.
 Data
-  = "define"i _ t:TypeIdent _ "with"i _ fs:FieldList _ "." { return { kind: 'Data', name: t, fields: fs }; }
+  = "define"i _ t:TypeIdent _ "has"i _ fs:FieldList _ "." { return { kind: 'Data', name: t, fields: fs }; }
 
 Enum
   = "define"i _ t:TypeIdent _ "as"i _ "one"i _ "of"i _ vs:VariantList _ "." { return { kind: 'Enum', name: t, variants: vs }; }
 
-// 新语法: Rule funcName given params, produce Type:
+// Rule funcName given params, produce Type:
 FuncHeader
   = "Rule"i _ n:Ident _ p:GivenParamPart? _ "," _ "produce"i _ r:Type _
-    eff:EffectPart? _ end:HeaderEnd
-    { return { kind: 'FuncHeader', name: n, params: p ?? [], retType: r, effects: eff ?? [], bodyFollows: end === ':' }; }
-
-// 旧语法: To funcName with params, produce Type:
-FuncHeaderLegacy
-  = "to"i _ n:Ident _ p:ParamPart? _ "," _ "produce"i _ r:Type _
     eff:EffectPart? _ end:HeaderEnd
     { return { kind: 'FuncHeader', name: n, params: p ?? [], retType: r, effects: eff ?? [], bodyFollows: end === ':' }; }
 
@@ -57,21 +44,17 @@ Effect
   = "io"i { return 'io'; }
   / "cpu"i { return 'cpu'; }
 
-ParamPart
-  = _ "with"i _ ps:ParamList { return ps; }
-  / _ ps:ParamList { return ps; }
-
 ParamList
   = a:Param (_ "and"i _ b:Param { return b; })* { return [a].concat(b ?? []); }
 
 Param
-  = n:Ident _ ":" _ t:Type { return { name: n, type: t }; }
+  = n:Ident _ "as"i _ t:Type { return { name: n, type: t }; }
 
 FieldList
   = a:Field (_ "and"i _ b:Field { return b; })* { return [a].concat(b ?? []); }
 
 Field
-  = n:Ident _ ":" _ t:Type { return { name: n, type: t }; }
+  = n:Ident _ "as"i _ t:Type { return { name: n, type: t }; }
 
 VariantList
   = a:TypeIdent (_ ("," / "or"i) _ b:TypeIdent { return b; })* { return [a].concat(b ?? []); }

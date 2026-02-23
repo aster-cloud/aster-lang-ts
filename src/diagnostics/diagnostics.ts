@@ -87,13 +87,6 @@ export enum DiagnosticCode {
   V002_VersionConflictUnresolvable = 'V002',
   V003_PackageNotFound = 'V003',
 
-  // Deprecated - use V001-V003 instead
-  /** @deprecated Use V001_DependencyResolutionTimeout */
-  DEPENDENCY_RESOLUTION_TIMEOUT = 'V001',
-  /** @deprecated Use V002_VersionConflictUnresolvable */
-  VERSION_CONFLICT_UNRESOLVABLE = 'V002',
-  /** @deprecated Use V003_PackageNotFound */
-  PACKAGE_NOT_FOUND = 'V003',
 }
 
 export interface FixIt {

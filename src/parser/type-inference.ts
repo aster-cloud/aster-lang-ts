@@ -63,8 +63,6 @@ export const BASE_NAMING_RULES: readonly TypeInferenceRule[] = [
   { pattern: /(?:Years?|Months?|Weeks?|Days?|Hours?|Minutes?|Seconds?)$/i, type: 'Int', priority: 9 },
 ];
 
-/** @deprecated 使用 BASE_NAMING_RULES */
-export const NAMING_RULES = BASE_NAMING_RULES;
 
 /** 默认推断类型 */
 const DEFAULT_TYPE: PrimitiveTypeName = 'Text';

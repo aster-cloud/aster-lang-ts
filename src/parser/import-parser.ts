@@ -52,7 +52,7 @@ export function parseDottedIdent(
 
 /**
  * 解析模块头声明
- * 语法: This module is foo.bar.
+ * 语法: Module foo.bar.
  *
  * @param ctx 解析器上下文
  * @param error 错误报告函数
@@ -64,7 +64,7 @@ export function parseModuleHeader(
   error: (msg: string, tok?: Token) => never,
   expectDot: () => void
 ): void {
-  // 期望: This module is
+  // 期望: Module
   ctx.nextWords(kwParts(KW.MODULE_IS));
 
   // 解析模块名

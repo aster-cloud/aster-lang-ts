@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   send(server, { jsonrpc: '2.0', method: 'initialized', params: {} });
 
   // Open a document with no module header
-  const content = ['To hello, produce Text:', '  Return "x".', ''].join('\n');
+  const content = ['Rule hello, produce Text:', '  Return "x".', ''].join('\n');
   const uri = 'file:///missing-header.aster';
   send(server, { jsonrpc: '2.0', method: 'textDocument/didOpen', params: { textDocument: { uri, languageId: 'cnl', version: 1, text: content } } });
 

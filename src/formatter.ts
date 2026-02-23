@@ -293,7 +293,7 @@ class AstFormatterVisitor extends DefaultAstVisitor<void> {
   }
   override visitModule(m: Module, _ctx: void): void {
     if (m.name) {
-      this.out.push(`This module is ${m.name}.`);
+      this.out.push(`Module ${m.name}.`);
       // 在模块头和第一个declaration之间添加空行
       if (m.decls.length > 0) this.out.push('');
     }
@@ -343,8 +343,8 @@ function formatAnnotations(annotations?: readonly import('./types.js').Annotatio
 }
 
 function formatData(d: Data): string {
-  const fields = d.fields.map(f => `${formatAnnotations(f.annotations)}${f.name}: ${formatType(f.type)}`);
-  const tail = fields.length ? ` with ${joinWithCommas(fields)}` : '';
+  const fields = d.fields.map(f => `${formatAnnotations(f.annotations)}${f.name} as ${formatType(f.type)}`);
+  const tail = fields.length ? ` has ${joinWithCommas(fields)}` : '';
   return `Define ${d.name}${tail}.`;
 }
 
@@ -359,11 +359,11 @@ function formatFunc(f: Func): string {
   const capsTxt = formatEffectCaps(f);
   const effTxt = hasEff ? ` It performs ${formatEffects(f.effects)}${capsTxt}` : '';
   if (!f.body) {
-    return `To ${f.name}${params}, produce ${formatType(f.retType)}.${effTxt}`.trimEnd();
+    return `Rule ${f.name}${params}, produce ${formatType(f.retType)}.${effTxt}`.trimEnd();
   }
   const header = hasEff
-    ? `To ${f.name}${params}, produce ${formatType(f.retType)}.${effTxt}:`
-    : `To ${f.name}${params}, produce ${formatType(f.retType)}:`;
+    ? `Rule ${f.name}${params}, produce ${formatType(f.retType)}.${effTxt}:`
+    : `Rule ${f.name}${params}, produce ${formatType(f.retType)}:`;
   const body = formatBlock(f.body, 1);
   return `${header}\n${body}`;
 }
@@ -384,8 +384,8 @@ function formatEffects(effs: readonly string[]): string {
 
 function formatParams(ps: readonly Parameter[]): string {
   if (!ps || ps.length === 0) return '';
-  const inner = ps.map(p => `${formatAnnotations(p.annotations)}${p.name}: ${formatType(p.type)}`);
-  return ` with ${joinWithCommas(inner)}`;
+  const inner = ps.map(p => `${formatAnnotations(p.annotations)}${p.name} as ${formatType(p.type)}`);
+  return ` given ${joinWithCommas(inner)}`;
 }
 
 function formatBlock(b: Block, lvl: number): string {

@@ -58,7 +58,7 @@ export class MockPackageRegistry implements PackageRegistry {
     const versions = this.data[name];
     if (!versions) {
       return new Error(
-        `${RESOLVER_ERROR_LABEL.MissingPackage}(${DiagnosticCode.PACKAGE_NOT_FOUND}): 未找到包 ${name}`
+        `${RESOLVER_ERROR_LABEL.MissingPackage}(${DiagnosticCode.V003_PackageNotFound}): 未找到包 ${name}`
       );
     }
     return sortVersions(Object.keys(versions));
@@ -68,7 +68,7 @@ export class MockPackageRegistry implements PackageRegistry {
     const versions = this.data[name];
     if (!versions) {
       return new Error(
-        `${RESOLVER_ERROR_LABEL.MissingPackage}(${DiagnosticCode.PACKAGE_NOT_FOUND}): 未找到包 ${name}`
+        `${RESOLVER_ERROR_LABEL.MissingPackage}(${DiagnosticCode.V003_PackageNotFound}): 未找到包 ${name}`
       );
     }
 
@@ -79,7 +79,7 @@ export class MockPackageRegistry implements PackageRegistry {
     const dependencies = versions[version];
     if (!dependencies) {
       return new Error(
-        `${RESOLVER_ERROR_LABEL.MissingPackage}(${DiagnosticCode.PACKAGE_NOT_FOUND}): ${name} 的版本 ${version} 缺失`
+        `${RESOLVER_ERROR_LABEL.MissingPackage}(${DiagnosticCode.V003_PackageNotFound}): ${name} 的版本 ${version} 缺失`
       );
     }
     return { ...dependencies };
@@ -153,7 +153,7 @@ export class DependencyResolver {
   ): ResolvedDependencies | Error {
     if (Date.now() - startTime >= options.timeout) {
       return new Error(
-        `${RESOLVER_ERROR_LABEL.Timeout}(${DiagnosticCode.DEPENDENCY_RESOLUTION_TIMEOUT}): 解析耗时超过 ${options.timeout}ms`
+        `${RESOLVER_ERROR_LABEL.Timeout}(${DiagnosticCode.V001_DependencyResolutionTimeout}): 解析耗时超过 ${options.timeout}ms`
       );
     }
 
@@ -226,7 +226,7 @@ export class DependencyResolver {
     return (
       lastError ??
       new Error(
-        `${RESOLVER_ERROR_LABEL.Conflict}(${DiagnosticCode.VERSION_CONFLICT_UNRESOLVABLE}): 包 ${nextPackage} 无法满足约束`
+        `${RESOLVER_ERROR_LABEL.Conflict}(${DiagnosticCode.V002_VersionConflictUnresolvable}): 包 ${nextPackage} 无法满足约束`
       )
     );
   }
@@ -281,7 +281,7 @@ export class DependencyResolver {
 
       if (!hasSatisfyingVersion) {
         return new Error(
-          `${RESOLVER_ERROR_LABEL.Conflict}(${DiagnosticCode.VERSION_CONFLICT_UNRESOLVABLE}): 包 ${name} 无可用版本满足 ${packageConstraints.join(', ')}`
+          `${RESOLVER_ERROR_LABEL.Conflict}(${DiagnosticCode.V002_VersionConflictUnresolvable}): 包 ${name} 无可用版本满足 ${packageConstraints.join(', ')}`
         );
       }
     }
