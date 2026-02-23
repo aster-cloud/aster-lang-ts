@@ -10,8 +10,7 @@
           "name": "id",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         },
@@ -19,8 +18,7 @@
           "name": "name",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
@@ -37,8 +35,7 @@
           "name": "user",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         },
@@ -46,16 +43,14 @@
           "name": "prefix",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -73,16 +68,14 @@
                   "name": "value",
                   "type": {
                     "kind": "TypeName",
-                    "name": "Int",
-                    "annotations": []
+                    "name": "Text"
                   },
                   "typeInferred": true
                 }
               ],
               "retType": {
                 "kind": "TypeName",
-                "name": "Unknown",
-                "annotations": []
+                "name": "Unknown"
               },
               "body": {
                 "kind": "Block",
@@ -176,16 +169,14 @@
           "name": "count",
           "type": {
             "kind": "TypeName",
-            "name": "Int",
-            "annotations": []
+            "name": "Int"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -203,16 +194,14 @@
                   "name": "value",
                   "type": {
                     "kind": "TypeName",
-                    "name": "Int",
-                    "annotations": []
+                    "name": "Text"
                   },
                   "typeInferred": true
                 }
               ],
               "retType": {
                 "kind": "TypeName",
-                "name": "Unknown",
-                "annotations": []
+                "name": "Unknown"
               },
               "body": {
                 "kind": "Block",

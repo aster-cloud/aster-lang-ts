@@ -13,9 +13,8 @@
           "name": "value",
           "type": {
             "kind": "TypeName",
-            "name": "Int"
+            "name": "Text"
           },
-          "constraints": [],
           "typeInferred": true
         },
         {
@@ -24,7 +23,6 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
           "typeInferred": true
         }
       ],
@@ -48,7 +46,7 @@
                   "name": "candidate",
                   "type": {
                     "kind": "TypeName",
-                    "name": "Bool"
+                    "name": "Text"
                   }
                 }
               ],

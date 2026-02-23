@@ -10,8 +10,7 @@
           "name": "id",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         },
@@ -19,8 +18,7 @@
           "name": "name",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
@@ -34,8 +32,7 @@
           "name": "profile",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         },
@@ -43,8 +40,7 @@
           "name": "timeline",
           "type": {
             "kind": "TypeName",
-            "name": "Int",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
@@ -56,28 +52,6 @@
       "variants": [
         "InvalidCreds",
         "Locked"
-      ],
-      "variantSpans": [
-        {
-          "start": {
-            "line": 5,
-            "col": 26
-          },
-          "end": {
-            "line": 5,
-            "col": 38
-          }
-        },
-        {
-          "start": {
-            "line": 5,
-            "col": 40
-          },
-          "end": {
-            "line": 5,
-            "col": 46
-          }
-        }
       ]
     },
     {
@@ -91,16 +65,14 @@
           "name": "u",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [
         "io"

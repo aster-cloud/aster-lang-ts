@@ -13,9 +13,8 @@
           "name": "flag",
           "type": {
             "kind": "TypeName",
-            "name": "Bool"
+            "name": "Text"
           },
-          "constraints": [],
           "typeInferred": true
         }
       ],

@@ -1,3 +1,2 @@
 ERROR: Function 'missingIO' may perform I/O but is missing @io effect.
-ERROR: Function 'missingIO' missing @io effect declaration, inference requires IO.
-
+ERROR: 函数 'missingIO' 缺少 @io 效果声明，推断要求 IO。

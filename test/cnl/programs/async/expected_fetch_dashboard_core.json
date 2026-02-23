@@ -11,16 +11,14 @@
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          },
-          "constraints": []
+          }
         },
         {
           "name": "name",
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          },
-          "constraints": []
+          }
         }
       ]
     },
@@ -33,16 +31,14 @@
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          },
-          "constraints": []
+          }
         },
         {
           "name": "timeline",
           "type": {
             "kind": "TypeName",
-            "name": "Int"
-          },
-          "constraints": []
+            "name": "Text"
+          }
         }
       ]
     },
@@ -67,7 +63,6 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
           "typeInferred": true
         }
       ],

@@ -13,8 +13,7 @@
           "name": "value",
           "type": {
             "kind": "TypeName",
-            "name": "Int",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         },
@@ -22,16 +21,14 @@
           "name": "fallback",
           "type": {
             "kind": "TypeName",
-            "name": "Text",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
@@ -49,16 +46,14 @@
                   "name": "candidate",
                   "type": {
                     "kind": "TypeName",
-                    "name": "Bool",
-                    "annotations": []
+                    "name": "Text"
                   },
                   "typeInferred": true
                 }
               ],
               "retType": {
                 "kind": "TypeName",
-                "name": "Unknown",
-                "annotations": []
+                "name": "Unknown"
               },
               "body": {
                 "kind": "Block",

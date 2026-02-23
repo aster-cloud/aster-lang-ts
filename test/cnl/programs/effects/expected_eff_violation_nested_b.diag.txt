@@ -1,4 +1,4 @@
 INFO: Function 'http_call' declares Http capability but it is not used.
-WARNING: Function 'top_level' declares @cpu but no obvious CPU-bound work found.
-ERROR: Function 'top_level' missing @io effect declaration, inference requires IO.
-WARNING: Function 'top_level' declares both @cpu and @io; @cpu is redundant since @io is required.
+WARN: Function 'top_level' declares @cpu but no obvious CPU-bound work found.
+ERROR: 函数 'top_level' 缺少 @io 效果声明，推断要求 IO。
+WARN: 函数 'top_level' 同时声明 @cpu 和 @io；由于需要 @io，@cpu 可移除。

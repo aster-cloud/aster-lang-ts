@@ -11,16 +11,14 @@
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          },
-          "constraints": []
+          }
         },
         {
           "name": "name",
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          },
-          "constraints": []
+          }
         }
       ]
     },
@@ -37,7 +35,6 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
           "typeInferred": true
         },
         {
@@ -46,7 +43,6 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
           "typeInferred": true
         }
       ],
@@ -70,7 +66,7 @@
                   "name": "value",
                   "type": {
                     "kind": "TypeName",
-                    "name": "Int"
+                    "name": "Text"
                   }
                 }
               ],
@@ -180,7 +176,6 @@
             "kind": "TypeName",
             "name": "Int"
           },
-          "constraints": [],
           "typeInferred": true
         }
       ],
@@ -204,7 +199,7 @@
                   "name": "value",
                   "type": {
                     "kind": "TypeName",
-                    "name": "Int"
+                    "name": "Text"
                   }
                 }
               ],

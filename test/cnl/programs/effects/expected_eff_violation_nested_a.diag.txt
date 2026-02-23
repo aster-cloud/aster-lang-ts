@@ -1,5 +1,5 @@
-WARNING: Function 'middle_cpu' declares @cpu but no obvious CPU-bound work found.
-ERROR: Function 'middle_cpu' missing @io effect declaration, inference requires IO.
-WARNING: Function 'middle_cpu' declares both @cpu and @io; @cpu is redundant since @io is required.
-ERROR: Function 'outer_pure' missing @io effect declaration, inference requires IO.
-ERROR: Function 'outer_pure' missing @cpu effect declaration, inference requires CPU (or @io).
+WARN: Function 'middle_cpu' declares @cpu but no obvious CPU-bound work found.
+ERROR: 函数 'middle_cpu' 缺少 @io 效果声明，推断要求 IO。
+WARN: 函数 'middle_cpu' 同时声明 @cpu 和 @io；由于需要 @io，@cpu 可移除。
+ERROR: 函数 'outer_pure' 缺少 @io 效果声明，推断要求 IO。
+ERROR: 函数 'outer_pure' 缺少 @cpu 效果声明，推断要求 CPU（或 @io）。

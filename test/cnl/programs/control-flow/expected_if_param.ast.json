@@ -13,16 +13,14 @@
           "name": "flag",
           "type": {
             "kind": "TypeName",
-            "name": "Bool",
-            "annotations": []
+            "name": "Text"
           },
           "typeInferred": true
         }
       ],
       "retType": {
         "kind": "TypeName",
-        "name": "Unknown",
-        "annotations": []
+        "name": "Unknown"
       },
       "effects": [],
       "effectCaps": [],
