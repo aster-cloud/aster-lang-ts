@@ -34,7 +34,7 @@ function runOneAst(inputPath: string, expectPath: string): void {
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
     const toks = lex(can);
-    const ast = parse(toks);
+    const ast = parse(toks).ast;
     const actual = pruneAst(ast);
     const expected = pruneAst(JSON.parse(fs.readFileSync(expectPath, 'utf8')));
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -59,7 +59,7 @@ async function runOneCore(inputPath: string, expectPath: string): Promise<void> 
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
     const toks = lex(can);
-    const ast = parse(toks);
+    const ast = parse(toks).ast;
     const { lowerModule } = await import('../../../src/lower_to_core.js');
     const core = lowerModule(ast);
     const actual = pruneCore(core);
@@ -107,7 +107,7 @@ async function runOneTypecheck(inputPath: string, expectPath: string): Promise<v
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
     const toks = lex(can);
-    const ast = parse(toks);
+    const ast = parse(toks).ast;
     const { lowerModule } = await import('../../../src/lower_to_core.js');
     const core = lowerModule(ast);
     const { typecheckModule } = await import('../../../src/typecheck.js');

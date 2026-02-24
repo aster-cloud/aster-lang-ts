@@ -25,7 +25,7 @@ function indexFile(file: string): IndexedDoc | null {
     const text = fs.readFileSync(file, 'utf8');
     const can = canonicalize(text);
     const tokens = lex(can);
-    const ast = parse(tokens) as AstModule;
+    const { ast } = parse(tokens) as { ast: AstModule };
     const decls: IndexedDecl[] = [];
     for (const d of ast.decls as AstDecl[]) {
       if (d.kind === 'Func' || d.kind === 'Data' || d.kind === 'Enum') {

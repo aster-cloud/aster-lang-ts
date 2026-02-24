@@ -45,7 +45,7 @@ function compileToJson(inputPath: string, outputPath?: string): void {
     // 编译管线：CNL → Canonical → Tokens → AST → Core IR
     const canonical = canonicalize(source);
     const tokens = lex(canonical);
-    const ast = parse(tokens);
+    const { ast } = parse(tokens);
     const coreIR = lowerModule(ast);
 
     // 序列化为 JSON

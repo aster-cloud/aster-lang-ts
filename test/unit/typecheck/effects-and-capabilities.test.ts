@@ -19,7 +19,7 @@ import type { CapabilityManifest } from '../../../src/effects/capabilities.js';
 function runTypecheck(source: string): TypecheckDiagnostic[] {
   const canonical = canonicalize(source);
   const tokens = lex(canonical);
-  const ast = parse(tokens);
+  const ast = parse(tokens).ast;
   const core = lowerModule(ast);
   return typecheckModule(core);
 }
@@ -121,7 +121,7 @@ import { typecheckModule } from '${join(process.cwd(), 'dist/src/typecheck.js').
 const source = ${JSON.stringify(moduleSource)};
 const canonical = canonicalize(source);
 const tokens = lex(canonical);
-const ast = parse(tokens);
+const ast = parse(tokens).ast;
 const core = lowerModule(ast);
 const diags = typecheckModule(core);
 for (const diag of diags) {
@@ -182,7 +182,7 @@ Rule callHttp, produce Text. It performs io [Http]:
 `;
     const canonical = canonicalize(source);
     const tokens = lex(canonical);
-    const ast = parse(tokens);
+    const ast = parse(tokens).ast;
     const core = lowerModule(ast);
     const manifest: CapabilityManifest = {
       allow: {
@@ -206,9 +206,9 @@ Rule callHttp, produce Text. It performs io [Http]:
 `;
     const canonical = canonicalize(source);
     const tokens = lex(canonical);
-    const ast = parse(tokens);
+    const ast = parse(tokens).ast;
     const core = lowerModule(ast);
-    const allowPattern = ['test.typecheck.cap_manifest_allow.*'];
+    const allowPattern =['test.typecheck.cap_manifest_allow.*'];
     const manifest: CapabilityManifest = {
       allow: {
         Http: allowPattern,

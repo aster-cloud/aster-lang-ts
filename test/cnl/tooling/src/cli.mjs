@@ -10,7 +10,7 @@ function main() {
   try {
     const can = canonicalize(input);
     const toks = lex(can);
-    const ast = parse(toks);
+    const ast = parse(toks).ast;
     console.log(JSON.stringify(ast, null, 2));
   } catch (e) {
     const pos = e.pos ? `:${e.pos.line}:${e.pos.col}` : '';

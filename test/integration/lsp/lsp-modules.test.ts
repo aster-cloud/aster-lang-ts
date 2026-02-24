@@ -53,7 +53,7 @@ function createMockGetOrParse() {
     const tokens = lex(can);
     let ast: AstModule | null = null;
     try {
-      ast = parse(tokens) as AstModule;
+      ast = parse(tokens).ast as AstModule;
     } catch {
       ast = null;
     }

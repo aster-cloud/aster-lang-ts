@@ -48,7 +48,21 @@ export class PolicyValidator {
       // 编译管线：CNL → Canonical → Tokens → AST → Core IR
       const canonical = canonicalize(cnlCode);
       const tokens = lex(canonical);
-      const ast = parse(tokens);
+      const { ast, diagnostics: parseDiags } = parse(tokens);
+
+      // 解析错误直接返回
+      if (parseDiags.length > 0) {
+        return {
+          valid: false,
+          diagnostics: parseDiags.map(d => ({
+            severity: 'error' as const,
+            code: 'COMPILATION_ERROR' as any,
+            message: d.message,
+            span: d.span,
+          })),
+        };
+      }
+
       const coreIR = lowerModule(ast);
 
       // 类型检查

@@ -57,8 +57,8 @@ function main(): void {
   benchmark('Parse (login)', () => parse(loginTokens), 2000);
   
   // Benchmark lowering
-  const greetAst = parse(greetTokens);
-  const loginAst = parse(loginTokens);
+  const greetAst = parse(greetTokens).ast;
+  const loginAst = parse(loginTokens).ast;
   
   benchmark('Lower (greet)', () => lowerModule(greetAst), 3000);
   benchmark('Lower (login)', () => lowerModule(loginAst), 3000);
@@ -67,14 +67,14 @@ function main(): void {
   benchmark('Full pipeline (greet)', () => {
     const can = canonicalize(greetProgram);
     const tokens = lex(can);
-    const ast = parse(tokens);
+    const ast = parse(tokens).ast;
     return lowerModule(ast);
   }, 1000);
-  
+
   benchmark('Full pipeline (login)', () => {
     const can = canonicalize(loginProgram);
     const tokens = lex(can);
-    const ast = parse(tokens);
+    const ast = parse(tokens).ast;
     return lowerModule(ast);
   }, 1000);
   
@@ -82,7 +82,7 @@ function main(): void {
   
   const largeCan = canonicalize(largeProgram);
   const largeTokens = lex(largeCan);
-  const largeAst = parse(largeTokens);
+  const largeAst = parse(largeTokens).ast;
   
   console.log(`Program size: ${largeProgram.length} chars, ${largeTokens.length} tokens`);
   
@@ -94,7 +94,7 @@ function main(): void {
   benchmark('Full pipeline (large)', () => {
     const can = canonicalize(largeProgram);
     const tokens = lex(can);
-    const ast = parse(tokens);
+    const ast = parse(tokens).ast;
     return lowerModule(ast);
   }, 20);
   
@@ -106,7 +106,7 @@ function main(): void {
   for (let i = 0; i < 100; i++) {
     const can = canonicalize(largeProgram);
     const tokens = lex(can);
-    const ast = parse(tokens);
+    const ast = parse(tokens).ast;
     lowerModule(ast);
   }
   
@@ -120,7 +120,7 @@ function main(): void {
   const greetPipelineResult = benchmark('Performance check (greet)', () => {
     const can = canonicalize(greetProgram);
     const tokens = lex(can);
-    const ast = parse(tokens);
+    const ast = parse(tokens).ast;
     return lowerModule(ast);
   }, 100);
   

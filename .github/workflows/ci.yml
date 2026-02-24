@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [24]
+        node-version: [20, 22, 24]
 
     steps:
       - name: Checkout
@@ -36,8 +36,23 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      - name: Run tests
-        run: pnpm run test
+      - name: Run unit tests with coverage
+        run: pnpm run test:unit:coverage
+
+      - name: Check coverage threshold
+        run: |
+          pnpm run build
+          npx c8 --check-coverage --lines 75 --branches 60 --functions 70 \
+            node --test 'dist/test/unit/**/*.test.js' 'dist/test/type-checker/**/*.test.js'
+
+      - name: Run integration tests
+        run: pnpm run test:integration
 
       - name: Run golden tests
-        run: pnpm run test:golden
+        run: pnpm run test:golden:run
+
+      - name: Run property tests
+        run: pnpm run test:property:run
+
+      - name: Run fuzz tests
+        run: pnpm run test:fuzz:run

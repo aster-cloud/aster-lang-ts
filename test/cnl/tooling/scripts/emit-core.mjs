@@ -12,7 +12,7 @@ function main() {
   try {
     const can = canonicalize(input);
     const toks = lex(can);
-    const ast = parse(toks);
+    const ast = parse(toks).ast;
     const core = lowerModule(ast);
     console.log(JSON.stringify(core, null, 2));
   } catch (e) {

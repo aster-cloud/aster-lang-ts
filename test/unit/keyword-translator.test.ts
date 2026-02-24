@@ -239,7 +239,7 @@ describe('关键词翻译器', () => {
       assert.ok(hasReturn, '应有翻译后的 "Return" 关键词');
 
       // 步骤 4: 解析（使用翻译后的 token）
-      const ast = parse(translatedTokens);
+      const ast = parse(translatedTokens).ast;
 
       // 验证 AST 结构
       assert.ok(ast, '应生成 AST');
@@ -267,7 +267,7 @@ describe('关键词翻译器', () => {
       assert.ok(hasInt, '应有翻译后的 "Int" 类型');
 
       // 解析
-      const ast = parse(translatedTokens);
+      const ast = parse(translatedTokens).ast;
       assert.ok(ast, '应生成 AST');
 
       // 验证类型定义
@@ -297,7 +297,7 @@ describe('关键词翻译器', () => {
       assert.ok(hasReturn, '应有翻译后的 "Return" 关键词');
 
       // 解析
-      const ast = parse(translatedTokens);
+      const ast = parse(translatedTokens).ast;
       assert.ok(ast, '应生成 AST');
     });
 
@@ -313,7 +313,7 @@ describe('关键词翻译器', () => {
       assert.strictEqual(needsKeywordTranslation(EN_US), false);
 
       // 直接解析
-      const ast = parse(tokens);
+      const ast = parse(tokens).ast;
       assert.ok(ast, '应生成 AST');
       assert.ok(ast.decls.length > 0, '应有声明');
     });

@@ -11,7 +11,7 @@ import type { TypecheckDiagnostic, Core } from '../../../src/types.js';
 function runTypecheck(source: string): TypecheckDiagnostic[] {
   const canonical = canonicalize(source);
   const tokens = lex(canonical);
-  const ast = parse(tokens);
+  const ast = parse(tokens).ast;
   const core = lowerModule(ast);
   return typecheckModule(core);
 }

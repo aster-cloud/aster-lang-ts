@@ -2,13 +2,19 @@ import { describe, test, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../src/frontend/lexer.js';
-import { parse, parseWithLexicon } from '../../../src/parser.js';
+import { parse, parseWithLexicon, type ParseResult } from '../../../src/parser.js';
 import type { Module, Declaration, Statement } from '../../../src/types.js';
 import { CapabilityKind } from '../../../src/config/semantic.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
 
 function parseSource(source: string): Module {
+  const canonical = canonicalize(source);
+  const tokens = lex(canonical);
+  return parse(tokens).ast;
+}
+
+function parseWithDiag(source: string): ParseResult {
   const canonical = canonicalize(source);
   const tokens = lex(canonical);
   return parse(tokens);
@@ -163,16 +169,14 @@ Rule fetch, produce Text:
     assert.equal(statements[1]!.kind, 'Wait');
   });
 
-  test('应该在语法错误时抛出诊断', () => {
-    assert.throws(
-      () =>
-        parseSource(`
+  test('应该在语法错误时收集诊断', () => {
+    const result = parseWithDiag(`
 Module test.parser.error.
 
 Define Broken has x as Int
-`),
-      /expected '.'/i
-    );
+`);
+    assert.ok(result.diagnostics.length > 0, '应有诊断信息');
+    assert.match(result.diagnostics[0]!.message, /expected '.'/i);
   });
 
   describe('边界场景', () => {
@@ -359,37 +363,27 @@ Rule determineInterestRateBps given creditScore between 300 and 850, produce:
     });
 
     it('应该在缺失参数分隔符时报告诊断', () => {
-      assert.throws(
-        () =>
-          parseSource(`
+      const result = parseWithDiag(`
 Module test.parser.error.missing_separator.
 
 Rule broken given first as Int second as Int, produce Int:
   Return first.
-`),
-        error => {
-          assert.match(String(error), /Expected 'produce' and return type/i);
-          return true;
-        }
-      );
+`);
+      assert.ok(result.diagnostics.length > 0, '应有诊断信息');
+      assert.match(result.diagnostics[0]!.message, /Expected 'produce' and return type/i);
     });
 
     it('应该在括号不匹配时报告诊断', () => {
-      assert.throws(
-        () =>
-          parseSource(`
+      const result = parseWithDiag(`
 Module test.parser.error.parentheses.
 
 Rule fail given value as Text, produce Text:
   Return (value.
-`),
-        error => {
-          assert.ok(
-            String(error).includes("Expected ')' after expression"),
-            '诊断信息应该指出括号缺失'
-          );
-          return true;
-        }
+`);
+      assert.ok(result.diagnostics.length > 0, '应有诊断信息');
+      assert.ok(
+        result.diagnostics[0]!.message.includes("Expected ')' after expression"),
+        '诊断信息应该指出括号缺失'
       );
     });
   });
@@ -672,38 +666,28 @@ Rule configure, produce Text:
       assert.equal(innerSet.name, 'state');
     });
 
-    test('应该在缺少 to 时抛出诊断', () => {
-      assert.throws(
-        () =>
-          parseSource(`
+    test('应该在缺少 to 时收集诊断', () => {
+      const result = parseWithDiag(`
 Module test.parser.set.error_missing_to.
 
 Rule broken, produce Int:
   Set total value.
   Return 0.
-`),
-        error => {
-          assert.match(String(error), /Set x to/);
-          return true;
-        }
-      );
+`);
+      assert.ok(result.diagnostics.length > 0, '应有诊断信息');
+      assert.match(result.diagnostics[0]!.message, /Set x to/);
     });
 
-    test('应该在缺少结尾句点时抛出诊断', () => {
-      assert.throws(
-        () =>
-          parseSource(`
+    test('应该在缺少结尾句点时收集诊断', () => {
+      const result = parseWithDiag(`
 Module test.parser.set.error_missing_period.
 
 Rule broken, produce Int:
   Set total to 1
   Return total.
-`),
-        error => {
-          assert.match(String(error), /Expected '.' at end of statement/);
-          return true;
-        }
-      );
+`);
+      assert.ok(result.diagnostics.length > 0, '应有诊断信息');
+      assert.match(result.diagnostics[0]!.message, /Expected '.' at end of statement/);
     });
 
     test('Set 语句不应被 canonicalizer 转换为 Let（回归测试）', () => {
@@ -1150,19 +1134,14 @@ Rule sync, produce Int. It performs io and cpu and Http.
       assert.equal(func.effectCapsExplicit, true);
     });
 
-    test('应该在出现未知能力时抛出诊断', () => {
-      assert.throws(
-        () =>
-          parseSource(`
+    test('应该在出现未知能力时收集诊断', () => {
+      const result = parseWithDiag(`
 Module test.parser.effects.unknown_cap.
 
 Rule risky, produce Text. It performs io with Blockchain.
-`),
-        error => {
-          assert.match(String(error), /Unknown capability 'Blockchain'/);
-          return true;
-        }
-      );
+`);
+      assert.ok(result.diagnostics.length > 0, '应有诊断信息');
+      assert.match(result.diagnostics[0]!.message, /Unknown capability 'Blockchain'/);
     });
 
     test('应该在仅声明 cpu 时推导能力', () => {
@@ -1315,7 +1294,7 @@ Rule greet given name as Text, produce Text:
 `;
       const canonical = canonicalize(source, EN_US);
       const tokens = lex(canonical, EN_US);
-      const module = parseWithLexicon(tokens, EN_US);
+      const module = parseWithLexicon(tokens, EN_US).ast;
 
       assert.equal(module.name, 'test.parser.lexicon.en');
       const func = findFunc(module, 'greet');
@@ -1332,7 +1311,7 @@ Rule greet given name as Text, produce Text:
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
       const tokens = lex(canonical, ZH_CN);
-      const module = parseWithLexicon(tokens, ZH_CN);
+      const module = parseWithLexicon(tokens, ZH_CN).ast;
 
       assert.ok(module, '应该成功解析中文 CNL');
       assert.equal(module.name, '测试');
@@ -1351,7 +1330,7 @@ Rule greet given name as Text, produce Text:
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
       const tokens = lex(canonical, ZH_CN);
-      const module = parseWithLexicon(tokens, ZH_CN);
+      const module = parseWithLexicon(tokens, ZH_CN).ast;
 
       const dataDef = module.decls.find(d => d.kind === 'Data');
       assert.ok(dataDef && dataDef.kind === 'Data', '应该找到 Data 定义');
@@ -1375,7 +1354,7 @@ Rule greet given name as Text, produce Text:
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
       const tokens = lex(canonical, ZH_CN);
-      const module = parseWithLexicon(tokens, ZH_CN);
+      const module = parseWithLexicon(tokens, ZH_CN).ast;
 
       const func = findFunc(module, 'check');
       const statements = func.body?.statements ?? [];
@@ -1398,7 +1377,7 @@ Rule greet given name as Text, produce Text:
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
       const tokens = lex(canonical, ZH_CN);
-      const module = parseWithLexicon(tokens, ZH_CN);
+      const module = parseWithLexicon(tokens, ZH_CN).ast;
 
       const func = findFunc(module, 'describe');
       const statements = func.body?.statements ?? [];
@@ -1420,7 +1399,7 @@ Rule greet given name as Text, produce Text:
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
       const tokens = lex(canonical, ZH_CN);
-      const module = parseWithLexicon(tokens, ZH_CN);
+      const module = parseWithLexicon(tokens, ZH_CN).ast;
 
       const func = findFunc(module, 'calc');
       const statements = func.body?.statements ?? [];

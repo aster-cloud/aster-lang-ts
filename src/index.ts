@@ -28,6 +28,7 @@
 export { canonicalize } from './frontend/canonicalizer.js';
 export { lex } from './frontend/lexer.js';
 export { parse, parseWithLexicon } from './parser.js';
+export type { ParseResult } from './parser.js';
 export { lowerModule } from './lower_to_core.js';
 
 // 关键词翻译（多语言 CNL 支持）

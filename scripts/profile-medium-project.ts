@@ -89,7 +89,7 @@ async function main(): Promise<void> {
 
       // Phase 3: Parse
       const parseStart = performance.now();
-      const ast = parse(tokens);
+      const { ast } = parse(tokens);
       parseTimings.push(performance.now() - parseStart);
 
       // Phase 4: Lower to Core IR

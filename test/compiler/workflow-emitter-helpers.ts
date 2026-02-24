@@ -11,7 +11,7 @@ import type { Module as AstModule, Core as CoreTypes } from '../../src/types.js'
 function parseModuleFromSource(source: string): AstModule {
   const canonical = canonicalize(source);
   const tokens = lex(canonical);
-  return parse(tokens);
+  return parse(tokens).ast;
 }
 
 function lowerCoreFromSource(source: string): CoreTypes.Module {

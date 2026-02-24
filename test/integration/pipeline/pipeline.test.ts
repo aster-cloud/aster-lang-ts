@@ -39,7 +39,7 @@ function compileEnd2End(source: string): {
     const tokens = lex(canonical);
 
     // 阶段 3: 语法分析
-    const ast = parse(tokens) as AstModule;
+    const ast = parse(tokens).ast as AstModule;
 
     // 阶段 4: 降级到核心
     const core = lowerModule(ast);

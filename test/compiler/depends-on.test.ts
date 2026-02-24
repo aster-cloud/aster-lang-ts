@@ -20,7 +20,7 @@ import type {
 function parseModuleFromSource(source: string): AstModule {
   const canonical = canonicalize(source);
   const tokens = lex(canonical);
-  return parse(tokens);
+  return parse(tokens).ast;
 }
 
 function findWorkflowInAst(module: AstModule, funcName = 'orchestrate'): WorkflowStmt {

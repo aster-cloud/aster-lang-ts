@@ -9,7 +9,7 @@ import { typecheckModuleWithCapabilities } from '../src/typecheck.js';
 function main(): void {
   const src = fs.readFileSync('test/cnl/programs/business/policy/capdemo.aster', 'utf8');
   const manifest = JSON.parse(fs.readFileSync('test/cnl/programs/integration/capabilities/capabilities.json', 'utf8'));
-  const ast = parse(lex(canonicalize(src)));
+  const { ast } = parse(lex(canonicalize(src)));
   const core = lowerModule(ast);
   const diags = typecheckModuleWithCapabilities(core, manifest);
   // Expect exactly one error: badIO should be allowed (module matches), but its body is invalid nullstrict-wise; we only assert capability errors count is zero

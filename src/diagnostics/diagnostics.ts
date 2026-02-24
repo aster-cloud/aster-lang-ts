@@ -303,6 +303,19 @@ export const Diagnostics = {
       .withPosition(pos),
 };
 
+/**
+ * 将任意错误转换为 Diagnostic 对象
+ * 用于错误恢复时收集诊断信息
+ */
+export function toDiagnostic(error: unknown): Diagnostic {
+  if (error instanceof DiagnosticError) return error.diagnostic;
+  const msg = error instanceof Error ? error.message : String(error);
+  return DiagnosticBuilder.error(DiagnosticCode.P005_UnexpectedToken)
+    .withMessage(msg)
+    .withPosition(dummyPosition())
+    .build();
+}
+
 // Utility to format diagnostics for display
 export function formatDiagnostic(diagnostic: Diagnostic, source?: string): string {
   const { severity, code, message, span } = diagnostic;

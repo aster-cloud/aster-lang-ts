@@ -41,7 +41,7 @@ async function updateExpectedFiles(): Promise<void> {
       const src = fs.readFileSync(inputFile, 'utf8');
       const can = canonicalize(src);
       const toks = lex(can);
-      const ast = parse(toks);
+      const { ast } = parse(toks);
       const core = lowerModule(ast);
       const diags = typecheckModule(core);
       const actualLines = Array.from(

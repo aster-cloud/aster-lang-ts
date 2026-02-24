@@ -59,7 +59,7 @@ export function formatCNL(
   let formatted: string;
   const cst = buildCst(text, originalTokens ?? tokens);
   try {
-    const ast = parse(tokens) as Module;
+    const ast = parse(tokens).ast as Module;
     formatted = simpleFormatModule(ast);
   } catch {
     // If the source doesn't parse, return it unchanged

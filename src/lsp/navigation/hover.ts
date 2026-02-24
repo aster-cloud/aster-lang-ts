@@ -84,7 +84,7 @@ export function registerHoverHandler(
     try {
       const lexicon = getLexiconForDoc?.(params.textDocument.uri);
       const ui = getLspUiTexts(lexicon);
-      const ast2 = (ast as AstModule) || (parse(toks) as AstModule);
+      const ast2 = (ast as AstModule) || (parse(toks).ast as AstModule);
       const decl = findDeclAt(ast2, pos);
       if (decl) {
         if (isAstFunc(decl)) {

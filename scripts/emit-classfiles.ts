@@ -370,7 +370,7 @@ async function main(): Promise<void> {
 
   for (const input of inputs) {
     const src = fs.readFileSync(input, 'utf8');
-    const core = lowerModule(parse(lex(canonicalize(src))));
+    const core = lowerModule(parse(lex(canonicalize(src))).ast);
     const payload = JSON.stringify(core);
     fs.writeFileSync('build/last-core.json', payload);
 

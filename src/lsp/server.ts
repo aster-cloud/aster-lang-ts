@@ -132,8 +132,8 @@ function getOrParse(doc: TextDocument): CachedDoc {
   let ast: AstModule | null;
   try {
     ast = lexicon && needsKeywordTranslation(lexicon)
-      ? parseWithLexicon(tokens, lexicon) as AstModule
-      : parse(tokens, lexicon) as AstModule;
+      ? parseWithLexicon(tokens, lexicon).ast as AstModule
+      : parse(tokens, lexicon).ast as AstModule;
   } catch {
     ast = null;
   }

@@ -24,7 +24,7 @@ export async function updateDocumentIndex(uri: string, content: string): Promise
   try {
     const canonical = canonicalize(content);
     const tokens = lex(canonical);
-    const ast = parse(tokens) as AstModule;
+    const ast = parse(tokens).ast as AstModule;
 
     const symbols: SymbolInfo[] = [];
     const decls = Array.isArray((ast as any)?.decls) ? ((ast as any).decls as any[]) : [];

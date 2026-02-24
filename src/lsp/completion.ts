@@ -260,7 +260,7 @@ export function registerCompletionHandlers(
     const { tokens: toks, ast } = entry;
     let moduleAst: AstModule;
     try {
-      moduleAst = (ast as AstModule) || (parse(toks) as AstModule);
+      moduleAst = (ast as AstModule) || (parse(toks).ast as AstModule);
     } catch {
       return null;
     }

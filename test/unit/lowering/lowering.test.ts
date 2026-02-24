@@ -18,7 +18,7 @@ import type {
 function lower(source: string): Core.Module {
   const canonical = canonicalize(source);
   const tokens = lex(canonical);
-  const ast = parse(tokens);
+  const ast = parse(tokens).ast;
   return lowerModule(ast);
 }
 

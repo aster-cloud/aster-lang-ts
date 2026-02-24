@@ -175,7 +175,7 @@ function measureCompilationProject(project: Map<string, string>, iterations: num
     lexSamples.push(performance.now() - stageStart);
 
     stageStart = performance.now();
-    const asts = tokenSets.map(tokens => parse(tokens));
+    const asts = tokenSets.map(tokens => parse(tokens).ast);
     parseSamples.push(performance.now() - stageStart);
 
     stageStart = performance.now();

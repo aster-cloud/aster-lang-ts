@@ -18,7 +18,7 @@ function compileAndGetDiagnostics(source: string): Array<{ severity: string; mes
   try {
     const canonical = canonicalize(source);
     const tokens = lex(canonical);
-    const ast = parse(tokens) as AstModule;
+    const ast = parse(tokens).ast as AstModule;
     const core = lowerModule(ast);
     return typecheckModule(core);
   } catch (error) {

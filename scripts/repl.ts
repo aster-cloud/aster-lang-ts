@@ -60,7 +60,7 @@ async function repl(): Promise<void> {
       try {
         const can = canonicalize(src);
         const tokens = lex(can);
-        const ast = parse(tokens);
+        const { ast } = parse(tokens);
         const core = lowerModule(ast);
         if (pretty) {
           console.log(formatModule(core));

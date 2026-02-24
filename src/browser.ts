@@ -190,21 +190,24 @@ export function compile(source: string, options?: CompileOptions): CompileResult
 
     // Step 4: Parse to AST (now with English tokens)
     const effectiveLex = lexicon ? attachTypeInferenceRules(lexicon) : undefined;
-    const ast = parse(tokens, effectiveLex);
+    const parseResult = parse(tokens, effectiveLex);
 
     // Check for parse errors
-    if ('error' in ast || !ast) {
+    if (parseResult.diagnostics.length > 0 && parseResult.ast.decls.length === 0) {
       const result: CompileResult = {
         success: false,
-        parseErrors: [{
-          message: 'error' in ast ? (ast as { error: string }).error : 'Parse failed',
-        }],
+        parseErrors: parseResult.diagnostics.map(d => ({
+          message: d.message,
+          span: d.span,
+        })),
       };
       if (options?.includeIntermediates) {
         result.tokens = tokens;
       }
       return result;
     }
+
+    const ast = parseResult.ast;
 
     // Step 5: Lower to Core IR
     const core = lowerModule(ast);
@@ -213,6 +216,9 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       success: true,
       core,
     };
+    if (parseResult.diagnostics.length > 0) {
+      result.parseErrors = parseResult.diagnostics.map(d => ({ message: d.message, span: d.span }));
+    }
     if (options?.includeIntermediates) {
       result.tokens = tokens;
       result.ast = ast;
@@ -283,10 +289,14 @@ export function validateSyntaxWithSpan(source: string, lexicon?: Lexicon): Valid
     }
 
     const effectiveLexForValidation = lexicon ? attachTypeInferenceRules(lexicon) : undefined;
-    const ast = parse(tokens, effectiveLexForValidation);
+    const result = parse(tokens, effectiveLexForValidation);
 
-    if ('error' in ast) {
-      return [{ message: (ast as { error: string }).error }];
+    // 错误恢复模式：直接返回收集到的诊断
+    if (result.diagnostics.length > 0) {
+      return result.diagnostics.map(d => ({
+        message: d.message,
+        span: d.span,
+      }));
     }
 
     return [];
@@ -451,16 +461,16 @@ export function extractSchema(source: string, options?: SchemaOptions): SchemaRe
 
     // Parse to AST
     const effectiveLexForSchema = lexicon ? attachTypeInferenceRules(lexicon) : undefined;
-    const ast = parse(tokens, effectiveLexForSchema);
+    const parseResult = parse(tokens, effectiveLexForSchema);
 
-    if ('error' in ast || !ast) {
+    if (parseResult.diagnostics.length > 0 && parseResult.ast.decls.length === 0) {
       return {
         success: false,
-        error: 'error' in ast ? (ast as { error: string }).error : 'Parse failed',
+        error: parseResult.diagnostics[0]?.message ?? 'Parse failed',
       };
     }
 
-    const module = ast as Module;
+    const module = parseResult.ast;
     const moduleName = module.name ?? 'unknown';
 
     // Find all Data declarations (for struct field resolution)

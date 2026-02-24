@@ -110,7 +110,7 @@ function main(): void {
 
   const canonical = canonicalize(input);
   const tokens = lex(canonical);
-  const ast = parse(tokens);
+  const { ast } = parse(tokens);
   const core = lowerModule(ast);
   const manifest = readManifest();
   const diagnostics = manifest ? typecheckModuleWithCapabilities(core, manifest) : typecheckModule(core);

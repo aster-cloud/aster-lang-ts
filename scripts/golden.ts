@@ -7,7 +7,7 @@ function runOneAst(inputPath: string, expectPath: string): void {
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
     const toks = lex(can);
-    const ast = parse(toks);
+    const { ast } = parse(toks);
     const actual = prune(ast);
     const expected = prune(JSON.parse(fs.readFileSync(expectPath, 'utf8')));
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -32,7 +32,7 @@ async function runOneCore(inputPath: string, expectPath: string): Promise<void> 
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
     const toks = lex(can);
-    const ast = parse(toks);
+    const { ast } = parse(toks);
     const { lowerModule } = await import('../src/lower_to_core.js');
     const core = lowerModule(ast);
     const actual = prune(core);
@@ -80,7 +80,7 @@ async function runOneTypecheck(inputPath: string, expectPath: string): Promise<v
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
     const toks = lex(can);
-    const ast = parse(toks);
+    const { ast } = parse(toks);
     const { lowerModule } = await import('../src/lower_to_core.js');
     const core = lowerModule(ast);
     const { typecheckModule } = await import('../src/typecheck.js');
@@ -134,7 +134,7 @@ async function runOneTypecheckWithCaps(
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
     const toks = lex(can);
-    const ast = parse(toks);
+    const { ast } = parse(toks);
     const { lowerModule } = await import('../src/lower_to_core.js');
     const core = lowerModule(ast);
     const { typecheckModuleWithCapabilities } = await import('../src/typecheck.js');
@@ -176,7 +176,7 @@ async function runOneTypecheckWithCaps(
 function parseCapsFromSource(src: string): readonly string[] | null {
   const can = canonicalize(src);
   const toks = lex(can);
-  const ast: any = parse(toks);
+  const { ast }: any = parse(toks);
   const fn: any = ast?.decls?.[0];
   if (!fn?.effectCapsExplicit) return null;
   const caps = fn.effectCaps as readonly string[] | undefined;

@@ -132,7 +132,7 @@ function loadCoreModule(caseName: CaseName): Core.Module {
   const source = fs.readFileSync(sourcePath, 'utf8');
   const canonical = canonicalize(source);
   const tokens = lex(canonical);
-  const ast = parse(tokens) as AstModule;
+  const ast = parse(tokens).ast as AstModule;
   return lowerModule(ast);
 }
 

@@ -232,7 +232,7 @@ const testStartWaitPrecedence = (): void => {
   const toks = lex(can);
   let ast: any;
   try {
-    ast = parse(toks);
+    ast = parse(toks).ast;
   } catch (e) {
     throw new Error('Start/Wait should parse as statements without bare-expression error: ' + (e as Error).message);
   }
@@ -273,7 +273,7 @@ const testWaitSingleAndMultiple = (): void => {
   for (const c of cases) {
     const can = canonicalize(mkSrc(c.line));
     const toks = lex(can);
-    const ast: any = parse(toks);
+    const ast: any = parse(toks).ast;
     const fn = ast.decls.find((d: any) => d.kind === 'Func');
     if (!fn) throw new Error('Expected function decl');
     const waitStmt = fn.body.statements.find((s: any) => s.kind === 'Wait');
@@ -299,7 +299,7 @@ const testRoundTrip = (): void => {
     try {
       const can = canonicalize(program);
       const tokens = lex(can);
-      const ast = parse(tokens);
+      const ast = parse(tokens).ast;
       const core = lowerModule(ast);
 
       // Basic sanity checks
@@ -467,7 +467,7 @@ function testGenericsBasic(): void {
   ].join('\n');
   const can = canonicalize(src);
   const toks = lex(can);
-  const ast = parse(toks);
+  const ast = parse(toks).ast;
   const core = lowerModule(ast);
   if (core.kind !== 'Module') throw new Error('Expected Module');
   const fn = core.decls.find(d => (d as any).kind === 'Func') as any;

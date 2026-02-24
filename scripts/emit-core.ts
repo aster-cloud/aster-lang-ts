@@ -13,7 +13,7 @@ function main(): void {
   try {
     const can = canonicalize(input);
     const toks = lex(can);
-    const ast = parse(toks);
+    const { ast } = parse(toks);
     const core = lowerModule(ast);
     console.log(JSON.stringify(prune(core), null, 2));
   } catch (e: unknown) {

@@ -49,7 +49,7 @@ export function registerDefinitionHandler(
     const tokenIndex = buildTokenIndex(toks);
 
     try {
-      const ast2 = (ast as AstModule) || (parse(toks) as AstModule);
+      const ast2 = (ast as AstModule) || (parse(toks).ast as AstModule);
       // Use optimized O(log n) token lookup
       const name = tokenNameAtOptimized(tokenIndex, params.position);
       if (!name) return null;

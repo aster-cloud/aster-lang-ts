@@ -25,19 +25,19 @@ async function cmdParse(file: string): Promise<void> {
   const input = readFileStrict(file);
   const can = canonicalize(input);
   const toks = lex(can);
-  const ast = parseAst(toks);
+  const { ast } = parseAst(toks);
   console.log(JSON.stringify(ast, null, 2));
 }
 
 async function cmdCore(file: string): Promise<void> {
   const input = readFileStrict(file);
-  const core = lowerModule(parseAst(lex(canonicalize(input))));
+  const core = lowerModule(parseAst(lex(canonicalize(input))).ast);
   console.log(JSON.stringify(core, null, 2));
 }
 
 async function cmdJvm(file: string, outDir = 'build/jvm-src'): Promise<void> {
   const input = readFileStrict(file);
-  const core = lowerModule(parseAst(lex(canonicalize(input))));
+  const core = lowerModule(parseAst(lex(canonicalize(input))).ast);
   fs.rmSync(outDir, { recursive: true, force: true });
   await emitJava(core, outDir);
   console.log('Wrote Java sources to', outDir);
@@ -70,7 +70,7 @@ async function ensureAsmEmitterBuilt(): Promise<void> {
 async function cmdClass(file: string, outDir = 'build/jvm-classes'): Promise<void> {
   await ensureAsmEmitterBuilt();
   const input = readFileStrict(file);
-  const core = lowerModule(parseAst(lex(canonicalize(input))));
+  const core = lowerModule(parseAst(lex(canonicalize(input))).ast);
   const payload = JSON.stringify(core);
   fs.mkdirSync('build', { recursive: true });
   fs.writeFileSync('build/last-core.json', payload);
@@ -118,7 +118,7 @@ async function cmdTruffle(input: string, passthrough: string[]): Promise<void> {
   let corePath = input;
   if (input.endsWith('.aster')) {
     const src = readFileStrict(input);
-    const core = lowerModule(parseAst(lex(canonicalize(src))));
+    const core = lowerModule(parseAst(lex(canonicalize(src))).ast);
     fs.mkdirSync('build', { recursive: true });
     corePath = path.join('build', `${path.basename(input, '.aster')}_core.json`);
     fs.writeFileSync(corePath, JSON.stringify(core));

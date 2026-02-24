@@ -107,7 +107,7 @@ export function registerDocumentSymbolHandler(
     const entry = getOrParse(doc);
     const { tokens: toks, ast } = entry;
     try {
-      const ast2 = (ast as AstModule) || (parse(toks) as AstModule);
+      const ast2 = (ast as AstModule) || (parse(toks).ast as AstModule);
       const symbols: DocumentSymbol[] = [];
 
       // Module symbol (if named)

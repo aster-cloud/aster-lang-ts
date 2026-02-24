@@ -66,7 +66,7 @@ export function registerTokensHandlers(
         }
       }
       // Simple let type hints using exprTypeText
-      const a = (ast as Module) || (parse(toks) as Module);
+      const a = (ast as Module) || (parse(toks).ast as Module);
       for (const d of a.decls as Declaration[]) {
         if (d.kind !== 'Func') continue;
         const f = d as Func;
@@ -163,7 +163,7 @@ export function registerTokensHandlers(
     const entry = getOrParse(doc);
     const { tokens: toks, ast } = entry;
     try {
-      const ast2 = (ast as Module) || (parse(toks) as Module);
+      const ast2 = (ast as Module) || (parse(toks).ast as Module);
       const builder: number[] = [];
       let prevLine = 0;
       let prevChar = 0;

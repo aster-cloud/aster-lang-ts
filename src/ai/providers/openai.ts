@@ -1,24 +1,34 @@
-import OpenAI from 'openai';
 import type { LLMProvider, LLMRequest, LLMResponse } from '../llm-provider.js';
 import { LLMError } from '../llm-provider.js';
 
 export interface OpenAIConfig {
-  apiKey?: string;              // API key（默認從 OPENAI_API_KEY 環境變量讀取）
-  model?: string;               // 模型名稱（默認 gpt-4-turbo）
-  organization?: string;        // 組織 ID（可選）
+  apiKey?: string;
+  model?: string;
+  organization?: string;
 }
 
 export class OpenAIProvider implements LLMProvider {
-  private client: OpenAI;
+  private client: any;
   private model: string;
+  private OpenAI: any;
 
   constructor(config: OpenAIConfig = {}) {
     const apiKey = config.apiKey || process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new LLMError('缺少 OpenAI API key，請設置 OPENAI_API_KEY 環境變量', 'openai');
+      throw new LLMError('缺少 OpenAI API key，请设置 OPENAI_API_KEY 环境变量', 'openai');
     }
 
-    this.client = new OpenAI({
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      this.OpenAI = require('openai').default;
+    } catch {
+      throw new LLMError(
+        '缺少 openai 包，请运行: npm install openai',
+        'openai'
+      );
+    }
+
+    this.client = new this.OpenAI({
       apiKey,
       organization: config.organization,
     });
@@ -27,7 +37,7 @@ export class OpenAIProvider implements LLMProvider {
 
   async generate(request: LLMRequest): Promise<LLMResponse> {
     try {
-      const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+      const messages: Array<{ role: string; content: string }> = [];
       if (request.systemPrompt) {
         messages.push({ role: 'system', content: request.systemPrompt });
       }
@@ -36,13 +46,13 @@ export class OpenAIProvider implements LLMProvider {
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages,
-        temperature: request.temperature ?? 0.0,  // 使用 temperature=0 确保确定性输出
+        temperature: request.temperature ?? 0.0,
         max_tokens: request.maxTokens ?? 4000,
       });
 
       const choice = response.choices[0];
       if (!choice?.message?.content) {
-        throw new LLMError('OpenAI 返回空內容', 'openai');
+        throw new LLMError('OpenAI 返回空内容', 'openai');
       }
 
       return {
@@ -55,15 +65,9 @@ export class OpenAIProvider implements LLMProvider {
         },
       };
     } catch (error) {
-      if (error instanceof OpenAI.APIError) {
-        throw new LLMError(
-          `OpenAI API 錯誤: ${error.message}`,
-          'openai',
-          error
-        );
-      }
+      if (error instanceof LLMError) throw error;
       throw new LLMError(
-        `OpenAI 調用失敗: ${error instanceof Error ? error.message : String(error)}`,
+        `OpenAI 调用失败: ${error instanceof Error ? error.message : String(error)}`,
         'openai',
         error instanceof Error ? error : undefined
       );

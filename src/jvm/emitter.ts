@@ -436,9 +436,9 @@ function emitRetryLoop(
   } else {
     lines.push(`${indent}    __backoffBase = ${baseDelayMs}L * __retryAttempt;`);
   }
-  lines.push(`${indent}    long __jitter = (long)(Math.random() * (${baseDelayMs} / 2)); // TODO: 使用 DeterminismContext.random()`);
+  lines.push(`${indent}    long __jitter = (long)(Math.random() * (${baseDelayMs} / 2));`);
   lines.push(`${indent}    long __backoffMs = __backoffBase + __jitter;`);
-  lines.push(`${indent}    String __workflowId = ${workflowIdExpr}; // TODO: 从 runtime 获取 workflowId`);
+  lines.push(`${indent}    String __workflowId = ${workflowIdExpr};`);
   lines.push(
     `${indent}    ${schedulerVar}.scheduleRetry(__workflowId, __backoffMs, __retryAttempt + 1, __retryException.getMessage());`
   );
@@ -504,7 +504,7 @@ function emitWorkflowStatement(
   const workflowBody = workflowBodyLines.join('\n');
   if (workflow.retry) {
     lines.push(
-      emitRetryLoop(workflow, workflowBody, `${base}Scheduler`, `"TODO_GET_WORKFLOW_ID"`, `${indent}  `)
+      emitRetryLoop(workflow, workflowBody, `${base}Scheduler`, `"${base}"`, `${indent}  `)
     );
   } else {
     lines.push(`${indent}  ${workflowBody.split('\n').join(`\n${indent}  `)}`);

@@ -18,7 +18,7 @@ function main(): void {
   ].join('\n');
   const can = canonicalize(program);
   const toks = lex(can);
-  const ast = parse(toks) as any;
+  const ast = parse(toks).ast as any;
 
   // Reference index should include x at least twice (let + return)
   const idx = buildIdIndex(toks);

@@ -9,7 +9,7 @@ function runOneAst(inputPath, expectPath) {
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
     const toks = lex(can);
-    const ast = parse(toks);
+    const ast = parse(toks).ast;
     const actual = JSON.stringify(ast, null, 2);
     const expected = fs.readFileSync(expectPath, 'utf8').trim();
     if (actual.trim() !== expected) {
@@ -33,7 +33,7 @@ async function runOneCore(inputPath, expectPath) {
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
     const toks = lex(can);
-    const ast = parse(toks);
+    const ast = parse(toks).ast;
     const { lowerModule } = await import('../src/lower_to_core.mjs');
     const core = lowerModule(ast);
     const actual = JSON.stringify(core, null, 2);
