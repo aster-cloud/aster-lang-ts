@@ -121,7 +121,7 @@ describe('关键词翻译器', () => {
 
       const translated = translateToken(token, index);
       assert.strictEqual(translated.value, 'If');
-      assert.strictEqual(translated.kind, TokenKind.IDENT);
+      assert.strictEqual(translated.kind, TokenKind.TYPE_IDENT);
     });
 
     it('应保持非关键词 token 不变', () => {
@@ -289,7 +289,7 @@ describe('关键词翻译器', () => {
       const translatedTokens = translator.translateTokens(tokens);
 
       // 验证关键词翻译（使用大小写不敏感比较，值来自 Java 源 en-US lexicon）
-      const identTokens = translatedTokens.filter(t => t.kind === TokenKind.IDENT);
+      const identTokens = translatedTokens.filter(t => t.kind === TokenKind.IDENT || t.kind === TokenKind.TYPE_IDENT);
       const hasIf = identTokens.some(t => (t.value as string)?.toLowerCase() === 'if');
       const hasReturn = identTokens.some(t => (t.value as string)?.toLowerCase() === 'return');
 

@@ -21,6 +21,23 @@ import { SemanticTokenKind } from '../config/token-kind.js';
 import { EN_US } from '../config/lexicons/en-US.js';
 
 /**
+ * 翻译后根据目标值推断正确的 token kind。
+ *
+ * 非拉丁文 lexer 无法区分 IDENT 和 TYPE_IDENT（因为无大小写概念），
+ * 翻译为英文后需要根据首字母大小写修正 kind。
+ */
+function inferTokenKind(translatedValue: string, originalKind: TokenKind): TokenKind {
+  if (originalKind !== TokenKind.IDENT && originalKind !== TokenKind.TYPE_IDENT) {
+    return originalKind;
+  }
+  const firstChar = translatedValue.charAt(0);
+  if (firstChar >= 'A' && firstChar <= 'Z') {
+    return TokenKind.TYPE_IDENT;
+  }
+  return TokenKind.IDENT;
+}
+
+/**
  * 关键词映射索引类型。
  *
  * 从本地化关键词（小写）映射到规范化关键词。
@@ -155,7 +172,14 @@ export function buildFullTranslationIndex(
     }
   }
 
-  // 遍历所有 SemanticTokenKind
+  // 两阶段构建：先添加多词分解（低优先级），再添加直接映射（覆盖）。
+  // 这确保单词 "als" 的直接映射 (IMPORT_ALIAS → "as") 不会被
+  // 多词短语 "groesser als" → "greater than" 的逐词分解覆盖。
+
+  // 收集待处理的映射
+  const directMappings: { src: string; tgt: string; highPri: boolean }[] = [];
+  const wordPartMappings: { src: string; tgt: string }[] = [];
+
   for (const kind of Object.values(SemanticTokenKind)) {
     const sourceKeyword = sourceLexicon.keywords[kind];
     const targetKeyword = targetLexicon.keywords[kind];
@@ -164,16 +188,12 @@ export function buildFullTranslationIndex(
     if (sourceKeyword && targetKeyword && sourceKeyword !== targetKeyword) {
       // 检查是否是标记关键词（被【】包裹）
       if (sourceKeyword.startsWith(markerOpen) && sourceKeyword.endsWith(markerClose)) {
-        // 提取内部值并添加到标记索引
         const innerValue = sourceKeyword.slice(markerOpen.length, -markerClose.length);
         markerIndex.set(innerValue.toLowerCase(), targetKeyword);
       } else {
-        const srcLower = sourceKeyword.toLowerCase();
-        addToIndex(srcLower, targetKeyword, isHighPriority);
+        directMappings.push({ src: sourceKeyword.toLowerCase(), tgt: targetKeyword, highPri: isHighPriority });
 
-        // 对于多词关键词短语，同时添加逐词映射
-        // 例如 "Dieses Modul ist" -> "this module is"
-        // 会分解为 "dieses" -> "this", "modul" -> "module", "ist" -> "is"
+        // 多词短语逐词分解
         const sourceParts = sourceKeyword.toLowerCase().split(/\s+/);
         const targetParts = targetKeyword.toLowerCase().split(/\s+/);
         if (sourceParts.length > 1 && sourceParts.length === targetParts.length) {
@@ -181,12 +201,23 @@ export function buildFullTranslationIndex(
             const srcWord = sourceParts[i]!;
             const tgtWord = targetParts[i]!;
             if (srcWord !== tgtWord) {
-              addToIndex(srcWord, tgtWord, isHighPriority);
+              wordPartMappings.push({ src: srcWord, tgt: tgtWord });
             }
           }
         }
       }
     }
+  }
+
+  // 阶段 1：添加逐词分解（低优先级，可被覆盖）
+  for (const { src, tgt } of wordPartMappings) {
+    addToIndex(src, tgt, false);
+  }
+
+  // 阶段 2：添加直接映射（覆盖逐词分解）
+  for (const { src, tgt, highPri } of directMappings) {
+    // 直接映射始终为高优先级，覆盖逐词分解
+    addToIndex(src, tgt, true);
   }
 
   return { index, markerIndex };
@@ -216,9 +247,10 @@ export function translateToken(token: Token, index: KeywordTranslationIndex): To
   const translated = index.get(value.toLowerCase());
   if (!translated) return token;
 
-  // 返回新 token，保持其他属性不变
+  // 返回新 token，修正 kind：翻译后首字母大写的应为 TYPE_IDENT
   return {
     ...token,
+    kind: inferTokenKind(translated, token.kind),
     value: translated,
   };
 }
@@ -441,7 +473,7 @@ export function translateTokensWithMarkers(
           // 单源词→多目标词：拆分为多个 token
           for (const word of targetWords) {
             result.push({
-              kind: token.kind,
+              kind: inferTokenKind(word, token.kind),
               value: word,
               start: token.start,
               end: token.end,
@@ -452,7 +484,7 @@ export function translateTokensWithMarkers(
         }
         // 单词翻译
         result.push({
-          kind: token.kind,
+          kind: inferTokenKind(translated, token.kind),
           value: translated,
           start: token.start,
           end: token.end,

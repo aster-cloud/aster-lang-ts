@@ -23,6 +23,16 @@
 import { LogLevel } from '../utils/logger.js';
 
 /**
+ * 浏览器安全的环境变量访问——`process` 在浏览器中不存在。
+ */
+function getEnv(key: string): string | undefined {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key];
+  }
+  return undefined;
+}
+
+/**
  * 配置服务单例类。
  *
  * 在首次调用 getInstance() 时初始化，从环境变量读取所有配置。
@@ -53,13 +63,13 @@ export class ConfigService {
    * 私有构造函数，确保只能通过 getInstance() 创建实例。
    */
   private constructor() {
-    // 读取环境变量并设置默认值
-    this.effectsEnforce = process.env.ASTER_CAP_EFFECTS_ENFORCE !== '0';
-    this.effectConfigPath = process.env.ASTER_EFFECT_CONFIG || '.aster/effects.json';
+    // 读取环境变量并设置默认值（浏览器环境下使用默认值）
+    this.effectsEnforce = getEnv('ASTER_CAP_EFFECTS_ENFORCE') !== '0';
+    this.effectConfigPath = getEnv('ASTER_EFFECT_CONFIG') || '.aster/effects.json';
     this.cachedEffectConfigPath = this.effectConfigPath;
-    this.logLevel = this.parseLogLevel(process.env.LOG_LEVEL);
-    this.capsManifestPath = process.env.ASTER_CAPS || null;
-    this.debugTypes = process.env.ASTER_DEBUG_TYPES === '1';
+    this.logLevel = this.parseLogLevel(getEnv('LOG_LEVEL'));
+    this.capsManifestPath = getEnv('ASTER_CAPS') || null;
+    this.debugTypes = getEnv('ASTER_DEBUG_TYPES') === '1';
 
     // 启动时校验配置有效性
     this.validate();
@@ -101,7 +111,7 @@ export class ConfigService {
    * @returns ConfigService 实例
    */
   static getInstance(): ConfigService {
-    const currentEffectConfigPath = process.env.ASTER_EFFECT_CONFIG || '.aster/effects.json';
+    const currentEffectConfigPath = getEnv('ASTER_EFFECT_CONFIG') || '.aster/effects.json';
     if (
       ConfigService.instance !== null &&
       ConfigService.instance.cachedEffectConfigPath !== currentEffectConfigPath

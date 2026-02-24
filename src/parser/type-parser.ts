@@ -9,6 +9,25 @@ import type { CapabilityKind } from '../config/semantic.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
 
 /**
+ * 控制流/声明关键词集合——在类型位置出现时不应被视为类型名。
+ * 用于非拉丁文脚本的 IDENT 歧义消解。
+ */
+const CONTROL_KEYWORDS: Set<string> = new Set([
+  KW.MODULE_IS, KW.USE, KW.AS, KW.DEFINE, KW.HAS, KW.WITH,
+  KW.RULE, KW.GIVEN, KW.PRODUCE, KW.PERFORMS,
+  KW.IF, KW.OTHERWISE, KW.MATCH, KW.WHEN,
+  KW.RETURN, KW.IN, KW.LET, KW.BE, KW.SET, KW.TO_WORD,
+  KW.OR, KW.AND, KW.NOT,
+  KW.PLUS, KW.MINUS, KW.TIMES, KW.DIVIDED_BY,
+  KW.LESS_THAN, KW.GREATER_THAN, KW.EQUALS_TO,
+  KW.START, KW.ASYNC, KW.AWAIT,
+]);
+
+function isControlKeyword(value: string): boolean {
+  return CONTROL_KEYWORDS.has(value);
+}
+
+/**
  * 解析效果列表（io, cpu, 能力等）
  * @param ctx Parser 上下文
  * @param error 错误报告函数
@@ -294,6 +313,15 @@ function parseTypePrimary(
       ctx.nextWord();
       const mapped = value === 'Float' ? 'Float' : value;
       const node = Node.TypeName(mapped);
+      assignSpan(node, spanFromTokens(tok, tok));
+      return node;
+    }
+    // 非拉丁文类型名（如中文「申请人类型」）无大小写区分，
+    // lexer 将其标记为 IDENT 而非 TYPE_IDENT。
+    // 当 IDENT 出现在类型位置且不是控制流/声明关键词时，视为用户定义类型。
+    if (value && !isControlKeyword(value.toLowerCase())) {
+      ctx.next();
+      const node = Node.TypeName(value);
       assignSpan(node, spanFromTokens(tok, tok));
       return node;
     }
