@@ -7,7 +7,7 @@ import { KW, TokenKind } from '../frontend/tokens.js';
 import { Node } from '../ast/ast.js';
 import type { Block, Declaration, Token, Type } from '../types.js';
 import type { Diagnostic } from '../diagnostics/diagnostics.js';
-import { DiagnosticError, toDiagnostic } from '../diagnostics/diagnostics.js';
+import { toDiagnostic } from '../diagnostics/diagnostics.js';
 import type { ParserContext } from './context.js';
 import { kwParts, tokLowerAt } from './context.js';
 import type { ParserTools } from './parser-tools.js';
@@ -462,7 +462,7 @@ function syncToNextDecl(ctx: ParserContext): void {
   let advanced = false;
   while (!ctx.at(TokenKind.EOF)) {
     const val = ctx.peek().value;
-    if (advanced && val != null) {
+    if (advanced && val !== null) {
       const lower = typeof val === 'string' ? val.toLowerCase() : '';
       if (lower === 'module' || lower === 'rule' || lower === 'define' || lower === 'use') {
         break;

@@ -332,7 +332,7 @@ export function tokenize(source: string, lexicon?: Lexicon): Token[] {
 // ============================================================================
 
 import type { TypeKind, ParameterInfo, FieldInfo } from './parser/input-generator.js';
-import type { Module, Declaration, Func, Data, Type } from './types.js';
+import type { Declaration, Func, Data, Type } from './types.js';
 
 /**
  * Schema extraction result
