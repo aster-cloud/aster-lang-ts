@@ -220,7 +220,7 @@ const testStartWaitPrecedence = (): void => {
     'Define Dash has profile: Text, timeline: Text.',
     'Define AuthErr as one of InvalidCreds, Locked.',
     '',
-    'Rule fetchDashboard given u: User, produce Result of Dash and AuthErr. It performs io:',
+    'Rule fetchDashboard given u as User, produce Result of Dash and AuthErr. It performs io:',
     '  Start profile as async ProfileSvc.load(u.id).',
     '  Start timeline as async FeedSvc.timeline(u.id).',
     '  Wait for profile and timeline.',
@@ -255,7 +255,7 @@ const testWaitSingleAndMultiple = (): void => {
     '',
     'Define User has id: Text.',
     '',
-    'Rule f given u: User, produce Int. It performs io:',
+    'Rule f given u as User, produce Int. It performs io:',
     '  Start taskA as async ProfileSvc.load(u.id).',
     '  Start taskB as async ProfileSvc.load(u.id).',
     '  Start taskC as async ProfileSvc.load(u.id).',
@@ -327,15 +327,16 @@ const testParserErrorHandling = (): void => {
   ];
 
   for (const input of malformedInputs) {
-    try {
-      const can = canonicalize(input);
-      const tokens = lex(can);
-      parse(tokens);
+    const can = canonicalize(input);
+    const tokens = lex(can);
+    const result = parse(tokens);
+    if (result.diagnostics.length === 0) {
       throw new Error(`Expected parser error for: ${input}`);
-    } catch (e) {
-      // Expected to throw
-      if (!(e as any).pos) {
-        throw new Error(`Parser error should include position for: ${input}`);
+    }
+    // Verify diagnostics have location info
+    for (const diag of result.diagnostics) {
+      if (!diag.span) {
+        throw new Error(`Parser error should include range for: ${input}`);
       }
     }
   }
@@ -461,7 +462,7 @@ function testGenericsBasic(): void {
   const src = [
     'Module demo.generic.',
     '',
-    'Rule identity of T, given x: T, produce T:',
+    'Rule identity of T, given x as T, produce T:',
     '  Return x.',
     '',
   ].join('\n');
