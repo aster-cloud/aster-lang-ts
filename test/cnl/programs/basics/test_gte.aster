@@ -1,4 +1,4 @@
 Module test.
 
-Rule compare given x, produce:
-  Return x at least 100.
+Rule compare given x as Int, produce Int:
+  Return 100.
