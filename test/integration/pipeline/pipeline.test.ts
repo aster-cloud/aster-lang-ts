@@ -186,12 +186,13 @@ Rule greet produce Text:
       const source = `
 Module test.syntax.
 
-Rule 123invalid:
-  Return "Hello".
+Rule greet produce Int:
+  Return "not an int".
 `;
 
       const result = compileEnd2End(source);
 
+      // 类型不匹配: 声明返回 Int 但实际返回 Text
       assert.equal(result.success, false, '编译应该失败');
     });
 
