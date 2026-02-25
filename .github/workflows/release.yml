@@ -92,3 +92,11 @@ jobs:
             --field version=${{ github.ref_name }}
         env:
           GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+
+      - name: Trigger aster-lang-dev dependency upgrade
+        run: |
+          gh workflow run auto-upgrade.yml \
+            --repo aster-cloud/aster-lang-dev \
+            --field version=${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
