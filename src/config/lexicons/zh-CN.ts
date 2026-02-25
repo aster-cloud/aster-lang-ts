@@ -102,8 +102,8 @@ export const ZH_CN: Lexicon = {
     removeArticles: false,
     allowedDuplicates: [
       [SemanticTokenKind.BE, SemanticTokenKind.WHEN],
-      [SemanticTokenKind.TYPE_HAS, SemanticTokenKind.TYPE_WITH],
-      [SemanticTokenKind.LESS_THAN, SemanticTokenKind.UNDER],
+      [SemanticTokenKind.TYPE_WITH, SemanticTokenKind.TYPE_HAS],
+      [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN],
       [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
     ],
     compoundPatterns: [

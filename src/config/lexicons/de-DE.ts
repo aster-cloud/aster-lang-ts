@@ -109,7 +109,7 @@ export const DE_DE: Lexicon = {
       { name: 'ss-to-ß-gross', pattern: '\\bgross\\b', replacement: 'groß' },
     ],
     allowedDuplicates: [
-      [SemanticTokenKind.LESS_THAN, SemanticTokenKind.UNDER],
+      [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN],
       [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
     ],
   },
