@@ -190,15 +190,12 @@ export function getAllCapabilityPrefixes(): string[] {
 // ============================================================
 
 import type { Lexicon } from './lexicons/types.js';
-import { SemanticTokenKind } from './token-kind.js';
 
 /**
  * Aster CNL 关键字定义（v1 lexicon, en-US）。
  *
  * 多词关键字使用空格连接的规范形式（canonical form）。
  * 例如：'as one of', 'wait for'
- *
- * @deprecated 使用 `LexiconRegistry.getDefault().keywords` 代替
  */
 export const KW = {
   MODULE_IS: 'module',
@@ -269,104 +266,6 @@ export const KW = {
   MATCHING: 'matching',
   PATTERN: 'pattern',
 } as const;
-
-/**
- * KW 属性名到 SemanticTokenKind 的映射。
- *
- * 用于从旧 KW 风格代码迁移到新 Lexicon 系统。
- */
-export const KW_TO_SEMANTIC: Record<keyof typeof KW, SemanticTokenKind> = {
-  MODULE_IS: SemanticTokenKind.MODULE_DECL,
-  USE: SemanticTokenKind.IMPORT,
-  AS: SemanticTokenKind.IMPORT_ALIAS,
-  DEFINE: SemanticTokenKind.TYPE_DEF,
-  WITH: SemanticTokenKind.TYPE_WITH,
-  HAS: SemanticTokenKind.TYPE_HAS,
-  ONE_OF: SemanticTokenKind.TYPE_ONE_OF,
-  RULE: SemanticTokenKind.FUNC_TO,
-  GIVEN: SemanticTokenKind.FUNC_GIVEN,
-  PRODUCE: SemanticTokenKind.FUNC_PRODUCE,
-  PERFORMS: SemanticTokenKind.FUNC_PERFORMS,
-  IO: SemanticTokenKind.IO,
-  CPU: SemanticTokenKind.CPU,
-  LET: SemanticTokenKind.LET,
-  BE: SemanticTokenKind.BE,
-  SET: SemanticTokenKind.SET,
-  TO_WORD: SemanticTokenKind.TO_WORD,
-  IF: SemanticTokenKind.IF,
-  OTHERWISE: SemanticTokenKind.OTHERWISE,
-  MATCH: SemanticTokenKind.MATCH,
-  WHEN: SemanticTokenKind.WHEN,
-  WORKFLOW: SemanticTokenKind.WORKFLOW,
-  STEP: SemanticTokenKind.STEP,
-  DEPENDS: SemanticTokenKind.DEPENDS,
-  ON: SemanticTokenKind.ON,
-  COMPENSATE: SemanticTokenKind.COMPENSATE,
-  RETRY: SemanticTokenKind.RETRY,
-  TIMEOUT: SemanticTokenKind.TIMEOUT,
-  MAX_ATTEMPTS: SemanticTokenKind.MAX_ATTEMPTS,
-  BACKOFF: SemanticTokenKind.BACKOFF,
-  RETURN: SemanticTokenKind.RETURN,
-  WITHIN: SemanticTokenKind.WITHIN,
-  SCOPE: SemanticTokenKind.SCOPE,
-  START: SemanticTokenKind.START,
-  ASYNC: SemanticTokenKind.ASYNC,
-  AWAIT: SemanticTokenKind.AWAIT,
-  WAIT_FOR: SemanticTokenKind.WAIT_FOR,
-  IN: SemanticTokenKind.IN,
-  MAYBE: SemanticTokenKind.MAYBE,
-  OPTION_OF: SemanticTokenKind.OPTION_OF,
-  RESULT_OF: SemanticTokenKind.RESULT_OF,
-  OR: SemanticTokenKind.OR,
-  AND: SemanticTokenKind.AND,
-  NULL: SemanticTokenKind.NULL,
-  TEXT: SemanticTokenKind.TEXT,
-  INT: SemanticTokenKind.INT_TYPE,
-  FLOAT: SemanticTokenKind.FLOAT_TYPE,
-  BOOL_TYPE: SemanticTokenKind.BOOL_TYPE,
-  OK_OF: SemanticTokenKind.OK_OF,
-  ERR_OF: SemanticTokenKind.ERR_OF,
-  SOME_OF: SemanticTokenKind.SOME_OF,
-  NONE: SemanticTokenKind.NONE,
-  NOT: SemanticTokenKind.NOT,
-  PLUS: SemanticTokenKind.PLUS,
-  MINUS: SemanticTokenKind.MINUS_WORD,
-  TIMES: SemanticTokenKind.TIMES,
-  DIVIDED_BY: SemanticTokenKind.DIVIDED_BY,
-  LESS_THAN: SemanticTokenKind.LESS_THAN,
-  GREATER_THAN: SemanticTokenKind.GREATER_THAN,
-  EQUALS_TO: SemanticTokenKind.EQUALS_TO,
-  // 约束关键词映射
-  REQUIRED: SemanticTokenKind.REQUIRED,
-  BETWEEN: SemanticTokenKind.BETWEEN,
-  AT_LEAST: SemanticTokenKind.AT_LEAST,
-  AT_MOST: SemanticTokenKind.AT_MOST,
-  MATCHING: SemanticTokenKind.MATCHING,
-  PATTERN: SemanticTokenKind.PATTERN,
-};
-
-/**
- * 从 Lexicon 获取 KW 风格的关键字对象。
- *
- * 这是一个桥接函数，用于现有代码逐步迁移到 Lexicon 系统。
- *
- * @param lexicon - 词法表
- * @returns KW 风格的关键字对象
- *
- * @example
- * ```typescript
- * import { ZH_CN } from './lexicons/zh-CN.js';
- * const kw = getKeywordsFromLexicon(ZH_CN);
- * console.log(kw.IF); // '若'
- * ```
- */
-export function getKeywordsFromLexicon(lexicon: Lexicon): typeof KW {
-  const result: Record<string, string> = {};
-  for (const [kwKey, semanticKind] of Object.entries(KW_TO_SEMANTIC)) {
-    result[kwKey] = lexicon.keywords[semanticKind];
-  }
-  return result as typeof KW;
-}
 
 /**
  * 验证字符串是否为关键字。

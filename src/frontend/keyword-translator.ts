@@ -96,18 +96,6 @@ export function buildKeywordTranslationIndex(
  * @param targetLexicon - 目标词法表（默认 en-US）
  * @returns 包含普通索引和标记索引的结果
  */
-// 高优先级的关键词种类，在发生冲突时优先使用
-// 这些通常是更具语义特异性的关键词
-const HIGH_PRIORITY_KINDS = new Set<SemanticTokenKind>([
-  SemanticTokenKind.TYPE_WITH,      // "with" 用于类型定义比 "to" 更特定
-  SemanticTokenKind.MODULE_DECL,    // 模块声明
-  SemanticTokenKind.TYPE_DEF,       // 类型定义
-  SemanticTokenKind.IF,             // 条件控制
-  SemanticTokenKind.RETURN,         // 返回语句
-  SemanticTokenKind.GREATER_THAN,   // 比较运算
-  SemanticTokenKind.LESS_THAN,      // 比较运算
-]);
-
 export function buildFullTranslationIndex(
   sourceLexicon: Lexicon,
   targetLexicon: Lexicon = EN_US
@@ -177,13 +165,12 @@ export function buildFullTranslationIndex(
   // 多词短语 "groesser als" → "greater than" 的逐词分解覆盖。
 
   // 收集待处理的映射
-  const directMappings: { src: string; tgt: string; highPri: boolean }[] = [];
+  const directMappings: { src: string; tgt: string }[] = [];
   const wordPartMappings: { src: string; tgt: string }[] = [];
 
   for (const kind of Object.values(SemanticTokenKind)) {
     const sourceKeyword = sourceLexicon.keywords[kind];
     const targetKeyword = targetLexicon.keywords[kind];
-    const isHighPriority = HIGH_PRIORITY_KINDS.has(kind);
 
     if (sourceKeyword && targetKeyword && sourceKeyword !== targetKeyword) {
       // 检查是否是标记关键词（被【】包裹）
@@ -191,7 +178,7 @@ export function buildFullTranslationIndex(
         const innerValue = sourceKeyword.slice(markerOpen.length, -markerClose.length);
         markerIndex.set(innerValue.toLowerCase(), targetKeyword);
       } else {
-        directMappings.push({ src: sourceKeyword.toLowerCase(), tgt: targetKeyword, highPri: isHighPriority });
+        directMappings.push({ src: sourceKeyword.toLowerCase(), tgt: targetKeyword });
 
         // 多词短语逐词分解
         const sourceParts = sourceKeyword.toLowerCase().split(/\s+/);
@@ -215,7 +202,7 @@ export function buildFullTranslationIndex(
   }
 
   // 阶段 2：添加直接映射（覆盖逐词分解）
-  for (const { src, tgt, highPri } of directMappings) {
+  for (const { src, tgt } of directMappings) {
     // 直接映射始终为高优先级，覆盖逐词分解
     addToIndex(src, tgt, true);
   }
