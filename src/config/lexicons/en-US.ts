@@ -103,11 +103,9 @@ export const EN_US: Lexicon = {
     articles: ['a', 'an', 'the'],
     allowedDuplicates: [
       [SemanticTokenKind.FUNC_TO, SemanticTokenKind.TO_WORD],
-      [SemanticTokenKind.LESS_THAN, SemanticTokenKind.UNDER],
+      [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN],
       [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
     ],
-    preTranslationTransformers: ['english-possessive'],
-    postTranslationTransformers: ['result-is'],
   },
 
   messages: {

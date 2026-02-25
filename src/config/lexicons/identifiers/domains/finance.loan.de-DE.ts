@@ -171,10 +171,10 @@ export const FINANCE_LOAN_DE_DE: DomainVocabulary = {
     },
     {
       canonical: 'approvedAmount',
-      localized: 'Genehmigter Betrag',
+      localized: 'GenehmigterBetrag',
       kind: IdentifierKind.FIELD,
       parent: 'ApprovalResult',
-      aliases: ['Kreditrahmen'],
+      aliases: ['Genehmigter Betrag', 'Kreditrahmen'],
     },
     {
       canonical: 'score',
@@ -229,39 +229,45 @@ export const FINANCE_LOAN_DE_DE: DomainVocabulary = {
   functions: [
     {
       canonical: 'evaluateLoan',
-      localized: 'Kredit bewerten',
+      localized: 'KreditBewerten',
       kind: IdentifierKind.FUNCTION,
-      aliases: ['Kreditpruefung'],
+      aliases: ['Kredit bewerten', 'Kreditpruefung'],
     },
     {
       canonical: 'checkBasicQualification',
-      localized: 'Grundvoraussetzungen pruefen',
+      localized: 'GrundvoraussetzungenPruefen',
       kind: IdentifierKind.FUNCTION,
+      aliases: ['Grundvoraussetzungen pruefen'],
     },
     {
       canonical: 'calculateCreditLevel',
-      localized: 'Bonitaetsstufe berechnen',
+      localized: 'BonitaetsstufeBerechnen',
       kind: IdentifierKind.FUNCTION,
+      aliases: ['Bonitaetsstufe berechnen'],
     },
     {
       canonical: 'calculateInterestRate',
-      localized: 'Zinssatz berechnen',
+      localized: 'ZinssatzBerechnen',
       kind: IdentifierKind.FUNCTION,
+      aliases: ['Zinssatz berechnen'],
     },
     {
       canonical: 'calculateMonthlyPayment',
-      localized: 'Monatsrate berechnen',
+      localized: 'MonatsrateBerechnen',
       kind: IdentifierKind.FUNCTION,
+      aliases: ['Monatsrate berechnen'],
     },
     {
       canonical: 'checkDebtRatio',
-      localized: 'Verschuldungsgrad pruefen',
+      localized: 'VerschuldungsgradPruefen',
       kind: IdentifierKind.FUNCTION,
+      aliases: ['Verschuldungsgrad pruefen'],
     },
     {
       canonical: 'assessCollateral',
-      localized: 'Sicherheit bewerten',
+      localized: 'SicherheitBewerten',
       kind: IdentifierKind.FUNCTION,
+      aliases: ['Sicherheit bewerten'],
     },
   ],
 
