@@ -259,14 +259,16 @@ export function parseStatement(
     const ifTok = ctx.peek();
     ctx.nextWord();
     const cond = parseExpr(ctx, error);
-    // 可选逗号分隔（If condition, → If condition）
+    // 可选逗号或冒号分隔（兼容 Java ANTLR 语法 If condition:）
     if (ctx.at(TokenKind.COMMA)) ctx.next();
+    if (ctx.at(TokenKind.COLON)) ctx.next();
     expectNewline(ctx, error);
     const thenBlock = parseBlock(ctx, error);
     let elseBlock: Block | null = null;
     if (ctx.isKeyword(KW.OTHERWISE)) {
       ctx.nextWord();
       if (ctx.at(TokenKind.COMMA)) ctx.next();
+      if (ctx.at(TokenKind.COLON)) ctx.next();
       expectNewline(ctx, error);
       elseBlock = parseBlock(ctx, error);
     }
