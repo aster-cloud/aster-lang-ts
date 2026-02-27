@@ -624,68 +624,57 @@ function parseComparison(
   const atLeastParts = kwParts(KW.AT_LEAST);
   const atMostParts = kwParts(KW.AT_MOST);
 
+  // 辅助：消费符号运算符并构造 Call 节点
+  const consumeSymbol = (irName: string): void => {
+    const opTok = ctx.next(); // 消费符号 token
+    const right = parseAddition(ctx, error);
+    const target = assignTokenSpan(Node.Name(irName), opTok);
+    const call = Node.Call(target, [left, right]);
+    assignSpan(call, spanFromSources(left, opTok, right));
+    left = call;
+  };
+
+  // 辅助：消费关键字运算符（单词或多词）并构造 Call 节点
+  const consumeKeyword = (parts: string[], irName: string): void => {
+    const opTok = ctx.peek();
+    if (ctx.isKeywordSeq(parts)) {
+      ctx.nextWords(parts);
+    } else {
+      ctx.nextWord();
+    }
+    const right = parseAddition(ctx, error);
+    const target = assignTokenSpan(Node.Name(irName), opTok);
+    const call = Node.Call(target, [left, right]);
+    assignSpan(call, spanFromSources(left, opTok, right));
+    left = call;
+  };
+
   let more = true;
   while (more) {
-    if (ctx.isKeyword(KW.LESS_THAN) || ctx.isKeywordSeq(lessThanParts)) {
-      const opTok = ctx.peek();
-      if (ctx.isKeywordSeq(lessThanParts)) {
-        ctx.nextWords(lessThanParts);
-      } else {
-        ctx.nextWord();
-      }
-      const right = parseAddition(ctx, error);
-      const target = assignTokenSpan(Node.Name('<'), opTok);
-      const call = Node.Call(target, [left, right]);
-      assignSpan(call, spanFromSources(left, opTok, right));
-      left = call;
+    // 符号运算符：<, >, <=, >=, !=, =
+    if (ctx.at(TokenKind.LT)) {
+      consumeSymbol('<');
+    } else if (ctx.at(TokenKind.GT)) {
+      consumeSymbol('>');
+    } else if (ctx.at(TokenKind.LTE)) {
+      consumeSymbol('<=');
+    } else if (ctx.at(TokenKind.GTE)) {
+      consumeSymbol('>=');
+    } else if (ctx.at(TokenKind.NEQ)) {
+      consumeSymbol('!=');
+    } else if (ctx.at(TokenKind.EQUALS)) {
+      consumeSymbol('==');
+    // 关键字运算符：less than, greater than, equals to, at least, at most
+    } else if (ctx.isKeyword(KW.LESS_THAN) || ctx.isKeywordSeq(lessThanParts)) {
+      consumeKeyword(lessThanParts, '<');
     } else if (ctx.isKeyword(KW.GREATER_THAN) || ctx.isKeywordSeq(greaterThanParts)) {
-      const opTok = ctx.peek();
-      if (ctx.isKeywordSeq(greaterThanParts)) {
-        ctx.nextWords(greaterThanParts);
-      } else {
-        ctx.nextWord();
-      }
-      const right = parseAddition(ctx, error);
-      const target = assignTokenSpan(Node.Name('>'), opTok);
-      const call = Node.Call(target, [left, right]);
-      assignSpan(call, spanFromSources(left, opTok, right));
-      left = call;
+      consumeKeyword(greaterThanParts, '>');
     } else if (ctx.isKeyword(KW.EQUALS_TO) || ctx.isKeywordSeq(equalsToParts)) {
-      const opTok = ctx.peek();
-      if (ctx.isKeywordSeq(equalsToParts)) {
-        ctx.nextWords(equalsToParts);
-      } else {
-        ctx.nextWord();
-      }
-      const right = parseAddition(ctx, error);
-      const target = assignTokenSpan(Node.Name('=='), opTok);
-      const call = Node.Call(target, [left, right]);
-      assignSpan(call, spanFromSources(left, opTok, right));
-      left = call;
+      consumeKeyword(equalsToParts, '==');
     } else if (ctx.isKeyword(KW.AT_LEAST) || ctx.isKeywordSeq(atLeastParts)) {
-      const opTok = ctx.peek();
-      if (ctx.isKeywordSeq(atLeastParts)) {
-        ctx.nextWords(atLeastParts);
-      } else {
-        ctx.nextWord();
-      }
-      const right = parseAddition(ctx, error);
-      const target = assignTokenSpan(Node.Name('>='), opTok);
-      const call = Node.Call(target, [left, right]);
-      assignSpan(call, spanFromSources(left, opTok, right));
-      left = call;
+      consumeKeyword(atLeastParts, '>=');
     } else if (ctx.isKeyword(KW.AT_MOST) || ctx.isKeywordSeq(atMostParts)) {
-      const opTok = ctx.peek();
-      if (ctx.isKeywordSeq(atMostParts)) {
-        ctx.nextWords(atMostParts);
-      } else {
-        ctx.nextWord();
-      }
-      const right = parseAddition(ctx, error);
-      const target = assignTokenSpan(Node.Name('<='), opTok);
-      const call = Node.Call(target, [left, right]);
-      assignSpan(call, spanFromSources(left, opTok, right));
-      left = call;
+      consumeKeyword(atMostParts, '<=');
     } else {
       more = false;
     }
@@ -707,7 +696,21 @@ function parseAddition(
 
   let more = true;
   while (more) {
-    if (ctx.isKeyword(KW.PLUS)) {
+    if (ctx.at(TokenKind.PLUS)) {
+      const opTok = ctx.next();
+      const right = parseMultiplication(ctx, error);
+      const target = assignTokenSpan(Node.Name('+'), opTok);
+      const call = Node.Call(target, [left, right]);
+      assignSpan(call, spanFromSources(left, opTok, right));
+      left = call;
+    } else if (ctx.at(TokenKind.MINUS)) {
+      const opTok = ctx.next();
+      const right = parseMultiplication(ctx, error);
+      const target = assignTokenSpan(Node.Name('-'), opTok);
+      const call = Node.Call(target, [left, right]);
+      assignSpan(call, spanFromSources(left, opTok, right));
+      left = call;
+    } else if (ctx.isKeyword(KW.PLUS)) {
       const opTok = ctx.nextWord();
       const right = parseMultiplication(ctx, error);
       const target = assignTokenSpan(Node.Name('+'), opTok);
@@ -744,7 +747,21 @@ function parseMultiplication(
 
   let more = true;
   while (more) {
-    if (ctx.isKeyword(KW.TIMES)) {
+    if (ctx.at(TokenKind.STAR)) {
+      const opTok = ctx.next();
+      const right = parsePrimary(ctx, error);
+      const target = assignTokenSpan(Node.Name('*'), opTok);
+      const call = Node.Call(target, [left, right]);
+      assignSpan(call, spanFromSources(left, opTok, right));
+      left = call;
+    } else if (ctx.at(TokenKind.SLASH)) {
+      const opTok = ctx.next();
+      const right = parsePrimary(ctx, error);
+      const target = assignTokenSpan(Node.Name('/'), opTok);
+      const call = Node.Call(target, [left, right]);
+      assignSpan(call, spanFromSources(left, opTok, right));
+      left = call;
+    } else if (ctx.isKeyword(KW.TIMES)) {
       const opTok = ctx.nextWord();
       const right = parsePrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('*'), opTok);
