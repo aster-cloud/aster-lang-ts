@@ -217,12 +217,12 @@ function emitInfixCall(
   args: readonly Core.Expression[],
   helpers: EmitHelpers
 ): string | null {
-  if (opName === '=' || opName === '!=') {
+  if (opName === '==' || opName === '=' || opName === '!=') {
     if (args.length !== 2) return null;
     const left = emitExpr(args[0]!, helpers);
     const right = emitExpr(args[1]!, helpers);
     const equality = `java.util.Objects.equals(${left}, ${right})`;
-    return opName === '=' ? equality : `!${equality}`;
+    return opName === '!=' ? `!${equality}` : equality;
   }
   const op = SIMPLE_INFIX_OPERATORS[opName];
   if (!op) return null;

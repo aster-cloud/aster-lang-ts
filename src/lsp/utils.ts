@@ -35,7 +35,7 @@ export function exprTypeText(e: any): string {
         if (n === 'Text.concat') return 'Text';
         if (n === 'Text.length') return 'Int';
         if (n === '+') return 'Int';
-        if (n === 'not' || n === '<' || n === '>' || n === '<=' || n === '>=' || n === '==') return 'Bool';
+        if (n === 'not' || n === '<' || n === '>' || n === '<=' || n === '>=' || n === '==' || n === '!=') return 'Bool';
       }
       return 'Unknown';
     }

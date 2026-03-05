@@ -79,6 +79,7 @@ export enum TokenKind {
   LBRACKET = 'LBRACKET',
   RBRACKET = 'RBRACKET',
   EQUALS = 'EQUALS',
+  EQ = 'EQ',
   PLUS = 'PLUS',
   STAR = 'STAR',
   MINUS = 'MINUS',

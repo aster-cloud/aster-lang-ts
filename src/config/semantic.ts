@@ -258,6 +258,10 @@ export const KW = {
   LESS_THAN: 'less than',
   GREATER_THAN: 'greater than',
   EQUALS_TO: 'equals to',
+  // 比较同义词（与 Java OPERATOR_SYMBOL_MAP 对齐）
+  UNDER: 'under',
+  OVER: 'over',
+  MORE_THAN: 'more than',
   // 约束关键词
   REQUIRED: 'required',
   BETWEEN: 'between',

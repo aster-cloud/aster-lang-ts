@@ -597,7 +597,8 @@ function parseNot(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Expression {
-  if (ctx.isKeyword(KW.NOT)) {
+  // 「not equal to」是比较运算符，不是一元 not——交给 parseComparison 处理
+  if (ctx.isKeyword(KW.NOT) && !ctx.isKeywordSeq(['not', 'equal', 'to'])) {
     const notTok = ctx.nextWord();
     const expr = parseNot(ctx, error);
     const notName = assignTokenSpan(Node.Name('not'), notTok);
@@ -623,8 +624,10 @@ function parseComparison(
   const lessThanParts = kwParts(KW.LESS_THAN);
   const greaterThanParts = kwParts(KW.GREATER_THAN);
   const equalsToParts = kwParts(KW.EQUALS_TO);
+  const notEqualToParts = ['not', 'equal', 'to'];
   const atLeastParts = kwParts(KW.AT_LEAST);
   const atMostParts = kwParts(KW.AT_MOST);
+  const moreThanParts = kwParts(KW.MORE_THAN);
 
   // 辅助：消费符号运算符并构造 Call 节点
   const consumeSymbol = (irName: string): void => {
@@ -653,7 +656,7 @@ function parseComparison(
 
   let more = true;
   while (more) {
-    // 符号运算符：<, >, <=, >=, !=, =
+    // 符号运算符：<, >, <=, >=, !=, ==, =
     if (ctx.at(TokenKind.LT)) {
       consumeSymbol('<');
     } else if (ctx.at(TokenKind.GT)) {
@@ -664,9 +667,13 @@ function parseComparison(
       consumeSymbol('>=');
     } else if (ctx.at(TokenKind.NEQ)) {
       consumeSymbol('!=');
+    } else if (ctx.at(TokenKind.EQ)) {
+      consumeSymbol('==');
     } else if (ctx.at(TokenKind.EQUALS)) {
       consumeSymbol('==');
-    // 关键字运算符：less than, greater than, equals to, at least, at most
+    // 关键字运算符：not equal to, less than, greater than, equals to, at least, at most
+    } else if (ctx.isKeywordSeq(notEqualToParts)) {
+      consumeKeyword(notEqualToParts, '!=');
     } else if (ctx.isKeyword(KW.LESS_THAN) || ctx.isKeywordSeq(lessThanParts)) {
       consumeKeyword(lessThanParts, '<');
     } else if (ctx.isKeyword(KW.GREATER_THAN) || ctx.isKeywordSeq(greaterThanParts)) {
@@ -677,6 +684,13 @@ function parseComparison(
       consumeKeyword(atLeastParts, '>=');
     } else if (ctx.isKeyword(KW.AT_MOST) || ctx.isKeywordSeq(atMostParts)) {
       consumeKeyword(atMostParts, '<=');
+    // 比较同义词：under → <, over → >, more than → >（与 Java OPERATOR_SYMBOL_MAP 对齐）
+    } else if (ctx.isKeyword(KW.UNDER)) {
+      consumeKeyword([KW.UNDER], '<');
+    } else if (ctx.isKeyword(KW.MORE_THAN) || ctx.isKeywordSeq(moreThanParts)) {
+      consumeKeyword(moreThanParts, '>');
+    } else if (ctx.isKeyword(KW.OVER)) {
+      consumeKeyword([KW.OVER], '>');
     } else {
       more = false;
     }

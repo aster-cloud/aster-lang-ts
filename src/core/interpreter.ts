@@ -483,6 +483,8 @@ class Interpreter {
         return (left as number) <= (right as number);
       case '==':
         return left === right;
+      case '!=':
+        return left !== right;
 
       default:
         throw new InterpreterError(`Unknown operator '${op}'`);

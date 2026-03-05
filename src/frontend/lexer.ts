@@ -409,7 +409,12 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
     if (ch === '=') {
       const start = { line, col };
       next();
-      push(TokenKind.EQUALS, '=', start);
+      if (peek() === '=') {
+        next();
+        push(TokenKind.EQ, '==', start);
+      } else {
+        push(TokenKind.EQUALS, '=', start);
+      }
       continue;
     }
     if (ch === '+') {
