@@ -124,6 +124,7 @@
     "typecheck": "tsc --noEmit",
     "lsp": "node dist/src/lsp/server.js --stdio",
     "repl": "node dist/scripts/repl.js",
+    "core-ir-json": "node dist/scripts/core-ir-json.js",
     "docs:api": "typedoc --options typedoc.json",
     "prepublishOnly": "pnpm run clean && pnpm run build && pnpm run test",
     "release:patch": "npm version patch && git push && git push --tags",
