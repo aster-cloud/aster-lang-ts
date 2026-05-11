@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { canonicalize, lex, parse } from '../src/index.js';
-import { CORPUS_ROOT, listSamples } from '@aster-cloud/aster-lang-test';
+import { listSamples } from '@aster-cloud/aster-lang-test';
 
 // ============================================================================
 // Path resolver: legacy `test/cnl/programs/<...>/<name>.aster` paths in this
