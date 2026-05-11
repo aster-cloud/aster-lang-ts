@@ -30,7 +30,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          # version is read from aster-lang-ts/package.json's "packageManager"
           package_json_file: aster-lang-ts/package.json
 
       - name: Setup Node.js ${{ matrix.node-version }}
