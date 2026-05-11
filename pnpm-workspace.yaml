@@ -1,0 +1,2 @@
+overrides:
+  '@aster-cloud/aster-lang-test': link:../aster-lang-test/packages/js

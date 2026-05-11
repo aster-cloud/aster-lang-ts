@@ -1,7 +1,0 @@
-Module tests.typecheck.async.duplicate_start.
-
-Rule launchTwice given userId, produce:
-  Start profile as async ProfileSvc.load(userId).
-  Start profile as async ProfileSvc.reload(userId).
-  Wait for profile.
-  Return "done".

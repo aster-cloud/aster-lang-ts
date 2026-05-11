@@ -56,6 +56,7 @@ let activeContext: AnalysisContext | null = null;
  * 主入口：遍历 Core.Module 中的函数体，查找 PII 数据通过 HTTP IO 发送的行为。
  */
 export function checkPiiFlow(core: Core.Module): Diagnostic[] {
+  if (!core?.decls) return [];
   const ctx: AnalysisContext = {
     functions: collectFunctions(core),
     datas: collectDatas(core),
@@ -79,7 +80,7 @@ export function checkPiiFlow(core: Core.Module): Diagnostic[] {
       const prevEnv = ctx.env;
       ctx.env = env;
       ctx.currentFunc = decl;
-      runPiiVisitor(decl.body, env, diagnostics);
+      if (decl.body) runPiiVisitor(decl.body, env, diagnostics);
 
       // 检查处理 PII 数据的函数是否有同意检查
       if (hasPiiParam && !hasConsentAnnotation(decl) && !hasConsentCheckInBody(decl.body)) {

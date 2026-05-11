@@ -1,5 +1,0 @@
-Module fixture.bar.
-
-Rule call, produce:
-  Return fixture.foo.greet.
-

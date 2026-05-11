@@ -1,4 +1,0 @@
-Module test.generic.list_results.
-
-Rule count_results given items, produce:
-  Return List.length(items).

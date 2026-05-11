@@ -1,4 +1,0 @@
-Module app.
-
-Rule helloMessage, produce:
-  Return "Hello, world!".

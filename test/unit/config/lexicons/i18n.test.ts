@@ -14,8 +14,6 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import fs from 'node:fs';
-import path from 'node:path';
 
 import { canonicalize } from '../../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../../src/frontend/lexer.js';
@@ -26,12 +24,11 @@ import { LexiconRegistry, initializeDefaultLexicons } from '../../../../src/conf
 import { TokenKind } from '../../../../src/frontend/tokens.js';
 import type { Token } from '../../../../src/types.js';
 import type { Lexicon } from '../../../../src/config/lexicons/types.js';
+import { listTier3Bucket } from '@aster-cloud/aster-lang-test';
 
 // ============================================================================
 // 测试配置
 // ============================================================================
-
-const I18N_TEST_DIR = path.resolve(process.cwd(), 'test/cnl/programs/i18n');
 
 const LANGUAGES = [
   { id: 'en-US', name: 'English', lexicon: EN_US },
@@ -52,18 +49,28 @@ const TEST_SCENARIOS = [
 // 辅助函数
 // ============================================================================
 
+// 预加载所有 lexicon-i18n 样本，按 source 路径建索引。
+// corpus 里的文件名被 disambiguator 加了后缀（如 `01-hello__i18n-en-US.aster`），
+// 但每个 .meta.json 的 source 字段保留原始 aster-lang-ts/test/cnl/programs/i18n/<lang>/<scenario>.aster
+// 形态，可用于查找。
+const I18N_INDEX = new Map<string, ReturnType<typeof listTier3Bucket>[number]>();
+for (const sample of listTier3Bucket('lexicon-i18n')) {
+  if (sample.meta.source) I18N_INDEX.set(sample.meta.source, sample);
+}
+
 /**
- * 读取并解析指定语言的测试文件
+ * 读取并解析指定语言的测试文件（从共享 corpus）
  */
 function parseFile(lang: string, scenario: string, lexicon: Lexicon) {
-  const filePath = path.join(I18N_TEST_DIR, lang, `${scenario}.aster`);
-  if (!fs.existsSync(filePath)) {
+  const sourceKey = `aster-lang-ts/test/cnl/programs/i18n/${lang}/${scenario}.aster`;
+  const sample = I18N_INDEX.get(sourceKey);
+  if (!sample) {
     return null;
   }
-  const source = fs.readFileSync(filePath, 'utf-8');
+  const source = sample.readSource();
   const canonical = canonicalize(source, lexicon);
   const tokens = lex(canonical, lexicon);
-  return { source, canonical, tokens, filePath };
+  return { source, canonical, tokens, filePath: sample.absPath };
 }
 
 /**

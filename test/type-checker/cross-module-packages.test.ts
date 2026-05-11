@@ -10,10 +10,12 @@ import { lowerModule } from '../../src/lower_to_core.js';
 import { typecheckModule } from '../../src/typecheck.js';
 import type { Module as AstModule, Core, TypecheckDiagnostic } from '../../src/types.js';
 import { ModuleCache } from '../../src/lsp/module_cache.js';
+import { CORPUS_ROOT } from '@aster-cloud/aster-lang-test';
 
-const FIXTURE_ROOT = path.resolve(process.cwd(), 'test/type-checker/cross-module');
-// Use 'external-packages' instead of '.aster/packages' to ensure fixtures are tracked by git
-// (directories starting with .aster are git-ignored)
+// .aster fixtures live in the shared corpus under tier3-fixtures/type-checker-cross-module.
+// We preserve the original `external-packages/mock/pkg/analytics/` layout there so
+// package resolution works exactly like before.
+const FIXTURE_ROOT = path.join(CORPUS_ROOT, 'tier3-fixtures/type-checker-cross-module');
 const PACKAGE_ROOT = path.join(FIXTURE_ROOT, 'external-packages');
 const MODULE_SEARCH_PATHS = [FIXTURE_ROOT, PACKAGE_ROOT] as const;
 

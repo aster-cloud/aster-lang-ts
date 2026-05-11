@@ -42,15 +42,16 @@ async function main(): Promise<void> {
   await read(server, 1);
   send(server, { jsonrpc: '2.0', method: 'initialized', params: {} });
 
-  const path = await import('node:path');
   const url = await import('node:url');
-  const fs = await import('node:fs');
-  const aFs = path.join(process.cwd(), 'test', 'lsp-multi', 'a.aster');
-  const bFs = path.join(process.cwd(), 'test', 'lsp-multi', 'b.aster');
+  const corpus = await import('@aster-cloud/aster-lang-test');
+  const aSample = corpus.readSample('tier3-fixtures/lsp/a.aster');
+  const bSample = corpus.readSample('tier3-fixtures/lsp/b.aster');
+  const aFs = aSample.absPath;
+  const bFs = bSample.absPath;
   const aUri = String(url.pathToFileURL(aFs));
   const bUri = String(url.pathToFileURL(bFs));
-  const aText = fs.readFileSync(aFs, 'utf8');
-  const bText = fs.readFileSync(bFs, 'utf8');
+  const aText = aSample.readSource();
+  const bText = bSample.readSource();
   // open both docs
   send(server, { jsonrpc: '2.0', method: 'textDocument/didOpen', params: { textDocument: { uri: aUri, languageId: 'cnl', version: 1, text: aText } } });
   send(server, { jsonrpc: '2.0', method: 'textDocument/didOpen', params: { textDocument: { uri: bUri, languageId: 'cnl', version: 1, text: bText } } });

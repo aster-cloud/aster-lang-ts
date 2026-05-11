@@ -1,4 +1,0 @@
-Module error.type.add.text.
-
-Rule main, produce:
-  Return add("x", 1).

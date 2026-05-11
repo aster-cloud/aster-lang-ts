@@ -6,8 +6,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import fs from 'node:fs';
-import path from 'node:path';
+import { listTier3Bucket } from '@aster-cloud/aster-lang-test';
 
 import { canonicalize } from '../../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../../src/frontend/lexer.js';
@@ -977,15 +976,22 @@ Rule greet given user: User?, produce Text:
   // ============================================================================
 
   describe('中文 CNL 文件解析', () => {
-    // 使用项目根目录解析，因为 .aster 文件不会被编译到 dist
-    const zhCNDir = path.resolve(process.cwd(), 'test/cnl/programs/zh-CN');
+    // 索引 corpus 中所有 source 起自 aster-lang-ts/test/cnl/programs/zh-CN/* 的样本
+    const zhCNCorpusIndex = new Map<string, ReturnType<typeof listTier3Bucket>[number]>();
+    for (const sample of listTier3Bucket('lexicon-i18n')) {
+      const src = sample.meta.source;
+      if (!src) continue;
+      const m = /aster-lang-ts\/test\/cnl\/programs\/zh-CN\/([^/]+\.aster)$/.exec(src);
+      if (m && m[1]) zhCNCorpusIndex.set(m[1], sample);
+    }
 
     /**
-     * 读取中文 CNL 文件并进行规范化和词法分析
+     * 读取中文 CNL 文件并进行规范化和词法分析（共享 corpus）
      */
     const parseZhCNFile = (filename: string) => {
-      const filePath = path.join(zhCNDir, filename);
-      const source = fs.readFileSync(filePath, 'utf-8');
+      const sample = zhCNCorpusIndex.get(filename);
+      if (!sample) throw new Error(`corpus sample not found: zh-CN/${filename}`);
+      const source = sample.readSource();
       const canonical = canonicalize(source, ZH_CN);
       const tokens = lex(canonical, ZH_CN);
       return { source, canonical, tokens };
@@ -1081,7 +1087,7 @@ Rule greet given user: User?, produce Text:
     });
 
     it('所有中文 CNL 文件应成功规范化', () => {
-      const files = fs.readdirSync(zhCNDir).filter((f: string) => f.endsWith('.aster'));
+      const files = [...zhCNCorpusIndex.keys()];
       assert.ok(files.length >= 4, '应有至少 4 个 .aster 文件');
 
       for (const file of files) {

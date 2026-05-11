@@ -4,10 +4,16 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@aster-cloud/aster-lang-test': link:../aster-lang-test/packages/js
+
 importers:
 
   .:
     dependencies:
+      '@aster-cloud/aster-lang-test':
+        specifier: link:../aster-lang-test/packages/js
+        version: link:../aster-lang-test/packages/js
       '@types/semver':
         specifier: ^7.7.1
         version: 7.7.1

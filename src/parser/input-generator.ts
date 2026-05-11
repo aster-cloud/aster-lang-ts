@@ -47,6 +47,7 @@ export interface FieldInfo {
   type: string;
   typeKind: TypeKind;
   fields?: FieldInfo[]; // 嵌套字段（用于 struct 类型）
+  enumVariants?: string[]; // 枚举变体列表（用于 enum 类型）
 }
 
 /** 参数信息 */
@@ -57,6 +58,7 @@ export interface ParameterInfo {
   optional: boolean;
   position: number;
   fields?: FieldInfo[];
+  enumVariants?: string[]; // 枚举变体列表（用于 enum 类型）
 }
 
 /**
@@ -166,6 +168,8 @@ function generateDefaultValue(typeName: string, typeKind: TypeKind): unknown {
   switch (typeKind) {
     case 'struct':
       return {};
+    case 'enum':
+      return ''; // 枚举默认值由 enumVariants 决定，在表单中以下拉框展示
     case 'list':
       return [];
     case 'map':
@@ -244,14 +248,20 @@ export function generateInputValues(
     if (param.typeKind === 'struct' && param.fields) {
       const structValue: Record<string, unknown> = {};
       for (const field of param.fields) {
-        structValue[field.name] = generateFieldValue(
-          field.name,
-          field.type,
-          field.typeKind,
-          lexicon,
-        );
+        if (field.typeKind === 'enum' && field.enumVariants && field.enumVariants.length > 0) {
+          structValue[field.name] = field.enumVariants[0];
+        } else {
+          structValue[field.name] = generateFieldValue(
+            field.name,
+            field.type,
+            field.typeKind,
+            lexicon,
+          );
+        }
       }
       result[param.name] = structValue;
+    } else if (param.typeKind === 'enum' && param.enumVariants && param.enumVariants.length > 0) {
+      result[param.name] = param.enumVariants[0];
     } else if (param.typeKind === 'list') {
       result[param.name] = [generateFieldValue(param.name, param.type, 'primitive', lexicon)];
     } else {

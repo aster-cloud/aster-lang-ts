@@ -1,22 +1,23 @@
 import { execSync } from 'child_process';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readSample } from '@aster-cloud/aster-lang-test';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * 验证 CNL → JSON 转换并检查 JSON → Core IR 格式化输出
+ * 验证 CNL → JSON 转换并检查 JSON → Core IR 格式化输出。
+ * 样本从共享 corpus（tier3-fixtures/policy-converter/）加载。
  */
 function testConversion(asterFile: string): { json: string; coreIR: string } {
   const projectRoot = path.join(__dirname, '../../..');
-  const asterPath = path.join(projectRoot, 'test/policy-converter', asterFile);
+  const sample = readSample(`tier3-fixtures/policy-converter/${asterFile}`);
 
   // Step 1: CNL → JSON
-  const json = execSync(`node dist/src/cli/policy-converter.js compile-to-json ${asterPath}`, {
+  const json = execSync(`node dist/src/cli/policy-converter.js compile-to-json ${sample.absPath}`, {
     encoding: 'utf8',
     cwd: projectRoot,
   });
@@ -78,7 +79,7 @@ describe('Policy JSON ↔ CNL Converter', () => {
       const { json, coreIR } = testConversion('async_policy.aster');
 
       const parsed = JSON.parse(json);
-      assert.strictEqual(parsed.module.name, 'test.async');
+      assert.strictEqual(parsed.module.name, 'test.async_demo');
 
       assert.ok(coreIR.includes('processAsync'));
       assert.ok(coreIR.includes('loadUser'));

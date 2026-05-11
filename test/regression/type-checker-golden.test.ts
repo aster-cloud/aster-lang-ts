@@ -16,6 +16,7 @@ import { parse } from '../../src/parser.js';
 import { lowerModule } from '../../src/lower_to_core.js';
 import { typecheckModule } from '../../src/typecheck.js';
 import { ModuleCache } from '../../src/lsp/module_cache.js';
+import { CORPUS_ROOT } from '@aster-cloud/aster-lang-test';
 
 import type { Module as AstModule, TypecheckDiagnostic, Core } from '../../src/types.js';
 
@@ -26,8 +27,11 @@ type DiagnosticView = {
 };
 
 const PROJECT_ROOT = process.cwd();
+// expected/*.errors.json baselines stay in aster-lang-ts (they're TS-specific)
 const TYPE_CHECKER_DIR = path.resolve(PROJECT_ROOT, 'test/type-checker');
-const CROSS_MODULE_DIR = path.join(TYPE_CHECKER_DIR, 'cross-module');
+// .aster sources come from the shared corpus
+const CORPUS_GOLDEN_DIR = path.join(CORPUS_ROOT, 'tier3-fixtures/type-checker');
+const CORPUS_CROSS_MODULE_DIR = path.join(CORPUS_ROOT, 'tier3-fixtures/type-checker-cross-module');
 
 const TEST_CASES = [
   // TODO(Parser): 暂不支持命名参数语法 Entry(id: "123")，待解析器增强后恢复
@@ -67,10 +71,10 @@ const TEST_CASES = [
 
 type CaseName = (typeof TEST_CASES)[number];
 
-const GOLDEN_DIR = path.join(TYPE_CHECKER_DIR, 'golden');
+const GOLDEN_DIR = CORPUS_GOLDEN_DIR;
 const EXPECTED_DIR = path.join(TYPE_CHECKER_DIR, 'expected');
-const EXTERNAL_PACKAGE_DIR = path.join(CROSS_MODULE_DIR, '.aster', 'packages');
-const MODULE_SEARCH_PATHS = [GOLDEN_DIR, CROSS_MODULE_DIR, EXTERNAL_PACKAGE_DIR] as const;
+const EXTERNAL_PACKAGE_DIR = path.join(CORPUS_CROSS_MODULE_DIR, 'external-packages');
+const MODULE_SEARCH_PATHS = [GOLDEN_DIR, CORPUS_CROSS_MODULE_DIR, EXTERNAL_PACKAGE_DIR] as const;
 
 const sharedModuleCache = new ModuleCache();
 sharedModuleCache.setModuleSearchPaths(MODULE_SEARCH_PATHS);

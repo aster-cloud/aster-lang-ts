@@ -1,4 +1,0 @@
-Module tests.typecheck.effects.io.
-
-Rule fetchUser, produce:
-  Return Http.get("/user").

@@ -13,8 +13,7 @@
 
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
 import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../src/frontend/lexer.js';
 import { parse } from '../../../src/parser.js';
@@ -23,39 +22,36 @@ import { typecheckModule } from '../../../src/typecheck.js';
 import type { Module as AstModule, Core } from '../../../src/types.js';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { attachTypeInferenceRules } from '../../../src/config/lexicons/type-inference-rules.js';
+import { readSample, type Sample } from '@aster-cloud/aster-lang-test';
 
 const enUS = attachTypeInferenceRules(EN_US);
 
-// 项目根目录（从源文件位置计算，而非编译后的 dist 位置）
-// 测试运行时从项目根目录运行，所以使用 process.cwd()
-const PROJECT_ROOT = process.cwd();
-
-// 合规示例文件路径
+// 合规示例文件路径（共享 corpus，tier1-equivalence/policies/）
 const COMPLIANCE_DEMOS = [
   {
     name: 'SOC2 审计链验证',
-    path: 'examples/compliance/soc2-audit-demo.aster',
+    corpusPath: 'tier1-equivalence/policies/soc2-audit-demo.aster',
     moduleName: 'examples.compliance.soc2_audit_demo',
     expectedFunctions: ['compute_hash', 'verify_record_integrity', 'verify_chain_link', 'verify_one_record', 'verify_audit_chain', 'generate_soc2_report', 'create_genesis_record', 'append_audit_record', 'demo_valid_chain', 'demo_tampered_chain'],
     expectedRecords: ['AuditRecord', 'ChainVerificationResult', 'ChainState'],
   },
   {
     name: 'HIPAA 访问控制验证',
-    path: 'examples/compliance/hipaa-validation-demo.aster',
+    corpusPath: 'tier1-equivalence/policies/hipaa-validation-demo.aster',
     moduleName: 'examples.compliance.hipaa_validation_demo',
     expectedFunctions: ['get_access_level', 'get_phi_category', 'validate_access_control', 'validate_consent', 'validate_purpose', 'validate_hipaa_compliance', 'generate_hipaa_report', 'demo_compliant_access', 'demo_non_compliant_access', 'demo_spoofed_access_blocked'],
     expectedRecords: ['AccessLevel', 'PHICategory', 'PHIAccessRequest', 'HIPAAValidation'],
   },
   {
     name: '患者记录管理',
-    path: 'examples/healthcare/patient-record.aster',
+    corpusPath: 'tier1-equivalence/policies/patient-record.aster',
     moduleName: 'examples.healthcare.patient_record',
     expectedFunctions: ['verify_consent', 'get_patient_summary', 'display_patient_safe', 'demo_compliant_access', 'demo_non_compliant_access'],
     expectedRecords: ['PatientPHI', 'AccessRequest', 'ConsentResult', 'PatientSummary'],
   },
   {
     name: '电子处方工作流',
-    path: 'examples/healthcare/prescription-workflow.aster',
+    corpusPath: 'tier1-equivalence/policies/prescription-workflow.aster',
     moduleName: 'examples.healthcare.prescription_workflow',
     expectedFunctions: ['check_warfarin_aspirin_interaction', 'validate_prescriber', 'verify_dosage', 'verify_prescription', 'transmit_prescription_safe', 'demo_safe_prescription', 'demo_interaction_prescription'],
     expectedRecords: ['Prescription', 'DrugInteraction', 'PharmacyVerification', 'VerificationStep'],
@@ -112,14 +108,10 @@ function compileEnd2End(source: string): {
 }
 
 /**
- * 读取示例文件
+ * 从共享 corpus 读取示例。
  */
-function readDemoFile(relativePath: string): string {
-  const fullPath = join(PROJECT_ROOT, relativePath);
-  if (!existsSync(fullPath)) {
-    throw new Error(`示例文件不存在: ${fullPath}`);
-  }
-  return readFileSync(fullPath, 'utf-8');
+function readDemoFile(corpusPath: string): string {
+  return readSample(corpusPath).readSource();
 }
 
 describe('合规示例冒烟测试', () => {
@@ -129,13 +121,13 @@ describe('合规示例冒烟测试', () => {
       let result: ReturnType<typeof compileEnd2End>;
 
       before(() => {
-        source = readDemoFile(demo.path);
+        source = readDemoFile(demo.corpusPath);
         result = compileEnd2End(source);
       });
 
-      it('文件应该存在', () => {
-        const fullPath = join(PROJECT_ROOT, demo.path);
-        assert.ok(existsSync(fullPath), `文件应该存在: ${demo.path}`);
+      it('corpus 样本应该可被加载', () => {
+        const sample: Sample = readSample(demo.corpusPath);
+        assert.ok(existsSync(sample.absPath), `corpus 样本应该存在: ${demo.corpusPath}`);
       });
 
       it('应该成功编译', () => {
@@ -196,12 +188,11 @@ describe('合规示例冒烟测试', () => {
         }
       });
 
-      it('应该支持 // 风格注释', () => {
-        // 检查源代码中是否包含 // 风格注释
-        const hasDoubleSlashComment = source.includes('//');
-        if (hasDoubleSlashComment) {
-          // 如果源代码包含 // 注释，验证编译成功证明注释被正确处理
-          assert.ok(result.success, '包含 // 注释的文件应该能成功编译');
+      it('注释应该被正确处理', () => {
+        // corpus 版本统一为 # 注释（Java grammar 权威，TS PEG 兼容）
+        const hasHashComment = /^\s*#/m.test(source);
+        if (hasHashComment) {
+          assert.ok(result.success, '包含 # 注释的文件应该能成功编译');
         }
       });
     });
@@ -211,14 +202,14 @@ describe('合规示例冒烟测试', () => {
 describe('合规示例内容验证', () => {
   describe('SOC2 审计链验证', () => {
     it('应该实现 SHA-256 哈希链结构', () => {
-      const source = readDemoFile('examples/compliance/soc2-audit-demo.aster');
+      const source = readDemoFile('tier1-equivalence/policies/soc2-audit-demo.aster');
       assert.ok(source.includes('SHA-256'), '应该使用 SHA-256 哈希算法');
       assert.ok(source.includes('prev_hash'), '应该包含前一条哈希字段');
       assert.ok(source.includes('current_hash'), '应该包含当前哈希字段');
     });
 
     it('应该实现双重验证（记录完整性 + 链接完整性）', () => {
-      const source = readDemoFile('examples/compliance/soc2-audit-demo.aster');
+      const source = readDemoFile('tier1-equivalence/policies/soc2-audit-demo.aster');
       assert.ok(source.includes('verify_record_integrity'), '应该包含记录完整性验证');
       assert.ok(source.includes('verify_chain_link'), '应该包含链接完整性验证');
     });
@@ -226,7 +217,7 @@ describe('合规示例内容验证', () => {
 
   describe('HIPAA 访问控制验证', () => {
     it('应该实现服务端权限计算（不信任客户端）', () => {
-      const source = readDemoFile('examples/compliance/hipaa-validation-demo.aster');
+      const source = readDemoFile('tier1-equivalence/policies/hipaa-validation-demo.aster');
       // 验证 PHIAccessRequest 不包含 access_level 字段
       assert.ok(!source.includes('access_level: AccessLevel'), '请求不应该包含客户端传入的 access_level');
       // 验证服务端重新计算
@@ -234,7 +225,7 @@ describe('合规示例内容验证', () => {
     });
 
     it('应该覆盖三项 HIPAA 验证检查', () => {
-      const source = readDemoFile('examples/compliance/hipaa-validation-demo.aster');
+      const source = readDemoFile('tier1-equivalence/policies/hipaa-validation-demo.aster');
       assert.ok(source.includes('§164.312(a)'), '应该覆盖访问控制验证');
       assert.ok(source.includes('§164.508'), '应该覆盖同意验证');
       assert.ok(source.includes('§164.512'), '应该覆盖使用目的验证');
@@ -243,26 +234,26 @@ describe('合规示例内容验证', () => {
 
   describe('患者记录管理', () => {
     it('应该实现同意验证函数', () => {
-      const source = readDemoFile('examples/healthcare/patient-record.aster');
+      const source = readDemoFile('tier1-equivalence/policies/patient-record.aster');
       assert.ok(source.includes('verify_consent'), '应该包含同意验证函数');
       assert.ok(source.includes('ConsentResult'), '应该包含同意结果类型');
     });
 
     it('应该实现 PHI 数据脱敏', () => {
-      const source = readDemoFile('examples/healthcare/patient-record.aster');
+      const source = readDemoFile('tier1-equivalence/policies/patient-record.aster');
       assert.ok(source.includes('redact'), '应该包含数据脱敏操作');
     });
   });
 
   describe('电子处方工作流', () => {
     it('应该使用正确的 Result API', () => {
-      const source = readDemoFile('examples/healthcare/prescription-workflow.aster');
+      const source = readDemoFile('tier1-equivalence/policies/prescription-workflow.aster');
       // 验证使用 Result.isOk() 或 Result.isErr() 静态方法
       assert.ok(source.includes('Result.isOk') || source.includes('Result.isErr'), '应该使用 Result 静态方法');
     });
 
     it('应该实现药物相互作用检查', () => {
-      const source = readDemoFile('examples/healthcare/prescription-workflow.aster');
+      const source = readDemoFile('tier1-equivalence/policies/prescription-workflow.aster');
       assert.ok(source.includes('warfarin') && source.includes('aspirin'), '应该包含 warfarin-aspirin 相互作用检查');
       assert.ok(source.includes('DrugInteraction'), '应该包含药物相互作用记录类型');
     });

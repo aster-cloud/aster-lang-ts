@@ -1,4 +1,0 @@
-Module tests.typecheck.list.
-
-Rule numbers, produce:
-  Return Int.add(List.head([1, "two"]), 1).

@@ -336,7 +336,7 @@ export function tokenize(source: string, lexicon?: Lexicon): Token[] {
 // ============================================================================
 
 import type { TypeKind, ParameterInfo, FieldInfo } from './parser/input-generator.js';
-import type { Declaration, Func, Data, Type } from './types.js';
+import type { Declaration, Func, Data, Enum, Type } from './types.js';
 
 /**
  * Schema extraction result
@@ -477,17 +477,25 @@ export function extractSchema(source: string, options?: SchemaOptions): SchemaRe
     const module = parseResult.ast;
     const moduleName = module.name ?? 'unknown';
 
-    // Find all Data declarations (for struct field resolution)
+    // Find all Data and Enum declarations (for struct/enum field resolution)
     const dataDecls = new Map<string, FieldInfo[]>();
+    const enumDecls = new Map<string, string[]>();
     for (const decl of module.decls) {
       if (decl.kind === 'Data') {
         const data = decl as Data;
-        const fields: FieldInfo[] = data.fields.map((f) => ({
-          name: f.name,
-          type: typeToString(f.type),
-          typeKind: getTypeKind(f.type),
-        }));
+        const fields: FieldInfo[] = data.fields.map((f) => {
+          const fieldTypeKind = getTypeKind(f.type);
+          const fieldTypeName = typeToString(f.type);
+          return {
+            name: f.name,
+            type: fieldTypeName,
+            typeKind: fieldTypeKind,
+          };
+        });
         dataDecls.set(data.name, fields);
+      } else if (decl.kind === 'Enum') {
+        const enumDecl = decl as Enum;
+        enumDecls.set(enumDecl.name, [...enumDecl.variants]);
       }
     }
 
@@ -520,9 +528,18 @@ export function extractSchema(source: string, options?: SchemaOptions): SchemaRe
       let typeKind = getTypeKind(param.type);
       let fields: FieldInfo[] | undefined;
 
-      // Resolve struct fields if applicable
-      if (typeKind === 'struct' && dataDecls.has(typeName)) {
-        fields = dataDecls.get(typeName);
+      // Resolve struct/enum fields if applicable
+      if (typeKind === 'struct' && enumDecls.has(typeName)) {
+        // Type is actually an enum, not a struct
+        typeKind = 'enum';
+      } else if (typeKind === 'struct' && dataDecls.has(typeName)) {
+        // Resolve struct fields, also resolving enum types within fields
+        fields = dataDecls.get(typeName)!.map((f) => {
+          if (f.typeKind === 'struct' && enumDecls.has(f.type)) {
+            return { ...f, typeKind: 'enum' as TypeKind, enumVariants: enumDecls.get(f.type)! };
+          }
+          return f;
+        });
       } else if (typeKind === 'primitive' && dataDecls.has(param.name)) {
         // 当参数类型为基本类型但参数名与 Data 定义匹配时，
         // 推断参数类型为该 Data 类型（支持中文无类型参数语法）
@@ -540,6 +557,11 @@ export function extractSchema(source: string, options?: SchemaOptions): SchemaRe
         optional: false, // Parameters don't have optional field in AST
         position: index,
       };
+
+      // Set enumVariants for enum-type parameters
+      if (typeKind === 'enum' && enumDecls.has(typeName)) {
+        result.enumVariants = enumDecls.get(typeName)!;
+      }
 
       if (fields) {
         result.fields = fields;

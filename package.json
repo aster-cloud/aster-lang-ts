@@ -103,6 +103,7 @@
     "test:integration:run": "node --test 'dist/test/integration/**/*.test.js'",
     "test:golden": "pnpm run build && pnpm run test:golden:run",
     "test:golden:run": "node dist/scripts/golden.js",
+    "dual-engine:runner": "node scripts/dual-engine-runner.mjs",
     "test:property": "pnpm run build && pnpm run test:property:run",
     "test:property:run": "node --test 'dist/test/property/**/*.test.js'",
     "test:fuzz": "pnpm run build && pnpm run test:fuzz:run",
@@ -157,6 +158,7 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
+    "@aster-cloud/aster-lang-test": "link:../aster-lang-test/packages/js",
     "@types/semver": "^7.7.1",
     "cac": "6.7.14",
     "ora": "^9.0.0",
@@ -169,12 +171,12 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
-    "esbuild": "^0.24.0",
     "@types/node": "^24.6.0",
     "@typescript-eslint/eslint-plugin": "^8.48.1",
     "@typescript-eslint/parser": "^8.45.0",
     "ajv": "^8.17.1",
     "c8": "^10.1.3",
+    "esbuild": "^0.24.0",
     "eslint": "^9.36.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.32.0",

@@ -1,4 +1,0 @@
-Module demo.trycatch.
-
-Rule risky, produce:
-  Return Repo.op().

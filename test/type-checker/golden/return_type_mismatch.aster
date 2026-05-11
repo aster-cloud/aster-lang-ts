@@ -1,4 +1,0 @@
-Module tests.typecheck.mismatch.return.
-
-Rule returnMismatch, produce:
-  Return "invalid".

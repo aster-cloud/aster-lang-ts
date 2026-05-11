@@ -1,4 +1,0 @@
-Module boundary.text.concat.empty.
-
-Rule main, produce:
-  Return Text.concat("", "").

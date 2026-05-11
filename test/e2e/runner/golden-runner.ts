@@ -2,28 +2,39 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { canonicalize, lex, parse } from '../../../src/index.js';
+import { CORPUS_ROOT } from '@aster-cloud/aster-lang-test';
 
 /**
  * 动态发现指定类别的 golden 测试文件
- * @param category - 测试类别：'ast' | 'core' | 'diagnostics'
- * @returns 测试文件对数组，包含输入文件和期望输出文件路径
+ *
+ * Layout:
+ *   - 输入 .aster: 来自共享 corpus tier3-fixtures/golden-<category>/
+ *   - 期望 JSON / diag.txt: 留在 aster-lang-ts/test/e2e/golden/<category>/
+ *     （TS-specific 期望基线，不入 corpus）
  */
 function discoverGoldenTests(
   category: 'ast' | 'core' | 'diagnostics'
 ): Array<{ input: string; expected: string }> {
-  const dir = `test/e2e/golden/${category}`;
-  if (!fs.existsSync(dir)) {
-    console.warn(`WARNING: Directory not found: ${dir}`);
+  const inputDir = path.join(CORPUS_ROOT, `tier3-fixtures/golden-${category}`);
+  const expectedDir = `test/e2e/golden/${category}`;
+  if (!fs.existsSync(inputDir)) {
+    console.warn(`WARNING: Corpus input dir not found: ${inputDir}`);
     return [];
   }
-  const asters = fs.readdirSync(dir).filter(f => f.endsWith('.aster'));
+  if (!fs.existsSync(expectedDir)) {
+    console.warn(`WARNING: Expected dir not found: ${expectedDir}`);
+    return [];
+  }
+  const asters = fs.readdirSync(inputDir).filter(f => f.endsWith('.aster'));
+  const expectedExt =
+    category === 'diagnostics' ? '.diag.txt' : category === 'core' ? '_core.json' : '.ast.json';
   return asters
     .map(aster => {
-      const base = aster.replace('.aster', '');
-      const input = path.join(dir, aster);
-      const expectedExt =
-        category === 'diagnostics' ? '.diag.txt' : category === 'core' ? '_core.json' : '.ast.json';
-      const expected = path.join(dir, `expected_${base}${expectedExt}`);
+      // corpus disambiguator may have suffixed names like `foo__golden-core.aster`;
+      // strip that suffix when computing the baseline filename.
+      const base = aster.replace('.aster', '').replace(/__[^_]+-[^_]+$/, '');
+      const input = path.join(inputDir, aster);
+      const expected = path.join(expectedDir, `expected_${base}${expectedExt}`);
       return { input, expected };
     })
     .filter(t => fs.existsSync(t.expected));

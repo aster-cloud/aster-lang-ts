@@ -1,4 +1,0 @@
-Module boundary.result.errcase.
-
-Rule main, produce:
-  Return Err(null).

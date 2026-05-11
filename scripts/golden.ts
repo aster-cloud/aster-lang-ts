@@ -1,8 +1,55 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import path from 'node:path';
 import { canonicalize, lex, parse } from '../src/index.js';
+import { CORPUS_ROOT, listSamples } from '@aster-cloud/aster-lang-test';
+
+// ============================================================================
+// Path resolver: legacy `test/cnl/programs/<...>/<name>.aster` paths in this
+// script's main() are mapped to the shared corpus by basename. Expected JSON /
+// diag files stay on the aster-lang-ts side (TS-specific baselines).
+// ============================================================================
+
+// Hand-curated disambiguations: legacy path (substring) → preferred corpus basename.
+// Used when the legacy path's basename collides between tier1 and tier3 buckets
+// and the call site historically referenced the tier3 variant.
+//
+// (Verified against git HEAD of aster-lang-ts: examples/login.aster and
+// basics/if_param.aster historically pointed to the tier1-style variant, so
+// they do NOT need disambiguation — the default basename → tier1 wins, which
+// is what we want.)
+const _disambiguations: Array<[RegExp, string]> = [
+  [/test\/cnl\/programs\/zh-CN\/hello\.aster$/, 'hello__zh-CN.aster'],
+];
+
+const _basenameIndex = new Map<string, string>(); // basename → corpus abs path
+for (const s of listSamples()) {
+  const base = path.basename(s.absPath);
+  // Prefer tier1; otherwise first-write wins (predictable since listSamples is sorted).
+  if (!_basenameIndex.has(base) || s.meta.tier === 1) {
+    _basenameIndex.set(base, s.absPath);
+  }
+}
+
+function resolveInputPath(legacyPath: string): string {
+  // If the path exists on disk verbatim, honor it (legacy fallback during migration).
+  if (fs.existsSync(legacyPath)) return legacyPath;
+  // Disambiguate: some legacy paths collide with tier1 by basename; map them to
+  // the specific tier3 variant first.
+  for (const [pat, suffixedBase] of _disambiguations) {
+    if (pat.test(legacyPath)) {
+      const abs = _basenameIndex.get(suffixedBase);
+      if (abs) return abs;
+    }
+  }
+  const base = path.basename(legacyPath);
+  const corpusAbs = _basenameIndex.get(base);
+  if (corpusAbs) return corpusAbs;
+  return legacyPath;
+}
 
 function runOneAst(inputPath: string, expectPath: string): void {
+  inputPath = resolveInputPath(inputPath);
   try {
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
@@ -28,6 +75,7 @@ function runOneAst(inputPath: string, expectPath: string): void {
 }
 
 async function runOneCore(inputPath: string, expectPath: string): Promise<void> {
+  inputPath = resolveInputPath(inputPath);
   try {
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
@@ -76,6 +124,7 @@ function normalizeSeverityLabel(line: string): string {
 }
 
 async function runOneTypecheck(inputPath: string, expectPath: string): Promise<void> {
+  inputPath = resolveInputPath(inputPath);
   try {
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);
@@ -130,6 +179,7 @@ async function runOneTypecheckWithCaps(
   expectPath: string,
   manifestPath: string
 ): Promise<void> {
+  inputPath = resolveInputPath(inputPath);
   try {
     const src = fs.readFileSync(inputPath, 'utf8');
     const can = canonicalize(src);

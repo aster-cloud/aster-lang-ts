@@ -1,6 +1,0 @@
-Module test.generic.result_maybe.
-
-Rule unwrap given x, produce:
-  Match x:
-    When Ok(v), Return "ok".
-    When Err(msg), Return msg.

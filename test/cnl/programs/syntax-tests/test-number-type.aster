@@ -1,6 +1,0 @@
-Module test.number.
-
-Define Product has price, quantity.
-
-Rule calculateTotal given product, produce:
-  Return product.price.
