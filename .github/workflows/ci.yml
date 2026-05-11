@@ -17,6 +17,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: aster-lang-ts
+
+      - name: Checkout aster-lang-test (sibling corpus)
+        uses: actions/checkout@v4
+        with:
+          repository: aster-cloud/aster-lang-test
+          path: aster-lang-test
+          ref: main
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -26,33 +35,53 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'pnpm'
+          cache-dependency-path: aster-lang-ts/pnpm-lock.yaml
+
+      - name: Build corpus loader (sibling)
+        working-directory: aster-lang-test/packages/js
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm build
 
       - name: Install dependencies
+        working-directory: aster-lang-ts
         run: pnpm install --frozen-lockfile
 
+      - name: Link shared corpus
+        working-directory: aster-lang-ts
+        run: pnpm link ../aster-lang-test/packages/js
+
       - name: Type check
+        working-directory: aster-lang-ts
         run: pnpm run typecheck
 
       - name: Lint
+        working-directory: aster-lang-ts
         run: pnpm run lint
 
       - name: Run unit tests with coverage
+        working-directory: aster-lang-ts
         run: pnpm run test:unit:coverage
 
       - name: Check coverage threshold
+        working-directory: aster-lang-ts
         run: |
           pnpm run build
           npx c8 --check-coverage --lines 75 --branches 60 --functions 70 \
             node --test 'dist/test/unit/**/*.test.js' 'dist/test/type-checker/**/*.test.js'
 
       - name: Run integration tests
+        working-directory: aster-lang-ts
         run: pnpm run test:integration
 
       - name: Run golden tests
+        working-directory: aster-lang-ts
         run: pnpm run test:golden:run
 
       - name: Run property tests
+        working-directory: aster-lang-ts
         run: pnpm run test:property:run
 
       - name: Run fuzz tests
+        working-directory: aster-lang-ts
         run: pnpm run test:fuzz:run
