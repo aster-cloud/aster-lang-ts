@@ -584,7 +584,77 @@ export function parseExpr(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Expression {
-  return parseNot(ctx, error);
+  return parseOr(ctx, error);
+}
+
+/**
+ * `and` 在多个 statement-level 上下文也用作列表分隔符（Construct fields、
+ * wait-for names、type unions、constraints）。当下一 token 序列形如
+ * `<ident> set to` 时，当前 `and` 属于 Construct field 分隔，而非布尔与。
+ * parseAnd/parseOr 在消费 `and`/`or` 前先检查这种 lookahead，避免越界。
+ */
+function isListSeparatorAnd(ctx: ParserContext): boolean {
+  // 当前位置必须是 'and' keyword
+  const nextIdx = ctx.index + 1;
+  const t1 = ctx.tokens[nextIdx];
+  if (!t1) return false;
+  // 模式 A：`and <ident> set to ...` → Construct field
+  if (
+    (t1.kind === TokenKind.IDENT || t1.kind === TokenKind.KEYWORD) &&
+    typeof t1.value === 'string'
+  ) {
+    const t2 = ctx.tokens[nextIdx + 1];
+    if (
+      t2 &&
+      (t2.kind === TokenKind.IDENT || t2.kind === TokenKind.KEYWORD) &&
+      typeof t2.value === 'string' &&
+      t2.value.toLowerCase() === 'set'
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 解析逻辑或（or）
+ * 优先级最低；左结合；短路语义在求值器处理。
+ * 形如：a or b or c → ((a or b) or c)
+ */
+function parseOr(
+  ctx: ParserContext,
+  error: (msg: string) => never
+): Expression {
+  let left = parseAnd(ctx, error);
+  while (ctx.isKeyword(KW.OR)) {
+    const opTok = ctx.nextWord();
+    const right = parseAnd(ctx, error);
+    const target = assignTokenSpan(Node.Name('or'), opTok);
+    const call = Node.Call(target, [left, right]);
+    assignSpan(call, spanFromSources(left, opTok, right));
+    left = call;
+  }
+  return left;
+}
+
+/**
+ * 解析逻辑与（and）
+ * 优先级高于 or，低于 not / 比较；左结合。
+ */
+function parseAnd(
+  ctx: ParserContext,
+  error: (msg: string) => never
+): Expression {
+  let left = parseNot(ctx, error);
+  while (ctx.isKeyword(KW.AND) && !isListSeparatorAnd(ctx)) {
+    const opTok = ctx.nextWord();
+    const right = parseNot(ctx, error);
+    const target = assignTokenSpan(Node.Name('and'), opTok);
+    const call = Node.Call(target, [left, right]);
+    assignSpan(call, spanFromSources(left, opTok, right));
+    left = call;
+  }
+  return left;
 }
 
 /**
