@@ -1,0 +1,59 @@
+name: Corpus regression (dispatched)
+
+# P0-5: 当 aster-lang-test 的 corpus 改动时由 repository_dispatch 触发
+# 拉 aster-lang-test 最新 main + 当前 aster-lang-ts，跑全量 golden + parse inventory
+
+on:
+  repository_dispatch:
+    types: [corpus-changed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout aster-lang-ts
+        uses: actions/checkout@v4
+        with:
+          path: aster-lang-ts
+
+      - name: Checkout aster-lang-test @ dispatched sha
+        uses: actions/checkout@v4
+        with:
+          repository: aster-cloud/aster-lang-test
+          path: aster-lang-test
+          ref: ${{ github.event.client_payload.sha || 'main' }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: aster-lang-ts/pnpm-lock.yaml
+
+      - name: Install deps
+        working-directory: aster-lang-ts
+        run: pnpm install --frozen-lockfile
+
+      - name: Run golden against new corpus
+        working-directory: aster-lang-ts
+        env:
+          ASTER_LANG_TEST_PATH: ${{ github.workspace }}/aster-lang-test
+        run: pnpm test:golden
+
+      - name: Run java-corpus-parse-inventory (cross-engine sanity)
+        working-directory: aster-lang-ts
+        env:
+          ASTER_LANG_TEST_PATH: ${{ github.workspace }}/aster-lang-test
+        run: |
+          if [ -f scripts/java-corpus-parse-inventory.mjs ]; then
+            node scripts/java-corpus-parse-inventory.mjs
+          else
+            echo "::warning::java-corpus-parse-inventory.mjs not found; skipping"
+          fi
