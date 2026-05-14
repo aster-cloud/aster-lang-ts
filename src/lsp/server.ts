@@ -26,7 +26,7 @@ import type {
   Module as AstModule,
   Span,
 } from '../types.js';
-import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/index.js';
+import { LexiconRegistry, initializeAllBundledLexicons } from '../config/lexicons/index.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { attachDiagnosticMessages } from '../config/lexicons/diagnostic-messages.js';
 import { buildIdIndex, exprTypeText } from './utils.js';
@@ -151,7 +151,8 @@ let hasWatchedFilesCapability = false;
 let watcherRegistered = false;
 
 connection.onInitialize(async (params: InitializeParams) => {
-  initializeDefaultLexicons();
+  // LSP server 加载全部内置 lexicon —— 用户切换 locale 设置时 zh-CN / de-DE 必须可解析
+  initializeAllBundledLexicons();
   const capabilities = params.capabilities;
 
   // Does the client support the `workspace/configuration` request?

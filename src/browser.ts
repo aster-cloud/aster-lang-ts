@@ -73,9 +73,19 @@ export type {
 // Type definitions re-export
 export type * from './types.js';
 
-// Lexicons for multi-language support
-import { LexiconRegistry, initializeDefaultLexicons } from './config/lexicons/index.js';
-export { EN_US, ZH_CN, DE_DE, LexiconRegistry, initializeDefaultLexicons } from './config/lexicons/index.js';
+// Lexicons for multi-language support.
+// 浏览器路径下使用 initializeAllBundledLexicons —— 因为浏览器 bundle 本来就把
+// en/zh/de 编译进去，不存在"按需加载"的服务端约束。后续可在 next major 时
+// 由消费者改用 initializeDefaultLexicons + 显式 register。
+import { LexiconRegistry, initializeAllBundledLexicons } from './config/lexicons/index.js';
+export {
+  EN_US,
+  ZH_CN,
+  DE_DE,
+  LexiconRegistry,
+  initializeDefaultLexicons,
+  initializeAllBundledLexicons,
+} from './config/lexicons/index.js';
 export type { Lexicon } from './config/lexicons/types.js';
 
 // LSP UI texts (localized labels for hover, completion, etc.)
@@ -175,7 +185,8 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     let canonical: string;
     if (domain) {
       // Resolve effective lexicon for domain translation (default to EN_US)
-      const effectiveLexicon = lexicon ?? (initializeDefaultLexicons(), LexiconRegistry.getDefault());
+      // M3: 浏览器入口预注册 en + zh + de（这些已在 bundle 里）
+      const effectiveLexicon = lexicon ?? (initializeAllBundledLexicons(), LexiconRegistry.getDefault());
       canonical = canonicalize(source, { lexicon: effectiveLexicon, domain, locale: effectiveLexicon.id });
     } else {
       canonical = canonicalize(source, lexicon);

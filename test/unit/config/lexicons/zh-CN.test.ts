@@ -12,7 +12,7 @@ import { canonicalize } from '../../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../../src/frontend/lexer.js';
 import { ZH_CN } from '../../../../src/config/lexicons/zh-CN.js';
 import { EN_US } from '../../../../src/config/lexicons/en-US.js';
-import { LexiconRegistry, initializeDefaultLexicons } from '../../../../src/config/lexicons/index.js';
+import { LexiconRegistry, initializeAllBundledLexicons } from '../../../../src/config/lexicons/index.js';
 import { SemanticTokenKind } from '../../../../src/config/token-kind.js';
 import { TokenKind } from '../../../../src/frontend/tokens.js';
 import type { Token } from '../../../../src/types.js';
@@ -51,8 +51,9 @@ const countTokenKind = (tokens: Token[], kind: TokenKind): number =>
 const CROSS_LANG_IDENT_TOLERANCE = 15;
 
 describe('ZH_CN Lexicon 测试套件', () => {
-  // 初始化注册表
-  initializeDefaultLexicons();
+  // 该套件覆盖 zh-CN/en-US 两套词法表，必须显式注册全部内置语言
+  // initializeDefaultLexicons() 已收窄为仅 en-US，需要 initializeAllBundledLexicons()
+  initializeAllBundledLexicons();
 
   describe('Lexicon 注册与获取', () => {
     it('应成功注册中文词法表', () => {

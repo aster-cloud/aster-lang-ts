@@ -17,6 +17,7 @@
 
 import type { Lexicon, LexiconValidationResult } from './types.js';
 import { getAllSemanticTokenKinds } from '../token-kind.js';
+import { createFallbackLexicon, isFallbackLexicon } from './fallback-lexicon.js';
 
 /**
  * Lexicon 注册表接口。
@@ -73,11 +74,29 @@ class LexiconRegistryImpl implements ILexiconRegistry {
   /**
    * 获取词法表。
    *
+   * 非 en-US 的 lexicon 返回时被 FallbackLexicon 装饰：
+   * target 缺少的 keyword 自动从 en-US backbone 取值。
+   *
+   * en-US 自身、未注册 id、或 en-US fallback 不可用时返回 raw（不装饰）。
+   *
    * @param id - 词法表 ID
-   * @returns 词法表，如果不存在则返回 undefined
+   * @returns 词法表（按需装饰 fallback），如果不存在则返回 undefined
    */
   get(id: string): Lexicon | undefined {
-    return this.lexicons.get(id);
+    const target = this.lexicons.get(id);
+    if (!target) return undefined;
+    return this.decorateWithFallback(target, id);
+  }
+
+  /**
+   * 把非 en-US 的 lexicon 装饰为 FallbackLexicon。详见 fallback-lexicon.ts。
+   */
+  private decorateWithFallback(target: Lexicon, id: string): Lexicon {
+    if (id === 'en-US') return target;            // backbone 自身不 wrap
+    if (isFallbackLexicon(target)) return target; // 防御性：不重复包装
+    const enUs = this.lexicons.get('en-US');
+    if (!enUs) return target;                     // en-US 未注册（不应发生）→ raw 降级
+    return createFallbackLexicon(target, enUs);
   }
 
   /**
@@ -151,7 +170,9 @@ class LexiconRegistryImpl implements ILexiconRegistry {
       errors.push(`Invalid direction '${lexicon.direction}', must be 'ltr' or 'rtl'`);
     }
 
-    // 检查关键词完整性
+    // 检查关键词完整性。
+    // M1：缺失 / 空白 keyword 不再是 error —— FallbackLexicon 装饰器会在 get() 时
+    // 自动从 en-US backbone 补齐。仅在 en-US 本身缺时才是 fatal（注册者契约）。
     const allKinds = getAllSemanticTokenKinds();
     const missingKeywords: string[] = [];
     const emptyKeywords: string[] = [];
@@ -165,12 +186,23 @@ class LexiconRegistryImpl implements ILexiconRegistry {
       }
     }
 
+    const isBackbone = lexicon.id === 'en-US';
     if (missingKeywords.length > 0) {
-      errors.push(`Missing keywords for: ${missingKeywords.join(', ')}`);
+      const msg = `Missing keywords for: ${missingKeywords.join(', ')}`;
+      if (isBackbone) {
+        // en-US 是 fallback backbone：自身缺 keyword 就没人能兜底，必须 error
+        errors.push(msg);
+      } else {
+        warnings.push(msg + ' (will fall back to en-US via FallbackLexicon)');
+      }
     }
-
     if (emptyKeywords.length > 0) {
-      errors.push(`Empty keywords for: ${emptyKeywords.join(', ')}`);
+      const msg = `Empty keywords for: ${emptyKeywords.join(', ')}`;
+      if (isBackbone) {
+        errors.push(msg);
+      } else {
+        warnings.push(msg + ' (will fall back to en-US via FallbackLexicon)');
+      }
     }
 
     // 检查关键词唯一性

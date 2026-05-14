@@ -20,7 +20,7 @@ import { lex } from '../../../../src/frontend/lexer.js';
 import { EN_US } from '../../../../src/config/lexicons/en-US.js';
 import { ZH_CN } from '../../../../src/config/lexicons/zh-CN.js';
 import { DE_DE } from '../../../../src/config/lexicons/de-DE.js';
-import { LexiconRegistry, initializeDefaultLexicons } from '../../../../src/config/lexicons/index.js';
+import { LexiconRegistry, initializeAllBundledLexicons } from '../../../../src/config/lexicons/index.js';
 import { TokenKind } from '../../../../src/frontend/tokens.js';
 import type { Token } from '../../../../src/types.js';
 import type { Lexicon } from '../../../../src/config/lexicons/types.js';
@@ -106,8 +106,9 @@ function assertBracketsBalanced(tokens: Token[], label: string) {
 // ============================================================================
 
 describe('I18N 多语言词法表测试套件', () => {
-  // 初始化注册表
-  initializeDefaultLexicons();
+  // 该套件覆盖 en/zh/de 三套词法表，必须显式注册全部内置语言
+  // initializeDefaultLexicons() 已收窄为仅 en-US，需要 initializeAllBundledLexicons()
+  initializeAllBundledLexicons();
 
   describe('词法表注册验证', () => {
     for (const { id, name } of LANGUAGES) {
