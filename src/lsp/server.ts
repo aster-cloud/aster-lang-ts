@@ -26,6 +26,7 @@ import type {
   Module as AstModule,
   Span,
 } from '../types.js';
+import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import { LexiconRegistry, initializeAllBundledLexicons } from '../config/lexicons/index.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { attachDiagnosticMessages } from '../config/lexicons/diagnostic-messages.js';
@@ -103,6 +104,9 @@ type CachedDoc = {
   can: string;
   tokens: readonly any[];
   ast: AstModule | null;
+  /** Parser-recovery 阶段产生的诊断（解析器从错误中恢复后仍保留的 issue）。
+   *  LSP 需要这些去告知客户端真正的语法错误，否则部分恢复的 AST 会看似无错。 */
+  parseDiagnostics: readonly Diagnostic[];
   idIndex?: Map<string, Span[]>;
 };
 const docCache: Map<string, CachedDoc> = new Map();
@@ -130,14 +134,17 @@ function getOrParse(doc: TextDocument): CachedDoc {
   const can = canonicalize(text, lexicon);
   const tokens = lex(can);
   let ast: AstModule | null;
+  let parseDiagnostics: readonly Diagnostic[] = [];
   try {
-    ast = lexicon && needsKeywordTranslation(lexicon)
-      ? parseWithLexicon(tokens, lexicon).ast as AstModule
-      : parse(tokens, lexicon).ast as AstModule;
+    const result = lexicon && needsKeywordTranslation(lexicon)
+      ? parseWithLexicon(tokens, lexicon)
+      : parse(tokens, lexicon);
+    ast = result.ast as AstModule;
+    parseDiagnostics = result.diagnostics;
   } catch {
     ast = null;
   }
-  const entry: CachedDoc = { version: doc.version, text, can, tokens, ast };
+  const entry: CachedDoc = { version: doc.version, text, can, tokens, ast, parseDiagnostics };
   // Build simple identifier index for performance (by token value)
   entry.idIndex = buildIdIndex(tokens);
   docCache.set(key, entry);

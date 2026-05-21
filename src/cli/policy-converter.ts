@@ -45,7 +45,16 @@ function compileToJson(inputPath: string, outputPath?: string): void {
     // 编译管线：CNL → Canonical → Tokens → AST → Core IR
     const canonical = canonicalize(source);
     const tokens = lex(canonical);
-    const { ast } = parse(tokens);
+    const { ast, diagnostics } = parse(tokens);
+    // CLI 转换必须严格：解析错误不应被 silently 忽略，否则会生成 Core IR
+    // 缺失片段的 JSON 文件。warning/info/hint 允许通过。
+    const parseErrors = diagnostics.filter(d => d.severity === 'error');
+    if (parseErrors.length > 0) {
+      throw new Error(
+        `Parse error${parseErrors.length > 1 ? 's' : ''}:\n` +
+        parseErrors.map(d => `  - ${d.message} (line ${d.span.start.line}, col ${d.span.start.col})`).join('\n')
+      );
+    }
     const coreIR = lowerModule(ast);
 
     // 序列化为 JSON

@@ -248,6 +248,32 @@ export function setDiagnosticConfig(config: Partial<DiagnosticConfig>): void {
 }
 
 /**
+ * 将 aster diagnostics（来自 parser/typecheck）转换为 LSP Diagnostic。
+ * 抽出来避免 parseDiagnostics 与 DiagnosticError 兜底分支重复实现转换逻辑。
+ */
+function asterDiagToLspDiag(
+  d: import('../diagnostics/diagnostics.js').Diagnostic
+): Diagnostic {
+  return {
+    severity:
+      d.severity === 'error'
+        ? DiagnosticSeverity.Error
+        : d.severity === 'warning'
+          ? DiagnosticSeverity.Warning
+          : d.severity === 'info'
+            ? DiagnosticSeverity.Information
+            : DiagnosticSeverity.Hint,
+    range: {
+      start: { line: d.span.start.line - 1, character: d.span.start.col - 1 },
+      end: { line: d.span.end.line - 1, character: d.span.end.col - 1 },
+    },
+    message: d.message,
+    source: 'aster',
+    code: d.code,
+  };
+}
+
+/**
  * 计算指定文档的诊断信息。
  * @param textDocument 目标文档。
  * @param getOrParse 获取缓存的解析结果函数。
@@ -255,7 +281,12 @@ export function setDiagnosticConfig(config: Partial<DiagnosticConfig>): void {
  */
 export async function computeDiagnostics(
   textDocument: TextDocument,
-  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any },
+  getOrParse: (doc: TextDocument) => {
+    text: string;
+    tokens: readonly any[];
+    ast: any;
+    parseDiagnostics?: readonly import('../diagnostics/diagnostics.js').Diagnostic[];
+  },
   lexicon?: Lexicon,
 ): Promise<Diagnostic[]> {
   const startTime = Date.now();
@@ -274,9 +305,18 @@ export async function computeDiagnostics(
     return cached.diagnostics;
   }
 
-  const { tokens, ast } = getOrParse(textDocument);
+  const { tokens, ast, parseDiagnostics } = getOrParse(textDocument);
 
   const diagnostics: Diagnostic[] = [];
+
+  // 把 parser 恢复阶段保留的诊断也发布给客户端。
+  // 之前的实现把 parseResult.diagnostics 直接丢弃，造成部分恢复的 AST
+  // 在 LSP 中看起来没有错误，但实际语法有 error。
+  if (parseDiagnostics && parseDiagnostics.length > 0) {
+    for (const d of parseDiagnostics) {
+      diagnostics.push(asterDiagToLspDiag(d));
+    }
+  }
 
   try {
     const parsed = ast ?? parse(tokens);
