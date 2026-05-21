@@ -136,21 +136,22 @@ export function typecheckBrowser(
     }
 
     // Effect inference — doesn't require filesystem, but cross-module
-    // effects require the caller to supply `importedEffects`. If the module
-    // declares imports but the caller didn't provide effect signatures, we
-    // emit an `unsupported` warning so callers know the result is partial
-    // (rather than silently treating it as a clean type check).
+    // effects require the caller to supply `importedEffects`. We only warn
+    // when the module body actually REFERENCES an import alias that has no
+    // effect signature — declared-but-unused imports don't degrade analysis
+    // quality, so warning on those would be noise.
     const effectDiags: TypecheckDiagnostic[] = [];
-    const unresolvedImports = [...ctx.imports.entries()].filter(
-      ([alias]) => !ctx.importedEffects.has(alias),
+    const referencedAliases = collectReferencedImportAliases(m, ctx.imports);
+    const unresolvedReferenced = [...referencedAliases].filter(
+      (alias) => !ctx.importedEffects.has(alias),
     );
-    if (unresolvedImports.length > 0) {
+    if (unresolvedReferenced.length > 0) {
       effectDiags.push({
         severity: 'warning',
         code: ErrorCode.UNDEFINED_VARIABLE,
         message:
           `[browser-typecheck/partial] cross-module effect checks unavailable for ` +
-          `imports: ${unresolvedImports.map(([alias]) => alias).join(', ')}. ` +
+          `referenced imports: ${unresolvedReferenced.join(', ')}. ` +
           `Pass options.importedEffects (fetch from the LSP server) for full coverage.`,
       });
     }
@@ -213,6 +214,53 @@ export function typecheckBrowser(
       },
     ];
   }
+}
+
+/**
+ * Walk the module and collect import aliases that are actually referenced
+ * by any expression in the function bodies. This lets the partial-coverage
+ * warning fire only when missing effects would matter — declared-but-unused
+ * imports don't degrade analysis quality.
+ *
+ * Approach: recurse through Core.Expression nodes looking for `Name` nodes
+ * whose `name` matches an import alias. Lightweight tree walk; no
+ * type information needed.
+ */
+function collectReferencedImportAliases(
+  m: Core.Module,
+  imports: ReadonlyMap<string, string>,
+): Set<string> {
+  if (imports.size === 0) return new Set();
+  const referenced = new Set<string>();
+  const aliases = [...imports.keys()];
+  // Match either a bare alias (`Http`) or a qualified reference
+  // (`Http.get` → matches alias `Http`). Core IR keeps Module.member as a
+  // single dotted Name, so the check is on the prefix before the first dot.
+  const match = (name: string): string | undefined => {
+    for (const a of aliases) {
+      if (name === a || name.startsWith(a + '.')) return a;
+    }
+    return undefined;
+  };
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const obj = node as { kind?: unknown; name?: unknown };
+    if (obj.kind === 'Name' && typeof obj.name === 'string') {
+      const hit = match(obj.name);
+      if (hit) referenced.add(hit);
+    }
+    // Recurse over every enumerable property — the AST shape is irregular
+    // enough that hand-listing each child slot is brittle. Cycles aren't
+    // possible since Core IR is a tree built fresh per module.
+    for (const v of Object.values(node as Record<string, unknown>)) {
+      if (Array.isArray(v)) v.forEach(visit);
+      else if (v && typeof v === 'object') visit(v);
+    }
+  };
+  for (const d of m.decls) {
+    if (d.kind === 'Func' && d.body) visit(d.body);
+  }
+  return referenced;
 }
 
 /**
