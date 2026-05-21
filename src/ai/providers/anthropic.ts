@@ -97,7 +97,11 @@ export class AnthropicProvider implements LLMProvider {
  * the prompt for a different model shouldn't pick up forged turns.
  */
 function neutralizeTurnMarkers(input: string): string {
-  return input.replace(/\b(Human|Assistant)\s*:/gi, '$1​:');
+  // Only neutralize markers that look like an actual turn boundary —
+  // start-of-line (or start-of-string) followed by optional whitespace,
+  // the role label, optional whitespace, then a colon. This avoids
+  // mangling legitimate prose like "Human: rights" inside a sentence.
+  return input.replace(/(^|\n)([ \t]*)(Human|Assistant)([ \t]*):/g, '$1$2$3$4​:');
 }
 
 function extractText(response: Anthropic.Messages.Message): string {

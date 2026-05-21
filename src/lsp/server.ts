@@ -394,9 +394,8 @@ connection.onDidChangeConfiguration(change => {
     globalSettings = <AsterSettings>(change.settings.asterLanguageServer || defaultSettings);
   }
 
-  // Revalidate caches for open documents (pull diagnostics will request when needed)
-  documents.all().forEach(doc => { try { void getOrParse(doc); } catch {} });
-  // Update diagnostics, index, and locale settings
+  // 更新 diagnostics/index/locale 设置；缓存失效必须在更新 locale 后执行，
+  // 否则任何后续的 getOrParse 都会再次塞入旧 lexicon 解析结果。
   getDocumentSettings('').then(s => {
     setDiagnosticConfig({
       workspaceDiagnosticsEnabled: s.diagnostics?.workspace ?? true,
@@ -413,15 +412,28 @@ connection.onDidChangeConfiguration(change => {
 
     // 更新 locale 对应的 lexicon
     const locale = s.locale ?? 'en-US';
+    const prevLexiconId = currentLexicon?.id;
     if (locale === 'en-US') {
       currentLexicon = undefined;
       documentLexicons.clear();
     } else {
       const lex = LexiconRegistry.has(locale) ? LexiconRegistry.get(locale) : undefined;
       currentLexicon = lex ? attachDiagnosticMessages(lex) : undefined;
-      // 清除 docCache 以触发重新解析
-      docCache.clear();
     }
+    // 关键修复：locale 实际变化时（任何方向，含 zh→en）必须清掉 parser
+    // 和 diagnostic 缓存。否则缓存里的 ast/parseDiagnostics 用的是旧 lexicon。
+    const newLexiconId = currentLexicon?.id;
+    if (prevLexiconId !== newLexiconId) {
+      docCache.clear();
+      for (const doc of documents.all()) {
+        invalidateDiagnosticCache(doc.uri);
+        invalidateTypecheckCache(doc.uri);
+      }
+    }
+
+    // 重新预解析，让下一次 pull diagnostics 命中新缓存。必须放在缓存
+    // 失效之后，否则 getOrParse 会立刻被旧条目命中。
+    documents.all().forEach(doc => { try { void getOrParse(doc); } catch {} });
   }).catch(() => {
     setDiagnosticConfig({
       workspaceDiagnosticsEnabled: true,
