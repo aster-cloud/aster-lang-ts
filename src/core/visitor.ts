@@ -118,6 +118,8 @@ export class DefaultCoreVisitor<Ctx = VisitorContext> implements CoreVisitor<Ctx
           if (step.compensate) this.visitBlock(step.compensate, ctx);
         }
         return;
+      default:
+        return assertNeverStatement(s);
     }
   }
 
@@ -144,9 +146,30 @@ export class DefaultCoreVisitor<Ctx = VisitorContext> implements CoreVisitor<Ctx
       case 'Some':
         this.visitExpression(e.expr, ctx);
         return;
+      case 'Await':
+        // Await 是异步表达式：必须递归内部 expr，否则 effect / capability
+        // 推理会漏掉嵌套调用产生的能力需求（例：async 内 HTTP 调用）。
+        this.visitExpression(e.expr, ctx);
+        return;
       case 'Lambda':
         this.visitBlock(e.body, ctx);
         return;
+      default:
+        // 穷尽性守卫：若 Core.Expression union 新增了 kind 而未在此处理，
+        // TS 编译期会直接报错；运行期则抛出明确错误而非静默漏处理。
+        return assertNeverExpression(e);
     }
   }
+}
+
+function assertNeverExpression(e: never): never {
+  throw new Error(
+    `DefaultCoreVisitor.visitExpression: unhandled Core.Expression kind: ${JSON.stringify(e)}`,
+  );
+}
+
+function assertNeverStatement(s: never): never {
+  throw new Error(
+    `DefaultCoreVisitor.visitStatement: unhandled Core.Statement kind: ${JSON.stringify(s)}`,
+  );
 }

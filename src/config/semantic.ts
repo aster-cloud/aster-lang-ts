@@ -127,10 +127,16 @@ export const CPU_PREFIXES: readonly string[] = [
  */
 export enum CapabilityKind {
   HTTP = 'Http',
+  /** 通用 TCP/UDP/SSE/WebSocket 等非 HTTP 网络访问。 */
+  NETWORK = 'Network',
   SQL = 'Sql',
   TIME = 'Time',
   FILES = 'Files',
   SECRETS = 'Secrets',
+  /** 加解密 / 签名 / KMS / 哈希等密码学操作。 */
+  CRYPTO = 'Crypto',
+  /** 进程管理：spawn/exec/exit/env、shell 调用。 */
+  PROCESS = 'Process',
   AI_MODEL = 'AiModel',
   CPU = 'Cpu',
   PAYMENT = 'Payment',
@@ -142,13 +148,19 @@ export enum CapabilityKind {
  *
  * 用于在 ASTER_CAP_EFFECTS_ENFORCE=1 模式下检查 capability 子集规则。
  * 例如：声明了 [Http] capability 的函数只能调用以 'Http.' 开头的函数。
+ *
+ * <p>注意：新增 capability 必须同时在此处与 {@link CapabilityKind} 添加，
+ * 否则 {@link inferCapabilityFromName} 将无法识别对应调用。
  */
 export const CAPABILITY_PREFIXES: Record<string, readonly string[]> = {
   Http: ['Http.'],
+  Network: ['Net.', 'Network.', 'Tcp.', 'Udp.', 'Socket.', 'Ws.', 'WebSocket.', 'Sse.'],
   Sql: ['Db.', 'Sql.'],
   Time: ['Time.', 'Clock.'],
   Files: ['Files.', 'Fs.'],
   Secrets: ['Secrets.'],
+  Crypto: ['Crypto.', 'Hash.', 'Cipher.', 'Sign.', 'Kms.', 'Jwt.'],
+  Process: ['Process.', 'Proc.', 'Exec.', 'Shell.', 'Env.', 'Os.'],
   AiModel: ['Ai.'],
   Payment: ['Payment.'],
   Inventory: ['Inventory.'],
