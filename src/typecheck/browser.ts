@@ -135,10 +135,25 @@ export function typecheckBrowser(
       }
     }
 
-    // Effect inference (doesn't require file system)
-    // Skip effect inference in browser mode if no module cache available
-    // This is a simplification - full effect inference requires module resolution
+    // Effect inference — doesn't require filesystem, but cross-module
+    // effects require the caller to supply `importedEffects`. If the module
+    // declares imports but the caller didn't provide effect signatures, we
+    // emit an `unsupported` warning so callers know the result is partial
+    // (rather than silently treating it as a clean type check).
     const effectDiags: TypecheckDiagnostic[] = [];
+    const unresolvedImports = [...ctx.imports.entries()].filter(
+      ([alias]) => !ctx.importedEffects.has(alias),
+    );
+    if (unresolvedImports.length > 0) {
+      effectDiags.push({
+        severity: 'warning',
+        code: ErrorCode.UNDEFINED_VARIABLE,
+        message:
+          `[browser-typecheck/partial] cross-module effect checks unavailable for ` +
+          `imports: ${unresolvedImports.map(([alias]) => alias).join(', ')}. ` +
+          `Pass options.importedEffects (fetch from the LSP server) for full coverage.`,
+      });
+    }
     try {
       const effectResults = inferEffects(m, {
         moduleName,
@@ -147,15 +162,33 @@ export function typecheckBrowser(
         moduleUri: options?.uri ?? null,
       });
       effectDiags.push(...effectResults);
-    } catch {
-      // Effect inference may fail without module cache, that's expected in browser
+    } catch (e) {
+      // Previously this catch was empty — effect-inference failures were swallowed
+      // and the user got back "no errors" while the check had aborted halfway.
+      // Surface as an `unsupported` diagnostic so the UI can show "partial".
+      effectDiags.push({
+        severity: 'warning',
+        code: ErrorCode.UNDEFINED_VARIABLE,
+        message:
+          `[browser-typecheck/partial] effect inference aborted: ` +
+          `${e instanceof Error ? e.message : String(e)}. ` +
+          `Effect-related diagnostics may be missing; re-run via LSP server for full coverage.`,
+      });
     }
 
-    // PII checking (disabled by default in browser)
+    // PII checking is NOT implemented in the browser bundle (no process.env,
+    // no PII config file access). When the caller passes `enforcePii: true`
+    // we MUST tell them so — silent acceptance was the bug.
     const piiDiagnostics: TypecheckDiagnostic[] = [];
     if (options?.enforcePii) {
-      // PII checking requires additional setup, skip in browser for now
-      // Users can enable full PII checking via LSP server
+      piiDiagnostics.push({
+        severity: 'warning',
+        code: ErrorCode.UNDEFINED_VARIABLE,
+        message:
+          `[browser-typecheck/unsupported] PII enforcement requested but not ` +
+          `available in browser/edge runtime (no env-var or config access). ` +
+          `Use the LSP server's typecheckModule({ enforcePii: true }) instead.`,
+      });
     }
 
     const result = [...diagnostics.getDiagnostics(), ...effectDiags, ...piiDiagnostics];
