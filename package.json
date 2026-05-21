@@ -1,6 +1,6 @@
 {
   "name": "@aster-cloud/aster-lang-ts",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Aster CNL (Controlled Natural Language) TypeScript Compiler - Lexer, Parser, AST, Core IR, Type Checker",
   "type": "module",
   "main": "./dist/src/index.js",
@@ -158,7 +158,6 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
-    "@aster-cloud/aster-lang-test": "link:../aster-lang-test/packages/js",
     "@types/semver": "^7.7.1",
     "cac": "6.7.14",
     "ora": "^9.0.0",
@@ -170,6 +169,7 @@
     "vscode-languageserver-types": "^3.17.5"
   },
   "devDependencies": {
+    "@aster-cloud/aster-lang-test": "link:../aster-lang-test/packages/js",
     "@changesets/cli": "^2.29.8",
     "@types/node": "^24.6.0",
     "@typescript-eslint/eslint-plugin": "^8.48.1",

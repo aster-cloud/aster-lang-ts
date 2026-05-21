@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.2.0] - 2026-05-22
+
+### BREAKING CHANGES
+
+- **`AnthropicProvider`** 从已弃用的 `completions` API 迁移到 `messages` API。
+  Claude 3+ 模型不再支持旧 API；Claude 4.x 完全无法工作。
+  对调用方意味着 `usage` 字段不再是估算值，而是 Anthropic API 返回的真实 token 计数。
+- **`compile()` 成功语义收紧**：解析阶段返回任何 `severity === 'error'` 的诊断时
+  `success: false`（即便部分恢复出了 AST）。先前实现仅在 `decls.length === 0` 时报失败。
+  warning/info/hint 级仍透过 `parseErrors` 返回但不阻塞。
+- **`DefaultCoreVisitor`** 现在对未处理的 `Core.Expression` / `Core.Statement` kind
+  在运行时 throw，而不是静默忽略。子类必须覆盖或调用 super。
+
+### 新增
+
+- `CapabilityKind.NETWORK` / `CRYPTO` / `PROCESS` —— 用户可以声明这些 capability；
+  对应 `CAPABILITY_PREFIXES` 添加 `Net./Tcp./Udp./Socket./Ws./Sse.`（Network）、
+  `Crypto./Hash./Cipher./Sign./Kms./Jwt.`（Crypto）、`Process./Exec./Shell./Env./Os.`（Process）。
+  Crypto 归入 CPU_CLASS（本地哈希/签名是 CPU-bound）。
+- `DefaultCoreVisitor.visitExpression` 添加 `Await` 分支并对内部表达式递归遍历，
+  修复 effect/capability 推断遗漏 async 内嵌调用的问题。
+- `DefaultCoreVisitor` switch 末尾添加 `assertNeverExpression` / `assertNeverStatement`
+  穷尽性守卫；Core IR 增加新 kind 时编译期会立即报错。
+- 新 LSP API `invalidateAllDiagnosticAndTypecheckCaches()` —— locale 切换时全量清缓存
+  （含 closed-document 条目）。
+- 解析器恢复诊断通过 LSP `CachedDoc.parseDiagnostics` 透传给客户端。
+- CLI `policy-converter` 在解析错误存在时 fail-fast，避免生成残缺 JSON。
+- Anthropic provider `neutralizeTurnMarkers` 防御性中和 `(^|\n)\s*(Human|Assistant)\s*:`
+  的伪造 turn 边界（覆盖 NBSP / 各类 Unicode 空白 / 大小写变体），保留散文中的字符串。
+
+### 修复
+
+- `CoreLowering` 现在通过 `applyTypeAnnotations` 把 `Decl.Func.retAnnotations` 应用到
+  Core IR 的 ret 类型上（先前完全丢弃），并把原始注解列表存到 `CoreModel.Func.retAnnotations`。
+  `@pii` 在返回类型槽上的标记会正确流到 piiLevel/piiCategories 聚合。
+- `LexiconRegistry` SPI 注册路径现在调用 `validate(lexicon)`，并把校验失败计入
+  `discoveryFailures`（先前未校验，损坏的外部插件会直接污染 registry）。
+- `parser/decl-parser` `syncToNextDecl` 停止集提取为 `KW` 常量驱动的 `Set`，防止与
+  `collectTopLevelDecls` 的入口集漂移。
+- LSP locale 切换：先更新 `currentLexicon`，再清 `docCache` + 全量
+  `invalidateAllDiagnosticAndTypecheckCaches()` + `rebuildWorkspaceIndex`，
+  最后才 revalidate；先前 zh→en 切换会留下旧 lexicon 的 parser 缓存。
+
+### 内部
+
+- 累计 5 轮深度代码审查闭环；测试 1032/1034 unit + 87/87 integration 通过。
+- 删除未使用的 `@AsterPii` 注解（无消费者，PII 通过 `AsterPiiValue` 运行时对象传递）。
+
 ## [0.1.0] - 2026-02-24
 
 ### BREAKING CHANGES
