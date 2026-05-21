@@ -95,13 +95,21 @@ export class AnthropicProvider implements LLMProvider {
  * non-functional variants. This is defense-in-depth on top of the
  * Messages API role boundary — a downstream consumer that re-serializes
  * the prompt for a different model shouldn't pick up forged turns.
+ *
+ * <p>Whitespace class enumerates evasion-prone Unicode spaces explicitly
+ * (NBSP, narrow NBSP, ideographic space, en/em-quad spaces, zero-width
+ * variants, BOM) so an attacker can't bypass the line-start detection
+ * with " Human:" using U+00A0. /i lets us catch case-folded variants
+ * the way some tokenizers do.
  */
+const TURN_MARKER_WS = '[ \\t\\u00A0\\u202F\\u3000\\u2000-\\u200A\\u200B-\\u200D\\uFEFF]';
+const TURN_MARKER_RE = new RegExp(
+  `(^|\\n)(${TURN_MARKER_WS}*)(Human|Assistant)(${TURN_MARKER_WS}*):`,
+  'gi',
+);
+
 function neutralizeTurnMarkers(input: string): string {
-  // Only neutralize markers that look like an actual turn boundary —
-  // start-of-line (or start-of-string) followed by optional whitespace,
-  // the role label, optional whitespace, then a colon. This avoids
-  // mangling legitimate prose like "Human: rights" inside a sentence.
-  return input.replace(/(^|\n)([ \t]*)(Human|Assistant)([ \t]*):/g, '$1$2$3$4​:');
+  return input.replace(TURN_MARKER_RE, '$1$2$3$4​:');
 }
 
 function extractText(response: Anthropic.Messages.Message): string {

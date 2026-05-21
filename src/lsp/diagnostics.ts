@@ -237,6 +237,19 @@ export function invalidateManifestCache(): void {
 }
 
 /**
+ * 全量清除诊断 + 类型检查缓存。
+ *
+ * <p>locale / lexicon 切换时调用：缓存条目按 (uri, version, moduleName)
+ * 索引，但内部存储的 diagnostics 是在旧 lexicon 上下文产生的。逐文档
+ * invalidate 只覆盖已知打开的 doc；workspace diagnostics 会从 cache 直接
+ * 返回 closed-doc 条目（diagnostics.ts:648），因此必须完整 clear。
+ */
+export function invalidateAllDiagnosticAndTypecheckCaches(): void {
+  diagnosticCache.clear();
+  typecheckCache.clear();
+}
+
+/**
  * 更新诊断模块的运行配置。
  * @param config 新配置对象（部分更新）。
  */

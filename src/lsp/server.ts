@@ -53,6 +53,7 @@ import {
   setDiagnosticConfig,
   invalidateDiagnosticCache,
   invalidateTypecheckCache,
+  invalidateAllDiagnosticAndTypecheckCaches,
   computeWorkspaceDiagnostics,
   setModuleSearchRoots,
   pushDiagnostics,
@@ -425,9 +426,14 @@ connection.onDidChangeConfiguration(change => {
     const newLexiconId = currentLexicon?.id;
     if (prevLexiconId !== newLexiconId) {
       docCache.clear();
-      for (const doc of documents.all()) {
-        invalidateDiagnosticCache(doc.uri);
-        invalidateTypecheckCache(doc.uri);
+      // 全量清空（含 closed-document 条目），避免 workspace diagnostics
+      // 从 cache 返回旧 lexicon 下解析的结果。
+      invalidateAllDiagnosticAndTypecheckCaches();
+      // 关闭文档无 uri 在 docCache 里也无所谓 —— rebuildWorkspaceIndex
+      // 会按当前 lexicon 重建（前提是 indexer 接收 lexicon 参数 —— 见
+      // 跟进项 M2，目前 indexer 仍用默认 EN 行为，是已知遗留）。
+      if (workspaceFolders.length > 0) {
+        rebuildWorkspaceIndex(workspaceFolders).catch(() => {});
       }
     }
 
