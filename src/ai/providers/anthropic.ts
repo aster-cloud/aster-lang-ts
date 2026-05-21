@@ -7,6 +7,23 @@ export interface AnthropicConfig {
   model?: string;               // 模型名稱（默認 claude-3-5-sonnet-20241022）
 }
 
+/**
+ * Anthropic provider — uses the Messages API (the legacy `completions` API
+ * is deprecated for Claude 3+ models and unsupported for Claude 4.x).
+ *
+ * <p>Prompt-injection mitigations:
+ * <ul>
+ *   <li>User input is delivered as a {@code user} message, not concatenated
+ *       into a single text prompt — this is the structural defense the
+ *       Messages API was built to provide.</li>
+ *   <li>The system prompt (trusted) goes into the top-level {@code system}
+ *       field; it cannot be impersonated by user content.</li>
+ *   <li>Common injection markers ({@code Human:} / {@code Assistant:})
+ *       inside user content are neutralized before sending so they can't
+ *       impersonate a turn boundary if the model is configured with a
+ *       custom prompt format downstream.</li>
+ * </ul>
+ */
 export class AnthropicProvider implements LLMProvider {
   private client: Anthropic;
   private model: string;
@@ -23,32 +40,28 @@ export class AnthropicProvider implements LLMProvider {
 
   async generate(request: LLMRequest): Promise<LLMResponse> {
     try {
-      // 構建符合 Anthropic 格式的 prompt
-      let prompt = '';
-      if (request.systemPrompt) {
-        prompt += `${request.systemPrompt}\n\n`;
-      }
-      prompt += `\n\nHuman: ${request.prompt}\n\nAssistant:`;
+      const sanitizedUser = neutralizeTurnMarkers(request.prompt);
 
-      const response = await this.client.completions.create({
+      const response = await this.client.messages.create({
         model: this.model,
-        max_tokens_to_sample: request.maxTokens ?? 4000,
+        max_tokens: request.maxTokens ?? 4000,
         temperature: request.temperature ?? 0.7,
-        prompt,
+        ...(request.systemPrompt ? { system: request.systemPrompt } : {}),
+        messages: [{ role: 'user', content: sanitizedUser }],
       });
 
-      if (!response.completion) {
+      const content = extractText(response);
+      if (!content) {
         throw new LLMError('Anthropic 返回空內容', 'anthropic');
       }
 
       return {
-        content: response.completion,
+        content,
         model: response.model,
         usage: {
-          // Anthropic completions API 不返回 usage 統計，使用估算值
-          promptTokens: Math.ceil(prompt.length / 4),
-          completionTokens: Math.ceil(response.completion.length / 4),
-          totalTokens: Math.ceil((prompt.length + response.completion.length) / 4),
+          promptTokens: response.usage.input_tokens,
+          completionTokens: response.usage.output_tokens,
+          totalTokens: response.usage.input_tokens + response.usage.output_tokens,
         },
       };
     } catch (error) {
@@ -74,4 +87,28 @@ export class AnthropicProvider implements LLMProvider {
   getModel(): string {
     return this.model;
   }
+}
+
+/**
+ * Strip turn-boundary markers that could let user content impersonate
+ * a Human/Assistant turn. We replace them with visually-similar but
+ * non-functional variants. This is defense-in-depth on top of the
+ * Messages API role boundary — a downstream consumer that re-serializes
+ * the prompt for a different model shouldn't pick up forged turns.
+ */
+function neutralizeTurnMarkers(input: string): string {
+  return input.replace(/\b(Human|Assistant)\s*:/gi, '$1​:');
+}
+
+function extractText(response: Anthropic.Messages.Message): string {
+  // The Messages API returns an array of content blocks; we only consume
+  // text blocks. Tool-use / image blocks are not part of this provider's
+  // contract — fall through cleanly so future block kinds don't crash.
+  const parts: string[] = [];
+  for (const block of response.content) {
+    if (block.type === 'text') {
+      parts.push(block.text);
+    }
+  }
+  return parts.join('');
 }

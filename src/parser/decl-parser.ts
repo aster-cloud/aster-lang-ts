@@ -457,14 +457,26 @@ export function parseFuncDecl(
  *
  * 跳过 token 直到遇到声明起始关键字（Module/Rule/Define/Use）或 EOF。
  * 保证至少推进一个 token 以避免无限循环。
+ *
+ * <p>多语言安全：调用 syncToNextDecl 时 token 流已经过
+ * {@link parseWithLexicon} → {@link createKeywordTranslator} 翻译为
+ * canonical 英文，因此这里只需匹配英文字面量。stop-set 直接引用 KW
+ * 常量以避免与 collectTopLevelDecls 的 isKeywordSeq(KW.X) 入口集漂移。
  */
+const DECL_STOP_KEYWORDS: ReadonlySet<string> = new Set([
+  KW.MODULE_IS,
+  KW.RULE,
+  KW.DEFINE,
+  KW.USE,
+]);
+
 function syncToNextDecl(ctx: ParserContext): void {
   let advanced = false;
   while (!ctx.at(TokenKind.EOF)) {
     const val = ctx.peek().value;
     if (advanced && val !== null) {
       const lower = typeof val === 'string' ? val.toLowerCase() : '';
-      if (lower === 'module' || lower === 'rule' || lower === 'define' || lower === 'use') {
+      if (DECL_STOP_KEYWORDS.has(lower)) {
         break;
       }
     }

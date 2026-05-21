@@ -207,8 +207,11 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     const effectiveLex = lexicon ? attachTypeInferenceRules(lexicon) : undefined;
     const parseResult = parse(tokens, effectiveLex);
 
-    // Check for parse errors
-    if (parseResult.diagnostics.length > 0 && parseResult.ast.decls.length === 0) {
+    // Parse 诊断分级：error 必须导致 success=false（即使部分 decl 可恢复），
+    // warning 不阻塞编译。原实现仅在 decls 全空时才报失败，导致调用方在
+    // 部分恢复场景下误以为编译成功 —— 实际产物（Core IR）来自残缺 AST。
+    const parseErrorDiagnostics = parseResult.diagnostics.filter(d => d.severity === 'error');
+    if (parseErrorDiagnostics.length > 0) {
       const result: CompileResult = {
         success: false,
         parseErrors: parseResult.diagnostics.map(d => ({
@@ -232,6 +235,7 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       core,
     };
     if (parseResult.diagnostics.length > 0) {
+      // 此时只剩 warning（error 已在上面 short-circuit），保留以便调用方展示
       result.parseErrors = parseResult.diagnostics.map(d => ({ message: d.message, span: d.span }));
     }
     if (options?.includeIntermediates) {
