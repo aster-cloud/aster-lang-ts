@@ -1,2 +1,4 @@
-overrides:
-  '@aster-cloud/aster-lang-test': link:../aster-lang-test/packages/js
+# Intentionally empty — @aster-cloud/aster-lang-test is now consumed
+# as a published npm devDependency (see package.json). The previous
+# `link:../aster-lang-test/packages/js` override broke CI because the
+# sibling checkout doesn't exist in the runner.
