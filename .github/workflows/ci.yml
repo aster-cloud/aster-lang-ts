@@ -16,25 +16,25 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: aster-lang-ts
 
       - name: Checkout aster-lang-test (sibling corpus)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: aster-cloud/aster-lang-test
           path: aster-lang-test
           ref: main
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           # version is read from aster-lang-ts/package.json's "packageManager"
           package_json_file: aster-lang-ts/package.json
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'pnpm'

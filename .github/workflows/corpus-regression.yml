@@ -16,22 +16,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout aster-lang-ts
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: aster-lang-ts
 
       - name: Checkout aster-lang-test @ dispatched sha
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: aster-cloud/aster-lang-test
           path: aster-lang-test
           ref: ${{ github.event.client_payload.sha || 'main' }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: pnpm
