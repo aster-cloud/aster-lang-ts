@@ -616,11 +616,12 @@ describe('LSP 配置禁用时不显示类型层 PII 诊断', () => {
     else process.env.ENFORCE_PII = prevEnforce;
   });
 
-  it('默认不启用时不显示类型层 PII 诊断', () => {
-    // 使用相同的 HTTP alias 场景
+  it('PII 默认启用：HTTP sink 应触发类型层 PII 诊断（ADR-0009 P0-1）', () => {
+    // P0-1 新设计：PII flow 分析永远启用，不再依赖 ENFORCE_PII env 或
+    // globalThis.lspConfig。同一策略在 IDE / 浏览器 / CI 报告一致诊断。
     const httpImport = CoreBuilder.Import('Http', 'H');
     const fn = makeFunc({
-      name: 'http_alias_disabled_test',
+      name: 'http_alias_default_enabled_test',
       params: [piiParam('secret', 'L3')],
       ret: TEXT(),
       effects: IO_EFFECT,
@@ -633,15 +634,15 @@ describe('LSP 配置禁用时不显示类型层 PII 诊断', () => {
         ),
       ],
     });
-    const module: Core.Module = CoreBuilder.Module('tests.pii.disabled', [httpImport, fn]);
+    const module: Core.Module = CoreBuilder.Module('tests.pii.default_enabled', [httpImport, fn]);
     const diagnostics = typecheckModule(module);
-    // 验证禁用时不触发类型层 PII 诊断
+    // PII 检查现在默认启用 → HTTP sink 把 L3 secret 外发应被捕获
     const piiDiags = diagnostics.filter(diag =>
       diag.code === ErrorCode.PII_SINK_UNSANITIZED ||
       diag.code === ErrorCode.PII_ASSIGN_DOWNGRADE ||
       diag.code === ErrorCode.PII_ARG_VIOLATION
     );
-    assert.equal(piiDiags.length, 0, '默认禁用时不应显示类型层 PII 诊断');
+    assert.ok(piiDiags.length > 0, 'PII 默认启用：应触发类型层 PII 诊断（ADR-0009）');
   });
 });
 
@@ -741,13 +742,15 @@ describe('语义层与类型层诊断分离验证（P1-3 Task 6）', () => {
     delete (globalThis as any).lspConfig;
   });
 
-  it('验证禁用类型层时仅语义层诊断存在（架构验证）', () => {
-    // 禁用类型层 PII 检查
+  it('类型层 PII 始终运行（ADR-0009 P0-1：检查永远启用）', () => {
+    // P0-1 之后，typecheckModule 永远跑 PII flow 分析。本测试现在验证
+    // "即使没有 globalThis.lspConfig 也会报诊断"——这是从"opt-in"到
+    // "always-on"的设计反转。
     delete (globalThis as any).lspConfig;
 
     const httpImport = CoreBuilder.Import('Http', 'Http');
     const fn = makeFunc({
-      name: 'semantic_only_test',
+      name: 'always_on_test',
       params: [piiParam('password', 'L3')],
       ret: TEXT(),
       effects: IO_EFFECT,
@@ -760,22 +763,21 @@ describe('语义层与类型层诊断分离验证（P1-3 Task 6）', () => {
         ),
       ],
     });
-    const module: Core.Module = CoreBuilder.Module('tests.pii.semantic_only', [httpImport, fn]);
+    const module: Core.Module = CoreBuilder.Module('tests.pii.always_on', [httpImport, fn]);
     const diagnostics = typecheckModule(module);
 
-    // 禁用时不应有类型层 PII 诊断
+    // 类型层 PII 诊断现在永远启用
     const piiDiags = diagnostics.filter(diag =>
       diag.code === ErrorCode.PII_SINK_UNSANITIZED ||
       diag.code === ErrorCode.PII_ASSIGN_DOWNGRADE ||
       diag.code === ErrorCode.PII_ARG_VIOLATION
     );
 
-    assert.equal(piiDiags.length, 0, 'typecheckModule 在禁用时不应返回类型层 PII 诊断');
+    assert.ok(piiDiags.length > 0, 'typecheckModule 应永远返回类型层 PII 诊断（ADR-0009）');
 
-    // 注意：语义层诊断由 LSP server 的 pii_diagnostics.ts 提供
-    // typecheckModule 不包含语义层诊断，这是架构设计的一部分
-    // 实际运行时，LSP server 会合并两层诊断，通过 source 字段区分：
-    // - 'aster-typecheck': 来自 typecheck-pii.ts（本测试套件）
+    // 语义层诊断由 LSP server 的 pii_diagnostics.ts 提供。LSP server 合并
+    // 两层诊断，通过 source 字段区分：
+    // - 'aster-typecheck': 来自 typecheck-pii.ts（本测试套件覆盖）
     // - 'aster-pii': 来自 pii_diagnostics.ts（语义层，始终运行）
   });
 

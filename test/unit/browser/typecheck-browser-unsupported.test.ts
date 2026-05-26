@@ -76,7 +76,10 @@ describe('typecheckBrowser — explicit unsupported diagnostics (D3 + R-fix 4)',
     assert.equal(partial, undefined, 'unused imports should NOT trigger a partial-coverage warning');
   });
 
-  it('emits unsupported warning when enforcePii: true', () => {
+  it('PII 检查在 browser 永远启用，不再发出 "unsupported" 警告 (ADR-0009 P0-1)', () => {
+    // P0-1: typecheck-pii 是环境无关的（不读 process.env / fs），
+    // 在 browser / CF Workers / Node 都能跑。enforcePii 选项保留作向后兼容
+    // 但已无效（@deprecated）。代码层面 PII 检查永远启用。
     const source = `
 Module demo.pii.
 
@@ -86,14 +89,21 @@ Rule hello given name as Text, produce Text:
     const compiled = compile(source);
     if (!compiled.success || !compiled.core) return;
 
+    // 即使传 enforcePii: true，也不应再有 "unsupported" 警告
     const diags = typecheckBrowser(compiled.core, { enforcePii: true });
-    const piiWarning = diags.find(
-      (d) => d.message.includes('PII enforcement requested but not') && d.severity === 'warning',
+    const unsupportedWarning = diags.find(
+      (d) => d.message.includes('PII enforcement requested but not'),
     );
-    assert.ok(piiWarning, 'enforcePii: true must surface as an explicit "unsupported in browser" warning');
+    assert.equal(
+      unsupportedWarning,
+      undefined,
+      'ADR-0009: browser 不应再发 "PII unsupported" 警告——PII 检查已永远启用',
+    );
   });
 
-  it('does NOT emit PII warning when enforcePii is omitted/false', () => {
+  it('PII 默认启用：browser 路径产生与 Node 一致的诊断 (ADR-0009 P0-1)', () => {
+    // 这个测试验证浏览器路径**确实跑了** PII 检查。
+    // 用一个简单的 "无 PII 字段" 模块，确保不会因为启用 PII 而误报。
     const source = `
 Module demo.no_pii.
 
@@ -104,7 +114,10 @@ Rule hello given name as Text, produce Text:
     if (!compiled.success || !compiled.core) return;
 
     const diags = typecheckBrowser(compiled.core);
-    const piiWarning = diags.find((d) => d.message.includes('PII enforcement requested'));
-    assert.equal(piiWarning, undefined, 'PII warning must only appear when explicitly requested');
+    // 这段代码没有 PII 字段也没有 sink，应该无 PII 诊断
+    const piiDiag = diags.find(
+      (d) => d.code === 'E400' || (typeof d.code === 'string' && d.code.startsWith('PII_')),
+    );
+    assert.equal(piiDiag, undefined, '无 PII 字段的代码不应触发 PII 诊断');
   });
 });

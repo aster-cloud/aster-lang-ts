@@ -7,15 +7,22 @@
  * Limitations:
  * - No cross-module import resolution (single module only)
  * - No file system-based module loading
- * - PII checking disabled by default (no process.env access)
  *
- * For full type checking with module resolution, use the LSP server.
+ * **PII checking is ENABLED by default (P0-1, ADR-0009)**:
+ * The PII flow analyzer (checkModulePII) is environment-agnostic — it does
+ * not read process.env or the file system. So it works identically in
+ * Node / browser / Cloudflare Workers. This is what makes Aster's
+ * "PII as a first-class type" promise real across all runtimes.
+ *
+ * For cross-module import resolution + module-resolution-based diagnostics,
+ * use the LSP server. But PII flow analysis is correct here regardless.
  */
 
 import type { Core, TypecheckDiagnostic } from '../types.js';
 import type { EffectSignature } from '../effects/effect_signature.js';
 import { inferEffects } from '../effects/effect_inference_browser.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
+import { checkModulePII } from '../typecheck-pii.js';
 import { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
 import { TypeSystem } from './type_system.js';
@@ -48,8 +55,14 @@ export interface BrowserTypecheckOptions {
   importedEffects?: Map<string, EffectSignature>;
 
   /**
-   * Whether to enforce PII (Personally Identifiable Information) checks.
-   * Default: false (disabled in browser for performance)
+   * @deprecated Since ADR-0009 (P0-1), PII flow analysis is always enabled.
+   *   This option is kept for source-level backwards compatibility but has
+   *   no effect. The PII checker (checkModulePII) runs unconditionally in
+   *   all runtimes (Node / browser / CF Workers) because it is
+   *   environment-agnostic.
+   *
+   *   Compliance policy packs (which DO need configuration) remain
+   *   opt-in via a separate mechanism — see future ADR.
    */
   enforcePii?: boolean;
 
@@ -177,19 +190,26 @@ export function typecheckBrowser(
       });
     }
 
-    // PII checking is NOT implemented in the browser bundle (no process.env,
-    // no PII config file access). When the caller passes `enforcePii: true`
-    // we MUST tell them so — silent acceptance was the bug.
+    // P0-1: PII flow 检查永远启用（不再依赖 enforcePii option）。
+    // checkModulePII 不读取 process.env / fs，跨运行时（Node / browser /
+    // Workers）行为一致。详见 ADR-0009。
     const piiDiagnostics: TypecheckDiagnostic[] = [];
-    if (options?.enforcePii) {
-      piiDiagnostics.push({
-        severity: 'warning',
-        code: ErrorCode.UNDEFINED_VARIABLE,
-        message:
-          `[browser-typecheck/unsupported] PII enforcement requested but not ` +
-          `available in browser/edge runtime (no env-var or config access). ` +
-          `Use the LSP server's typecheckModule({ enforcePii: true }) instead.`,
-      });
+    const funcs = m.decls.filter((decl): decl is Core.Func => decl.kind === 'Func');
+    if (funcs.length > 0) {
+      try {
+        checkModulePII(funcs, piiDiagnostics, ctx.imports);
+      } catch (e) {
+        // 不应当抛错（checkModulePII 设计上稳定），但作为防御性 fallback：
+        // 上报 partial 诊断，让 UI 提示"PII 检查未完成"，而不是静默失败。
+        piiDiagnostics.push({
+          severity: 'warning',
+          code: ErrorCode.UNDEFINED_VARIABLE,
+          message:
+            `[browser-typecheck/partial] PII flow analysis aborted: ` +
+            `${e instanceof Error ? e.message : String(e)}. ` +
+            `This is a bug — please report.`,
+        });
+      }
     }
 
     const result = [...diagnostics.getDiagnostics(), ...effectDiags, ...piiDiagnostics];

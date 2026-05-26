@@ -27,7 +27,6 @@ import {
   isUnknown,
   normalizeModuleSearchPaths,
   normalizeType,
-  shouldEnforcePii,
   typesEqual,
   unknownType,
 } from './utils.js';
@@ -112,12 +111,15 @@ export function typecheckModule(m: Core.Module, options?: TypecheckOptions): Typ
       moduleUri: options?.uri ?? null,
       moduleCache,
     });
+    // P0-1: PII flow 检查永远启用。
+    // PiiType 是一等类型；让检查 opt-in 意味着同一策略在 IDE/浏览器/CI 得到
+    // 不同安全结论，这与 Aster 的"PII 一等公民"承诺直接冲突。详见 ADR-0009。
+    // checkModulePII 本身环境无关（不依赖 process.env / fs），可在 Node /
+    // browser / CF Workers 任何运行时调用。
     const piiDiagnostics: TypecheckDiagnostic[] = [];
-    if (shouldEnforcePii()) {
-      const funcs = m.decls.filter((decl): decl is Core.Func => decl.kind === 'Func');
-      if (funcs.length > 0) {
-        checkModulePII(funcs, piiDiagnostics, ctx.imports);
-      }
+    const funcs = m.decls.filter((decl): decl is Core.Func => decl.kind === 'Func');
+    if (funcs.length > 0) {
+      checkModulePII(funcs, piiDiagnostics, ctx.imports);
     }
     const result = [...diagnostics.getDiagnostics(), ...effectDiags, ...piiDiagnostics];
     const duration = performance.now() - startTime;
