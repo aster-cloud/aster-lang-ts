@@ -77,8 +77,8 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.IF], '如果');
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.OTHERWISE], '否则');
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.RETURN], '返回');
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.MATCH], '若');
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.WHEN], '为');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.MATCH], '匹配于');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.WHEN], '当');
     });
 
     it('应正确映射类型定义关键字', () => {
@@ -89,14 +89,14 @@ describe('ZH_CN Lexicon 测试套件', () => {
 
     it('应正确映射变量操作关键字', () => {
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.LET], '令');
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.BE], '为');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.BE], '定义为');
       assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.SET], '将');
     });
 
     it('应正确映射布尔和null字面量', () => {
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.TRUE], '真');
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.FALSE], '假');
-      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.NULL], '空');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.TRUE], '真值');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.FALSE], '假值');
+      assert.strictEqual(ZH_CN.keywords[SemanticTokenKind.NULL], '空值');
     });
 
     it('应正确映射基础类型', () => {
@@ -161,15 +161,15 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.strictEqual(letBe.closer, 'NEWLINE');
     });
 
-    it('应正确解析包含 若...为 和 为以下之一 的程序', () => {
+    it('应正确解析包含 匹配于...当 和 为以下之一 的程序（v2 关键字）', () => {
       const source = `模块 测试。
 
 定义 状态 为以下之一 成功、失败。
 
 规则 检查 包含 状态，产出 文本：
-  若 状态：
-    为 成功，返回 「成功」。
-    为 失败，返回 「失败」。`;
+  匹配于 状态：
+    当 成功，返回 「成功」。
+    当 失败，返回 「失败」。`;
       const can = canonicalize(source, ZH_CN);
       const tokens = lex(can, ZH_CN);
 
@@ -177,21 +177,24 @@ describe('ZH_CN Lexicon 测试套件', () => {
       const oneOfToken = findIdent(tokens, '为以下之一');
       assert.ok(oneOfToken, '应识别 "为以下之一" 为单独 token');
 
-      // 验证 "为" 作为 WHEN 关键词（多次出现）
-      const whenCount = countIdent(tokens, '为');
-      assert.strictEqual(whenCount, 2, '应有 2 个 "为" token');
+      // 验证 "当" 作为 WHEN 关键词（多次出现）
+      const whenCount = countIdent(tokens, '当');
+      assert.strictEqual(whenCount, 2, '应有 2 个 "当" token');
 
-      // 验证 "若" 作为 MATCH 关键词
-      const matchCount = countIdent(tokens, '若');
-      assert.strictEqual(matchCount, 1, '应有 1 个 "若" token');
+      // 验证 "匹配于" 作为 MATCH 关键词
+      const matchCount = countIdent(tokens, '匹配于');
+      assert.strictEqual(matchCount, 1, '应有 1 个 "匹配于" token');
     });
   });
 
   describe('Canonicalizer 中文支持', () => {
-    it('应保留中文标点', () => {
-      const input = '令 变量 为 42。';
+    it('应将中文标点归一化为英文等价（v2 软边界）', () => {
+      // v2 行为：「。」→「.」、「：」→「:」、「，」「；」「、」→ 空格
+      // 仅字符串外生效（见 normalizeCJKPunctuation + ADR-0008）
+      const input = '令 变量 定义为 42。';
       const result = canonicalize(input, ZH_CN);
-      assert.ok(result.includes('。'));
+      assert.strictEqual(result.includes('。'), false, '字符串外的「。」应被归一化为「.」');
+      assert.ok(result.includes('.'), 'canonical 结果应以英文句号结尾');
     });
 
     it('应全角数字转半角', () => {
@@ -232,17 +235,19 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.ok(!result.includes('］'), '全角右方括号应被移除');
     });
 
-    it('应移除英文冠词但保留中文', () => {
+    it('应移除英文冠词但中文不受冠词规则影响', () => {
       // 英文模式移除冠词
       const enInput = 'define the User has a name.';
       const enResult = canonicalize(enInput, EN_US);
       assert.ok(!enResult.includes(' the '));
       assert.ok(!enResult.includes(' a '));
 
-      // 中文模式不移除冠词（中文没有冠词）
+      // 中文模式不应用冠词规则；标识符内容应保留
+      // 注意：v2 行为下中文句号会被归一化为英文句号（见 normalizeCJKPunctuation）
       const zhInput = '定义 用户 包含 名字。';
       const zhResult = canonicalize(zhInput, ZH_CN);
-      assert.strictEqual(zhResult, zhInput);
+      assert.ok(zhResult.includes('定义 用户 包含 名字'), '中文标识符应保留');
+      assert.ok(zhResult.endsWith('.') || zhResult.endsWith('.\n'), '语句应以归一化的英文句号结尾');
     });
 
     it('应将智能引号转换为直角引号', () => {
@@ -281,7 +286,7 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
 
     it('应识别中文布尔值', () => {
-      const tokens = lex('真', ZH_CN);
+      const tokens = lex('真值', ZH_CN);
       const nonEofTokens = tokens.filter((t: Token) => t.kind !== TokenKind.EOF);
       assert.strictEqual(nonEofTokens.length, 1);
       assert.strictEqual(nonEofTokens[0]!.kind, TokenKind.BOOL);
@@ -289,7 +294,7 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
 
     it('应识别中文 false', () => {
-      const tokens = lex('假', ZH_CN);
+      const tokens = lex('假值', ZH_CN);
       const nonEofTokens = tokens.filter((t: Token) => t.kind !== TokenKind.EOF);
       assert.strictEqual(nonEofTokens.length, 1);
       assert.strictEqual(nonEofTokens[0]!.kind, TokenKind.BOOL);
@@ -297,7 +302,7 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
 
     it('应识别中文 null', () => {
-      const tokens = lex('空', ZH_CN);
+      const tokens = lex('空值', ZH_CN);
       const nonEofTokens = tokens.filter((t: Token) => t.kind !== TokenKind.EOF);
       assert.strictEqual(nonEofTokens.length, 1);
       assert.strictEqual(nonEofTokens[0]!.kind, TokenKind.NULL);
@@ -393,14 +398,14 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.strictEqual(countIdent(tokens, '返回'), 2, '应有两个「返回」标识符');
     });
 
-    it('应正确词法分析 若/为 模式匹配', () => {
-      const input = '若 用户：\n  为 空，返回 「访客」。\n  为 用户(编号, 名字)，返回 名字。';
+    it('应正确词法分析 匹配于/当 模式匹配（v2 关键字）', () => {
+      const input = '匹配于 用户：\n  当 空值，返回 「访客」。\n  当 用户(编号, 名字)，返回 名字。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       // 验证模式匹配关键词
-      assert.ok(findIdent(tokens, '若'), '应识别「若」标识符');
-      assert.strictEqual(countIdent(tokens, '为'), 2, '应有两个「为」标识符');
+      assert.ok(findIdent(tokens, '匹配于'), '应识别「匹配于」标识符');
+      assert.strictEqual(countIdent(tokens, '当'), 2, '应有两个「当」标识符');
     });
 
     it('应正确词法分析嵌套条件', () => {
@@ -458,79 +463,79 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
   });
 
-  describe('中文布尔运算语法', () => {
-    it('应正确词法分析「或」运算', () => {
-      const input = '甲 或 乙。';
+  describe('中文布尔运算语法（v2 关键字）', () => {
+    it('应正确词法分析「或者」运算', () => {
+      const input = '甲 或者 乙。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.ok(findIdent(tokens, '或'), '应识别「或」标识符');
+      assert.ok(findIdent(tokens, '或者'), '应识别「或者」标识符');
       // Token 结构验证
       assert.strictEqual(countTokenKind(tokens, TokenKind.IDENT), 3, '应有3个标识符');
       assert.strictEqual(countTokenKind(tokens, TokenKind.DOT), 1, '应有1个句号');
     });
 
-    it('应正确词法分析「且」运算', () => {
-      const input = '甲 且 乙。';
+    it('应正确词法分析「并且」运算', () => {
+      const input = '甲 并且 乙。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.ok(findIdent(tokens, '且'), '应识别「且」标识符');
+      assert.ok(findIdent(tokens, '并且'), '应识别「并且」标识符');
       // Token 结构验证
       assert.strictEqual(countTokenKind(tokens, TokenKind.IDENT), 3, '应有3个标识符');
     });
 
-    it('应正确词法分析「非」运算', () => {
-      const input = '非 甲。';
+    it('应正确词法分析「不是」运算', () => {
+      const input = '不是 甲。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.ok(findIdent(tokens, '非'), '应识别「非」标识符');
+      assert.ok(findIdent(tokens, '不是'), '应识别「不是」标识符');
       // Token 结构验证
       assert.strictEqual(countTokenKind(tokens, TokenKind.IDENT), 2, '应有2个标识符');
     });
 
     it('应正确词法分析复合布尔表达式', () => {
-      const input = '(甲 且 乙) 或 (非 丙)。';
+      const input = '(甲 并且 乙) 或者 (不是 丙)。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.strictEqual(countIdent(tokens, '且'), 1, '应有1个「且」');
-      assert.strictEqual(countIdent(tokens, '或'), 1, '应有1个「或」');
-      assert.strictEqual(countIdent(tokens, '非'), 1, '应有1个「非」');
+      assert.strictEqual(countIdent(tokens, '并且'), 1, '应有1个「并且」');
+      assert.strictEqual(countIdent(tokens, '或者'), 1, '应有1个「或者」');
+      assert.strictEqual(countIdent(tokens, '不是'), 1, '应有1个「不是」');
       // Token 结构验证：括号
       assert.strictEqual(countTokenKind(tokens, TokenKind.LPAREN), 2, '应有2个左括号');
       assert.strictEqual(countTokenKind(tokens, TokenKind.RPAREN), 2, '应有2个右括号');
     });
   });
 
-  describe('中文算术运算语法', () => {
-    it('应正确词法分析「加」运算', () => {
-      const input = '1 加 2。';
+  describe('中文算术运算语法（v2 关键字）', () => {
+    it('应正确词法分析「加上」运算', () => {
+      const input = '1 加上 2。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.ok(findIdent(tokens, '加'), '应识别「加」标识符');
+      assert.ok(findIdent(tokens, '加上'), '应识别「加上」标识符');
       // Token 结构验证：数字
       assert.strictEqual(countTokenKind(tokens, TokenKind.INT), 2, '应有2个整数');
     });
 
-    it('应正确词法分析「减」运算', () => {
-      const input = '5 减 3。';
+    it('应正确词法分析「减去」运算', () => {
+      const input = '5 减去 3。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.ok(findIdent(tokens, '减'), '应识别「减」标识符');
+      assert.ok(findIdent(tokens, '减去'), '应识别「减去」标识符');
       // Token 结构验证
       assert.strictEqual(countTokenKind(tokens, TokenKind.INT), 2, '应有2个整数');
     });
 
-    it('应正确词法分析「乘」运算', () => {
-      const input = '4 乘 2。';
+    it('应正确词法分析「乘以」运算', () => {
+      const input = '4 乘以 2。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.ok(findIdent(tokens, '乘'), '应识别「乘」标识符');
+      assert.ok(findIdent(tokens, '乘以'), '应识别「乘以」标识符');
       // Token 结构验证
       assert.strictEqual(countTokenKind(tokens, TokenKind.INT), 2, '应有2个整数');
     });
@@ -546,12 +551,12 @@ describe('ZH_CN Lexicon 测试套件', () => {
     });
 
     it('应正确词法分析复合算术表达式', () => {
-      const input = '(1 加 2) 乘 (10 除以 5)。';
+      const input = '(1 加上 2) 乘以 (10 除以 5)。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.strictEqual(countIdent(tokens, '加'), 1, '应有1个「加」');
-      assert.strictEqual(countIdent(tokens, '乘'), 1, '应有1个「乘」');
+      assert.strictEqual(countIdent(tokens, '加上'), 1, '应有1个「加上」');
+      assert.strictEqual(countIdent(tokens, '乘以'), 1, '应有1个「乘以」');
       assert.strictEqual(countIdent(tokens, '除以'), 1, '应有1个「除以」');
       // Token 结构验证
       assert.strictEqual(countTokenKind(tokens, TokenKind.INT), 4, '应有4个整数');
@@ -559,72 +564,59 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.strictEqual(countTokenKind(tokens, TokenKind.RPAREN), 2, '应有2个右括号');
     });
 
-    // Codex Round 3 建议：新增 FLOAT 和 LONG 测试用例
     it('应正确词法分析浮点数运算', () => {
-      const input = '1.5 加 2.5。';
+      const input = '1.5 加上 2.5。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.ok(findIdent(tokens, '加'), '应识别「加」标识符');
-      // Token 结构验证：浮点数
+      assert.ok(findIdent(tokens, '加上'), '应识别「加上」标识符');
       assert.strictEqual(countTokenKind(tokens, TokenKind.FLOAT), 2, '应有2个浮点数');
-      // 验证无整数（避免误解析）
       assert.strictEqual(countTokenKind(tokens, TokenKind.INT), 0, '不应有整数');
     });
 
     it('应正确词法分析全角数字浮点数运算', () => {
-      // 全角数字应被规范化为半角（注意：小数点为半角，全角句点未被规范化）
-      const input = '３.１４ 乘 ２.０。';
+      const input = '３.１４ 乘以 ２.０。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.ok(findIdent(tokens, '乘'), '应识别「乘」标识符');
-      // Token 结构验证：全角数字转半角后产生浮点数
+      assert.ok(findIdent(tokens, '乘以'), '应识别「乘以」标识符');
       assert.strictEqual(countTokenKind(tokens, TokenKind.FLOAT), 2, '应有2个浮点数');
-      // 验证规范化后的文本
       assert.ok(result.includes('3.14'), '全角３.１４应规范化为半角3.14');
     });
 
     it('应正确词法分析长整数运算（大写 L）', () => {
-      const input = '1000000000000L 加 500000000000L。';
+      const input = '1000000000000L 加上 500000000000L。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.ok(findIdent(tokens, '加'), '应识别「加」标识符');
-      // Token 结构验证：长整数
+      assert.ok(findIdent(tokens, '加上'), '应识别「加上」标识符');
       assert.strictEqual(countTokenKind(tokens, TokenKind.LONG), 2, '应有2个长整数');
-      // 验证无普通整数
       assert.strictEqual(countTokenKind(tokens, TokenKind.INT), 0, '不应有普通整数');
     });
 
-    // Codex Round 4 建议：补充小写 l 和全角 ｌ 测试
     it('应正确词法分析长整数运算（小写 l）', () => {
-      const input = '100l 减 50l。';
+      const input = '100l 减去 50l。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.ok(findIdent(tokens, '减'), '应识别「减」标识符');
-      // Token 结构验证：小写 l 应被识别为长整数
+      assert.ok(findIdent(tokens, '减去'), '应识别「减去」标识符');
       assert.strictEqual(countTokenKind(tokens, TokenKind.LONG), 2, '应有2个长整数（小写l）');
       assert.strictEqual(countTokenKind(tokens, TokenKind.INT), 0, '不应有普通整数');
     });
 
     it('应正确词法分析长整数运算（全角 ｌ）', () => {
-      // 全角字母 ｌ (U+FF4C) 应被规范化为半角 l
-      const input = '100ｌ 乘 2ｌ。';
+      const input = '100ｌ 乘以 2ｌ。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
-      assert.ok(findIdent(tokens, '乘'), '应识别「乘」标识符');
-      // Token 结构验证：全角 ｌ 应被规范化后识别为长整数
+      assert.ok(findIdent(tokens, '乘以'), '应识别「乘以」标识符');
       assert.strictEqual(countTokenKind(tokens, TokenKind.LONG), 2, '应有2个长整数（全角ｌ转半角后）');
-      // Codex Round 5 建议：验证规范化输出（确保 canonicalizer 工作正常）
       assert.ok(result.includes('100l'), '全角 100ｌ 应规范化为半角 100l');
       assert.ok(!result.includes('ｌ'), '规范化后不应再含全角 ｌ');
     });
 
     it('应正确词法分析混合数值类型表达式', () => {
-      const input = '(1 加 1.5) 乘 100L。';
+      const input = '(1 加上 1.5) 乘以 100L。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
@@ -648,25 +640,25 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.strictEqual(countTokenKind(tokens, TokenKind.DOT), 1, '应有1个句号');
     });
 
-    it('应正确词法分析嵌套循环', () => {
-      const input = '对每个 行 在 表格：\n  对每个 列 在 行：\n    处理 列。';
+    it('应正确词法分析嵌套循环（v2: 属于）', () => {
+      const input = '对每个 行 属于 表格：\n  对每个 列 属于 行：\n    处理 列。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       assert.strictEqual(countIdent(tokens, '对每个'), 2, '应有2个「对每个」');
-      assert.strictEqual(countIdent(tokens, '在'), 2, '应有2个「在」');
+      assert.strictEqual(countIdent(tokens, '属于'), 2, '应有2个「属于」');
       // Token 结构验证
       assert.strictEqual(countTokenKind(tokens, TokenKind.COLON), 2, '应有2个冒号');
       assert.strictEqual(countTokenKind(tokens, TokenKind.DOT), 1, '应有1个句号');
     });
 
-    it('应正确词法分析带条件的循环', () => {
-      const input = '对每个 数字 在 数列：\n  如果 数字 大于 0：\n    累加 数字。';
+    it('应正确词法分析带条件的循环（v2: 属于）', () => {
+      const input = '对每个 数字 属于 数列：\n  如果 数字 大于 0：\n    累加 数字。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       assert.ok(findIdent(tokens, '对每个'), '应识别「对每个」标识符');
-      assert.ok(findIdent(tokens, '在'), '应识别「在」标识符');
+      assert.ok(findIdent(tokens, '属于'), '应识别「属于」标识符');
       assert.ok(findIdent(tokens, '如果'), '应识别「如果」标识符');
       assert.ok(findIdent(tokens, '大于'), '应识别「大于」标识符');
       // Token 结构验证
@@ -689,13 +681,13 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.strictEqual(countTokenKind(tokens, TokenKind.DOT), 2, '应有2个句号');
     });
 
-    it('应正确词法分析带依赖的步骤', () => {
-      const input = '流程 构建：\n  步骤 编译 依赖 于 下载。\n  步骤 下载。';
+    it('应正确词法分析带依赖的步骤（v2: 基于）', () => {
+      const input = '流程 构建：\n  步骤 编译 依赖 基于 下载。\n  步骤 下载。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       assert.ok(findIdent(tokens, '依赖'), '应识别「依赖」标识符');
-      assert.ok(findIdent(tokens, '于'), '应识别「于」标识符');
+      assert.ok(findIdent(tokens, '基于'), '应识别「基于」标识符');
     });
 
     it('应正确词法分析带补偿的步骤', () => {
@@ -765,35 +757,34 @@ describe('ZH_CN Lexicon 测试套件', () => {
       assert.ok(findIdent(tokens, '返回'), '应识别「返回」标识符');
     });
 
-    it('应正确词法分析变量绑定', () => {
-      const input = '令 结果 为 计算(42)。';
+    it('应正确词法分析变量绑定（v2: 定义为）', () => {
+      const input = '令 结果 定义为 计算(42)。';
       const result = canonicalize(input, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       assert.ok(findIdent(tokens, '令'), '应识别「令」标识符');
-      assert.ok(findIdent(tokens, '为'), '应识别「为」标识符');
+      assert.ok(findIdent(tokens, '定义为'), '应识别「定义为」标识符');
     });
 
-    it('应正确词法分析完整中文程序', () => {
+    it('应正确词法分析完整中文程序（v2 关键字）', () => {
       const program = `模块 应用。
 
 定义 用户 包含 编号：文本，名字：文本。
 
 问候 入参 用户：可选 用户，产出 文本：
-  若 用户：
-    为 空，返回 「你好，访客」。
-    为 用户(编号, 名字)，返回 「欢迎，」加 名字。`;
+  匹配于 用户：
+    当 空值，返回 「你好，访客」。
+    当 用户(编号, 名字)，返回 「欢迎，」加上 名字。`;
 
       const result = canonicalize(program, ZH_CN);
       const tokens = lex(result, ZH_CN);
 
       // 验证关键词精确出现次数（在 lexer 阶段为 IDENT）
-      // Codex 审查建议：使用精确断言替代宽松的 >= 判断
       assert.strictEqual(countIdent(tokens, '包含'), 1, '应有1个「包含」');
       assert.strictEqual(countIdent(tokens, '入参'), 1, '应有1个「入参」');
       assert.strictEqual(countIdent(tokens, '产出'), 1, '应有1个「产出」');
-      assert.strictEqual(countIdent(tokens, '若'), 1, '应有1个「若」');
-      assert.strictEqual(countIdent(tokens, '为'), 2, '应有2个「为」');
+      assert.strictEqual(countIdent(tokens, '匹配于'), 1, '应有1个「匹配于」');
+      assert.strictEqual(countIdent(tokens, '当'), 2, '应有2个「当」');
       assert.strictEqual(countIdent(tokens, '返回'), 2, '应有2个「返回」');
       assert.strictEqual(countIdent(tokens, '可选'), 1, '应有1个「可选」');
     });
@@ -811,15 +802,15 @@ Rule greet given user: User?, produce Text:
     When null, Return "Hi, guest".
     When User(id, name, 42), Return "Welcome, " plus name.`;
 
-      // 对应的中文程序（Codex Round 6 建议：添加数字字面量以验证 INT 统计）
+      // 对应的中文程序（v2 关键字：匹配于/当/加上/空值）
       const zhProgram = `模块 应用。
 
 定义 用户 包含 编号：文本，名字：文本，年龄：整数。
 
 问候 入参 用户：可选 用户，产出 文本：
-  若 用户：
-    为 空，返回 「你好，访客」。
-    为 用户(编号, 名字, 42)，返回 「欢迎，」加 名字。`;
+  匹配于 用户：
+    当 空值，返回 「你好，访客」。
+    当 用户(编号, 名字, 42)，返回 「欢迎，」加上 名字。`;
 
       const enTokens = lex(canonicalize(enProgram, EN_US), EN_US);
       const zhTokens = lex(canonicalize(zhProgram, ZH_CN), ZH_CN);
@@ -918,9 +909,9 @@ Rule greet given user: User?, produce Text:
       assert.ok(enTrueTokens.some((t: Token) => t.kind === TokenKind.BOOL && t.value === true));
       assert.ok(enFalseTokens.some((t: Token) => t.kind === TokenKind.BOOL && t.value === false));
 
-      // 中文
-      const zhTrueTokens = lex('真', ZH_CN);
-      const zhFalseTokens = lex('假', ZH_CN);
+      // 中文（v2 关键字：真值 / 假值）
+      const zhTrueTokens = lex('真值', ZH_CN);
+      const zhFalseTokens = lex('假值', ZH_CN);
       assert.ok(zhTrueTokens.some((t: Token) => t.kind === TokenKind.BOOL && t.value === true));
       assert.ok(zhFalseTokens.some((t: Token) => t.kind === TokenKind.BOOL && t.value === false));
     });
@@ -930,8 +921,8 @@ Rule greet given user: User?, produce Text:
       const enNullTokens = lex('null', EN_US);
       assert.ok(enNullTokens.some((t: Token) => t.kind === TokenKind.NULL && t.value === null));
 
-      // 中文
-      const zhNullTokens = lex('空', ZH_CN);
+      // 中文（v2 关键字：空值）
+      const zhNullTokens = lex('空值', ZH_CN);
       assert.ok(zhNullTokens.some((t: Token) => t.kind === TokenKind.NULL && t.value === null));
     });
   });
@@ -959,9 +950,9 @@ Rule greet given user: User?, produce Text:
     it('切换默认后 lex 应使用新默认', () => {
       const originalDefault = LexiconRegistry.getDefault();
       try {
-        // 切换到中文并测试中文布尔值
+        // 切换到中文并测试中文布尔值（v2 关键字：真值）
         LexiconRegistry.setDefault('zh-CN');
-        const zhTokens = lex('真');
+        const zhTokens = lex('真值');
         const zhBool = zhTokens.find((t: Token) => t.kind === TokenKind.BOOL);
         assert.ok(zhBool, '应识别中文布尔值');
         assert.strictEqual(zhBool?.value, true);
@@ -1014,7 +1005,7 @@ Rule greet given user: User?, produce Text:
       assert.ok(stringTokens.length > 0, '应有字符串 token');
     });
 
-    it('loan_decision.aster 应正确解析', () => {
+    it('loan_decision.aster 应正确解析（v2 关键字）', () => {
       const { tokens } = parseZhCNFile('loan_decision.aster');
 
       // 验证类型定义关键词（定义 作为纯关键字直接解析为 IDENT）
@@ -1025,13 +1016,13 @@ Rule greet given user: User?, produce Text:
       assert.ok(findIdent(tokens, '如果'), '应有 如果 关键词');
       assert.ok(findIdent(tokens, '返回'), '应有 返回 关键词');
 
-      // 验证变量绑定
+      // 验证变量绑定（v2: 定义为）
       assert.ok(findIdent(tokens, '令'), '应有 令 关键词');
-      assert.ok(findIdent(tokens, '为'), '应有 为 关键词');
+      assert.ok(findIdent(tokens, '定义为'), '应有 定义为 关键词（v2 BE）');
 
-      // 验证布尔值
+      // 验证布尔值（v2: 真值/假值）
       const boolTokens = tokens.filter((t: Token) => t.kind === TokenKind.BOOL);
-      assert.ok(boolTokens.length >= 2, '应有多个布尔值（真/假）');
+      assert.ok(boolTokens.length >= 2, '应有多个布尔值（真值/假值）');
 
       // 验证整数
       const intTokens = tokens.filter((t: Token) => t.kind === TokenKind.INT);
@@ -1056,38 +1047,38 @@ Rule greet given user: User?, produce Text:
       assert.ok(stringTokens.length >= 3, '应有字符串（「申请人未满18岁」等）');
     });
 
-    it('user_greeting.aster 应正确解析', () => {
+    it('user_greeting.aster 应正确解析（v2 关键字）', () => {
       const { tokens } = parseZhCNFile('user_greeting.aster');
 
-      // 验证模式匹配关键词
-      assert.ok(findIdent(tokens, '若'), '应有 若 关键词（模式匹配）');
-      assert.ok(findIdent(tokens, '为'), '应有 为 关键词（when）');
+      // 验证模式匹配关键词（v2: 匹配于/当）
+      assert.ok(findIdent(tokens, '匹配于'), '应有 匹配于 关键词（v2 MATCH）');
+      assert.ok(findIdent(tokens, '当'), '应有 当 关键词（v2 WHEN）');
 
       // 可选类型已改为推断，应不再显式出现
       assert.ok(!findIdent(tokens, '可选'), '不应显式出现 可选 关键词');
 
-      // 验证 null 值
+      // 验证 null 值（v2: 空值）
       const nullTokens = tokens.filter((t: Token) => t.kind === TokenKind.NULL);
-      assert.ok(nullTokens.length > 0, '应有 空 token');
+      assert.ok(nullTokens.length > 0, '应有 空值 token');
     });
 
-    it('arithmetic.aster 应正确解析', () => {
+    it('arithmetic.aster 应正确解析（v2 关键字）', () => {
       const { tokens } = parseZhCNFile('arithmetic.aster');
 
-      // 验证算术运算关键词
-      assert.ok(findIdent(tokens, '加'), '应有 加 关键词');
-      assert.ok(findIdent(tokens, '减'), '应有 减 关键词');
-      assert.ok(findIdent(tokens, '乘'), '应有 乘 关键词');
+      // 验证算术运算关键词（v2: 加上/减去/乘以/除以）
+      assert.ok(findIdent(tokens, '加上'), '应有 加上 关键词（v2 PLUS）');
+      assert.ok(findIdent(tokens, '减去'), '应有 减去 关键词（v2 MINUS）');
+      assert.ok(findIdent(tokens, '乘以'), '应有 乘以 关键词（v2 TIMES）');
       assert.ok(findIdent(tokens, '除以'), '应有 除以 关键词');
 
-      // 验证变量绑定
+      // 验证变量绑定（v2: 定义为）
       const letCount = countIdent(tokens, '令');
-      const beCount = countIdent(tokens, '为');
+      const beCount = countIdent(tokens, '定义为');
       assert.ok(letCount >= 2, '应有多个 令 关键词');
-      assert.ok(beCount >= 2, '应有多个 为 关键词');
+      assert.ok(beCount >= 2, '应有多个 定义为 关键词（v2 BE）');
     });
 
-    it('所有中文 CNL 文件应成功规范化', () => {
+    it('所有中文 CNL 文件应成功规范化（v2 软边界）', () => {
       const files = [...zhCNCorpusIndex.keys()];
       assert.ok(files.length >= 4, '应有至少 4 个 .aster 文件');
 
@@ -1096,8 +1087,14 @@ Rule greet given user: User?, produce Text:
         // 验证规范化后不包含智能引号
         assert.ok(!canonical.includes('"'), `${file} 不应包含左智能引号`);
         assert.ok(!canonical.includes('"'), `${file} 不应包含右智能引号`);
-        // 验证规范化后包含中文标点
-        assert.ok(canonical.includes('。'), `${file} 应包含中文句号`);
+        // v2 行为：中文标点被归一化为英文等价（字符串外）
+        // 字符串内的中文标点保留；用 lexicon 引号「」分段后验证字符串外
+        const stringSegments = canonical.split(/[「」]/);
+        const outside = stringSegments.filter((_, i) => i % 2 === 0).join('');
+        assert.strictEqual(outside.includes('。'), false, `${file} 字符串外不应有「。」`);
+        assert.strictEqual(outside.includes('，'), false, `${file} 字符串外不应有「，」`);
+        // canonical 应至少包含一个英文句号（语句终止）
+        assert.ok(canonical.includes('.'), `${file} 应包含归一化后的英文句号`);
       }
     });
 

@@ -37,8 +37,8 @@ importers:
         version: 3.17.5
     devDependencies:
       '@aster-cloud/aster-lang-test':
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: link:../aster-lang-test/packages/js
+        version: link:../aster-lang-test/packages/js
       '@changesets/cli':
         specifier: ^2.29.8
         version: 2.29.8(@types/node@24.10.7)
@@ -108,9 +108,6 @@ packages:
     peerDependenciesMeta:
       zod:
         optional: true
-
-  '@aster-cloud/aster-lang-test@0.0.2':
-    resolution: {integrity: sha512-SMetrHV5z+WHUHDcxdn46PnEpIEmgwuW8ZScf5Nv+dV8vDKfJU5kx5nv7LoXv9iDM96KgqRyOLgMMPULB4nNAQ==}
 
   '@babel/runtime@7.28.4':
     resolution: {integrity: sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ==}
@@ -1946,8 +1943,6 @@ snapshots:
     dependencies:
       json-schema-to-ts: 3.1.1
     optional: true
-
-  '@aster-cloud/aster-lang-test@0.0.2': {}
 
   '@babel/runtime@7.28.4': {}
 

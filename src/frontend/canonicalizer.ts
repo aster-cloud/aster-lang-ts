@@ -235,6 +235,14 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
     s = fullWidthToHalfWidth(s);
   }
 
+  // CJK 标点软边界归一化：将中文标点替换为英文等价，使后续 token 边界
+  // 规则与英文路径完全一致。仅对字符串字面量之外生效。
+  //   。→ .   ，→ 空格   ；→ 空格   ：→ :   、→ 空格
+  // 设计理由见 ADR-0008。
+  if (effectiveLexicon.canonicalization.whitespaceMode === 'chinese') {
+    s = normalizeCJKPunctuation(s, quotes);
+  }
+
   // Ensure lines end with either period or colon before newline if they look like statements
   s = s
     .split('\n')
@@ -313,6 +321,56 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
     .join('\n');
 
   return marked;
+}
+
+/**
+ * CJK 标点归一化（v2 软边界）。
+ *
+ * 把中文标点替换为英文等价物，让后续解析路径完全走英文规则。**仅**对
+ * 字符串字面量之外的位置生效；字符串内的中文标点 100% 保留原样。
+ *
+ * 映射：
+ *   。→ .（语句终止符）
+ *   ：→ :（块起始符）
+ *   ，→ ,（列表/字段分隔符）
+ *   ；→ ;（块内分隔；保留以备 future use）
+ *   、→ ,（枚举分隔，与列表分隔语义等价）
+ *
+ * 设计选择：
+ * - 中文标点与英文标点**逐一对应**，保持 token 流跨语言等价：
+ *   en 程序的 `Define X has a, b.` 和 zh 程序的 `定义 X 包含 a，b。`
+ *   归一化后产生**相同 token 序列**（除关键字字面量外）。
+ * - 这与 fullWidthToHalfWidth 的设计一致（全角→半角是逐字符等价映射）。
+ * - 此函数不修改字符串字面量；调用 segmentString 区分内外。
+ *
+ * 导出此函数是为了支持跨实现 conformance 测试（与 Java
+ * Canonicalizer.normalizeCJKPunctuationOnly 字节等价）。
+ */
+export function normalizeCJKPunctuationOnly(
+  text: string,
+  quotes: { open: string; close: string } = { open: '「', close: '」' },
+): string {
+  return normalizeCJKPunctuation(text, quotes);
+}
+
+function normalizeCJKPunctuation(
+  text: string,
+  quotes: { open: string; close: string },
+): string {
+  const segments = segmentString(text, quotes);
+  return segments
+    .map(segment => {
+      if (segment.inString) {
+        // 字符串内的中文标点保留原样
+        return segment.text;
+      }
+      return segment.text
+        .replace(/。/g, '.')
+        .replace(/：/g, ':')
+        .replace(/[，、]/g, ',')
+        .replace(/；/g, ';');
+    })
+    .join('');
 }
 
 /**

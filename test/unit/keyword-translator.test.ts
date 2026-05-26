@@ -28,25 +28,22 @@ import type { Token } from '../../src/types.js';
 
 describe('关键词翻译器', () => {
   describe('buildKeywordTranslationIndex', () => {
-    it('应构建 zh-CN 到 en-US 的翻译索引', () => {
+    it('应构建 zh-CN 到 en-US 的翻译索引（v2 关键字）', () => {
       const index = buildKeywordTranslationIndex(ZH_CN, EN_US);
 
-      // 验证控制流关键词（普通关键词，不含【】）
-      // 翻译值来自 Java 源 en-US lexicon，部分关键词首字母大写
+      // 验证控制流关键词
       assert.strictEqual(index.get('如果'), 'If');
-      assert.strictEqual(index.get('若'), 'Match');
-      // 注意：'为' 同时用于 WHEN 和 BE（复合关键词），由于构建顺序 WHEN 会覆盖 BE
-      // 实际解析时依赖上下文：match 块内为 when，let 语句后为 be
-      assert.strictEqual(index.get('为'), 'When');
+      assert.strictEqual(index.get('匹配于'), 'Match'); // v2: MATCH 关键字
+      assert.strictEqual(index.get('当'), 'When');       // v2: WHEN 关键字（与 BE 不再共享）
+      assert.strictEqual(index.get('定义为'), 'be');      // v2: BE 关键字
       assert.strictEqual(index.get('返回'), 'Return');
       assert.strictEqual(index.get('否则'), 'Otherwise');
       assert.strictEqual(index.get('令'), 'Let');
 
-      // 验证普通类型定义关键词（不含【】）
+      // 验证普通类型定义关键词
       assert.strictEqual(index.get('包含'), 'with');
 
       // 验证函数定义关键词
-      // 注意: '规则' 是标记关键词，在 markerIndex 中而不是 index 中
       assert.strictEqual(index.get('产出'), 'produce');
 
       // 验证类型关键词
@@ -54,10 +51,10 @@ describe('关键词翻译器', () => {
       assert.strictEqual(index.get('文本'), 'Text');
       assert.strictEqual(index.get('布尔'), 'Bool');
 
-      // 验证布尔字面量
-      assert.strictEqual(index.get('真'), 'true');
-      assert.strictEqual(index.get('假'), 'false');
-      assert.strictEqual(index.get('空'), 'null');
+      // 验证布尔字面量（v2: 真值 / 假值 / 空值）
+      assert.strictEqual(index.get('真值'), 'true');
+      assert.strictEqual(index.get('假值'), 'false');
+      assert.strictEqual(index.get('空值'), 'null');
     });
 
     it('应支持大小写不敏感的映射', () => {
@@ -77,9 +74,9 @@ describe('关键词翻译器', () => {
     it('应构建普通关键词的完整索引', () => {
       const { index, markerIndex } = buildFullTranslationIndex(ZH_CN, EN_US);
 
-      // 验证普通关键词在 index 中
+      // 验证普通关键词在 index 中（v2 关键字）
       assert.strictEqual(index.get('如果'), 'If');
-      assert.strictEqual(index.get('若'), 'Match');
+      assert.strictEqual(index.get('匹配于'), 'Match');
       assert.strictEqual(index.get('返回'), 'Return');
       assert.strictEqual(index.get('包含'), 'with');
 
@@ -191,21 +188,21 @@ describe('关键词翻译器', () => {
       assert.strictEqual(typeof translator.getTranslation, 'function');
     });
 
-    it('hasTranslation 应正确判断', () => {
+    it('hasTranslation 应正确判断（v2 关键字）', () => {
       const translator = createKeywordTranslator(ZH_CN);
 
       assert.strictEqual(translator.hasTranslation('如果'), true);
-      assert.strictEqual(translator.hasTranslation('若'), true);
+      assert.strictEqual(translator.hasTranslation('匹配于'), true);
       assert.strictEqual(translator.hasTranslation('返回'), true);
       assert.strictEqual(translator.hasTranslation('驾驶员'), false);
       assert.strictEqual(translator.hasTranslation('if'), false); // 英文关键词不在翻译索引中
     });
 
-    it('getTranslation 应返回正确的翻译', () => {
+    it('getTranslation 应返回正确的翻译（v2 关键字）', () => {
       const translator = createKeywordTranslator(ZH_CN);
 
       assert.strictEqual(translator.getTranslation('如果'), 'If');
-      assert.strictEqual(translator.getTranslation('若'), 'Match');
+      assert.strictEqual(translator.getTranslation('匹配于'), 'Match');
       assert.strictEqual(translator.getTranslation('返回'), 'Return');
       assert.strictEqual(translator.getTranslation('驾驶员'), undefined);
     });

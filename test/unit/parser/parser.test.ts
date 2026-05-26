@@ -1366,14 +1366,14 @@ Rule greet given name as Text, produce Text:
       assert.ok(ifStmt.elseBlock, '应该有 else 分支');
     });
 
-    test('应该解析中文 CNL 的 Match 语句（若...为）', () => {
+    test('应该解析中文 CNL 的 Match 语句（v2: 匹配于...当）', () => {
       const zhSource = `
 模块 测试。
 
 规则 describe 包含 status 作为 整数，产出：
-  若 status：
-    为 1，返回 「成功」。
-    为 0，返回 「失败」。
+  匹配于 status：
+    当 1，返回 「成功」。
+    当 0，返回 「失败」。
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
       const tokens = lex(canonical, ZH_CN);
@@ -1389,12 +1389,12 @@ Rule greet given name as Text, produce Text:
       assert.equal(matchStmt.cases.length, 2, '应该有 2 个 case');
     });
 
-    test('应该解析中文 CNL 的 Let...为 语句', () => {
+    test('应该解析中文 CNL 的 Let...定义为 语句（v2 关键字）', () => {
       const zhSource = `
 模块 测试。
 
 规则 calc 包含 x 作为 整数，产出：
-  令 result 为 x 加 1。
+  令 result 定义为 x 加上 1。
   返回 result。
 `;
       const canonical = canonicalize(zhSource, ZH_CN);

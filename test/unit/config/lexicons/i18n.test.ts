@@ -356,11 +356,21 @@ describe('I18N 多语言词法表测试套件', () => {
       assert.ok(result.canonical.includes(':'), '应有英文冒号');
     });
 
-    it('中文: 应使用中文标点 (。：)', () => {
+    it('中文: 中文标点应归一化为英文等价（v2 软边界）', () => {
+      // v2 行为：。→ .，：→ :，，→ ,，、→ ,，；→ ;
+      // 字符串外的中文标点被替换；字符串内保留原样
       const result = parseFile('zh-CN', '01-hello', ZH_CN);
       assert.ok(result);
-      assert.ok(result.canonical.includes('。'), '应有中文句号');
-      assert.ok(result.canonical.includes('：'), '应有中文冒号');
+
+      // 不应在字符串外残留中文标点
+      const stringSegments = result.canonical.split(/[「」]/);
+      const outsideString = stringSegments.filter((_, i) => i % 2 === 0).join('');
+      assert.strictEqual(outsideString.includes('。'), false, '字符串外不应有「。」');
+      assert.strictEqual(outsideString.includes('：'), false, '字符串外不应有「：」');
+
+      // 应使用英文等价标点
+      assert.ok(result.canonical.includes('.'), '应有英文句号（归一化后）');
+      assert.ok(result.canonical.includes(':'), '应有英文冒号（归一化后）');
     });
 
     it('德语: 应使用英文标点 (., :)', () => {
