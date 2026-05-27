@@ -18,7 +18,7 @@
 
 ## Owner
 
-@aster/lang-stewards
+Owner: @aster/lang-stewards
 
 ## 删除条件（Removal Conditions / 临时 SLA）
 
