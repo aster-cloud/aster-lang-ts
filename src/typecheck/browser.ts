@@ -39,6 +39,15 @@ import { checkModulePII as defaultCheckModulePII } from '../typecheck-pii.js';
 type PiiCheckerFn = typeof defaultCheckModulePII;
 let _piiCheckerOverride: PiiCheckerFn | null = null;
 
+/**
+ * @internal Exported for testing only. Calls the underlying `isProductionRuntime`
+ * function so vm-sandboxed tests can exercise the real implementation rather
+ * than copy-pasting the guard logic into a string.
+ */
+export function __isProductionRuntimeForTest(): boolean {
+  return isProductionRuntime();
+}
+
 function isProductionRuntime(): boolean {
   // P0-R4 (codex round 4 review): 跨 runtime 可靠 production 探测。
   // 之前只读 globalThis.process.env.NODE_ENV，在 browser/CF Workers 下

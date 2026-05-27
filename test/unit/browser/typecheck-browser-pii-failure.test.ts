@@ -127,44 +127,70 @@ describe('typecheckBrowser — PII analyzer failure injection (true fault-inject
     }
   });
 
-  it('在没有 process 全局的环境下 isProductionRuntime 不抛错（browser/Workers）', async () => {
-    // P0-R5 (codex round 5): 验证 guard 实现在 process 不存在时安全降级
-    // 而非抛 ReferenceError。这是 browser/CF Workers 的真实场景。
-    // 这里用 Node vm 模拟一个无 process 的 sandbox runtime。
-    const vm = await import('node:vm');
+  it('真实 isProductionRuntime 在 __ASTER_PRODUCTION__=true 下返回 true', async () => {
+    // P0-R6 (codex round 6 review): 调用真实导出函数而非 inline 字符串。
+    // 如果实现改坏，测试会真正失败（不是 test/implementation drift）。
+    const { __isProductionRuntimeForTest } = await import(
+      '../../../src/typecheck/browser.js'
+    );
 
-    // 构造无 process 的 sandbox，注入 globalThis.__ASTER_PRODUCTION__=true
-    const sandbox: { __ASTER_PRODUCTION__: boolean; result: boolean | null; error: string | null } = {
-      __ASTER_PRODUCTION__: true,
-      result: null,
-      error: null,
-    };
-    const context = vm.createContext(sandbox);
-
-    // isProductionRuntime 的纯逻辑 inline 在沙箱中执行
-    // （process 在此 context 中故意未定义）
-    const guardCode = `
-      try {
-        let isProduction = false;
-        try {
-          if (typeof process !== 'undefined' && process?.env?.NODE_ENV === 'production') {
-            isProduction = true;
-          }
-        } catch (_) { /* no process */ }
-        try {
-          if (globalThis.__ASTER_PRODUCTION__ === true) {
-            isProduction = true;
-          }
-        } catch (_) { /* no globalThis */ }
-        result = isProduction;
-      } catch (e) {
-        error = String(e);
+    const original = (globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__;
+    (globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__ = true;
+    try {
+      assert.equal(
+        __isProductionRuntimeForTest(),
+        true,
+        '__ASTER_PRODUCTION__=true 应让真实 isProductionRuntime 返回 true',
+      );
+    } finally {
+      if (original === undefined) {
+        delete (globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__;
+      } else {
+        (globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__ = original;
       }
-    `;
-    vm.runInContext(guardCode, context);
+    }
+  });
 
-    assert.equal(sandbox.error, null, 'guard 在无 process 环境不应抛错');
-    assert.equal(sandbox.result, true, '__ASTER_PRODUCTION__=true 应识别为 production');
+  it('真实 isProductionRuntime 在 NODE_ENV=production 下返回 true', async () => {
+    // P0-R6: 真实模块逻辑测试 NODE_ENV 源
+    const { __isProductionRuntimeForTest } = await import(
+      '../../../src/typecheck/browser.js'
+    );
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      assert.equal(
+        __isProductionRuntimeForTest(),
+        true,
+        'NODE_ENV=production 应让真实 isProductionRuntime 返回 true',
+      );
+    } finally {
+      if (original === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = original;
+    }
+  });
+
+  it('真实 isProductionRuntime 在无 production 信号下返回 false', async () => {
+    const { __isProductionRuntimeForTest } = await import(
+      '../../../src/typecheck/browser.js'
+    );
+
+    const originalEnv = process.env.NODE_ENV;
+    const originalGlobal = (globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__;
+    delete process.env.NODE_ENV;
+    delete (globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__;
+    try {
+      assert.equal(
+        __isProductionRuntimeForTest(),
+        false,
+        '所有源都缺失 production 信号时应返回 false',
+      );
+    } finally {
+      if (originalEnv !== undefined) process.env.NODE_ENV = originalEnv;
+      if (originalGlobal !== undefined) {
+        (globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__ = originalGlobal;
+      }
+    }
   });
 
   it('__ASTER_PRODUCTION__ 全局标志触发 production guard（browser/Workers 路径）', async () => {
