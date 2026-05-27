@@ -127,6 +127,30 @@ describe('typecheckBrowser — PII analyzer failure injection (true fault-inject
     }
   });
 
+  it('__ASTER_PRODUCTION__ 全局标志触发 production guard（browser/Workers 路径）', async () => {
+    // P0-R4 (codex round 4): browser/Workers 没有 process 全局，
+    // __ASTER_PRODUCTION__ 是显式逃生窗口（部署时手动设置）
+    const { __setPiiCheckerForTest } = await import(
+      '../../../src/typecheck/browser.js'
+    );
+    const original = (globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__;
+    (globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__ = true;
+    try {
+      assert.throws(
+        () => __setPiiCheckerForTest(() => { throw new Error('attack'); }),
+        /testing-only API.*production runtime/i,
+        '__ASTER_PRODUCTION__=true 必须阻止 non-null 注入',
+      );
+      __setPiiCheckerForTest(null);
+    } finally {
+      if (original === undefined) {
+        delete (globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__;
+      } else {
+        (globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__ = original;
+      }
+    }
+  });
+
   it('production runtime 拒绝 __setPiiCheckerForTest 注入 non-null（生产保护）', async () => {
     // P0-R3 (codex review High #3): 防御性 guard——production runtime
     // 即使有人误用 testing seam，也不能关闭 PII 检查。

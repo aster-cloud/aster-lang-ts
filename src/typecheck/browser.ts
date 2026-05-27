@@ -40,17 +40,49 @@ type PiiCheckerFn = typeof defaultCheckModulePII;
 let _piiCheckerOverride: PiiCheckerFn | null = null;
 
 function isProductionRuntime(): boolean {
-  // 跨 runtime 探测：Node + Workers 都暴露 process.env（在 Workers 是
-  // shim），browser 通过 globalThis.process（webpack/vite 会注入）。
-  // 兼容缺失情况：保守判定为非 production，允许 test 路径正常注入。
+  // P0-R4 (codex round 4 review): 跨 runtime 可靠 production 探测。
+  // 之前只读 globalThis.process.env.NODE_ENV，在 browser/CF Workers 下
+  // false negative（globalThis.process 缺失）。
+  //
+  // 修复策略：多源探测，按可靠性排序：
+  //   1. 直接 process.env.NODE_ENV —— 让 esbuild/webpack define 在编译期
+  //      内联替换为字面量（这是 browser bundle 标准做法）
+  //   2. globalThis.__ASTER_PRODUCTION__ —— 显式逃生窗口，CF Workers
+  //      部署或自定义环境可手动设置
+  //   3. globalThis.process.env.NODE_ENV —— Node 路径保留
+  //
+  // 任何一项判定为 production 都视为 production。保守判定缺失为非 production
+  // 以允许 test 路径注入。
+
+  // 1. Direct process.env access (replaced at build time by esbuild/webpack)
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (typeof process !== 'undefined' && process?.env?.NODE_ENV === 'production') {
+      return true;
+    }
+  } catch {
+    /* process not defined */
+  }
+
+  // 2. Explicit global escape hatch for runtimes without process (Workers)
+  try {
+    if ((globalThis as { __ASTER_PRODUCTION__?: boolean }).__ASTER_PRODUCTION__ === true) {
+      return true;
+    }
+  } catch {
+    /* globalThis not available */
+  }
+
+  // 3. globalThis.process fallback for embedded Node-in-browser shims
+  try {
     const env = (globalThis as { process?: { env?: Record<string, string> } })
       .process?.env;
-    return env?.NODE_ENV === 'production';
+    if (env?.NODE_ENV === 'production') return true;
   } catch {
-    return false;
+    /* not accessible */
   }
+
+  return false;
 }
 
 /**
