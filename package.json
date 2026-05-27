@@ -166,7 +166,7 @@
     "vscode-languageserver-types": "^3.17.5"
   },
   "devDependencies": {
-    "@aster-cloud/aster-lang-test": "^0.0.3",
+    "@aster-cloud/aster-lang-test": "file:vendor/aster-cloud-aster-lang-test-0.0.3.tgz",
     "@changesets/cli": "^2.29.8",
     "@types/node": "^24.6.0",
     "@typescript-eslint/eslint-plugin": "^8.48.1",

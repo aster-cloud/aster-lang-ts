@@ -17,74 +17,70 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          path: aster-lang-ts
-
-      - name: Checkout aster-lang-test (sibling corpus)
-        uses: actions/checkout@v6
-        with:
-          repository: aster-cloud/aster-lang-test
-          path: aster-lang-test
-          ref: main
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
-          # version is read from aster-lang-ts/package.json's "packageManager"
-          package_json_file: aster-lang-ts/package.json
+          # version is read from package.json's "packageManager"
+          package_json_file: package.json
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'pnpm'
-          cache-dependency-path: aster-lang-ts/pnpm-lock.yaml
 
-      - name: Build corpus loader (sibling)
-        working-directory: aster-lang-test/packages/js
+      # P0-R14: vendor tarball SLA enforcement (mirrors aster-cloud pattern)
+      # `@aster-cloud/aster-lang-test` 当前通过 file:vendor/... 消费——
+      # npm token 缺 @aster-cloud org publish 权限，registry 仅有 0.0.2，
+      # 而 aster-lang-ts 需要 0.0.3。vendor/README.md 必须声明 Owner +
+      # Removal Conditions，防止 tarball 成为永久技术债。
+      - name: Vendor tarball SLA enforcement
         run: |
-          pnpm install --no-frozen-lockfile
-          pnpm build
+          set -e
+          if grep -q "file:vendor/" package.json; then
+            echo "Detected file:vendor/ dependency. Checking SLA documentation..."
+            if [ ! -f vendor/README.md ]; then
+              echo "ERROR: file:vendor/ dependency requires vendor/README.md"
+              exit 1
+            fi
+            if ! grep -q "Owner:" vendor/README.md; then
+              echo "ERROR: vendor/README.md must declare an Owner"
+              exit 1
+            fi
+            if ! grep -q "删除条件\|Removal Conditions\|临时 SLA" vendor/README.md; then
+              echo "ERROR: vendor/README.md must declare removal conditions / SLA"
+              exit 1
+            fi
+            echo "OK: vendor/ SLA documentation present"
+          fi
 
       - name: Install dependencies
-        working-directory: aster-lang-ts
         run: pnpm install --frozen-lockfile
 
-      - name: Link shared corpus
-        working-directory: aster-lang-ts
-        run: pnpm link ../aster-lang-test/packages/js
-
       - name: Type check
-        working-directory: aster-lang-ts
         run: pnpm run typecheck
 
       - name: Lint
-        working-directory: aster-lang-ts
         run: pnpm run lint
 
       - name: Run unit tests with coverage
-        working-directory: aster-lang-ts
         run: pnpm run test:unit:coverage
 
       - name: Check coverage threshold
-        working-directory: aster-lang-ts
         run: |
           pnpm run build
           npx c8 --check-coverage --lines 75 --branches 60 --functions 70 \
             node --test 'dist/test/unit/**/*.test.js' 'dist/test/type-checker/**/*.test.js'
 
       - name: Run integration tests
-        working-directory: aster-lang-ts
         run: pnpm run test:integration
 
       - name: Run golden tests
-        working-directory: aster-lang-ts
         run: pnpm run test:golden:run
 
       - name: Run property tests
-        working-directory: aster-lang-ts
         run: pnpm run test:property:run
 
       - name: Run fuzz tests
-        working-directory: aster-lang-ts
         run: pnpm run test:fuzz:run
