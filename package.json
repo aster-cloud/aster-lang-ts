@@ -77,10 +77,6 @@
     "./browser": {
       "types": "./dist/src/browser.d.ts",
       "import": "./dist/src/browser.js"
-    },
-    "./browser/bundle": {
-      "types": "./dist/src/browser.d.ts",
-      "import": "./dist/browser.bundle.js"
     }
   },
   "bin": {
