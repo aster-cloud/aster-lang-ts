@@ -95,6 +95,7 @@
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",
     "dev": "pnpm run build:watch",
+    "prepare": "pnpm run build",
     "test": "pnpm run build && pnpm run test:unit:run && pnpm run test:integration:run",
     "test:unit": "pnpm run build && pnpm run test:unit:run",
     "test:unit:run": "node --test 'dist/test/unit/**/*.test.js' 'dist/test/type-checker/**/*.test.js'",
