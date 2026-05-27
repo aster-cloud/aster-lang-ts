@@ -9,7 +9,7 @@ import {
   IO_PREFIXES,
   originToSpan,
   resolveAlias,
-} from './utils.js';
+} from './pure.js';
 import {
   collectCapabilities,
   collectWorkflows,

@@ -84,3 +84,12 @@ jobs:
 
       - name: Run fuzz tests
         run: pnpm run test:fuzz:run
+
+      # P0-R15 (codex round 14 review): artifact-level browser entry verification.
+      # 源码层 AST scanner 看不到编译产物层的真实依赖闭包. R14 的 aster-cloud
+      # CI build regression (vendor tarball typecheck-pii.js 拉入 server-side
+      # typecheck.js → node:fs/path/perf_hooks) 证明必须在 package 自身 CI
+      # 做 artifact-level smoke. 这一步从 dist/src/browser.js 做 BFS 闭包扫描,
+      # 禁止任何 node:* import 出现在 browser entry transitive closure.
+      - name: Verify browser entry has no node:* deps
+        run: node scripts/verify-browser-entry.mjs

@@ -10,7 +10,7 @@ import {
   isUnknown,
   typesEqual,
   unknownType,
-} from './utils.js';
+} from './pure.js';
 import { typeOfExpr } from './expression.js';
 import { bindPattern } from './pattern.js';
 import { typecheckWorkflow } from './workflow.js';

@@ -14,7 +14,7 @@ import {
   normalizeType,
   originToSpan,
   unknownType,
-} from './utils.js';
+} from './pure.js';
 import { collectEffects } from './effects.js';
 import { typecheckBlock } from './statement.js';
 

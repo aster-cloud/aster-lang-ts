@@ -12,7 +12,7 @@ import {
   normalizeType,
   originToSpan,
   unknownType,
-} from './utils.js';
+} from './pure.js';
 
 export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext> {
   public handled = false;

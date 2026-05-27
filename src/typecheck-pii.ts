@@ -1,11 +1,16 @@
 import type { Core, Origin, PiiMeta, PiiLevel, Span, TypecheckDiagnostic } from './types.js';
 import { ErrorCode, ERROR_METADATA, ERROR_MESSAGES } from './diagnostics/error_codes.js';
-// P0-R14: 直接从 leaf module 引入 resolveAlias，避免拉入 server-side
-// typecheck.js 的 transitive deps（typecheck/module.js → node:fs/path/perf_hooks），
-// 否则 webpack edge target / browser bundle build 失败。
-// 触发点：aster-cloud CI build regression (codex round 14):
-//   src/browser.ts → typecheck/browser.ts → typecheck-pii.ts → typecheck.ts (server)
-import { resolveAlias } from './typecheck/utils.js';
+// P0-R14 / R15 (codex review): 从纯 leaf module `./typecheck/alias.js` 引入
+// resolveAlias —— 这是无任何运行时依赖的纯字符串/Map 操作模块.
+//
+// R14 修复曾改 import 自 './typecheck/utils.js'，但 utils.ts 模块加载阶段
+// 调用 loadPrefixes() 内含 `require('node:module')`，虽然当前 Next.js webpack
+// 通过 nodejs_compat 处理 node: scheme 没炸，但任何更严格 bundler（browser-only、
+// 严格 edge runtime）会被卡住。R15 codex 抓到这个 transitive risk.
+//
+// 修复路径: typecheck-pii → typecheck/alias (纯) , 不再经 typecheck/utils.
+// alias.ts 仅含 resolveAlias 一个纯函数, 无任何 Node-specific 依赖.
+import { resolveAlias } from './typecheck/alias.js';
 
 type PiiEnv = Map<string, PiiMeta | null>;
 

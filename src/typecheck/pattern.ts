@@ -4,7 +4,7 @@ import type { ModuleContext } from './context.js';
 import { defineSymbol } from './context.js';
 import { SymbolTable } from './symbol_table.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
-import { formatType, isUnknown, unknownType } from './utils.js';
+import { formatType, isUnknown, unknownType } from './pure.js';
 
 export function bindPattern(
   ctx: ModuleContext,

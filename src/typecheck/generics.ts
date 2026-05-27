@@ -4,7 +4,7 @@ import { DiagnosticBuilder } from './diagnostics.js';
 import type { ModuleContext } from './context.js';
 import { TypeSystem } from './type_system.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
-import { formatType, typesEqual } from './utils.js';
+import { formatType, typesEqual } from './pure.js';
 
 export function unifyTypeParameters(
   expected: Core.Type,

@@ -7,7 +7,7 @@ import { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
 import type { SymbolKind } from './symbol_table.js';
 import { TypeSystem } from './type_system.js';
-import { formatType, typesEqual } from './utils.js';
+import { formatType, typesEqual } from './pure.js';
 
 // 类型检查上下文模块：集中管理模块/函数上下文字段以及符号定义与赋值操作。
 

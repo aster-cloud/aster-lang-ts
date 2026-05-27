@@ -9,10 +9,28 @@
 
 import type { Core, TypecheckDiagnostic, Origin } from '../types.js';
 import { Effect } from '../types.js';
-import { getIOPrefixesCompat, getCPUPrefixesCompat, resolveAlias } from '../typecheck/utils.js';
+// R15 (codex round 14): browser-side effect inference 不得 transitively 拉入
+// typecheck/utils.ts (含 loadPrefixes → require('node:module')). 改用纯 leaf:
+//  - resolveAlias 来自 typecheck/alias.ts (纯字符串/Map 操作)
+//  - IO/CPU 前缀 inline 默认值 (browser fallback 本来就用这些, 没必要走
+//    Node config loading 路径). 与 utils.ts 的 DEFAULT_IO/CPU_PREFIXES 保持一致.
+import { resolveAlias } from '../typecheck/alias.js';
 import { DefaultCoreVisitor, createVisitorContext } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { EffectSignature } from './effect_signature.js';
+
+// Default IO/CPU prefixes (browser-safe, matches typecheck/utils.ts DEFAULT_*).
+// Server-side path (effect_inference.ts) uses config-loadable variants.
+const DEFAULT_IO_PREFIXES: readonly string[] = [
+  'IO.',
+  'Http.',
+  'AuthRepo.',
+  'ProfileSvc.',
+  'FeedSvc.',
+  'Db.',
+  'UUID.randomUUID',
+];
+const DEFAULT_CPU_PREFIXES: readonly string[] = [];
 
 export interface EffectConstraint {
   caller: string;
@@ -62,9 +80,10 @@ export interface EffectInferenceOptions {
  * file system access for configuration loading.
  */
 export function inferEffects(core: Core.Module, options?: EffectInferenceOptions): TypecheckDiagnostic[] {
-  // Use browser-compatible prefix getters
-  const ioPrefixes = getIOPrefixesCompat();
-  const cpuPrefixes = getCPUPrefixesCompat();
+  // Browser-safe: 直接用 DEFAULT_* 常量, 避免 transitively 拉入 utils.ts 的
+  // loadPrefixes → require('node:module') (R15 codex review).
+  const ioPrefixes = DEFAULT_IO_PREFIXES;
+  const cpuPrefixes = DEFAULT_CPU_PREFIXES;
 
   const funcIndex = new Map<string, Core.Func>();
   for (const decl of core.decls) {

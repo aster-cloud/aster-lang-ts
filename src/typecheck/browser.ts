@@ -116,13 +116,16 @@ import {
   type ModuleContext,
   type TypecheckWalkerContext,
 } from './context.js';
+// R15 (codex round 14): browser entry 不得 transitively 拉入 node:* 模块.
+// utils.ts 含 loadPrefixes → require('node:module'), 不适合 browser bundle.
+// 改 import from './pure.js' (browser-safe leaf).
 import {
   formatType,
   isUnknown,
   normalizeType,
   typesEqual,
   unknownType,
-} from './utils.js';
+} from './pure.js';
 import { checkAsyncDiscipline } from './async.js';
 import { typecheckBlock } from './statement.js';
 import { checkCapabilities } from './capabilities.js';
