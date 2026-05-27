@@ -45,14 +45,18 @@ function runModule(funcs: readonly Core.Func[]) {
 }
 
 describe('PII propagation diagnostics', () => {
+  // ADR-0009 P0-1 之后 PII 检查永远启用，不再依赖 env vars。本套件仍
+  // 保留 env snapshot/restore 是为了隔离测试间状态（其它测试如果意外
+  // 设置了这些 env，不应影响本套件）。但 env 设置本身已无效。
   const prevAster = process.env.ASTER_ENFORCE_PII;
   const prevEnforce = process.env.ENFORCE_PII;
   const prevDisable = process.env.DISABLE_PII;
 
   before(() => {
-    // 确保 PII 检查启用（显式设置启用标志）
+    // 清理可能的污染环境（虽然 ADR-0009 后 env 无效，仍保持干净）
     delete process.env.DISABLE_PII;
-    process.env.ENFORCE_PII = 'true'; // 显式启用 PII 检查（渐进式策略）
+    delete process.env.ENFORCE_PII;
+    delete process.env.ASTER_ENFORCE_PII;
   });
 
   after(() => {

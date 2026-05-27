@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Deprecations (will be removed in 0.3.0 / next major)
+
+- **`shouldEnforcePii()`** (typecheck/utils.ts, also re-exported from
+  typecheck/index.ts) is now a no-op stub that always returns `true`.
+  PII flow analysis is **always enabled** since ADR-0009 P0-1. New code
+  must not branch on this function's return value; existing call sites
+  should be removed. The function will be deleted in the next major release.
+- **`BrowserTypecheckOptions.enforcePii`** and the corresponding option on
+  `compileAndTypecheck` are now **ignored**. Setting `false` does NOT
+  disable PII checking. The field is kept for source-level backwards
+  compatibility only and will be removed in the next major release.
+- **LSP `--enforce-pii` CLI flag** is now **ignored**. The LSP server
+  prints a deprecation warning on stderr if the flag is passed. Will be
+  removed in the next major release.
+
+### Internal (P0-R review fixes)
+
+- `PII_ANALYZER_FAILED` (E404) added: new dedicated error code for
+  internal failures in the PII flow analyzer. Browser path now uses this
+  code instead of `UNDEFINED_VARIABLE` (E101) when `checkModulePII`
+  throws. Severity = error.
+
 ## [0.2.0] - 2026-05-22
 
 ### BREAKING CHANGES

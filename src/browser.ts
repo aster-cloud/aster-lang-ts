@@ -369,8 +369,13 @@ export type { TypecheckDiagnostic } from './types.js';
  * This is the recommended API for browser/edge use when you need
  * both compilation and type checking.
  *
+ * **PII flow analysis is always enabled** since ADR-0009 P0-1. The
+ * `enforcePii` option is accepted for source-level backwards compatibility
+ * but is ignored — see {@link compileAndTypecheck} options below.
+ *
  * @param source - CNL source code
- * @param options - Compile and type check options
+ * @param options - Compile and type check options. Note: `enforcePii` is
+ *   **deprecated** and ignored; PII checks are always on.
  * @returns Object containing compilation result and type diagnostics
  *
  * @example
@@ -394,7 +399,14 @@ export type { TypecheckDiagnostic } from './types.js';
  */
 export function compileAndTypecheck(
   source: string,
-  options?: CompileOptions & { enforcePii?: boolean }
+  options?: CompileOptions & {
+    /**
+     * @deprecated ADR-0009 P0-1: PII flow analysis is always enabled.
+     *   Setting `false` does NOT disable it. Field kept for source-level
+     *   backwards compatibility; will be removed next major.
+     */
+    enforcePii?: boolean;
+  }
 ): CompileResult & { typeErrors: import('./types.js').TypecheckDiagnostic[] } {
   const compileResult = compile(source, options);
 
@@ -405,6 +417,8 @@ export function compileAndTypecheck(
     };
   }
 
+  // enforcePii is forwarded only for source-level compat. _typecheckBrowser
+  // ignores it (PII checks always on).
   const typecheckOptions: { enforcePii?: boolean } = {};
   if (options?.enforcePii !== undefined) {
     typecheckOptions.enforcePii = options.enforcePii;

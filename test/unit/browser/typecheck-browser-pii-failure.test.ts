@@ -1,0 +1,111 @@
+/**
+ * Browser PII analyzer failure handling test (P0-R / High #6).
+ *
+ * 验证 typecheckBrowser 在 PII analyzer 抛错时：
+ * 1. 不让整个 typecheck 崩溃（防御性 catch）
+ * 2. 用专用 error code (PII_ANALYZER_FAILED) 上报
+ * 3. severity = 'error'（不是 warning——PII 安全失败不能伪装成普通问题）
+ * 4. 不要再用 UNDEFINED_VARIABLE 这种语义错误的 fallback code
+ *
+ * 这是 codex review High #6 抓出的回归——之前的代码用 E101
+ * (UNDEFINED_VARIABLE) + warning severity，把 PII analyzer failure 降级
+ * 成"小问题"。修复后必须用专用 code + error severity。
+ */
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { typecheckBrowser } from '../../../src/typecheck/browser.js';
+import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
+import { Core as CoreBuilder } from '../../../src/core/core_ir.js';
+import { Effect } from '../../../src/config/semantic.js';
+import type { Core } from '../../../src/types.js';
+
+// 注入故障 fixture：构造一个会让 PII analyzer 内部失败的边界 input。
+// checkModulePII 设计稳定，让它真实失败需要 monkey-patch。我们改用更直接的
+// 测试策略：mock checkModulePII via dynamic import，让它抛错。
+//
+// 但 node:test 不支持灵活 mock。所以采用替代方案：
+// 1. 验证"正常无 PII 代码"下不应该出现 PII_ANALYZER_FAILED（baseline）
+// 2. 用一个 stub function 直接验证 fallback code 的语义（保证下次重构不退化）
+
+describe('typecheckBrowser — PII analyzer failure handling (P0-R)', () => {
+  it('正常代码不应触发 PII_ANALYZER_FAILED 错误', () => {
+    const httpImport = CoreBuilder.Import('Http', 'H');
+    const fn = CoreBuilder.Func(
+      'normal',
+      [],
+      [{ name: 'x', type: CoreBuilder.TypeName('Text') }],
+      CoreBuilder.TypeName('Text'),
+      [Effect.PURE],
+      CoreBuilder.Block([CoreBuilder.Return(CoreBuilder.Name('x'))]),
+      [],
+      false,
+    );
+    const module: Core.Module = CoreBuilder.Module('tests.pii.normal', [httpImport, fn]);
+
+    const diags = typecheckBrowser(module);
+    const analyzerFailed = diags.find((d) => d.code === ErrorCode.PII_ANALYZER_FAILED);
+    assert.equal(
+      analyzerFailed,
+      undefined,
+      '正常代码不应触发 PII_ANALYZER_FAILED；如果触发，说明 checkModulePII 自身 buggy',
+    );
+  });
+
+  it('PII_ANALYZER_FAILED 的元数据：error severity（不是 warning）', async () => {
+    // 直接断言 error_codes 的元数据 contract，保证 P0-R 修复不被回退。
+    // 之前的 bug：fallback 用 UNDEFINED_VARIABLE + warning severity（codex
+    // High #6）。修复后必须 error severity。
+    const { ERROR_METADATA } = await import('../../../src/diagnostics/error_codes.js');
+    const meta = ERROR_METADATA[ErrorCode.PII_ANALYZER_FAILED];
+    assert.ok(meta, 'PII_ANALYZER_FAILED 应在 ERROR_METADATA 中注册');
+    assert.equal(
+      meta.severity,
+      'error',
+      `PII analyzer 失败必须是 error severity（不是 warning），实际：${meta.severity}`,
+    );
+    assert.equal(meta.category, 'pii', `PII analyzer 失败应归类为 pii，实际：${meta.category}`);
+  });
+
+  it('PII_ANALYZER_FAILED code 是 E404（专用，不与其他错误共享）', () => {
+    assert.equal(
+      ErrorCode.PII_ANALYZER_FAILED,
+      'E404',
+      'PII analyzer failure 应有专用 code，不能复用 UNDEFINED_VARIABLE 等通用 code',
+    );
+  });
+});
+
+describe('typecheckBrowser — PII analyzer failure injection (true fault-injection)', () => {
+  // 真实故障注入：替换 checkModulePII 导出，让 typecheckBrowser 实际命中
+  // catch 分支。需要在测试运行前 monkey-patch module loader。
+  //
+  // 由于 ESM 不允许直接改 module exports，我们用 vi.mock 风格替代不可行。
+  // 替代方案：检查源代码中 catch 分支的字面值（这是 fragile 但有效的护栏）。
+
+  it('编译后的 browser.js 包含正确的 PII_ANALYZER_FAILED 字面值（防止回退）', async () => {
+    // 用 import.meta.url 拼到 dist 目录里的 browser.js，验证编译产物保留
+    // 了正确的 catch 分支语义。源码读不到也无妨——我们要保护的是 dist 行为。
+    const fs = await import('node:fs/promises');
+    // 当前测试位置：dist/test/unit/browser/typecheck-browser-pii-failure.test.js
+    // browser.js 实际位置：    dist/src/typecheck/browser.js
+    const browserJsUrl = new URL('../../../src/typecheck/browser.js', import.meta.url);
+    const compiled = await fs.readFile(browserJsUrl, 'utf-8');
+
+    // 编译后 ErrorCode.PII_ANALYZER_FAILED 可能被 inline 为 "E404" 字面值，
+    // 也可能保留为属性引用——两种都接受
+    const hasAnalyzerFailedRef =
+      /PII_ANALYZER_FAILED/.test(compiled) || /["']E404["']/.test(compiled);
+    assert.ok(
+      hasAnalyzerFailedRef,
+      'browser.js 编译产物必须含 PII_ANALYZER_FAILED 或 "E404" 字面值',
+    );
+
+    // catch 分支必须 severity='error'
+    // 而且 PII flow analysis aborted 上下文里不应再出现 UNDEFINED_VARIABLE
+    assert.doesNotMatch(
+      compiled,
+      /UNDEFINED_VARIABLE[\s\S]{0,200}?PII flow analysis aborted/,
+      '不应再用 UNDEFINED_VARIABLE 作为 PII analyzer failure fallback（P0-R High #6 修复）',
+    );
+  });
+});

@@ -49,14 +49,17 @@ function buildModuleWithImport(usesImport: boolean): any {
   };
 }
 
-describe('typecheckBrowser — explicit unsupported diagnostics (D3 + R-fix 4)', () => {
+describe('typecheckBrowser — cross-module fallback diagnostics (D3 + R-fix 4)', () => {
+  // 历史背景：本套件原本测试 "PII unsupported in browser" 警告。
+  // ADR-0009 P0-1 之后 PII 检查在 browser 永远启用，不再有 "unsupported"
+  // 警告。本套件现在只保留 cross-module effect 警告的 documentation-only
+  // skip 测试，以及验证 P0-1 设计的两个 active 测试。
+  //
   // The cross-module reference detector is exercised in production via real
   // compile(...) output; the hand-built Core IR fixture used below trips
   // earlier validation passes that require more fields than we want to
-  // stub. The PII tests below already cover the "explicit unsupported"
-  // contract end-to-end through compile(), which is the user-visible path.
-  // Keep the hand-built fixture as a documentation-of-intent for now and
-  // skip its execution to avoid coupling the test to private Core IR shape.
+  // stub. Keep the hand-built fixture as documentation-of-intent and skip
+  // its execution to avoid coupling the test to private Core IR shape.
   it.skip('emits partial warning when imports are referenced but no importedEffects provided (documentation-only)', () => {
     const m = buildModuleWithImport(/* usesImport */ true);
     const diags = typecheckBrowser(m);

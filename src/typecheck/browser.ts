@@ -199,15 +199,21 @@ export function typecheckBrowser(
       try {
         checkModulePII(funcs, piiDiagnostics, ctx.imports);
       } catch (e) {
-        // 不应当抛错（checkModulePII 设计上稳定），但作为防御性 fallback：
-        // 上报 partial 诊断，让 UI 提示"PII 检查未完成"，而不是静默失败。
+        // 防御性 fallback：checkModulePII 抛错时仍能继续编译流程，但**必须
+        // 明确标记安全检查失败**——不能伪装成普通 warning。使用专用 code
+        // PII_ANALYZER_FAILED + severity=error，让 UI/CI 把这种情况当成
+        // hard failure 处理。
+        // Node 路径（module.ts）让异常向上传播；浏览器路径捕获是为了保证
+        // 编辑器其他诊断（语法、类型）仍能显示，但 PII 安全失败本身必须
+        // 显式可见。
+        const reason = e instanceof Error ? e.message : String(e);
         piiDiagnostics.push({
-          severity: 'warning',
-          code: ErrorCode.UNDEFINED_VARIABLE,
+          severity: 'error',
+          code: ErrorCode.PII_ANALYZER_FAILED,
           message:
-            `[browser-typecheck/partial] PII flow analysis aborted: ` +
-            `${e instanceof Error ? e.message : String(e)}. ` +
-            `This is a bug — please report.`,
+            `PII flow analysis aborted internally: ${reason}. ` +
+            `This is a bug in the type checker; PII safety cannot be ` +
+            `guaranteed for this module — please report.`,
         });
       }
     }
