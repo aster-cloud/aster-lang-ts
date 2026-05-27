@@ -22,7 +22,21 @@ import type { Core, TypecheckDiagnostic } from '../types.js';
 import type { EffectSignature } from '../effects/effect_signature.js';
 import { inferEffects } from '../effects/effect_inference_browser.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
-import { checkModulePII } from '../typecheck-pii.js';
+import { checkModulePII as defaultCheckModulePII } from '../typecheck-pii.js';
+
+/**
+ * Testing-only seam for fault injection of the PII analyzer.
+ * Production code should never set this; it remains `null` and the default
+ * `checkModulePII` is used. Set in tests to a function that throws so the
+ * catch branch in `typecheckBrowser` exercises {@link ErrorCode.PII_ANALYZER_FAILED}
+ * end-to-end (P0-R2, codex review Medium #5).
+ */
+type PiiCheckerFn = typeof defaultCheckModulePII;
+let _piiCheckerOverride: PiiCheckerFn | null = null;
+/** @internal Testing seam — do NOT call in production code paths. */
+export function __setPiiCheckerForTest(fn: PiiCheckerFn | null): void {
+  _piiCheckerOverride = fn;
+}
 import { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
 import { TypeSystem } from './type_system.js';
@@ -197,7 +211,8 @@ export function typecheckBrowser(
     const funcs = m.decls.filter((decl): decl is Core.Func => decl.kind === 'Func');
     if (funcs.length > 0) {
       try {
-        checkModulePII(funcs, piiDiagnostics, ctx.imports);
+        const piiChecker = _piiCheckerOverride ?? defaultCheckModulePII;
+        piiChecker(funcs, piiDiagnostics, ctx.imports);
       } catch (e) {
         // 防御性 fallback：checkModulePII 抛错时仍能继续编译流程，但**必须
         // 明确标记安全检查失败**——不能伪装成普通 warning。使用专用 code
@@ -210,10 +225,13 @@ export function typecheckBrowser(
         piiDiagnostics.push({
           severity: 'error',
           code: ErrorCode.PII_ANALYZER_FAILED,
+          // P0-R2 (codex review High #6): 业务用户友好消息——避免编译器
+          // 内部语气；给出可执行的恢复建议（保存重试/联系管理员）。
           message:
-            `PII flow analysis aborted internally: ${reason}. ` +
-            `This is a bug in the type checker; PII safety cannot be ` +
-            `guaranteed for this module — please report.`,
+            `PII safety analysis failed for this module — the editor ` +
+            `cannot verify whether sensitive data is correctly handled. ` +
+            `This policy should not be deployed until the analysis ` +
+            `succeeds. Internal reason: ${reason}`,
         });
       }
     }

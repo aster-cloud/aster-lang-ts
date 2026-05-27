@@ -27,29 +27,28 @@ import { typecheckModule } from '../../../src/typecheck.js';
 import { typecheckBrowser } from '../../../src/typecheck/browser.js';
 import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
 import { Effect } from '../../../src/config/semantic.js';
+import { ERROR_METADATA } from '../../../src/diagnostics/error_codes.js';
 import { Core as CoreBuilder } from '../../../src/core/core_ir.js';
 import type { Core, TypecheckDiagnostic } from '../../../src/types.js';
 
 const IO_EFFECT: readonly Effect[] = [Effect.IO];
 
 /**
- * 完整 PII codes 集合：包含所有 checkModulePII 可能发出的 codes。
- * codex review High #2 抓到的回归：原集合只有 3 个 (E070/E072/E073)，
- * 漏掉了 W071 / W074 / E400 等。漏掉这些意味着 Node/browser 在这些
- * codes 上 drift 时测试看不到。
+ * PII codes 集合 —— **自动从 ERROR_METADATA 派生**。
+ *
+ * P0-R2 修复（codex review Medium #10 + #8）：
+ * 原版手写硬编码集合的设计有维护风险——未来新增 PII code 必须同时更新此集合
+ * 否则 conformance 在该 code 上 drift 不会被测试捕获。改为从 ERROR_METADATA
+ * 自动 filter `category === 'pii'`，新增 PII code 时**自动**纳入集合。
+ *
+ * 实际包含的 codes（P0-R2 时刻）：E070 E072 E073 W071 W074 E400 E401 E402
+ * E403 E404，共 10 个。元测试在底部断言集合非空且全部 category==='pii'。
  */
-const PII_CODES = new Set<string>([
-  ErrorCode.PII_ASSIGN_DOWNGRADE,      // E070
-  ErrorCode.PII_SINK_UNSANITIZED,       // E072
-  ErrorCode.PII_ARG_VIOLATION,          // E073
-  ErrorCode.PII_IMPLICIT_UPLEVEL,       // W071
-  ErrorCode.PII_SINK_UNKNOWN,           // W074
-  ErrorCode.PII_HTTP_UNENCRYPTED,       // E400
-  ErrorCode.PII_ANNOTATION_MISSING,     // E401
-  ErrorCode.PII_SENSITIVITY_MISMATCH,   // E402
-  ErrorCode.PII_MISSING_CONSENT_CHECK,  // E403
-  ErrorCode.PII_ANALYZER_FAILED,        // E404
-]);
+const PII_CODES: ReadonlySet<string> = new Set(
+  Object.values(ERROR_METADATA)
+    .filter((meta) => meta.category === 'pii')
+    .map((meta) => meta.code as string),
+);
 
 interface PiiDiagShape {
   code: string;
@@ -249,13 +248,33 @@ describe('PII 跨运行时 conformance (ADR-0009 P0-1 / P0-R 扩展)', () => {
     assert.deepEqual(browserDiags, []);
   });
 
-  it('元测试：PII_CODES 集合至少含 7 个 codes（防止再次漏掉）', () => {
-    // codex review High #2: 原集合只有 3 个，漏掉了 W071/W074/E400 等。
-    // 加固：保证未来添加新 PII code 时同步加入此集合。
+  it('元测试：PII_CODES 自动从 ERROR_METADATA 派生（防止再次漏掉新 code）', () => {
+    // P0-R2 (codex review Medium #10): 集合改为自动派生而非硬编码后，元测试
+    // 验证派生逻辑本身正确——不再用 hard-coded contains，而是断言所有
+    // category=='pii' 的 ErrorMetadata 都在集合中。
+    const expectedFromMetadata = Object.values(ERROR_METADATA)
+      .filter((meta) => meta.category === 'pii')
+      .map((meta) => meta.code as string);
+
     assert.ok(
-      PII_CODES.size >= 7,
-      `PII_CODES 应包含至少 7 个 PII-related codes，实际 ${PII_CODES.size} 个`,
+      expectedFromMetadata.length >= 7,
+      `ERROR_METADATA 中 category=='pii' 的 codes 应 ≥ 7 个，实际 ${expectedFromMetadata.length} 个`,
     );
+
+    for (const expected of expectedFromMetadata) {
+      assert.ok(
+        PII_CODES.has(expected),
+        `PII_CODES 应包含从 ERROR_METADATA 派生的 ${expected}`,
+      );
+    }
+
+    assert.equal(
+      PII_CODES.size,
+      expectedFromMetadata.length,
+      `PII_CODES 大小 ${PII_CODES.size} 应等于 metadata 派生数 ${expectedFromMetadata.length}（防止额外手工注入）`,
+    );
+
+    // 关键 codes 必须存在（这些是 checkModulePII 实际 emit 的）
     assert.ok(PII_CODES.has('E070'), 'PII_ASSIGN_DOWNGRADE (E070) 必须在集合');
     assert.ok(PII_CODES.has('E072'), 'PII_SINK_UNSANITIZED (E072) 必须在集合');
     assert.ok(PII_CODES.has('E073'), 'PII_ARG_VIOLATION (E073) 必须在集合');

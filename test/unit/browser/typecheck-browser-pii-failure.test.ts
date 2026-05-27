@@ -76,11 +76,82 @@ describe('typecheckBrowser — PII analyzer failure handling (P0-R)', () => {
 });
 
 describe('typecheckBrowser — PII analyzer failure injection (true fault-injection)', () => {
-  // 真实故障注入：替换 checkModulePII 导出，让 typecheckBrowser 实际命中
-  // catch 分支。需要在测试运行前 monkey-patch module loader。
-  //
-  // 由于 ESM 不允许直接改 module exports，我们用 vi.mock 风格替代不可行。
-  // 替代方案：检查源代码中 catch 分支的字面值（这是 fragile 但有效的护栏）。
+  // P0-R2 (codex review Medium #5): 真实 fault injection 通过
+  // __setPiiCheckerForTest 注入会抛错的 checker，让 typecheckBrowser 实际
+  // 命中 catch 分支。这比之前的"读 dist regex"测试强得多——直接断言运行时
+  // 行为而非源代码字符串。
+
+  it('真实注入抛错的 checker → typecheckBrowser 返回 E404 diagnostic', async () => {
+    const { typecheckBrowser, __setPiiCheckerForTest } = await import(
+      '../../../src/typecheck/browser.js'
+    );
+    const { Core: CoreBuilder } = await import('../../../src/core/core_ir.js');
+    const { Effect } = await import('../../../src/config/semantic.js');
+
+    // 注入会抛错的 checker
+    __setPiiCheckerForTest(() => {
+      throw new Error('synthetic-pii-analyzer-failure');
+    });
+
+    try {
+      const fn = CoreBuilder.Func(
+        'test_fn',
+        [],
+        [{ name: 'x', type: CoreBuilder.TypeName('Text') }],
+        CoreBuilder.TypeName('Text'),
+        [Effect.PURE],
+        CoreBuilder.Block([CoreBuilder.Return(CoreBuilder.Name('x'))]),
+        [],
+        false,
+      );
+      const module = CoreBuilder.Module('tests.pii.failure_injection', [fn]);
+
+      const diags = typecheckBrowser(module);
+
+      const failureDiag = diags.find((d) => d.code === ErrorCode.PII_ANALYZER_FAILED);
+      assert.ok(failureDiag, 'catch 分支应产生 PII_ANALYZER_FAILED 诊断');
+      assert.strictEqual(failureDiag!.severity, 'error', 'severity 必须是 error');
+      assert.match(
+        failureDiag!.message,
+        /synthetic-pii-analyzer-failure/,
+        'message 应包含 catch 到的原始错误消息',
+      );
+      assert.match(
+        failureDiag!.message,
+        /PII safety analysis failed/,
+        'message 应使用业务用户友好的开头',
+      );
+    } finally {
+      // 恢复默认 checker
+      __setPiiCheckerForTest(null);
+    }
+  });
+
+  it('恢复默认 checker 后正常代码不再产生 E404', async () => {
+    const { typecheckBrowser, __setPiiCheckerForTest } = await import(
+      '../../../src/typecheck/browser.js'
+    );
+    const { Core: CoreBuilder } = await import('../../../src/core/core_ir.js');
+    const { Effect } = await import('../../../src/config/semantic.js');
+
+    __setPiiCheckerForTest(null);
+
+    const fn = CoreBuilder.Func(
+      'no_pii',
+      [],
+      [{ name: 'plain', type: CoreBuilder.TypeName('Text') }],
+      CoreBuilder.TypeName('Text'),
+      [Effect.PURE],
+      CoreBuilder.Block([CoreBuilder.Return(CoreBuilder.Name('plain'))]),
+      [],
+      false,
+    );
+    const module = CoreBuilder.Module('tests.pii.cleanup_check', [fn]);
+
+    const diags = typecheckBrowser(module);
+    const failureDiag = diags.find((d) => d.code === ErrorCode.PII_ANALYZER_FAILED);
+    assert.equal(failureDiag, undefined, 'override 清除后无 PII 代码不应触发 E404');
+  });
 
   it('编译后的 browser.js 包含正确的 PII_ANALYZER_FAILED 字面值（防止回退）', async () => {
     // 用 import.meta.url 拼到 dist 目录里的 browser.js，验证编译产物保留
