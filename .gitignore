@@ -87,6 +87,8 @@ dependency-reduced-pom.xml
 *.tar
 *.tar.gz
 *.tgz
+# P0-R14: vendor/ 下的 tarball 是 file:vendor/... 依赖, 必须 commit (临时 SLA, 见 vendor/README.md)
+!vendor/*.tgz
 
 # Temporary files
 .tmp/
