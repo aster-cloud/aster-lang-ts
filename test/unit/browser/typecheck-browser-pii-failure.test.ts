@@ -127,6 +127,30 @@ describe('typecheckBrowser — PII analyzer failure injection (true fault-inject
     }
   });
 
+  it('production runtime 拒绝 __setPiiCheckerForTest 注入 non-null（生产保护）', async () => {
+    // P0-R3 (codex review High #3): 防御性 guard——production runtime
+    // 即使有人误用 testing seam，也不能关闭 PII 检查。
+    const { __setPiiCheckerForTest } = await import(
+      '../../../src/typecheck/browser.js'
+    );
+
+    // 临时设置 NODE_ENV=production
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      assert.throws(
+        () => __setPiiCheckerForTest(() => { throw new Error('attack'); }),
+        /testing-only API.*production runtime/i,
+        '生产环境必须拒绝非 null 的 PII checker 注入',
+      );
+      // null 仍允许（清理时不应抛错）
+      __setPiiCheckerForTest(null);
+    } finally {
+      if (original === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = original;
+    }
+  });
+
   it('恢复默认 checker 后正常代码不再产生 E404', async () => {
     const { typecheckBrowser, __setPiiCheckerForTest } = await import(
       '../../../src/typecheck/browser.js'

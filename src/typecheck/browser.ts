@@ -30,11 +30,41 @@ import { checkModulePII as defaultCheckModulePII } from '../typecheck-pii.js';
  * `checkModulePII` is used. Set in tests to a function that throws so the
  * catch branch in `typecheckBrowser` exercises {@link ErrorCode.PII_ANALYZER_FAILED}
  * end-to-end (P0-R2, codex review Medium #5).
+ *
+ * **生产保护（P0-R3, codex review High #3）**：函数在 production 环境
+ * 拒绝任何 non-null 调用。这是 defense-in-depth：即使有人误用，PII 检查
+ * 也不会被关闭。判定 production 用 `NODE_ENV === 'production'`，与
+ * 其他 Node 生态库的惯例一致。
  */
 type PiiCheckerFn = typeof defaultCheckModulePII;
 let _piiCheckerOverride: PiiCheckerFn | null = null;
-/** @internal Testing seam — do NOT call in production code paths. */
+
+function isProductionRuntime(): boolean {
+  // 跨 runtime 探测：Node + Workers 都暴露 process.env（在 Workers 是
+  // shim），browser 通过 globalThis.process（webpack/vite 会注入）。
+  // 兼容缺失情况：保守判定为非 production，允许 test 路径正常注入。
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const env = (globalThis as { process?: { env?: Record<string, string> } })
+      .process?.env;
+    return env?.NODE_ENV === 'production';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * @internal Testing seam — do NOT call in production code paths.
+ * Throws in production runtime to prevent accidental misuse.
+ */
 export function __setPiiCheckerForTest(fn: PiiCheckerFn | null): void {
+  if (isProductionRuntime() && fn !== null) {
+    throw new Error(
+      '__setPiiCheckerForTest is a testing-only API and cannot be used in ' +
+        'production runtime (NODE_ENV=production). PII checks must always run ' +
+        'with the default analyzer.',
+    );
+  }
   _piiCheckerOverride = fn;
 }
 import { DiagnosticBuilder } from './diagnostics.js';
