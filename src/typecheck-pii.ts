@@ -1,6 +1,11 @@
 import type { Core, Origin, PiiMeta, PiiLevel, Span, TypecheckDiagnostic } from './types.js';
 import { ErrorCode, ERROR_METADATA, ERROR_MESSAGES } from './diagnostics/error_codes.js';
-import { resolveAlias } from './typecheck.js';
+// P0-R14: 直接从 leaf module 引入 resolveAlias，避免拉入 server-side
+// typecheck.js 的 transitive deps（typecheck/module.js → node:fs/path/perf_hooks），
+// 否则 webpack edge target / browser bundle build 失败。
+// 触发点：aster-cloud CI build regression (codex round 14):
+//   src/browser.ts → typecheck/browser.ts → typecheck-pii.ts → typecheck.ts (server)
+import { resolveAlias } from './typecheck/utils.js';
 
 type PiiEnv = Map<string, PiiMeta | null>;
 
