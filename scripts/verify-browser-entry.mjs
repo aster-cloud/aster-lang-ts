@@ -22,6 +22,21 @@
  *     `inspector/promises` 等 subpath builtins. 改用 `node:module.isBuiltin()`
  *     作为权威运行时源, Node 升级时自动跟随, 不再手维护清单.
  *
+ * ⚠ 已知 limitation (codex round 17/18 Medium):
+ *   Scanner 只跟踪本地相对路径 import; bare specifier 命中 Node builtin 立即
+ *   报告, 但**不递归进入第三方 npm 包**. 当前 browser entry 闭包零 runtime
+ *   第三方依赖, 这个限制无影响. 如果未来 `src/browser.ts` (或其 transitive
+ *   闭包) 新增对 runtime npm package 的 import:
+ *
+ *     ▸ 必须重新评估该包内部是否 transitive 引用 Node builtin
+ *     ▸ 必须在该包内运行同款 verifier (或类比 bundle smoke test)
+ *     ▸ 必须确认该包发布了 browser entry (package.json `exports.browser` /
+ *       `browser` 字段 / "isomorphic" 标签)
+ *
+ *   `aster-cloud` 的 `pnpm run build:next` (webpack edge target) 会兜底捕捉
+ *   实际 runtime build failure (R14 regression 就是这样暴露的), 但消费侧
+ *   暴露 = 已经晚一步; 此处文档化为 PR-time 提醒.
+ *
  * 用法:
  *   pnpm run build  # 先编译 dist/
  *   node scripts/verify-browser-entry.mjs
