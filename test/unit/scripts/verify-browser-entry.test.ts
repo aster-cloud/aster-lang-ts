@@ -1,32 +1,30 @@
-// P0-R16: self-tests for scripts/verify-browser-entry.mjs.
+// P0-R16/R17: self-tests for scripts/verify-browser-entry.mjs.
 //
 // 锁定 verifier 的拦截契约——证明未来 PR 时各种 Node 依赖形态都能被抓住,
 // 同时不误报 local / 第三方包.
 //
-// 直接复制 verifier 的纯函数 (extractImports + isNodeBuiltinSpec) 用临时
-// 源码字符串验证 AST parser. 复制是有意为之——keep verifier .mjs 简单
-// (单文件不导出 helper), self-test 独立校对.
+// R17 (codex round 17 High + Medium):
+//   - 不再复制 verifier 的 deny list, 改用 `node:module.isBuiltin()` 作为
+//     权威源. 这样 self-test 不会因复制同一份不全的清单而错过 regression
+//     (如 codex 抓到的 `assert/strict` / `dns/promises` / `inspector/promises`).
+//   - 新增 builtin set 完整性契约: verifier 必须接受 Node 当前所有 builtin
+//     (用 builtinModules 全集断言).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { isBuiltin, builtinModules } from 'node:module';
 import * as ts from 'typescript';
 
-const NODE_BUILTINS = new Set([
-  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console',
-  'constants', 'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain',
-  'events', 'fs', 'fs/promises', 'http', 'http2', 'https', 'inspector',
-  'module', 'net', 'os', 'path', 'path/posix', 'path/win32', 'perf_hooks',
-  'process', 'punycode', 'querystring', 'readline', 'readline/promises',
-  'repl', 'stream', 'stream/consumers', 'stream/promises', 'stream/web',
-  'string_decoder', 'sys', 'test', 'timers', 'timers/promises', 'tls',
-  'trace_events', 'tty', 'url', 'util', 'util/types', 'v8', 'vm', 'wasi',
-  'worker_threads', 'zlib',
-]);
-
+/**
+ * 复制自 verify-browser-entry.mjs 的等价实现; 用 isBuiltin 而非手维护清单.
+ * keep verifier .mjs 简单 (单文件不导出 helper), self-test 独立校对.
+ */
 function isNodeBuiltinSpec(spec: string): { violation: boolean; reason?: string } {
-  if (spec.startsWith('node:')) return { violation: true, reason: 'node: scheme' };
-  if (NODE_BUILTINS.has(spec)) return { violation: true, reason: 'bare Node builtin' };
-  return { violation: false };
+  if (!isBuiltin(spec)) return { violation: false };
+  return {
+    violation: true,
+    reason: spec.startsWith('node:') ? 'node: scheme' : 'bare Node builtin',
+  };
 }
 
 function extractFromSource(src: string, name = 'tmp.js'): string[] {
@@ -85,6 +83,24 @@ test('isNodeBuiltinSpec: bare Node builtin triggers violation', () => {
 test('isNodeBuiltinSpec: subpath imports (fs/promises) triggers violation', () => {
   const r = isNodeBuiltinSpec('fs/promises');
   assert.equal(r.violation, true);
+});
+
+test('R17: isNodeBuiltinSpec catches Node 24 subpath builtins missed by R16 手写清单', () => {
+  // codex round 17 High: 手写 NODE_BUILTINS 漏 `assert/strict` / `dns/promises` /
+  // `inspector/promises`. 用 isBuiltin() 后这些都能拦.
+  for (const m of ['assert/strict', 'dns/promises', 'inspector/promises']) {
+    assert.equal(isNodeBuiltinSpec(m).violation, true, `subpath '${m}' should be violation`);
+  }
+});
+
+test('R17 completeness: verifier 接受 builtinModules 全集 (no manual drift)', () => {
+  // 契约: 当前 Node runtime 报告的所有 builtin (含 _http_agent / _http_common 等
+  // 内部前缀) 都应被 verifier 视为违规. 这样未来 Node 升级新增 builtin 时
+  // 不需要手动同步 deny list — Node API 是单一事实源.
+  for (const m of builtinModules) {
+    const r = isNodeBuiltinSpec(m);
+    assert.equal(r.violation, true, `builtinModules entry '${m}' must be denied`);
+  }
 });
 
 test('isNodeBuiltinSpec: relative imports do not trigger', () => {

@@ -17,6 +17,11 @@
  *     之前合同只挡 `node:` scheme; 如果未来某文件改用 bare specifier
  *     `require('fs')` 而非 `require('node:fs')`, 当前 scanner 会放过.
  *
+ * R17 升级 (codex round 17 High):
+ *   - 手写 deny list 漏 Node 24 的 `assert/strict` / `dns/promises` /
+ *     `inspector/promises` 等 subpath builtins. 改用 `node:module.isBuiltin()`
+ *     作为权威运行时源, Node 升级时自动跟随, 不再手维护清单.
+ *
  * 用法:
  *   pnpm run build  # 先编译 dist/
  *   node scripts/verify-browser-entry.mjs
@@ -29,6 +34,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isBuiltin, builtinModules } from 'node:module';
 import ts from 'typescript';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,38 +43,21 @@ const DIST_ROOT = path.join(REPO_ROOT, 'dist', 'src');
 const ENTRY = path.join(DIST_ROOT, 'browser.js');
 
 /**
- * Node.js 内置模块清单 (Node 24 LTS).
- * 任何 bare specifier 命中 = browser bundle 违规.
+ * 判断一个 import specifier 是否触发 Node 内置违规.
  *
- * 注: 不含 `node:test` (testing framework) 或 `node:repl` (REPL) 等典型
- * 不该出现在生产 bundle 的模块——但本列表只关心"在场即违规"语义, 不区分模块类别.
- */
-const NODE_BUILTINS = new Set([
-  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console',
-  'constants', 'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain',
-  'events', 'fs', 'fs/promises', 'http', 'http2', 'https', 'inspector',
-  'module', 'net', 'os', 'path', 'path/posix', 'path/win32', 'perf_hooks',
-  'process', 'punycode', 'querystring', 'readline', 'readline/promises',
-  'repl', 'stream', 'stream/consumers', 'stream/promises', 'stream/web',
-  'string_decoder', 'sys', 'test', 'timers', 'timers/promises', 'tls',
-  'trace_events', 'tty', 'url', 'util', 'util/types', 'v8', 'vm', 'wasi',
-  'worker_threads', 'zlib',
-]);
-
-/**
- * 判断一个 import specifier 是否触发 Node 内置违规:
- *   - `node:fs` / `node:path` 等 node: scheme  ← 显式 Node 内置
- *   - `fs` / `path` 等 bare specifier 命中 NODE_BUILTINS ← 隐式 Node 内置
- *   - 否则 (相对路径 / 第三方包) 不算违规
+ * 权威源: `node:module.isBuiltin()` (R17 codex round 17 反馈).
+ * 之前手写 NODE_BUILTINS 集合 (52 个) 漏掉了 `assert/strict` / `dns/promises` /
+ * `inspector/promises` 等 Node 24 subpath builtins. 直接用 Node API 作为
+ * 运行时事实源, 不再手维护清单 — Node 升级时自动跟随.
+ *
+ * isBuiltin() 对 `fs` 和 `node:fs` 都返回 true; reason 区分输出两种形态便于诊断.
  */
 function isNodeBuiltinSpec(spec) {
-  if (spec.startsWith('node:')) {
-    return { violation: true, reason: 'node: scheme' };
-  }
-  if (NODE_BUILTINS.has(spec)) {
-    return { violation: true, reason: 'bare Node builtin' };
-  }
-  return { violation: false };
+  if (!isBuiltin(spec)) return { violation: false };
+  return {
+    violation: true,
+    reason: spec.startsWith('node:') ? 'node: scheme' : 'bare Node builtin',
+  };
 }
 
 if (!fs.existsSync(ENTRY)) {
@@ -187,7 +176,7 @@ function transitiveClosure(entry) {
 
 console.log(`Scanning browser entry transitive closure: ${ENTRY.replace(REPO_ROOT + '/', '')}`);
 console.log(`  parser: TypeScript compiler API (AST)`);
-console.log(`  deny: node:* scheme + bare Node builtin specifier (${NODE_BUILTINS.size} modules)`);
+console.log(`  deny: node:* scheme + bare Node builtin specifier (Node ${process.versions.node} builtin set, ${builtinModules.length} modules)`);
 const { visited, violations } = transitiveClosure(ENTRY);
 console.log(`  files in closure: ${visited.size}`);
 
