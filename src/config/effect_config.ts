@@ -247,7 +247,13 @@ export function loadEffectConfig(): EffectInferenceConfig {
     const stat = fs.statSync(configPath);
     // 尝试读取配置文件（参考 src/lsp/server.ts:752-755 的模式）
     const content = fs.readFileSync(configPath, 'utf8');
-    const userConfig = JSON.parse(content) as Partial<EffectInferenceConfig>;
+    // R31-6 audit P2：JSON.parse 返回 unknown，as cast 掩盖了 shape 校验
+    // 缺失的事实。加最小 guard：必须是 object，不是 array / null / 原始值。
+    const parsed: unknown = JSON.parse(content);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('effect config must be a JSON object');
+    }
+    const userConfig = parsed as Partial<EffectInferenceConfig>;
     // 合并用户配置与默认配置，确保所有字段都存在
     const config = mergeWithDefault(userConfig);
     cachedSnapshot = {
