@@ -199,7 +199,7 @@ export function parseStatement(
       assignSpan(lambda, spanFromTokens(functionTok, lambdaEnd));
       const nd = Node.Let(name, lambda);
       assignSpan(nd, spanFromTokens(letTok, lambdaEnd));
-      if (nameTok) (nd as any).nameSpan = spanFromToken(nameTok);
+      if (nameTok) (nd as { nameSpan?: import('../types.js').Span }).nameSpan = spanFromToken(nameTok);
       return nd;
     }
     const expr = parseExpr(ctx, error);

@@ -28,6 +28,26 @@ import { vocabularyRegistry, initBuiltinVocabularies } from '../config/lexicons/
 import { applyTransformers } from './transformers.js';
 
 /**
+ * R30+ audit P1：customRules 的 RegExp 原本每次 canonicalize 调用都重新
+ * 编译一次。把它按 lexicon-identity 缓存：同一 lexicon 引用复用同一份
+ * 编译后的 RegExp 数组。lexicon 在测试或热重载场景下会换引用，WeakMap
+ * 让旧 lexicon GC 时缓存条目自动释放，不会泄漏。
+ */
+const CUSTOM_RULE_REGEX_CACHE = new WeakMap<Lexicon, ReadonlyArray<{ re: RegExp; replacement: string }>>();
+
+function compiledCustomRules(lexicon: Lexicon): ReadonlyArray<{ re: RegExp; replacement: string }> {
+  const cached = CUSTOM_RULE_REGEX_CACHE.get(lexicon);
+  if (cached) return cached;
+  const rules = lexicon.canonicalization.customRules ?? [];
+  const compiled = rules.map(r => ({
+    re: new RegExp(r.pattern, 'g'),
+    replacement: r.replacement,
+  }));
+  CUSTOM_RULE_REGEX_CACHE.set(lexicon, compiled);
+  return compiled;
+}
+
+/**
  * 规范化器选项。
  */
 export interface CanonicalizerOptions {
@@ -217,11 +237,13 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
     s = normalizeAlternatingQuotes(s, '"', quotes.open, quotes.close);
   }
 
-  // 应用 lexicon 的自定义规范化规则
+  // R30+ audit P1：复用预编译的 RegExp，避免每次 canonicalize 都重新
+  // build customRules.length 个正则。
   if (effectiveLexicon.canonicalization.customRules) {
-    for (const rule of effectiveLexicon.canonicalization.customRules) {
-      const re = new RegExp(rule.pattern, 'g');
-      s = s.replace(re, rule.replacement);
+    for (const rule of compiledCustomRules(effectiveLexicon)) {
+      // g 标志的 RegExp 内部维护 lastIndex 状态。每次 .replace() 调用
+      // 会把它重置为 0，所以共享 RegExp 在串行调用里是安全的。
+      s = s.replace(rule.re, rule.replacement);
     }
   }
 

@@ -16,6 +16,28 @@ import { parseType, parseEffectList, separateEffectsAndCaps } from './type-parse
 import { parseBlock, parseParamList } from './expr-stmt-parser.js';
 import { parseFieldList, parseVariantList } from './field-variant-parser.js';
 import { assignSpan, spanFromSources, lastConsumedToken, spanFromTokens } from './span-utils.js';
+import type { Span } from '../types.js';
+
+/**
+ * R30+ audit P1：原本写满 14 处 {@code (node as any).nameSpan = ...} / variantSpans。
+ * 把单一职责的辅助器抽出来：保留 readonly 字段的设计意图（声明阶段不可改），
+ * 但允许 parser 在构造完成那一刻一次性写入。所有 nameSpan / variantSpans
+ * 在 types.ts 已经声明为 readonly optional，下面的 helper 是唯一允许
+ * 突破 readonly 的窗口。
+ */
+function attachNameSpan<T extends object>(node: T, nameSpan: Span | undefined): T {
+  if (nameSpan) {
+    (node as { nameSpan?: Span }).nameSpan = nameSpan;
+  }
+  return node;
+}
+
+function attachVariantSpans<T extends object>(node: T, variantSpans: readonly Span[] | undefined): T {
+  if (variantSpans && variantSpans.length > 0) {
+    (node as { variantSpans?: readonly Span[] }).variantSpans = variantSpans;
+  }
+  return node;
+}
 
 function parseEffectParams(
   ctx: ParserContext,
@@ -143,9 +165,7 @@ export function parseEnumDecl(
   } else {
     assignSpan(en, spanFromSources(defineTok, endTok));
   }
-  if (variantSpans && Array.isArray(variantSpans)) {
-    (en as any).variantSpans = variantSpans;
-  }
+  attachVariantSpans(en, variantSpans);
   ctx.declaredTypes.add(typeName);
 
   return en;
@@ -370,24 +390,24 @@ export function parseFuncDecl(
         case 'TypeApp':
           t.args.forEach(visitType);
           break;
+        // R30+ audit P1：TypeScript 在 union 上对 'kind' 已经能精确收窄，
+        // 这里直接用收窄后的 t，不需要 as any。
         case 'Maybe':
         case 'Option':
-          visitType((t as any).type);
+        case 'List':
+          visitType(t.type);
           break;
         case 'Result':
-          visitType((t as any).ok);
-          visitType((t as any).err);
-          break;
-        case 'List':
-          visitType((t as any).type);
+          visitType(t.ok);
+          visitType(t.err);
           break;
         case 'Map':
-          visitType((t as any).key);
-          visitType((t as any).val);
+          visitType(t.key);
+          visitType(t.val);
           break;
         case 'FuncType':
-          (t as any).params.forEach(visitType);
-          visitType((t as any).ret);
+          t.params.forEach(visitType);
+          visitType(t.ret);
           break;
         default:
           break;
@@ -439,7 +459,7 @@ export function parseFuncDecl(
   const funcEndSource = body ?? endTok;
   assignSpan(fn, spanFromSources(toTok, funcEndSource, endTok));
   // 记录函数名 span 用于精确导航/高亮
-  (fn as any).nameSpan = spanFromSources(nameTok, nameEndTok);
+  attachNameSpan(fn, spanFromSources(nameTok, nameEndTok));
 
   return fn;
 }
@@ -544,7 +564,7 @@ export function collectTopLevelDecls(
           const endTok = lastConsumedToken(ctx);
           assignSpan(en, spanFromTokens(startTok, endTok));
           if (variantSpans && Array.isArray(variantSpans)) {
-            (en as any).variantSpans = variantSpans;
+            attachVariantSpans(en, variantSpans);
           }
           ctx.declaredTypes.add(typeName);
           decls.push(en);

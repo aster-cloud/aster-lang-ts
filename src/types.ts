@@ -200,6 +200,10 @@ export interface Field extends Base.BaseField<Type> {
 
 export interface Enum extends Base.BaseEnum<Span> {
   span: Span;
+  /** R30+ audit P1：LSP / 诊断需要枚举名的精确 span。 */
+  readonly nameSpan?: Span;
+  /** R30+ audit P1：每个 variant 的精确 span，与 variants 数组同长。 */
+  readonly variantSpans?: readonly Span[];
 }
 
 export interface Func extends Base.BaseFunc<Span, readonly string[], Type> {
@@ -209,6 +213,8 @@ export interface Func extends Base.BaseFunc<Span, readonly string[], Type> {
   readonly body: Block | null;
   readonly params: readonly Parameter[];
   readonly effectParams?: readonly string[];
+  /** R30+ audit P1：函数名 span，用于 LSP go-to-definition + rename refactor。 */
+  readonly nameSpan?: Span;
   span: Span;
 }
 
