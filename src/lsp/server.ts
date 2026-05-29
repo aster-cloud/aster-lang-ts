@@ -439,7 +439,12 @@ connection.onDidChangeConfiguration(change => {
 
     // 重新预解析，让下一次 pull diagnostics 命中新缓存。必须放在缓存
     // 失效之后，否则 getOrParse 会立刻被旧条目命中。
-    documents.all().forEach(doc => { try { void getOrParse(doc); } catch {} });
+    documents.all().forEach(doc => {
+      try { void getOrParse(doc); }
+      // R32 audit P0：原 catch {} 静默吞掉 LSP 解析错误，diagnostics 漏报无法
+      // 排查。改成 console.warn 既不让 LSP runtime 挂，又保留可见性。
+      catch (err) { connection.console.warn(`[lsp] getOrParse failed for ${doc.uri}: ${err instanceof Error ? err.message : String(err)}`); }
+    });
   }).catch(() => {
     setDiagnosticConfig({
       workspaceDiagnosticsEnabled: true,
@@ -477,7 +482,8 @@ documents.onDidOpen(async (e) => {
   try {
     // Small delay to ensure document is fully initialized
     setTimeout(async () => {
-      try { await pushDiagnostics(e.document.uri); } catch {}
+      try { await pushDiagnostics(e.document.uri); }
+      catch (err) { connection.console.warn(`[lsp] pushDiagnostics onDidOpen failed for ${e.document.uri}: ${err instanceof Error ? err.message : String(err)}`); }
     }, 100);
   } catch {}
 });
@@ -491,9 +497,11 @@ documents.onDidChangeContent(change => {
   const handle = setTimeout(async () => {
     pendingValidate.delete(uri);
     // Parse to keep caches warm for fast responses
-    try { void getOrParse(change.document); } catch {}
+    try { void getOrParse(change.document); }
+    catch (err) { connection.console.warn(`[lsp] getOrParse onChange failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`); }
     // Push diagnostics to client (for clients that don't support pull-based diagnostics)
-    try { await pushDiagnostics(uri); } catch {}
+    try { await pushDiagnostics(uri); }
+    catch (err) { connection.console.warn(`[lsp] pushDiagnostics onChange failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`); }
   }, 150);
   pendingValidate.set(uri, handle);
   // Clear diagnostic cache when document changes
