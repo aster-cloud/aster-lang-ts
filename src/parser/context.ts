@@ -82,6 +82,34 @@ const parserLogger = createLogger('parser');
 export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon): ParserContext {
   const compoundContextStack: string[] = [];
 
+  // R30+ audit P2：peekToken / next / skipTrivia 都在 token stream 上
+  // 一次次扫 trivia，对长 source 形成 O(n²) 行为。预先把 non-trivia 的
+  // 下标抽出来，peek 改成 binary-style 单步查找。trivia 占总 token 通常
+  // 不到 20%，nonTriviaIndices 数组大小可控；建表 O(n) 摊销到一次。
+  //
+  // 设计点：建表用闭包数组 + 二分；token stream 是 readonly，不需要
+  // 增量维护。
+  const nonTriviaIndices: number[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i]!.channel !== 'trivia') nonTriviaIndices.push(i);
+  }
+  /** 返回大于等于 fromIdx 的第 k 个 non-trivia token 的 tokens[] 下标，
+   *  超出末尾返回 tokens.length-1（与原实现的 fallback 一致）。 */
+  function nthNonTriviaAtOrAfter(fromIdx: number, offset: number): number {
+    // 二分找到第一个 >= fromIdx 的 nonTriviaIndices 位置
+    let lo = 0, hi = nonTriviaIndices.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (nonTriviaIndices[mid]! < fromIdx) lo = mid + 1;
+      else hi = mid;
+    }
+    const target = lo + offset;
+    if (target >= nonTriviaIndices.length) {
+      return tokens.length - 1;
+    }
+    return nonTriviaIndices[target]!;
+  }
+
   const ctx: ParserContext = {
     tokens,
     ...(lexicon !== undefined && { lexicon }),
@@ -112,17 +140,8 @@ export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon)
       }
     },
     peekToken: (offset = 0): Token => {
-      let idx = ctx.index;
-      let count = 0;
-      while (idx < ctx.tokens.length) {
-        const tok = ctx.tokens[idx]!;
-        if (tok.channel !== 'trivia') {
-          if (count === offset) return tok;
-          count++;
-        }
-        idx++;
-      }
-      return ctx.tokens[ctx.tokens.length - 1]!;
+      // R30+ audit P2：O(1) lookup via pre-built nonTriviaIndices + 二分。
+      return ctx.tokens[nthNonTriviaAtOrAfter(ctx.index, offset)]!;
     },
     peek: (offset = 0): Token => ctx.peekToken(offset),
     next: (): Token => {
