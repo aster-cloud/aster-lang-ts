@@ -105,10 +105,20 @@ jobs:
     permissions:
       contents: read
     steps:
+      # R-CI-1 fix: paths-filter needs a checkout to diff against. Do
+      # the self-checkout first into a sub-path, then point paths-filter
+      # at it with working-directory.
+      - name: Self checkout
+        uses: actions/checkout@v6
+        with:
+          path: aster-lang-ts
+          fetch-depth: 0
+
       - name: Decide whether to run
         id: changed
         uses: dorny/paths-filter@v3
         with:
+          working-directory: aster-lang-ts
           filters: |
             parity:
               # Anything that can change the parse surface — keep this
@@ -135,12 +145,6 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - '.github/workflows/ci.yml'
-
-      - name: Self checkout
-        if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
-        uses: actions/checkout@v6
-        with:
-          path: aster-lang-ts
 
       - name: Checkout aster-lang-test
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
