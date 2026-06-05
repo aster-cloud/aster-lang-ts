@@ -94,7 +94,10 @@ const MAX_CALL_DEPTH = 50;
 /** 内置运算符集合 */
 const BUILTIN_OPS = new Set([
   '+', '-', '*', '/',
-  '>', '<', '>=', '<=', '==',
+  // 比较运算符必须与 evalBinaryOp 的 switch 分支一一对应。遗漏 '!='
+  // 会让 `not equal to`（降低为 Call(Name('!='), …)）越过内置分发、
+  // 落入用户函数查找，从而抛出 "Undefined function '!='"。
+  '>', '<', '>=', '<=', '==', '!=',
   'and', 'or', 'not',
 ]);
 
