@@ -695,6 +695,8 @@ function parseComparison(
   const greaterThanParts = kwParts(KW.GREATER_THAN);
   const equalsToParts = kwParts(KW.EQUALS_TO);
   const notEqualToParts = ['not', 'equal', 'to'];
+  const isEqualToParts = ['is', 'equal', 'to'];
+  const isNotEqualToParts = ['is', 'not', 'equal', 'to'];
   const atLeastParts = kwParts(KW.AT_LEAST);
   const atMostParts = kwParts(KW.AT_MOST);
   const moreThanParts = kwParts(KW.MORE_THAN);
@@ -741,13 +743,17 @@ function parseComparison(
       consumeSymbol('==');
     } else if (ctx.at(TokenKind.EQUALS)) {
       consumeSymbol('==');
-    // 关键字运算符：not equal to, less than, greater than, equals to, at least, at most
+    // 关键字运算符：is not equal to, not equal to, less than, greater than, is equal to, equals to, at least, at most
+    } else if (ctx.isKeywordSeq(isNotEqualToParts)) {
+      consumeKeyword(isNotEqualToParts, '!=');
     } else if (ctx.isKeywordSeq(notEqualToParts)) {
       consumeKeyword(notEqualToParts, '!=');
     } else if (ctx.isKeyword(KW.LESS_THAN) || ctx.isKeywordSeq(lessThanParts)) {
       consumeKeyword(lessThanParts, '<');
     } else if (ctx.isKeyword(KW.GREATER_THAN) || ctx.isKeywordSeq(greaterThanParts)) {
       consumeKeyword(greaterThanParts, '>');
+    } else if (ctx.isKeywordSeq(isEqualToParts)) {
+      consumeKeyword(isEqualToParts, '==');
     } else if (ctx.isKeyword(KW.EQUALS_TO) || ctx.isKeywordSeq(equalsToParts)) {
       consumeKeyword(equalsToParts, '==');
     } else if (ctx.isKeyword(KW.AT_LEAST) || ctx.isKeywordSeq(atLeastParts)) {
