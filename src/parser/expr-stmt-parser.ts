@@ -726,8 +726,30 @@ function parseComparison(
     left = call;
   };
 
+  // 可选 `is` 连接词前缀：`score is at least 700` ≡ `score at least 700`。
+  // 仅当 `is` 后<b>紧跟一个比较词</b>（at least / at most / greater than /
+  // less than / more than / under / over）时，先吃掉 `is`，再让下面既有的比较
+  // 分支自然处理。刻意排除 `is equal to` / `is not equal to`（由 isEqualToParts /
+  // isNotEqualToParts 分支整体处理）和 bare `is`（不实现，避免过载）。
+  const isComparatorPrefixParts: string[][] = [
+    atLeastParts, atMostParts, greaterThanParts, lessThanParts,
+    moreThanParts, [KW.UNDER], [KW.OVER],
+  ];
+  const tryAbsorbIsPrefix = (): void => {
+    if (!ctx.isKeyword('is')) return;
+    // lookahead：`is` 之后是否紧跟受支持的比较词（用带 is 的完整序列判定，
+    // 避免误吃 `is equal to` 的 is 或 result-binding 的 is）。
+    for (const parts of isComparatorPrefixParts) {
+      if (ctx.isKeywordSeq(['is', ...parts])) {
+        ctx.nextWord(); // 消费可选的 `is`，留下比较词给既有分支
+        return;
+      }
+    }
+  };
+
   let more = true;
   while (more) {
+    tryAbsorbIsPrefix();
     // 符号运算符：<, >, <=, >=, !=, ==, =
     if (ctx.at(TokenKind.LT)) {
       consumeSymbol('<');
