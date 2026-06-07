@@ -25,6 +25,7 @@ import { SymbolTable } from './symbol_table.js';
 import {
   formatType,
   isUnknown,
+  buildFieldTypeMap,
   normalizeModuleSearchPaths,
   normalizeType,
   typesEqual,
@@ -66,12 +67,13 @@ export function typecheckModule(m: Core.Module, options?: TypecheckOptions): Typ
       moduleSearchPaths,
     };
     const importDecls: Core.Import[] = [];
+    const fieldTypes = buildFieldTypeMap(m.decls);
     for (const d of m.decls) {
       if (d.kind === 'Func') {
         const params = d.params.map(param => normalizeType(param.type as Core.Type));
         let ret = normalizeType(d.ret as Core.Type);
         if ((d as { retTypeInferred?: boolean }).retTypeInferred) {
-          const inferred = TypeSystem.inferFunctionType(d.params, d.body.statements).ret as Core.Type;
+          const inferred = TypeSystem.inferFunctionType(d.params, d.body.statements, fieldTypes).ret as Core.Type;
           if (!isUnknown(inferred)) ret = inferred;
         }
         ctx.funcSignatures.set(d.name, { params, ret });

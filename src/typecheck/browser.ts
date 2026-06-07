@@ -120,6 +120,7 @@ import {
 // utils.ts 含 loadPrefixes → require('node:module'), 不适合 browser bundle.
 // 改 import from './pure.js' (browser-safe leaf).
 import {
+  buildFieldTypeMap,
   formatType,
   isUnknown,
   normalizeType,
@@ -203,13 +204,15 @@ export function typecheckBrowser(
       moduleSearchPaths: [], // Not used in browser
     };
 
+    const fieldTypes = buildFieldTypeMap(m.decls);
+
     // First pass: collect function signatures
     for (const d of m.decls) {
       if (d.kind === 'Func') {
         const params = d.params.map((param) => normalizeType(param.type as Core.Type));
         let ret = normalizeType(d.ret as Core.Type);
         if ((d as { retTypeInferred?: boolean }).retTypeInferred) {
-          const inferred = TypeSystem.inferFunctionType(d.params, d.body.statements)
+          const inferred = TypeSystem.inferFunctionType(d.params, d.body.statements, fieldTypes)
             .ret as Core.Type;
           if (!isUnknown(inferred)) ret = inferred;
         }
