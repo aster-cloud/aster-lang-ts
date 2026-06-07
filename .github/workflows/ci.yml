@@ -154,6 +154,17 @@ jobs:
           path: aster-lang-test
           token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
 
+      # 共享版本目录（aster-lang-platform, ADR 0012）。aster-lang-core 经
+      # asterLibs.* 引用它，publish core 前必须先把它发到 Maven Local，否则
+      # 解析 cloud.aster-lang:aster-lang-platform 失败。
+      - name: Checkout aster-lang-platform
+        if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
+        uses: actions/checkout@v6
+        with:
+          repository: aster-cloud/aster-lang-platform
+          path: aster-lang-platform
+          token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
+
       - name: Checkout aster-lang-core
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
         uses: actions/checkout@v6
@@ -230,6 +241,12 @@ jobs:
 
       # See aster-lang-test/.github/workflows/ci.yml for the full
       # rationale on the Maven Local publishing chain.
+      # core 经 asterLibs.* 依赖共享版本目录，必须先 publish 它。
+      - name: Publish version catalog to Maven Local
+        if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
+        working-directory: aster-lang-platform
+        run: ./gradlew publishToMavenLocal
+
       - name: Publish aster-lang-core to Maven Local
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
         working-directory: aster-lang-core
