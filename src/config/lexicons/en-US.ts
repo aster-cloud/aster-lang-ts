@@ -19,7 +19,7 @@ export const EN_US: Lexicon = {
     [SemanticTokenKind.FUNC_TO]: 'Rule',
     [SemanticTokenKind.FUNC_GIVEN]: 'given',
     [SemanticTokenKind.FUNC_PRODUCE]: 'produce',
-    [SemanticTokenKind.FUNC_PERFORMS]: 'it performs',
+    [SemanticTokenKind.FUNC_PERFORMS]: 'It performs',
     [SemanticTokenKind.IF]: 'If',
     [SemanticTokenKind.OTHERWISE]: 'Otherwise',
     [SemanticTokenKind.MATCH]: 'Match',
