@@ -102,6 +102,19 @@ class VocabularyRegistry {
   }
 
   /**
+   * 注销租户自定义词汇（用于用户清空某领域词汇后回退到内置）。
+   *
+   * @param tenantId - 租户标识符
+   * @param domain - 领域标识符
+   * @param locale - 语言代码
+   * @returns 若存在并被移除返回 true，否则 false
+   */
+  unregisterCustom(tenantId: string, domain: string, locale: string): boolean {
+    const key = this.makeCustomKey(tenantId, domain, locale);
+    return this.customVocabularies.delete(key);
+  }
+
+  /**
    * 获取领域词汇表。
    *
    * @param domain - 领域标识符

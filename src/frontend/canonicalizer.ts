@@ -57,6 +57,12 @@ export interface CanonicalizerOptions {
   domain?: string;
   /** 语言代码（如 'zh-CN'），与 domain 配合使用 */
   locale?: string;
+  /**
+   * 租户标识符。提供时，领域词汇查找优先命中该租户通过
+   * `registerCustom` 注册的自定义词汇，未命中再回退到内置词汇。
+   * 缺省时仅查内置词汇（保持原有行为）。
+   */
+  tenantId?: string | undefined;
 }
 
 // 默认正则表达式（英语）
@@ -196,7 +202,13 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
     lexicon = opts.lexicon;
     if (opts.domain && opts.locale) {
       initBuiltinVocabularies();
-      identifierIndex = vocabularyRegistry.getIndex(opts.domain, opts.locale);
+      // 通过 getWithCustom 先查租户自定义词汇、再回退内置；tenantId
+      // 缺省时该方法等价于仅查内置（getIndex 老行为）。
+      identifierIndex = vocabularyRegistry.getWithCustom(
+        opts.tenantId,
+        opts.domain,
+        opts.locale,
+      )?.index;
     }
   }
 

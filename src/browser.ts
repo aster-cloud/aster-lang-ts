@@ -146,6 +146,11 @@ export interface CompileOptions {
   lexicon?: Lexicon;
   /** 领域标识符（如 'insurance.auto'），启用领域标识符翻译 */
   domain?: string;
+  /**
+   * 租户标识符。提供时，领域词汇翻译优先命中该租户的自定义词汇
+   * （需先经 `vocabularyRegistry.registerCustom` 注册），未命中回退内置。
+   */
+  tenantId?: string;
   /** Include intermediate representations in result */
   includeIntermediates?: boolean;
 }
@@ -179,6 +184,7 @@ export function compile(source: string, options?: CompileOptions): CompileResult
   try {
     const lexicon = options?.lexicon;
     const domain = options?.domain;
+    const tenantId = options?.tenantId;
 
     // Step 1: Canonicalize source WITH lexicon for language-specific normalization
     // If domain is specified, pass CanonicalizerOptions to enable identifier translation
@@ -187,7 +193,7 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       // Resolve effective lexicon for domain translation (default to EN_US)
       // M3: 浏览器入口预注册 en + zh + de（这些已在 bundle 里）
       const effectiveLexicon = lexicon ?? (initializeAllBundledLexicons(), LexiconRegistry.getDefault());
-      canonical = canonicalize(source, { lexicon: effectiveLexicon, domain, locale: effectiveLexicon.id });
+      canonical = canonicalize(source, { lexicon: effectiveLexicon, domain, locale: effectiveLexicon.id, tenantId });
     } else {
       canonical = canonicalize(source, lexicon);
     }
