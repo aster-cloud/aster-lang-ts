@@ -63,6 +63,22 @@ export function normalizeType(type: Core.Type | undefined | null): Core.Type {
   return type ?? UNKNOWN_TYPE;
 }
 
+export function buildFieldTypeMap(decls: readonly Core.Declaration[]): Map<string, Core.Type> {
+  const fieldTypes = new Map<string, Core.Type>();
+  const conflicts = new Set<string>();
+  for (const decl of decls) {
+    if (decl.kind !== 'Data') continue;
+    for (const field of decl.fields) {
+      const normalized = normalizeType(field.type as Core.Type);
+      const existing = fieldTypes.get(field.name);
+      if (!existing) fieldTypes.set(field.name, normalized);
+      if (existing && !TypeSystem.equals(existing, normalized, true)) conflicts.add(field.name);
+    }
+  }
+  for (const name of conflicts) fieldTypes.delete(name);
+  return fieldTypes;
+}
+
 export function formatType(type: Core.Type | undefined | null): string {
   return TypeSystem.format(normalizeType(type));
 }

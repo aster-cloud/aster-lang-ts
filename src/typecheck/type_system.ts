@@ -414,9 +414,13 @@ export class TypeSystem {
     return current;
   }
 
-  static inferFunctionType(params: readonly Core.Parameter[], body: readonly Core.Statement[]): Core.FuncType {
+  static inferFunctionType(
+    params: readonly Core.Parameter[],
+    body: readonly Core.Statement[],
+    fieldTypes?: ReadonlyMap<string, Type>
+  ): Core.FuncType {
     const paramTypes = params.map(p => cloneType(p.type as Type)) as readonly Core.Type[];
-    const ret = TypeSystem.inferReturnType(body);
+    const ret = TypeSystem.inferReturnType(body, fieldTypes);
     return {
       kind: 'FuncType',
       params: paramTypes,
@@ -456,18 +460,29 @@ export class TypeSystem {
     }
   }
 
-  private static inferReturnType(body: readonly Core.Statement[]): Type {
-    for (let i = body.length - 1; i >= 0; i--) {
-      const stmt = body[i]!;
-      if (stmt.kind === 'Return') {
-        const ret = TypeSystem.inferStaticType(stmt.expr);
-        return ret ?? TypeSystem.unknown();
+  private static inferReturnType(
+    body: readonly Core.Statement[],
+    fieldTypes?: ReadonlyMap<string, Type>
+  ): Type {
+    const returnTypes: Type[] = [];
+    for (const stmt of body) {
+      if (stmt.kind !== 'Return') continue;
+      returnTypes.push(TypeSystem.inferStaticType(stmt.expr, fieldTypes) ?? TypeSystem.unknown());
+    }
+    if (returnTypes.length === 0) return TypeSystem.unknown();
+    const current = cloneType(returnTypes[0]!);
+    for (let i = 1; i < returnTypes.length; i++) {
+      if (!TypeSystem.equals(current, returnTypes[i]!, true)) {
+        return TypeSystem.unknown();
       }
     }
-    return TypeSystem.unknown();
+    return current;
   }
 
-  private static inferStaticType(expr: Core.Expression | undefined | null): Type | null {
+  private static inferStaticType(
+    expr: Core.Expression | undefined | null,
+    fieldTypes?: ReadonlyMap<string, Type>
+  ): Type | null {
     if (!expr) return null;
     switch (expr.kind) {
       case 'Bool':
@@ -483,15 +498,15 @@ export class TypeSystem {
       case 'Null':
         return { kind: 'Maybe', type: TypeSystem.unknown() };
       case 'Ok': {
-        const inner = TypeSystem.inferStaticType(expr.expr) ?? TypeSystem.unknown();
+        const inner = TypeSystem.inferStaticType(expr.expr, fieldTypes) ?? TypeSystem.unknown();
         return { kind: 'Result', ok: inner, err: TypeSystem.unknown() };
       }
       case 'Err': {
-        const inner = TypeSystem.inferStaticType(expr.expr) ?? TypeSystem.unknown();
+        const inner = TypeSystem.inferStaticType(expr.expr, fieldTypes) ?? TypeSystem.unknown();
         return { kind: 'Result', ok: TypeSystem.unknown(), err: inner };
       }
       case 'Some': {
-        const inner = TypeSystem.inferStaticType(expr.expr) ?? TypeSystem.unknown();
+        const inner = TypeSystem.inferStaticType(expr.expr, fieldTypes) ?? TypeSystem.unknown();
         return { kind: 'Option', type: inner };
       }
       case 'None':
@@ -507,8 +522,17 @@ export class TypeSystem {
       }
       case 'Construct':
         return { kind: 'TypeName', name: expr.typeName };
+      case 'Name': {
+        const fieldName = TypeSystem.fieldNameFromDottedName(expr.name);
+        const fieldType = fieldName ? fieldTypes?.get(fieldName) : undefined;
+        if (fieldType) return cloneType(fieldType);
+        const annotated = (expr as { inferredType?: Type }).inferredType;
+        return annotated ?? null;
+      }
       case 'Call': {
         if (expr.target.kind === 'Name') {
+          const arithmetic = TypeSystem.inferArithmeticCall(expr.target.name, expr.args, fieldTypes);
+          if (arithmetic) return arithmetic;
           switch (expr.target.name) {
             case 'Text.concat':
             case 'Crypto.hash':
@@ -527,6 +551,41 @@ export class TypeSystem {
         return null;
       }
     }
+  }
+
+  private static fieldNameFromDottedName(name: string): string | null {
+    if (!name.includes('.')) return null;
+    return name.split('.').pop() || null;
+  }
+
+  private static inferArithmeticCall(
+    operator: string,
+    args: readonly Core.Expression[],
+    fieldTypes?: ReadonlyMap<string, Type>
+  ): Type | null {
+    if (!['+', '-', '*', '/', '%'].includes(operator) || args.length < 2) return null;
+    const left = TypeSystem.inferStaticType(args[0], fieldTypes);
+    const right = TypeSystem.inferStaticType(args[1], fieldTypes);
+    if (!left || !right) return null;
+    return TypeSystem.promoteNumericTypes(left, right);
+  }
+
+  private static promoteNumericTypes(left: Type, right: Type): Type | null {
+    if (!TypeSystem.isNumericType(left) || !TypeSystem.isNumericType(right)) return null;
+    if (TypeSystem.hasTypeName(left, right, 'Double')) return { kind: 'TypeName', name: 'Double' };
+    if (TypeSystem.hasTypeName(left, right, 'Long')) return { kind: 'TypeName', name: 'Long' };
+    return { kind: 'TypeName', name: 'Int' };
+  }
+
+  private static isNumericType(type: Type): boolean {
+    return type.kind === 'TypeName' && ['Int', 'Long', 'Double'].includes(type.name);
+  }
+
+  private static hasTypeName(left: Type, right: Type, name: string): boolean {
+    return (
+      (left.kind === 'TypeName' && left.name === name) ||
+      (right.kind === 'TypeName' && right.name === name)
+    );
   }
 }
 

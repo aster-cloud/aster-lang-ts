@@ -520,8 +520,14 @@ describe('TypeSystem.unify', () => {
 
   describe('TypeSystem.infer 系列辅助函数', () => {
     const internals = TypeSystem as unknown as {
-      inferStaticType(expr: Core.Expression | undefined | null): Core.Type | null;
-      inferReturnType(body: readonly Core.Statement[]): Core.Type;
+      inferStaticType(
+        expr: Core.Expression | undefined | null,
+        fieldTypes?: ReadonlyMap<string, Core.Type>
+      ): Core.Type | null;
+      inferReturnType(
+        body: readonly Core.Statement[],
+        fieldTypes?: ReadonlyMap<string, Core.Type>
+      ): Core.Type;
     };
 
     it('inferStaticType 应该识别主要表达式类型', () => {
@@ -616,14 +622,85 @@ describe('TypeSystem.unify', () => {
       assert.strictEqual(unknown, null);
     });
 
-    it('inferReturnType 应该返回最后一个 return 的静态类型', () => {
+    it('inferStaticType 应该推断算术 Call 的数字提升类型', () => {
+      const intMath = internals.inferStaticType({
+        kind: 'Call',
+        target: { kind: 'Name', name: '*' },
+        args: [
+          { kind: 'Int', value: 10 },
+          { kind: 'Int', value: 2 }
+        ]
+      } as Core.Call);
+      const longMath = internals.inferStaticType({
+        kind: 'Call',
+        target: { kind: 'Name', name: '+' },
+        args: [
+          { kind: 'Int', value: 10 },
+          { kind: 'Long', value: '2' }
+        ]
+      } as Core.Call);
+      const doubleMath = internals.inferStaticType({
+        kind: 'Call',
+        target: { kind: 'Name', name: '/' },
+        args: [
+          { kind: 'Int', value: 10 },
+          { kind: 'Double', value: 2.5 }
+        ]
+      } as Core.Call);
+
+      assert.deepStrictEqual(intMath, { kind: 'TypeName', name: 'Int' });
+      assert.deepStrictEqual(longMath, { kind: 'TypeName', name: 'Long' });
+      assert.deepStrictEqual(doubleMath, { kind: 'TypeName', name: 'Double' });
+    });
+
+    it('inferFunctionType 应该推断字段访问及字段算术返回类型', () => {
+      const fieldTypes = new Map<string, Core.Type>([
+        ['intField', { kind: 'TypeName', name: 'Int' }],
+        ['doubleField', { kind: 'TypeName', name: 'Double' }]
+      ]);
+      const params: Core.Parameter[] = [
+        { name: 'app', type: { kind: 'TypeName', name: 'Application' } }
+      ];
+
+      const intField = TypeSystem.inferFunctionType(params, [
+        {
+          kind: 'Return',
+          expr: { kind: 'Name', name: 'app.intField' }
+        } as Core.Return
+      ], fieldTypes);
+      const intMath = TypeSystem.inferFunctionType(params, [
+        {
+          kind: 'Return',
+          expr: {
+            kind: 'Call',
+            target: { kind: 'Name', name: '*' },
+            args: [
+              { kind: 'Name', name: 'app.intField' },
+              { kind: 'Int', value: 2 }
+            ]
+          }
+        } as Core.Return
+      ], fieldTypes);
+      const doubleField = TypeSystem.inferFunctionType(params, [
+        {
+          kind: 'Return',
+          expr: { kind: 'Name', name: 'app.doubleField' }
+        } as Core.Return
+      ], fieldTypes);
+
+      assert.deepStrictEqual(intField.ret, { kind: 'TypeName', name: 'Int' });
+      assert.deepStrictEqual(intMath.ret, { kind: 'TypeName', name: 'Int' });
+      assert.deepStrictEqual(doubleField.ret, { kind: 'TypeName', name: 'Double' });
+    });
+
+    it('inferReturnType 应该统一所有 return 的静态类型', () => {
       const firstReturn = {
         kind: 'Return',
         expr: { kind: 'Int', value: 1 }
       } as Core.Return;
       const secondReturn = {
         kind: 'Return',
-        expr: { kind: 'String', value: 'done' }
+        expr: { kind: 'Int', value: 2 }
       } as Core.Return;
 
       const body: readonly Core.Statement[] = [
@@ -633,7 +710,24 @@ describe('TypeSystem.unify', () => {
 
       const resultType = internals.inferReturnType(body);
 
-      assert.deepStrictEqual(resultType, { kind: 'TypeName', name: 'Text' });
+      assert.deepStrictEqual(resultType, { kind: 'TypeName', name: 'Int' });
+    });
+
+    it('inferReturnType 应该在 return 分支类型冲突时回退 Unknown', () => {
+      const body: readonly Core.Statement[] = [
+        {
+          kind: 'Return',
+          expr: { kind: 'Int', value: 1 }
+        } as Core.Return,
+        {
+          kind: 'Return',
+          expr: { kind: 'String', value: 'done' }
+        } as Core.Return
+      ];
+
+      const resultType = internals.inferReturnType(body);
+
+      assert.deepStrictEqual(resultType, { kind: 'TypeName', name: 'Unknown' });
     });
 
     it('inferReturnType 在缺失 return 时应该回退 Unknown', () => {

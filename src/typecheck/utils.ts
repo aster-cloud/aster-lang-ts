@@ -15,6 +15,7 @@ export {
   CPU_PREFIXES,
   isUnknown,
   unknownType,
+  buildFieldTypeMap,
   normalizeType,
   formatType,
   isWorkflowType,
