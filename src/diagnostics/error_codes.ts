@@ -6,6 +6,7 @@ export type ErrorCategory = 'type' | 'effect' | 'capability' | 'scope' | 'pii' |
 export type ErrorSeverity = 'error' | 'warning' | 'info';
 
 export const enum ErrorCode {
+  MULTIPLE_ENTRY_RULES = "MULTIPLE_ENTRY_RULES",
   TYPE_MISMATCH = "E001",
   TYPE_MISMATCH_ASSIGN = "E002",
   RETURN_TYPE_MISMATCH = "E003",
@@ -84,6 +85,7 @@ export interface ErrorMetadata {
 }
 
 export const ERROR_MESSAGES: Record<ErrorCode, string> = {
+  [ErrorCode.MULTIPLE_ENTRY_RULES]: "Multiple @entry rules found in module: {first} and {second}",
   [ErrorCode.TYPE_MISMATCH]: "Type mismatch: expected {expected}, got {actual}",
   [ErrorCode.TYPE_MISMATCH_ASSIGN]: "Type mismatch assigning to '{name}': {expected} vs {actual}",
   [ErrorCode.RETURN_TYPE_MISMATCH]: "Return type mismatch: expected {expected}, got {actual}",
@@ -154,6 +156,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
 };
 
 export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
+  [ErrorCode.MULTIPLE_ENTRY_RULES]: { code: ErrorCode.MULTIPLE_ENTRY_RULES, category: 'type', severity: 'error', message: "Multiple @entry rules found in module: {first} and {second}", help: "Keep at most one Rule annotated with @entry in a module." },
   [ErrorCode.TYPE_MISMATCH]: { code: ErrorCode.TYPE_MISMATCH, category: 'type', severity: 'error', message: "Type mismatch: expected {expected}, got {actual}", help: "Check that the type annotation matches the inferred expression type." },
   [ErrorCode.TYPE_MISMATCH_ASSIGN]: { code: ErrorCode.TYPE_MISMATCH_ASSIGN, category: 'type', severity: 'error', message: "Type mismatch assigning to '{name}': {expected} vs {actual}", help: "Ensure the variable's previous binding type matches the current assignment." },
   [ErrorCode.RETURN_TYPE_MISMATCH]: { code: ErrorCode.RETURN_TYPE_MISMATCH, category: 'type', severity: 'error', message: "Return type mismatch: expected {expected}, got {actual}", help: "Check that the return statement matches the declared return type." },

@@ -42,11 +42,14 @@ export const Node = {
     effectCaps: readonly AST.CapabilityKind[],
     effectCapsExplicit: boolean,
     body: AST.Block | null,
-    effectParams?: readonly string[]
+    effectParams?: readonly string[],
+    annotations: readonly AST.Annotation[] = []
   ): AST.Func => ({
     kind: 'Func',
     name,
     typeParams,
+    // annotations 为空时省略，保持无注解 Rule 的 AST/Core JSON 与既有 golden 基线一致
+    ...(annotations.length > 0 ? { annotations } : {}),
     params,
     retType,
     effects,

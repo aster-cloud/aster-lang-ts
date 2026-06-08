@@ -37,11 +37,14 @@ export const Core = {
     effectCaps: readonly import('../types.js').CapabilityKind[] = [],
     effectCapsExplicit = false,
     effectParams?: readonly string[],
-    declaredEffects?: readonly (Effect | CoreTypes.EffectVar)[]
+    declaredEffects?: readonly (Effect | CoreTypes.EffectVar)[],
+    annotations: readonly import('../types.js').Annotation[] = []
   ): CoreTypes.Func => ({
     kind: 'Func',
     name,
     typeParams: (typeParams as readonly string[]) ?? [],
+    // annotations 为空时省略，与既有 golden 基线保持一致（仅 @entry 等显式注解时输出）
+    ...(annotations.length > 0 ? { annotations } : {}),
     params,
     ret,
     effects,

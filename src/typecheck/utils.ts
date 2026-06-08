@@ -24,6 +24,7 @@ export {
   isAssignable,
   originToSpan,
   shouldEnforcePii,
+  checkEntryRuleUniqueness,
 } from './pure.js';
 
 import { IO_PREFIXES as DEFAULT_IO_PREFIXES, CPU_PREFIXES as DEFAULT_CPU_PREFIXES } from './pure.js';

@@ -5,7 +5,7 @@
 
 import { KW, TokenKind } from '../frontend/tokens.js';
 import { Node } from '../ast/ast.js';
-import type { Block, Declaration, Token, Type } from '../types.js';
+import type { Annotation, AnnotationArg, AnnotationValue, Block, Declaration, Token, Type } from '../types.js';
 import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import { toDiagnostic } from '../diagnostics/diagnostics.js';
 import type { ParserContext } from './context.js';
@@ -74,6 +74,74 @@ function parseEffectParams(
   ctx.next(); // consume '>'
   skipLayoutTrivia();
   return names;
+}
+
+function parseAnnotationValue(ctx: ParserContext, error: (msg: string, tok?: Token) => never): AnnotationValue {
+  const tok = ctx.peek();
+  switch (tok.kind) {
+    case TokenKind.STRING:
+    case TokenKind.INT:
+    case TokenKind.FLOAT:
+    case TokenKind.LONG:
+    case TokenKind.BOOL:
+    case TokenKind.NULL:
+      ctx.next();
+      return tok.value as AnnotationValue;
+    case TokenKind.IDENT:
+    case TokenKind.TYPE_IDENT:
+      ctx.next();
+      return tok.value as string;
+    default:
+      error('Expected annotation argument value', tok);
+  }
+}
+
+function parseAnnotationArgs(ctx: ParserContext, error: (msg: string, tok?: Token) => never): readonly AnnotationArg[] | undefined {
+  if (!ctx.at(TokenKind.LPAREN)) return undefined;
+  ctx.next();
+  const args: AnnotationArg[] = [];
+  while (!ctx.at(TokenKind.RPAREN) && !ctx.at(TokenKind.EOF)) {
+    if (!ctx.at(TokenKind.IDENT) && !ctx.at(TokenKind.TYPE_IDENT)) {
+      error('Expected annotation argument name');
+    }
+    const name = String(ctx.next().value);
+    if (!ctx.at(TokenKind.COLON)) {
+      error("Expected ':' after annotation argument name");
+    }
+    ctx.next();
+    const value = parseAnnotationValue(ctx, error);
+    args.push({ name, value });
+    if (ctx.at(TokenKind.COMMA)) {
+      ctx.next();
+      continue;
+    }
+    break;
+  }
+  if (!ctx.at(TokenKind.RPAREN)) {
+    error("Expected ')' after annotation arguments");
+  }
+  ctx.next();
+  return args;
+}
+
+function parseDeclAnnotations(
+  ctx: ParserContext,
+  error: (msg: string, tok?: Token) => never
+): { annotations: readonly Annotation[]; startTok?: Token } {
+  const annotations: Annotation[] = [];
+  let startTok: Token | undefined;
+  while (ctx.at(TokenKind.AT)) {
+    const atTok = ctx.next();
+    startTok ??= atTok;
+    if (!ctx.at(TokenKind.IDENT) && !ctx.at(TokenKind.TYPE_IDENT)) {
+      error("Expected annotation name after '@'");
+    }
+    const name = String(ctx.next().value);
+    const args = parseAnnotationArgs(ctx, error);
+    annotations.push(args && args.length > 0 ? { name, args } : { name });
+    ctx.consumeNewlines();
+  }
+  return startTok ? { annotations, startTok } : { annotations };
 }
 
 /**
@@ -189,10 +257,12 @@ export function parseFuncDecl(
   expectCommaOr: () => void,
   expectKeyword: (kw: string, msg: string) => void,
   expectNewline: () => void,
-  parseIdent: () => string
+  parseIdent: () => string,
+  annotations: readonly Annotation[] = [],
+  declStartTok?: Token
 ): Declaration {
   // 记录函数起始位置
-  const toTok = ctx.peek();
+  const toTok = declStartTok ?? ctx.peek();
   ctx.nextWord(); // 消费 'Rule'
 
   // 记录函数名位置
@@ -451,7 +521,8 @@ export function parseFuncDecl(
     effectCaps,
     hasExplicitCaps,
     body,
-    effectParams
+    effectParams,
+    annotations
   );
   if (retTypeInferred) {
     (fn as { retTypeInferred?: boolean }).retTypeInferred = true;
@@ -571,6 +642,14 @@ export function collectTopLevelDecls(
         } else {
           tools.error("Expected 'has' or 'as one of' after type name");
         }
+      }
+      // 解析带声明级注解的函数: @entry Rule ...
+      else if (ctx.at(TokenKind.AT)) {
+        const { annotations, startTok } = parseDeclAnnotations(ctx, tools.error);
+        if (!ctx.isKeyword(KW.RULE)) {
+          tools.error("Expected 'Rule' after declaration annotations");
+        }
+        decls.push(parseFuncDecl(ctx, tools.error, tools.expectCommaOr, tools.expectKeyword, tools.expectNewline, tools.parseIdent, annotations, startTok));
       }
       // 解析函数: Rule ...
       else if (ctx.isKeyword(KW.RULE)) {
