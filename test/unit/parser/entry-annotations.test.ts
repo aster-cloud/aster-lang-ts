@@ -33,6 +33,18 @@ Module test.entry.single.
     assert.deepEqual(findFunc(module, 'foo').annotations, [{ name: 'entry' }]);
   });
 
+  test('parses @entry on a standalone line (dual-engine parity)', () => {
+    // @entry 独立成行——与 aster-lang-core grammar (annotation NEWLINE*)* RULE 对齐
+    const module = parseSource(`
+Module test.entry.standalone.
+
+@entry
+Rule foo, produce Text:
+  Return "ok".
+`);
+    assert.deepEqual(findFunc(module, 'foo').annotations, [{ name: 'entry' }]);
+  });
+
   test('parses multiple annotations with arguments', () => {
     const module = parseSource(`
 Module test.entry.multiple.
