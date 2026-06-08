@@ -112,8 +112,15 @@ function getArticleRegex(lexicon?: Lexicon): RegExp | null {
     return null;
   }
 
-  // 冠词后面跟 'as' 关键字时不移除（如 `a as Int` 中的 `a` 是参数名）
-  const pattern = `\\b(${articles.join('|')})\\b(?=\\s)(?!\\s+as\\b)`;
+  // 标识符保护——冠词修饰名词才是冠词，否则它是参数名/变量名（标识符），必须保留。
+  // 冠词移除发生在多词关键字被 marker (\x00KW…\x00) 占位、运算符仍是词形之后，
+  // 故 follow-set = 声明/连接关键字 + 单词运算符/连接词 + marker 占位符。
+  //   (?=\s)                  仅在冠词后有空格时考虑移除（逗号/句末/紧贴标点、EOF 天然豁免）
+  //   (?!\s+(as|be|plus|…)\b) 后跟声明/连接关键字或单词运算符 → 标识符（如 `a as Int`、`Let a be 1`、`a plus b`）
+  //   (?!\s+\x00)             后跟多词关键字 marker（如 `equals to`、`divided by`）→ 标识符
+  //   (?![ \t]*\n)            行内空白后即换行 → 行末标识符（如 `Return a\n`）；只认 [ \t] 不认 \s
+  const followWords = 'as|be|in|of|and|or|plus|minus|times|multiplied|divided|modulo|equals|is|at|greater|less|more|than|to';
+  const pattern = `\\b(${articles.join('|')})\\b(?=\\s)(?!\\s+(?:${followWords})\\b)(?!\\s+\\x00)(?![ \\t]*\\n)`;
   return new RegExp(pattern, 'gi');
 }
 

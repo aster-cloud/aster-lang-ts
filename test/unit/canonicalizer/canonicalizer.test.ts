@@ -30,6 +30,56 @@ describe('canonicalizer', () => {
 
       assert.strictEqual(result, 'Return "the answer".');
     });
+
+    // 标识符保护：a/an/the 当参数名/变量名时不应被当冠词吞掉。
+    // 判据：冠词后紧跟声明关键字 as、运算符词、多词关键字、逗号/句末时它是标识符。
+    it('a/an/the 作参数名（后跟 as）不应被吞', () => {
+      assert.strictEqual(
+        canonicalize('given a as Int, b as Int'),
+        'given a as Int, b as Int',
+      );
+      assert.strictEqual(
+        canonicalize('given the as Int, an as Text'),
+        'given the as Int, an as Text',
+      );
+    });
+
+    it('a 在参数列表（后跟逗号）不应被吞', () => {
+      assert.strictEqual(canonicalize('given a, b, c'), 'given a, b, c');
+    });
+
+    it('a/the 作操作数（后跟单词运算符或多词运算符）不应被吞', () => {
+      assert.strictEqual(canonicalize('Return a plus b.'), 'Return a plus b.');
+      assert.strictEqual(canonicalize('Return the plus an.'), 'Return the plus an.');
+      assert.strictEqual(
+        canonicalize('Return a equals to 1 or b equals to 2 and c equals to 3.'),
+        'Return a equals to 1 or b equals to 2 and c equals to 3.',
+      );
+    });
+
+    it('冠词后紧跟句末（无修饰名词）不应被吞', () => {
+      assert.strictEqual(canonicalize('Return a.'), 'Return a.');
+    });
+
+    it('行末孤立标识符（无句末点）不应被吞——\\n 锚点与 EOF', () => {
+      // 多行：a/the/an 在行末后跟 \n
+      assert.strictEqual(canonicalize('Let a be 1\nReturn a'), 'Let a be 1\nReturn a');
+      assert.strictEqual(canonicalize('Return the\nReturn an'), 'Return the\nReturn an');
+      // EOF：整个输入末尾无空格，TS (?=\s) 天然豁免
+      assert.strictEqual(canonicalize('Return a'), 'Return a');
+    });
+
+    it('真冠词（后跟名词）仍被移除', () => {
+      assert.strictEqual(
+        canonicalize('define the function to return a value'),
+        'define function to return value',
+      );
+      // 句首冠词移除后留前导空格（既有 TS 行为，靠后续空白规整或 parser 容忍）
+      assert.strictEqual(
+        canonicalize('a function takes an input and returns the result'),
+        ' function takes input and returns result',
+      );
+    });
   });
 
   describe('多词关键字替换', () => {
