@@ -858,6 +858,7 @@ function parseMultiplication(
   let left = parsePrimary(ctx, error);
 
   const dividedByParts = kwParts(KW.DIVIDED_BY);
+  const intDividedByParts = kwParts(KW.INTEGER_DIVIDED_BY);
 
   let more = true;
   while (more) {
@@ -882,6 +883,20 @@ function parseMultiplication(
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
       left = call;
+    } else if (ctx.isKeyword(KW.INTEGER_DIVIDED_BY) || ctx.isKeywordSeq(intDividedByParts)) {
+      // 整除（截断取整），降级为 Call(Name('//'))。必须在 DIVIDED_BY 之前检查，
+      // 否则三词短语 `integer divided by` 的 `divided by` 子序列会先匹配单纯除法。
+      const opTok = ctx.peek();
+      if (ctx.isKeywordSeq(intDividedByParts)) {
+        ctx.nextWords(intDividedByParts);
+      } else {
+        ctx.nextWord();
+      }
+      const right = parsePrimary(ctx, error);
+      const target = assignTokenSpan(Node.Name('//'), opTok);
+      const call = Node.Call(target, [left, right]);
+      assignSpan(call, spanFromSources(left, opTok, right));
+      left = call;
     } else if (ctx.isKeyword(KW.DIVIDED_BY) || ctx.isKeywordSeq(dividedByParts)) {
       const opTok = ctx.peek();
       if (ctx.isKeywordSeq(dividedByParts)) {
@@ -891,6 +906,14 @@ function parseMultiplication(
       }
       const right = parsePrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('/'), opTok);
+      const call = Node.Call(target, [left, right]);
+      assignSpan(call, spanFromSources(left, opTok, right));
+      left = call;
+    } else if (ctx.isKeyword(KW.MODULO)) {
+      // 取模，降级为 Call(Name('%'))。单词关键字，无子序列冲突。
+      const opTok = ctx.nextWord();
+      const right = parsePrimary(ctx, error);
+      const target = assignTokenSpan(Node.Name('%'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
       left = call;
