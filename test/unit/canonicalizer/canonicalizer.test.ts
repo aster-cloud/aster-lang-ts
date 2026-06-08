@@ -61,6 +61,14 @@ describe('canonicalizer', () => {
       assert.strictEqual(canonicalize('Return a.'), 'Return a.');
     });
 
+    it('行末孤立标识符（无句末点）不应被吞——\\n 锚点与 EOF', () => {
+      // 多行：a/the/an 在行末后跟 \n
+      assert.strictEqual(canonicalize('Let a be 1\nReturn a'), 'Let a be 1\nReturn a');
+      assert.strictEqual(canonicalize('Return the\nReturn an'), 'Return the\nReturn an');
+      // EOF：整个输入末尾无空格，TS (?=\s) 天然豁免
+      assert.strictEqual(canonicalize('Return a'), 'Return a');
+    });
+
     it('真冠词（后跟名词）仍被移除', () => {
       assert.strictEqual(
         canonicalize('define the function to return a value'),
