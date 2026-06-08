@@ -12,7 +12,6 @@ export const DE_DE: Lexicon = {
     [SemanticTokenKind.MODULE_DECL]: 'Modul',
     [SemanticTokenKind.IMPORT]: 'verwende',
     [SemanticTokenKind.IMPORT_ALIAS]: 'als',
-    [SemanticTokenKind.IMPORT_VERSION]: 'version',
     [SemanticTokenKind.TYPE_DEF]: 'Definiere',
     [SemanticTokenKind.TYPE_WITH]: 'mit',
     [SemanticTokenKind.TYPE_HAS]: 'hat',
@@ -111,7 +110,7 @@ export const DE_DE: Lexicon = {
     ],
     allowedDuplicates: [
       [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN],
-      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
+      [SemanticTokenKind.MORE_THAN, SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN],
     ],
   },
 
