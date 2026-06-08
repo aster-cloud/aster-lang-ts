@@ -76,26 +76,36 @@ export function parseModuleHeader(
 
 /**
  * 解析导入语句
- * 语法: use foo.bar. 或 use foo.bar as Baz.
+ * 语法: use foo.bar. 或 use foo.bar version 2 as Baz.
  *
  * @param ctx 解析器上下文
  * @param error 错误报告函数
  * @param expectDot 期望点号的辅助函数
  * @param parseIdent 解析标识符的辅助函数
- * @returns 导入信息 { name: 模块名, asName: 别名或null }
+ * @returns 导入信息 { name: 模块名, version: 版本号或null, asName: 别名或null }
  */
 export function parseImport(
   ctx: ParserContext,
   error: (msg: string, tok?: Token) => never,
   expectDot: () => void,
   parseIdent: () => string
-): { name: string; asName: string | null } {
+): { name: string; version: number | null; asName: string | null } {
   // 期望: use
   ctx.nextWord();
 
   // 解析导入的模块名
   const name = parseDottedIdent(ctx, error);
+  let version: number | null = null;
   let asName: string | null = null;
+
+  // 检查是否有版本子句
+  if (ctx.isKeyword(KW.VERSION)) {
+    ctx.nextWord();
+    if (!ctx.at(TokenKind.INT)) {
+      error("Expected integer after 'version'", ctx.peek());
+    }
+    version = ctx.next().value as number;
+  }
 
   // 检查是否有别名
   if (ctx.isKeyword(KW.AS)) {
@@ -111,5 +121,5 @@ export function parseImport(
   // 期望句点结束
   expectDot();
 
-  return { name, asName };
+  return { name, version, asName };
 }

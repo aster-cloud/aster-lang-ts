@@ -213,6 +213,7 @@ export const KW = {
   MODULE_IS: 'module',
   USE: 'use',
   AS: 'as',
+  VERSION: 'version',
   DEFINE: 'define',
   WITH: 'with',
   HAS: 'has',

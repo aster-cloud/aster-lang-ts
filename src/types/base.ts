@@ -53,6 +53,7 @@ export interface BaseNode<S = Span | Origin> {
 export interface BaseImport<S = Span | Origin> extends BaseNode<S> {
   readonly kind: 'Import';
   readonly name: string;
+  readonly version?: number;
   readonly asName: string | null;
 }
 

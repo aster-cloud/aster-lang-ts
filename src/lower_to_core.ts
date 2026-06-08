@@ -268,7 +268,7 @@ export function lowerModule(ast: Module): import('./types.js').Core.Module {
 function lowerDecl(d: Declaration): import('./types.js').Core.Declaration {
   switch (d.kind) {
     case 'Import':
-      return withOrigin(Core.Import(d.name, d.asName || null), d);
+      return withOrigin(Core.Import(d.name, d.asName || null, d.version), d);
     case 'Data':
       return withOrigin(
         Core.Data(

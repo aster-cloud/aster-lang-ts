@@ -671,6 +671,19 @@ Rule makeIdentity, produce Fn1:
     assert.equal(decl.kind, 'Import');
     assert.equal(decl.name, 'Http.Client');
     assert.equal(decl.asName, 'HttpClient');
+    assert.equal(Object.prototype.hasOwnProperty.call(decl, 'version'), false);
+  });
+
+  it('Import version 应映射为 Core.Import version', () => {
+    const moduleAst = Node.Module('test.lowering.import.version', [
+      Node.Import('risk.Scoring', 'Score', 2),
+    ]);
+    const core = lowerAst(moduleAst);
+    const decl = core.decls[0] as Core.Import;
+    assert.equal(decl.kind, 'Import');
+    assert.equal(decl.name, 'risk.Scoring');
+    assert.equal(decl.version, 2);
+    assert.equal(decl.asName, 'Score');
   });
 
   it('Data 字段 CNL 约束应转换为 Core 约束', () => {

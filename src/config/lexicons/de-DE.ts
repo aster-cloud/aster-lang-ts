@@ -12,6 +12,7 @@ export const DE_DE: Lexicon = {
     [SemanticTokenKind.MODULE_DECL]: 'Modul',
     [SemanticTokenKind.IMPORT]: 'verwende',
     [SemanticTokenKind.IMPORT_ALIAS]: 'als',
+    [SemanticTokenKind.IMPORT_VERSION]: 'version',
     [SemanticTokenKind.TYPE_DEF]: 'Definiere',
     [SemanticTokenKind.TYPE_WITH]: 'mit',
     [SemanticTokenKind.TYPE_HAS]: 'hat',
