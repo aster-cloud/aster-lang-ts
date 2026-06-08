@@ -93,6 +93,9 @@ export const TEMPLATE: Lexicon = {
     /** 导入别名 - 英语 "as" / 中文 "作为" */
     [SemanticTokenKind.IMPORT_ALIAS]: '', // TODO: 翻译
 
+    /** 导入版本 - 英语 "version" / 中文 "版本" */
+    [SemanticTokenKind.IMPORT_VERSION]: '', // TODO: 翻译
+
     // ----------------------------------------------------------
     // 类型定义
     // ----------------------------------------------------------

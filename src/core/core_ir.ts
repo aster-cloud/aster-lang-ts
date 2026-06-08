@@ -12,9 +12,10 @@ export const Core = {
     name,
     decls,
   }),
-  Import: (name: string, asName: string | null): CoreTypes.Import => ({
+  Import: (name: string, asName: string | null, version?: number | null): CoreTypes.Import => ({
     kind: 'Import',
     name,
+    ...(typeof version === 'number' ? { version } : {}),
     asName,
   }),
   Data: (name: string, fields: readonly CoreTypes.Field[]): CoreTypes.Data => ({

@@ -600,9 +600,9 @@ export function collectTopLevelDecls(
       // 解析导入: use foo.bar. 或 use foo.bar as Baz.
       else if (ctx.isKeyword(KW.USE)) {
         const startTok = ctx.peek();
-        const { name, asName } = parseImport(ctx, tools.error, tools.expectDot, tools.parseIdent);
+        const { name, version, asName } = parseImport(ctx, tools.error, tools.expectDot, tools.parseIdent);
         const endTok = lastConsumedToken(ctx);
-        const importNode = Node.Import(name, asName);
+        const importNode = Node.Import(name, asName, version);
         assignSpan(importNode, spanFromTokens(startTok, endTok));
         decls.push(importNode);
       }

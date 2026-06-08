@@ -22,6 +22,7 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.MODULE_DECL]: '模块',
     [SemanticTokenKind.IMPORT]: '引用',
     [SemanticTokenKind.IMPORT_ALIAS]: '作为',
+    [SemanticTokenKind.IMPORT_VERSION]: '版本',
     [SemanticTokenKind.TYPE_DEF]: '定义',
     [SemanticTokenKind.TYPE_WITH]: '包含',
     [SemanticTokenKind.TYPE_HAS]: '包含',

@@ -34,6 +34,9 @@ export enum SemanticTokenKind {
   /** 导入别名 - "as" / "作为" */
   IMPORT_ALIAS = 'IMPORT_ALIAS',
 
+  /** 导入版本 - "version" */
+  IMPORT_VERSION = 'IMPORT_VERSION',
+
   // ============================================================
   // 类型定义
   // ============================================================
@@ -327,7 +330,7 @@ export function isSemanticTokenKind(value: string): value is SemanticTokenKind {
  * SemanticTokenKind 到分类的映射，用于文档和验证。
  */
 export const SEMANTIC_TOKEN_CATEGORIES: Record<string, SemanticTokenKind[]> = {
-  module: [SemanticTokenKind.MODULE_DECL, SemanticTokenKind.IMPORT, SemanticTokenKind.IMPORT_ALIAS],
+  module: [SemanticTokenKind.MODULE_DECL, SemanticTokenKind.IMPORT, SemanticTokenKind.IMPORT_ALIAS, SemanticTokenKind.IMPORT_VERSION],
   type: [SemanticTokenKind.TYPE_DEF, SemanticTokenKind.TYPE_WITH, SemanticTokenKind.TYPE_HAS, SemanticTokenKind.TYPE_ONE_OF],
   function: [SemanticTokenKind.FUNC_TO, SemanticTokenKind.FUNC_GIVEN, SemanticTokenKind.FUNC_PRODUCE, SemanticTokenKind.FUNC_PERFORMS],
   control: [

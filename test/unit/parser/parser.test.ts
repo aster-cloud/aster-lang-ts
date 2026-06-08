@@ -211,6 +211,37 @@ Rule call, produce Text:
       assert.equal(callExpr.target.name, 'H.get');
     });
 
+    it('应该解析 import version 子句并保持无版本导入兼容', () => {
+      const module = parseSource(`
+Module test.parser.import_version.
+
+Use risk.Scoring version 2 as Score.
+Use risk.Model version 2.
+Use Http as H.
+Use Plain.
+`);
+      const imports = module.decls.filter(
+        (decl): decl is Extract<Declaration, { kind: 'Import' }> => decl.kind === 'Import'
+      );
+
+      assert.equal(imports.length, 4);
+      assert.equal(imports[0]!.name, 'risk.Scoring');
+      assert.equal(imports[0]!.version, 2);
+      assert.equal(imports[0]!.asName, 'Score');
+
+      assert.equal(imports[1]!.name, 'risk.Model');
+      assert.equal(imports[1]!.version, 2);
+      assert.equal(imports[1]!.asName, null);
+
+      assert.equal(imports[2]!.name, 'Http');
+      assert.equal(imports[2]!.asName, 'H');
+      assert.equal(Object.prototype.hasOwnProperty.call(imports[2]!, 'version'), false);
+
+      assert.equal(imports[3]!.name, 'Plain');
+      assert.equal(imports[3]!.asName, null);
+      assert.equal(Object.prototype.hasOwnProperty.call(imports[3]!, 'version'), false);
+    });
+
     it('应该解析空效果列表与多基础效果组合', () => {
       const module = parseSource(`
 Module test.parser.effects_basic.

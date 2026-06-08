@@ -15,9 +15,10 @@ export const Node = {
     decls,
     span: createEmptySpan(),
   }),
-  Import: (name: string, asName: string | null): AST.Import => ({
+  Import: (name: string, asName: string | null, version?: number | null): AST.Import => ({
     kind: 'Import',
     name,
+    ...(typeof version === 'number' ? { version } : {}),
     asName,
     span: createEmptySpan(),
   }),
