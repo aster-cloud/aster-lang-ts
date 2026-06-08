@@ -334,7 +334,8 @@ function lowerFunc(f: Func): import('./types.js').Core.Func {
     f.effectCaps,
     f.effectCapsExplicit,
     f.effectParams,
-    declaredEffects
+    declaredEffects,
+    f.annotations ?? []
   );
   if (f.retTypeInferred) {
     (out as { retTypeInferred?: boolean }).retTypeInferred = true;

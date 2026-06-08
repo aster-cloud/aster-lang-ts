@@ -121,6 +121,7 @@ import {
 // 改 import from './pure.js' (browser-safe leaf).
 import {
   buildFieldTypeMap,
+  checkEntryRuleUniqueness,
   formatType,
   isUnknown,
   normalizeType,
@@ -313,7 +314,8 @@ export function typecheckBrowser(
       }
     }
 
-    const result = [...diagnostics.getDiagnostics(), ...effectDiags, ...piiDiagnostics];
+    const entryDiagnostics = checkEntryRuleUniqueness(m.decls);
+    const result = [...diagnostics.getDiagnostics(), ...effectDiags, ...piiDiagnostics, ...entryDiagnostics];
 
     // Log performance (browser-compatible)
     const duration = (globalThis.performance?.now?.() ?? Date.now()) - startTime;

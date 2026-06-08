@@ -26,6 +26,7 @@ import {
   formatType,
   isUnknown,
   buildFieldTypeMap,
+  checkEntryRuleUniqueness,
   normalizeModuleSearchPaths,
   normalizeType,
   typesEqual,
@@ -123,7 +124,8 @@ export function typecheckModule(m: Core.Module, options?: TypecheckOptions): Typ
     if (funcs.length > 0) {
       checkModulePII(funcs, piiDiagnostics, ctx.imports);
     }
-    const result = [...diagnostics.getDiagnostics(), ...effectDiags, ...piiDiagnostics];
+    const entryDiagnostics = checkEntryRuleUniqueness(m.decls);
+    const result = [...diagnostics.getDiagnostics(), ...effectDiags, ...piiDiagnostics, ...entryDiagnostics];
     const duration = performance.now() - startTime;
     const baseMeta = { moduleName, errorCount: result.length };
     logPerformance({

@@ -1,6 +1,6 @@
 {
   "name": "@aster-cloud/aster-lang-ts",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Aster CNL (Controlled Natural Language) TypeScript Compiler - Lexer, Parser, AST, Core IR, Type Checker",
   "type": "module",
   "main": "./dist/src/index.js",
@@ -169,13 +169,27 @@
     "vscode-languageserver-types": "^3.17.5"
   },
   "peerDependenciesMeta": {
-    "cac": { "optional": true },
-    "ora": { "optional": true },
-    "p-limit": { "optional": true },
-    "tar": { "optional": true },
-    "vscode-languageserver": { "optional": true },
-    "vscode-languageserver-textdocument": { "optional": true },
-    "vscode-languageserver-types": { "optional": true }
+    "cac": {
+      "optional": true
+    },
+    "ora": {
+      "optional": true
+    },
+    "p-limit": {
+      "optional": true
+    },
+    "tar": {
+      "optional": true
+    },
+    "vscode-languageserver": {
+      "optional": true
+    },
+    "vscode-languageserver-textdocument": {
+      "optional": true
+    },
+    "vscode-languageserver-types": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@aster-cloud/aster-lang-test": "file:vendor/aster-cloud-aster-lang-test-0.0.3.tgz",

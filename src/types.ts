@@ -58,6 +58,18 @@ export type CapabilityKind = import('./config/semantic.js').CapabilityKind;
 /** Effect capability 列表的统一别名 */
 export type EffectCaps = readonly CapabilityKind[];
 
+export type AnnotationValue = string | number | boolean | null;
+
+export interface AnnotationArg {
+  readonly name: string;
+  readonly value: AnnotationValue;
+}
+
+export interface Annotation {
+  readonly name: string;
+  readonly args?: readonly AnnotationArg[];
+}
+
 export interface Token {
   readonly kind: TokenKind;
   readonly value: string | number | boolean | null | CommentValue;
@@ -208,6 +220,7 @@ export interface Enum extends Base.BaseEnum<Span> {
 
 export interface Func extends Base.BaseFunc<Span, readonly string[], Type> {
   readonly retType: Type;
+  readonly annotations?: readonly Annotation[];
   /** 标记返回类型是否为推断得出（用于诊断和文档生成） */
   readonly retTypeInferred?: boolean;
   readonly body: Block | null;
@@ -528,6 +541,7 @@ export namespace Core {
 
   export interface Func extends Base.BaseFunc<Origin, readonly EffectEnum[], Type> {
     readonly ret: Type;
+    readonly annotations?: readonly Annotation[];
     readonly effects: readonly EffectEnum[];
     readonly body: Block;
     readonly params: readonly Parameter[];

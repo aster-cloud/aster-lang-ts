@@ -19,7 +19,8 @@
  * `typecheck/utils.ts` re-exports the same symbols + the prefix loaders.
  */
 
-import type { Core, Origin, Span } from '../types.js';
+import type { Core, Origin, Span, TypecheckDiagnostic } from '../types.js';
+import { ErrorCode } from '../diagnostics/error_codes.js';
 import { TypeSystem } from './type_system.js';
 
 // Re-export resolveAlias 从 alias.ts (纯 leaf) — 让 pure.ts 成为单一 browser-safe
@@ -77,6 +78,26 @@ export function buildFieldTypeMap(decls: readonly Core.Declaration[]): Map<strin
   }
   for (const name of conflicts) fieldTypes.delete(name);
   return fieldTypes;
+}
+
+export function checkEntryRuleUniqueness(decls: readonly Core.Declaration[]): TypecheckDiagnostic[] {
+  const entryFuncs = decls.filter(
+    (decl): decl is Core.Func =>
+      decl.kind === 'Func' && (decl.annotations ?? []).some(annotation => annotation.name === 'entry')
+  );
+  if (entryFuncs.length <= 1) return [];
+
+  const first = entryFuncs[0]!;
+  const second = entryFuncs[1]!;
+  const diagnostic: TypecheckDiagnostic = {
+    severity: 'error',
+    code: ErrorCode.MULTIPLE_ENTRY_RULES,
+    message: `Multiple @entry rules found in module: ${first.name} and ${second.name}`,
+    help: 'Keep at most one Rule annotated with @entry in a module.',
+    data: { first: first.name, second: second.name },
+  };
+  if (second.origin) diagnostic.origin = second.origin;
+  return [diagnostic];
 }
 
 export function formatType(type: Core.Type | undefined | null): string {
