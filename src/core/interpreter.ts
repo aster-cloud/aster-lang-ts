@@ -87,6 +87,21 @@ class ReturnSignal {
   constructor(public readonly value: unknown) {}
 }
 
+/**
+ * 闭包运行时值：求值 Lambda 表达式的结果。捕获 lambda 的参数、函数体以及
+ * 定义处的词法环境（lexical capture），从而支持引用外层变量的高阶函数
+ * （如 List.map / Maybe.map 的回调）。与 aster-lang-truffle 的 LambdaValue
+ * 语义对齐：调用时把实参绑定到参数名，叠加捕获的环境后执行函数体。
+ */
+class Closure {
+  readonly __closure = true;
+  constructor(
+    public readonly params: readonly CoreTypes.Parameter[],
+    public readonly body: CoreTypes.Block,
+    public readonly capturedEnv: Map<string, unknown>,
+  ) {}
+}
+
 /** 安全限制常量 */
 const MAX_STEPS = 10_000;
 const MAX_CALL_DEPTH = 50;
@@ -291,7 +306,10 @@ class Interpreter {
       case 'PatInt':
         return value === pattern.value;
       case 'PatCtor': {
-        // 构造器模式匹配（如 Ok(x)、Some(x)）
+        // 构造器模式匹配（如 Ok(value)、Err(err)、Some(x)、User(id, name)）。
+        // 与 aster-lang-truffle MatchNode.PatCtorNode 对齐：按位置（非按名）把
+        // 构造体的非 __type 字段值依序绑定到模式的 bind 名——因为 Ok(value)/
+        // Err(err) 的载荷统一存于 `value` 字段，绑定名却各异，按名绑定会落空。
         if (value === null || value === undefined || typeof value !== 'object') {
           return false;
         }
@@ -299,10 +317,13 @@ class Interpreter {
         if (obj.__type !== pattern.typeName) {
           return false;
         }
-        // 绑定字段到 names
+        const fieldValues = Object.keys(obj)
+          .filter((k) => k !== '__type')
+          .map((k) => obj[k]);
         if (pattern.names) {
-          for (const name of pattern.names) {
-            env.set(name, obj[name]);
+          for (let i = 0; i < pattern.names.length; i++) {
+            const bn = pattern.names[i]!;
+            if (bn && bn !== '_') env.set(bn, fieldValues[i]);
           }
         }
         return true;
@@ -348,7 +369,8 @@ class Interpreter {
       case 'Some':
         return { __type: 'Some', value: this.evalExpr(expr.expr, env) };
       case 'Lambda':
-        throw new InterpreterError('Lambda expressions are not supported in the interpreter');
+        // 词法捕获当前环境的快照，避免后续 Set 改写影响已创建的闭包。
+        return new Closure(expr.params, expr.body, new Map(env));
       case 'Await':
         throw new InterpreterError('Await expressions are not supported in the interpreter');
       default:
@@ -402,6 +424,19 @@ class Interpreter {
       return this.evalBuiltinOp(call.target.name, call.args, env);
     }
 
+    // Ok/Err/Some 的调用形式（如 `Ok(x)`）——TS 前端把它降为 Call{Name 'Ok'}
+    // 而非 Expr.Ok（关键字形式 `ok of x` 才降为 Expr.Ok）。与 Java AstBuilder
+    // 对 Ok/Err/Some/None 调用形式的特判对齐，统一构造判定结果。
+    if (call.target.kind === 'Name') {
+      const ctor = call.target.name;
+      if ((ctor === 'Ok' || ctor === 'Err' || ctor === 'Some') && call.args.length === 1) {
+        return { __type: ctor, value: this.evalExpr(call.args[0]!, env) };
+      }
+      if (ctor === 'None' && call.args.length === 0) {
+        return null;
+      }
+    }
+
     // stdlib namespaced builtin（Text.* 等），与 Java Builtins 对齐。
     // 必须在用户函数查找之前，否则 Text.concat 落入未定义函数分支。
     if (call.target.kind === 'Name' && call.target.name.includes('.')) {
@@ -409,16 +444,24 @@ class Interpreter {
       if (stdlib !== NOT_STDLIB) return stdlib;
     }
 
-    // 用户定义函数调用
+    // 函数调用：可能是用户定义的模块函数，或绑定在环境里的闭包变量
+    // （Let f be function with …）。先求值参数，再分派。
     if (call.target.kind === 'Name') {
       const funcName = call.target.name;
+      const argValues = call.args.map(arg => this.evalExpr(arg, env));
+
+      // 闭包变量优先（局部绑定遮蔽同名模块函数）。
+      if (env.has(funcName)) {
+        const bound = env.get(funcName);
+        if (bound instanceof Closure) {
+          return this.applyClosure(bound, argValues);
+        }
+      }
+
       const func = this.funcs.get(funcName);
       if (!func) {
         throw new InterpreterError(`Undefined function '${funcName}'`);
       }
-
-      // 求值参数
-      const argValues = call.args.map(arg => this.evalExpr(arg, env));
 
       // 构建函数环境
       const funcEnv = new Map<string, unknown>();
@@ -436,6 +479,52 @@ class Interpreter {
   }
 
   /**
+   * 调用一个可调用值（闭包或具名模块函数），把实参按位置绑定到形参后执行。
+   * 供高阶 stdlib（List.map / List.filter / List.reduce / Maybe.map /
+   * Result.mapOk 等）统一复用——回调既可以是 \`Let f be function …\` 产生的
+   * 闭包，也可以是直接传入的模块函数名（如 \`List.map(xs, id)\`）。
+   */
+  private applyCallable(callable: unknown, args: readonly unknown[]): unknown {
+    if (callable instanceof Closure) {
+      return this.applyClosure(callable, args);
+    }
+    if (typeof callable === 'string') {
+      // 具名模块函数（作为一等函数传入）。
+      const func = this.funcs.get(callable);
+      if (!func) {
+        throw new InterpreterError(`Undefined function '${callable}' used as callback`);
+      }
+      const funcEnv = new Map<string, unknown>();
+      for (let i = 0; i < func.params.length; i++) {
+        funcEnv.set(func.params[i]!.name, i < args.length ? args[i] : null);
+      }
+      return this.invokeFunc(func, funcEnv);
+    }
+    throw new InterpreterError('Expected a function (lambda or function name) as callback');
+  }
+
+  /** 以捕获环境为基底，绑定实参后执行闭包体。 */
+  private applyClosure(closure: Closure, args: readonly unknown[]): unknown {
+    const callEnv = new Map(closure.capturedEnv);
+    for (let i = 0; i < closure.params.length; i++) {
+      callEnv.set(closure.params[i]!.name, i < args.length ? args[i] : null);
+    }
+    this.callDepth++;
+    if (this.callDepth > MAX_CALL_DEPTH) {
+      throw new InterpreterError(`Maximum call depth (${MAX_CALL_DEPTH}) exceeded`);
+    }
+    try {
+      this.execBlock(closure.body, callEnv);
+      return null;
+    } catch (signal) {
+      if (signal instanceof ReturnSignal) return signal.value;
+      throw signal;
+    } finally {
+      this.callDepth--;
+    }
+  }
+
+  /**
    * stdlib 命名空间 builtin（Text.* 等），语义与 aster-lang-truffle Builtins
    * 对齐。返回 NOT_STDLIB 表示不是已知 stdlib 调用（交回用户函数查找）。
    * 目前覆盖语料库用到的 Text.* 子集；未来 List/Map/Result 可同法扩展。
@@ -447,6 +536,15 @@ class Interpreter {
   ): unknown {
     const text = (v: unknown): string => String(v);
     const a = (): unknown[] => argExprs.map((e) => this.evalExpr(e, env));
+    // 解析"可调用"参数：若是引用模块函数的裸 Name（非局部变量），返回函数名字符串
+    // 供 applyCallable 按名调用（如 List.map(xs, id)）；否则正常求值（→ Closure）。
+    const callableArg = (idx: number): unknown => {
+      const e = argExprs[idx];
+      if (e && e.kind === 'Name' && !env.has(e.name) && this.funcs.has(e.name)) {
+        return e.name;
+      }
+      return e ? this.evalExpr(e, env) : null;
+    };
     switch (name) {
       case 'Text.concat': { const [x, y] = a(); return text(x) + text(y); }
       case 'Text.toUpper': return text(a()[0]).toUpperCase();
@@ -458,6 +556,95 @@ class Interpreter {
       case 'Text.equals': { const [x, y] = a(); return text(x) === text(y); }
       case 'Text.split': { const [x, y] = a(); return text(x).split(text(y)); }
       case 'Text.trim': return text(a()[0]).trim();
+      // List.* (非 lambda 部分；List.map/filter/reduce 依赖 lambda，TS 暂不支持)
+      case 'List.empty': return [];
+      case 'List.length': { const [l] = a(); return Array.isArray(l) ? l.length : 0; }
+      case 'List.isEmpty': { const [l] = a(); return Array.isArray(l) ? l.length === 0 : true; }
+      case 'List.get': { const [l, i] = a(); return Array.isArray(l) ? (l as unknown[])[Number(i)] : null; }
+      case 'List.contains': { const [l, x] = a(); return Array.isArray(l) ? (l as unknown[]).includes(x) : false; }
+      case 'List.append': { const [l, x] = a(); return Array.isArray(l) ? [...(l as unknown[]), x] : [x]; }
+      case 'List.concat': { const [l1, l2] = a(); return [...(Array.isArray(l1) ? l1 : []), ...(Array.isArray(l2) ? l2 : [])]; }
+      // Map.* — guest map 是普通对象 { key: value }
+      case 'Map.empty': return {};
+      case 'Map.get': { const [m, k] = a(); return m && typeof m === 'object' ? (m as Record<string, unknown>)[String(k)] ?? null : null; }
+      case 'Map.contains': { const [m, k] = a(); return m && typeof m === 'object' ? String(k) in (m as object) : false; }
+      case 'Map.size': { const [m] = a(); return m && typeof m === 'object' ? Object.keys(m as object).length : 0; }
+      // Maybe/Option/Result（非 lambda 部分）。Some/Ok/Err/None 形如 { __type, value }。
+      case 'Maybe.withDefault': case 'Option.unwrapOr': case 'Maybe.unwrapOr': {
+        const [x, d] = a();
+        const o = x as { __type?: string; value?: unknown } | null;
+        return o && o.__type === 'Some' ? o.value : d;
+      }
+      case 'Maybe.isSome': case 'Option.isSome': { const [x] = a(); return (x as { __type?: string } | null)?.__type === 'Some'; }
+      case 'Maybe.isNone': case 'Option.isNone': { const [x] = a(); return (x as { __type?: string } | null)?.__type !== 'Some'; }
+      case 'Result.isOk': { const [r] = a(); return (r as { __type?: string } | null)?.__type === 'Ok'; }
+      case 'Result.isErr': { const [r] = a(); return (r as { __type?: string } | null)?.__type === 'Err'; }
+      // === 高阶（lambda）List 操作 ===
+      // List.map(list, fn) — fn 接收 (item)，返回新列表。
+      case 'List.map': {
+        const list = this.evalExpr(argExprs[0]!, env);
+        const fn = callableArg(1);
+        if (!Array.isArray(list)) throw new InterpreterError(`List.map: expected List, got ${typeof list}`);
+        return list.map((item) => this.applyCallable(fn, [item]));
+      }
+      // List.filter(list, pred) — pred 接收 (item)，返回布尔。
+      case 'List.filter': {
+        const list = this.evalExpr(argExprs[0]!, env);
+        const fn = callableArg(1);
+        if (!Array.isArray(list)) throw new InterpreterError(`List.filter: expected List, got ${typeof list}`);
+        return list.filter((item) => this.applyCallable(fn, [item]) === true);
+      }
+      // List.reduce(list, init, fn) — fn 接收 (accumulator, item)，返回新累加值。
+      case 'List.reduce': {
+        const list = this.evalExpr(argExprs[0]!, env);
+        const init = this.evalExpr(argExprs[1]!, env);
+        const fn = callableArg(2);
+        if (!Array.isArray(list)) throw new InterpreterError(`List.reduce: expected List, got ${typeof list}`);
+        let acc: unknown = init;
+        for (const item of list) acc = this.applyCallable(fn, [acc, item]);
+        return acc;
+      }
+      // === 高阶 Maybe / Result 操作 ===
+      // Maybe.map(opt, fn)：Some(v)→Some(fn(v))，None 原样返回。
+      case 'Maybe.map': case 'Option.map': {
+        const o = this.evalExpr(argExprs[0]!, env) as { __type?: string; value?: unknown } | null;
+        if (o && o.__type === 'Some') {
+          const fn = callableArg(1);
+          return { __type: 'Some', value: this.applyCallable(fn, [o.value]) };
+        }
+        return { __type: 'None' };
+      }
+      // Result.mapOk(res, fn)：Ok(v)→Ok(fn(v))，Err 原样返回。
+      case 'Result.mapOk': {
+        const r = this.evalExpr(argExprs[0]!, env) as { __type?: string; value?: unknown } | null;
+        if (r && r.__type === 'Err') return r;
+        if (r && r.__type === 'Ok') {
+          const fn = callableArg(1);
+          return { __type: 'Ok', value: this.applyCallable(fn, [r.value]) };
+        }
+        throw new InterpreterError('Result.mapOk: expected Result (Ok or Err)');
+      }
+      // Result.mapErr(res, fn)：Err(v)→Err(fn(v))，Ok 原样返回。
+      case 'Result.mapErr': {
+        const r = this.evalExpr(argExprs[0]!, env) as { __type?: string; value?: unknown } | null;
+        if (r && r.__type === 'Ok') return r;
+        if (r && r.__type === 'Err') {
+          const fn = callableArg(1);
+          return { __type: 'Err', value: this.applyCallable(fn, [r.value]) };
+        }
+        throw new InterpreterError('Result.mapErr: expected Result (Ok or Err)');
+      }
+      // Result.tapError(res, fn)：对 Err 调用 fn 产生副作用后原样返回 Err；Ok 原样返回。
+      case 'Result.tapError': {
+        const r = this.evalExpr(argExprs[0]!, env) as { __type?: string; value?: unknown } | null;
+        if (r && r.__type === 'Ok') return r;
+        if (r && r.__type === 'Err') {
+          const fn = callableArg(1);
+          this.applyCallable(fn, [r.value]); // 副作用，丢弃返回值
+          return r;
+        }
+        throw new InterpreterError('Result.tapError: expected Result (Ok or Err)');
+      }
       default:
         return NOT_STDLIB;
     }
