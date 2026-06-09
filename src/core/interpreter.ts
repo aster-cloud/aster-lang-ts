@@ -424,6 +424,19 @@ class Interpreter {
       return this.evalBuiltinOp(call.target.name, call.args, env);
     }
 
+    // Ok/Err/Some 的调用形式（如 `Ok(x)`）——TS 前端把它降为 Call{Name 'Ok'}
+    // 而非 Expr.Ok（关键字形式 `ok of x` 才降为 Expr.Ok）。与 Java AstBuilder
+    // 对 Ok/Err/Some/None 调用形式的特判对齐，统一构造判定结果。
+    if (call.target.kind === 'Name') {
+      const ctor = call.target.name;
+      if ((ctor === 'Ok' || ctor === 'Err' || ctor === 'Some') && call.args.length === 1) {
+        return { __type: ctor, value: this.evalExpr(call.args[0]!, env) };
+      }
+      if (ctor === 'None' && call.args.length === 0) {
+        return null;
+      }
+    }
+
     // stdlib namespaced builtin（Text.* 等），与 Java Builtins 对齐。
     // 必须在用户函数查找之前，否则 Text.concat 落入未定义函数分支。
     if (call.target.kind === 'Name' && call.target.name.includes('.')) {
