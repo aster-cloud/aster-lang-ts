@@ -91,6 +91,9 @@ class ReturnSignal {
 const MAX_STEPS = 10_000;
 const MAX_CALL_DEPTH = 50;
 
+/** evalStdlibCall 的哨兵返回值：表示"不是已知 stdlib 调用"。用 Symbol 避免与任何合法返回值冲突。 */
+const NOT_STDLIB = Symbol('not-stdlib');
+
 /** 内置运算符集合 */
 const BUILTIN_OPS = new Set([
   '+', '-', '*', '/', '//', '%',
@@ -264,10 +267,27 @@ class Interpreter {
     switch (pattern.kind) {
       case 'PatNull':
         return value === null || value === undefined;
-      case 'PatName':
-        // 通配符绑定：匹配任何值并绑定到变量
+      case 'PatName': {
+        // PatName 双语义，与 Java MatchNode.PatNameNode 对齐：
+        // - 大写开头（枚举变体/类型名，如 NotFound）→ 按名称相等匹配，不绑定。
+        //   否则第一个 PatName 臂会吞掉所有输入（match_enum/enum_wildcard bug）。
+        // - 小写开头（绑定变量，如 x/value）→ catch-all，匹配任意非 null 值并绑定。
+        const isVariant = /^[A-Z]/.test(pattern.name);
+        if (isVariant) {
+          if (value === null || value === undefined) return false;
+          if (typeof value === 'string') return value === pattern.name;
+          if (typeof value === 'object') {
+            const o = value as Record<string, unknown>;
+            // 枚举值 { value: "Invalid" } 或构造体 { __type: "Color" }
+            return o.value === pattern.name || o.__type === pattern.name;
+          }
+          return false;
+        }
+        // 小写：catch-all 绑定（Java 端非 null 才匹配）。
+        if (value === null || value === undefined) return false;
         env.set(pattern.name, value);
         return true;
+      }
       case 'PatInt':
         return value === pattern.value;
       case 'PatCtor': {
@@ -382,6 +402,13 @@ class Interpreter {
       return this.evalBuiltinOp(call.target.name, call.args, env);
     }
 
+    // stdlib namespaced builtin（Text.* 等），与 Java Builtins 对齐。
+    // 必须在用户函数查找之前，否则 Text.concat 落入未定义函数分支。
+    if (call.target.kind === 'Name' && call.target.name.includes('.')) {
+      const stdlib = this.evalStdlibCall(call.target.name, call.args, env);
+      if (stdlib !== NOT_STDLIB) return stdlib;
+    }
+
     // 用户定义函数调用
     if (call.target.kind === 'Name') {
       const funcName = call.target.name;
@@ -406,6 +433,34 @@ class Interpreter {
     throw new InterpreterError(
       `Cannot call expression of kind '${call.target.kind}'`,
     );
+  }
+
+  /**
+   * stdlib 命名空间 builtin（Text.* 等），语义与 aster-lang-truffle Builtins
+   * 对齐。返回 NOT_STDLIB 表示不是已知 stdlib 调用（交回用户函数查找）。
+   * 目前覆盖语料库用到的 Text.* 子集；未来 List/Map/Result 可同法扩展。
+   */
+  private evalStdlibCall(
+    name: string,
+    argExprs: readonly CoreTypes.Expression[],
+    env: Map<string, unknown>,
+  ): unknown {
+    const text = (v: unknown): string => String(v);
+    const a = (): unknown[] => argExprs.map((e) => this.evalExpr(e, env));
+    switch (name) {
+      case 'Text.concat': { const [x, y] = a(); return text(x) + text(y); }
+      case 'Text.toUpper': return text(a()[0]).toUpperCase();
+      case 'Text.toLower': return text(a()[0]).toLowerCase();
+      case 'Text.length': return text(a()[0]).length;
+      case 'Text.startsWith': { const [x, y] = a(); return text(x).startsWith(text(y)); }
+      case 'Text.contains': { const [x, y] = a(); return text(x).includes(text(y)); }
+      case 'Text.indexOf': { const [x, y] = a(); return text(x).indexOf(text(y)); }
+      case 'Text.equals': { const [x, y] = a(); return text(x) === text(y); }
+      case 'Text.split': { const [x, y] = a(); return text(x).split(text(y)); }
+      case 'Text.trim': return text(a()[0]).trim();
+      default:
+        return NOT_STDLIB;
+    }
   }
 
   /** 求值内置运算符 */
