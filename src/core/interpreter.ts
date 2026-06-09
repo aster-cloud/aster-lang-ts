@@ -445,8 +445,8 @@ class Interpreter {
     argExprs: readonly CoreTypes.Expression[],
     env: Map<string, unknown>,
   ): unknown {
-    const text = (v: unknown): string => (v === null || v === undefined ? String(v) : String(v));
-    const a = () => argExprs.map((e) => this.evalExpr(e, env));
+    const text = (v: unknown): string => String(v);
+    const a = (): unknown[] => argExprs.map((e) => this.evalExpr(e, env));
     switch (name) {
       case 'Text.concat': { const [x, y] = a(); return text(x) + text(y); }
       case 'Text.toUpper': return text(a()[0]).toUpperCase();
