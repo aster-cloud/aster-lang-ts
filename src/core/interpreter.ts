@@ -458,6 +458,29 @@ class Interpreter {
       case 'Text.equals': { const [x, y] = a(); return text(x) === text(y); }
       case 'Text.split': { const [x, y] = a(); return text(x).split(text(y)); }
       case 'Text.trim': return text(a()[0]).trim();
+      // List.* (非 lambda 部分；List.map/filter/reduce 依赖 lambda，TS 暂不支持)
+      case 'List.empty': return [];
+      case 'List.length': { const [l] = a(); return Array.isArray(l) ? l.length : 0; }
+      case 'List.isEmpty': { const [l] = a(); return Array.isArray(l) ? l.length === 0 : true; }
+      case 'List.get': { const [l, i] = a(); return Array.isArray(l) ? (l as unknown[])[Number(i)] : null; }
+      case 'List.contains': { const [l, x] = a(); return Array.isArray(l) ? (l as unknown[]).includes(x) : false; }
+      case 'List.append': { const [l, x] = a(); return Array.isArray(l) ? [...(l as unknown[]), x] : [x]; }
+      case 'List.concat': { const [l1, l2] = a(); return [...(Array.isArray(l1) ? l1 : []), ...(Array.isArray(l2) ? l2 : [])]; }
+      // Map.* — guest map 是普通对象 { key: value }
+      case 'Map.empty': return {};
+      case 'Map.get': { const [m, k] = a(); return m && typeof m === 'object' ? (m as Record<string, unknown>)[String(k)] ?? null : null; }
+      case 'Map.contains': { const [m, k] = a(); return m && typeof m === 'object' ? String(k) in (m as object) : false; }
+      case 'Map.size': { const [m] = a(); return m && typeof m === 'object' ? Object.keys(m as object).length : 0; }
+      // Maybe/Option/Result（非 lambda 部分）。Some/Ok/Err/None 形如 { __type, value }。
+      case 'Maybe.withDefault': case 'Option.unwrapOr': case 'Maybe.unwrapOr': {
+        const [x, d] = a();
+        const o = x as { __type?: string; value?: unknown } | null;
+        return o && o.__type === 'Some' ? o.value : d;
+      }
+      case 'Maybe.isSome': case 'Option.isSome': { const [x] = a(); return (x as { __type?: string } | null)?.__type === 'Some'; }
+      case 'Maybe.isNone': case 'Option.isNone': { const [x] = a(); return (x as { __type?: string } | null)?.__type !== 'Some'; }
+      case 'Result.isOk': { const [r] = a(); return (r as { __type?: string } | null)?.__type === 'Ok'; }
+      case 'Result.isErr': { const [r] = a(); return (r as { __type?: string } | null)?.__type === 'Err'; }
       default:
         return NOT_STDLIB;
     }
