@@ -40,6 +40,8 @@ export const DE_DE: Lexicon = {
     [SemanticTokenKind.MINUS_WORD]: 'minus',
     [SemanticTokenKind.TIMES]: 'mal',
     [SemanticTokenKind.DIVIDED_BY]: 'geteilt durch',
+    [SemanticTokenKind.INTEGER_DIVIDED_BY]: 'ganzzahlig geteilt durch',
+    [SemanticTokenKind.MODULO]: 'modulo',
     [SemanticTokenKind.LESS_THAN]: 'kleiner als',
     [SemanticTokenKind.GREATER_THAN]: 'groesser als',
     [SemanticTokenKind.EQUALS_TO]: 'entspricht',
@@ -111,7 +113,7 @@ export const DE_DE: Lexicon = {
     ],
     allowedDuplicates: [
       [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN],
-      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
+      [SemanticTokenKind.MORE_THAN, SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN],
     ],
   },
 
