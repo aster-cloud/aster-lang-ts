@@ -139,8 +139,14 @@ export enum SemanticTokenKind {
   /** 乘法 - "times" / "乘" */
   TIMES = 'TIMES',
 
-  /** 除法 - "divided by" / "除以" */
+  /** 除法（浮点） - "divided by" / "除以" */
   DIVIDED_BY = 'DIVIDED_BY',
+
+  /** 整除（截断取整） - "integer divided by" / "整除" */
+  INTEGER_DIVIDED_BY = 'INTEGER_DIVIDED_BY',
+
+  /** 取模 - "modulo" / "取模" */
+  MODULO = 'MODULO',
 
   // ============================================================
   // 比较运算
@@ -350,6 +356,8 @@ export const SEMANTIC_TOKEN_CATEGORIES: Record<string, SemanticTokenKind[]> = {
     SemanticTokenKind.MINUS_WORD,
     SemanticTokenKind.TIMES,
     SemanticTokenKind.DIVIDED_BY,
+    SemanticTokenKind.INTEGER_DIVIDED_BY,
+    SemanticTokenKind.MODULO,
   ],
   comparison: [
     SemanticTokenKind.LESS_THAN,

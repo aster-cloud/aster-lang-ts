@@ -268,6 +268,8 @@ export const KW = {
   MINUS: 'minus',
   TIMES: 'times',
   DIVIDED_BY: 'divided by',
+  INTEGER_DIVIDED_BY: 'integer divided by',
+  MODULO: 'modulo',
   LESS_THAN: 'less than',
   GREATER_THAN: 'greater than',
   EQUALS_TO: 'equals to',

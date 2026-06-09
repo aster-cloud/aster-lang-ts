@@ -198,8 +198,14 @@ export const TEMPLATE: Lexicon = {
     /** 乘法 - 英语 "times" / 中文 "乘" */
     [SemanticTokenKind.TIMES]: '', // TODO: 翻译
 
-    /** 除法 - 英语 "divided by" / 中文 "除以" */
+    /** 除法（浮点） - 英语 "divided by" / 中文 "除以" */
     [SemanticTokenKind.DIVIDED_BY]: '', // TODO: 翻译
+
+    /** 整除（截断取整） - 英语 "integer divided by" / 中文 "整除" */
+    [SemanticTokenKind.INTEGER_DIVIDED_BY]: '', // TODO: 翻译
+
+    /** 取模 - 英语 "modulo" / 中文 "取模" */
+    [SemanticTokenKind.MODULO]: '', // TODO: 翻译
 
     // ----------------------------------------------------------
     // 比较运算

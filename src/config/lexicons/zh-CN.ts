@@ -50,6 +50,8 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.MINUS_WORD]: '减去',
     [SemanticTokenKind.TIMES]: '乘以',
     [SemanticTokenKind.DIVIDED_BY]: '除以',
+    [SemanticTokenKind.INTEGER_DIVIDED_BY]: '整除',
+    [SemanticTokenKind.MODULO]: '取模',
     [SemanticTokenKind.LESS_THAN]: '小于',
     [SemanticTokenKind.GREATER_THAN]: '大于',
     [SemanticTokenKind.EQUALS_TO]: '等于',

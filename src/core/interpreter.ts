@@ -93,7 +93,7 @@ const MAX_CALL_DEPTH = 50;
 
 /** 内置运算符集合 */
 const BUILTIN_OPS = new Set([
-  '+', '-', '*', '/',
+  '+', '-', '*', '/', '//', '%',
   // 比较运算符必须与 evalBinaryOp 的 switch 分支一一对应。遗漏 '!='
   // 会让 `not equal to`（降低为 Call(Name('!='), …)）越过内置分发、
   // 落入用户函数查找，从而抛出 "Undefined function '!='"。
@@ -469,6 +469,22 @@ class Interpreter {
           throw new InterpreterError('Division by zero');
         }
         return (left as number) / (right as number);
+      }
+      case '//': {
+        // 整除：向零截断（Math.trunc），与 Java intdiv builtin 一致。
+        this.assertNumbers(op, left, right);
+        if ((right as number) === 0) {
+          throw new InterpreterError('Division by zero');
+        }
+        return Math.trunc((left as number) / (right as number));
+      }
+      case '%': {
+        // 取模：JS `%` 已是向零截断语义，与 Java mod builtin 一致。
+        this.assertNumbers(op, left, right);
+        if ((right as number) === 0) {
+          throw new InterpreterError('Division by zero');
+        }
+        return (left as number) % (right as number);
       }
 
       // 比较运算

@@ -40,6 +40,8 @@ export const EN_US: Lexicon = {
     [SemanticTokenKind.MINUS_WORD]: 'minus',
     [SemanticTokenKind.TIMES]: 'times',
     [SemanticTokenKind.DIVIDED_BY]: 'divided by',
+    [SemanticTokenKind.INTEGER_DIVIDED_BY]: 'integer divided by',
+    [SemanticTokenKind.MODULO]: 'modulo',
     [SemanticTokenKind.LESS_THAN]: 'less than',
     [SemanticTokenKind.GREATER_THAN]: 'greater than',
     [SemanticTokenKind.EQUALS_TO]: 'equals to',
