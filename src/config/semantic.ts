@@ -215,6 +215,7 @@ export const KW = {
   AS: 'as',
   VERSION: 'version',
   DEFINE: 'define',
+  TYPE: 'type',
   WITH: 'with',
   HAS: 'has',
   ONE_OF: 'as one of',
