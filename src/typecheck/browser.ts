@@ -65,7 +65,7 @@ function isProductionRuntime(): boolean {
 
   // 1. Direct process.env access (replaced at build time by esbuild/webpack)
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     if (typeof process !== 'undefined' && process?.env?.NODE_ENV === 'production') {
       return true;
     }

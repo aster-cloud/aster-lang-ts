@@ -134,8 +134,8 @@ export class PackageInstaller {
       integrity
     );
     if (lockfileUpdate instanceof Error) {
-      // Lockfile 更新失败不影响安装成功，只记录警告
-      // TODO: 添加日志记录
+      // Lockfile 更新失败不影响安装成功，记录警告即可（console.warn 走 stderr）。
+      console.warn(`[aster-pkg] lockfile update failed (install still succeeded): ${lockfileUpdate.message}`);
     }
 
     // 10. 刷新 module_cache
