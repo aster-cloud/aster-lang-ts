@@ -42,7 +42,7 @@ export const config: LspConfig = {
 // / --no-enforce-pii 的老脚本——避免用户误以为开关有效。
 if (process.argv.includes('--enforce-pii') || process.argv.includes('--no-enforce-pii')) {
   // 使用 stderr 避免污染 LSP stdio 协议（stdout 是 JSON-RPC channel）
-  // eslint-disable-next-line no-console
+   
   console.error(
     '[aster-lsp] DEPRECATION: --enforce-pii / --no-enforce-pii flags are ignored ' +
       'since ADR-0009 P0-1. PII flow analysis is always enabled. ' +
