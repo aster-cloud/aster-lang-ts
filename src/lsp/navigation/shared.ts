@@ -26,6 +26,15 @@ import type {
 } from '../../types.js';
 
 /**
+ * 转义字符串中的正则元字符，使其可安全嵌入 `new RegExp(...)`。
+ * 当把用户/AST 提供的标识符插入正则时必须先转义，否则形如 `a.b` 或
+ * `f(` 的标识符会改变正则语义（甚至造成 ReDoS / 误匹配）。
+ */
+export function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * 捕获指定偏移量处的单词
  * @param text 文本内容
  * @param offset 偏移量位置
@@ -49,7 +58,7 @@ export function captureWordAt(text: string, offset: number): string | null {
  */
 export function findWordPositions(text: string, word: string): Array<{ start: number; end: number }> {
   const out: Array<{ start: number; end: number }> = [];
-  const re = new RegExp(`(?<![A-Za-z0-9_.])${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9_.])`, 'g');
+  const re = new RegExp(`(?<![A-Za-z0-9_.])${escapeRegExp(word)}(?![A-Za-z0-9_.])`, 'g');
   for (let m; (m = re.exec(text)); ) {
     out.push({ start: m.index, end: m.index + word.length });
   }

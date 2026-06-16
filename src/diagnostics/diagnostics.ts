@@ -39,6 +39,7 @@ export enum DiagnosticCode {
   P012_IncompleteConstruction = 'P012',
   P013_MissingFunctionBody = 'P013',
   P014_InvalidEffectClause = 'P014',
+  P015_NestingTooDeep = 'P015',
 
   // Semantic errors (S001-S199)
   S001_UndefinedVariable = 'S001',
@@ -232,6 +233,11 @@ export const Diagnostics = {
   unexpectedToken: (token: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.P005_UnexpectedToken)
       .withMessage(`Unexpected token '${token}'`)
+      .withPosition(pos),
+
+  nestingTooDeep: (limit: number, pos: Position): DiagnosticBuilder =>
+    DiagnosticBuilder.error(DiagnosticCode.P015_NestingTooDeep)
+      .withMessage(`Expression/statement nesting too deep (exceeds limit of ${limit})`)
       .withPosition(pos),
 
   expectedPunctuation: (

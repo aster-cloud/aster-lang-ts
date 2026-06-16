@@ -28,6 +28,29 @@ interface CacheMetadata {
 }
 
 /**
+ * 校验从磁盘 JSON 反序列化得到的对象是否符合 CacheMetadata 形状，
+ * 而非盲目 `as CacheMetadata`。损坏/被篡改的元数据返回 null，调用方按
+ * “缓存无效/过期”处理。
+ */
+function parseCacheMetadata(json: string): CacheMetadata | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  if (
+    raw === null ||
+    typeof raw !== 'object' ||
+    typeof (raw as { cachedAt?: unknown }).cachedAt !== 'number' ||
+    typeof (raw as { version?: unknown }).version !== 'string'
+  ) {
+    return null;
+  }
+  return raw as CacheMetadata;
+}
+
+/**
  * 基于文件系统的包缓存管理器
  */
 export class PackageCache {
@@ -61,7 +84,10 @@ export class PackageCache {
 
     try {
       const metadataJson = readFileSync(metadataPath, 'utf-8');
-      const metadataContent = JSON.parse(metadataJson) as CacheMetadata;
+      const metadataContent = parseCacheMetadata(metadataJson);
+      if (!metadataContent) {
+        return false;
+      }
       const cachedAt = metadataContent.cachedAt;
       const now = Date.now();
 
@@ -185,7 +211,10 @@ export class PackageCache {
 
           try {
             const metadataContent = await readFile(metadataPath, 'utf-8');
-            const metadata = JSON.parse(metadataContent) as CacheMetadata;
+            const metadata = parseCacheMetadata(metadataContent);
+            if (!metadata) {
+              continue;
+            }
             const now = Date.now();
 
             if (now - metadata.cachedAt > this.ttl) {

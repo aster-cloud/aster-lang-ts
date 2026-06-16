@@ -382,8 +382,13 @@ function emitStatement(
     }
     case 'Start':
     case 'Wait':
-      // Async not handled in MVP
-      return `${indent}// async not implemented in MVP\n`;
+      // Async lowering to the JVM is not implemented. Previously this emitted a
+      // silent no-op comment, producing Java that compiled but dropped the
+      // async semantics. Fail loudly instead so callers see a hard error rather
+      // than silently-wrong output.
+      throw new Error(
+        `JVM emitter: async statement '${s.kind}' is not supported (async lowering not implemented)`
+      );
     }
   }
 

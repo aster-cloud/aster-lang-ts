@@ -82,6 +82,7 @@ export {
   EN_US,
   ZH_CN,
   DE_DE,
+  HI_IN,
   LexiconRegistry,
   initializeDefaultLexicons,
   initializeAllBundledLexicons,

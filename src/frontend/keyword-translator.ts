@@ -19,6 +19,10 @@ import { TokenKind } from './tokens.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 import { EN_US } from '../config/lexicons/en-US.js';
+import { compileGuardedRegex } from '../config/lexicons/regex-guard.js';
+import { createLogger } from '../utils/logger.js';
+
+const keywordTranslatorLogger = createLogger('keyword-translator');
 
 /**
  * 翻译后根据目标值推断正确的 token kind。
@@ -115,11 +119,15 @@ export function buildFullTranslationIndex(
   if (sourceLexicon.canonicalization?.customRules) {
     for (const rule of sourceLexicon.canonicalization.customRules) {
       if (rule.pattern && rule.replacement) {
-        try {
-          canonRules.push({ pattern: new RegExp(rule.pattern, 'g'), replacement: rule.replacement });
-        } catch {
-          // 跳过无效的正则表达式
+        // Patterns come from (potentially external) lexicon overlays and run
+        // per keyword. Validate against ReDoS shapes / length and surface
+        // failures via the logger instead of silently swallowing them.
+        const result = compileGuardedRegex(rule.pattern, 'g', `customRule(${sourceLexicon.id})`);
+        if (!result.ok) {
+          keywordTranslatorLogger.warn(`Skipping canonicalization rule: ${result.error}`);
+          continue;
         }
+        canonRules.push({ pattern: result.regex, replacement: rule.replacement });
       }
     }
   }

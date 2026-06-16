@@ -48,7 +48,33 @@ export interface ParserContext {
   popCompoundContext(): void;
   /** 检查是否在指定复合模式上下文内 */
   inCompoundContext(opener: string): boolean;
+  /** 当前递归下降嵌套深度（用于防止栈溢出 / DoS） */
+  recursionDepth: number;
+  /**
+   * 进入一层递归下降。超过 MAX_RECURSION_DEPTH 时抛出可恢复的
+   * DiagnosticError（而非原生 RangeError），调用方应在 finally 中
+   * 调用 exitRecursion()。
+   */
+  enterRecursion(): void;
+  /** 退出一层递归下降。 */
+  exitRecursion(): void;
 }
+
+/**
+ * 递归下降解析器允许的最大嵌套深度。
+ *
+ * 单线程 JS 无法对深递归做真正的超时；恶意/病态输入（如 5000 个嵌套
+ * 括号）会撑爆原生调用栈并以 RangeError 崩溃。在解析器入口处显式计数，
+ * 超限时抛出**可恢复**的 DiagnosticError，让 decl-parser 的恢复逻辑捕获
+ * 并降级为诊断信息，而不是让整个进程崩溃。
+ *
+ * 选值说明：每层括号嵌套会走完整条表达式优先级链（parseExpr→parseOr→
+ * parseAnd→parseNot→parseComparison→parseAddition→parseMultiplication→
+ * parsePrimary，外加 peek/assignSpan 等辅助帧），约 10+ 原生栈帧/层。Node
+ * 默认原生栈约 ~12500 个简单帧，故每层成本越高，安全上限越低。取 300 在
+ * “远高于任何合法源码真实嵌套需求”与“远低于原生溢出阈值”之间留足余量。
+ */
+export const MAX_RECURSION_DEPTH = 300;
 
 /**
  * 将关键字短语拆分为单词数组
@@ -245,6 +271,18 @@ export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon)
     },
     inCompoundContext: (opener: string): boolean => {
       return compoundContextStack.includes(opener);
+    },
+    recursionDepth: 0,
+    enterRecursion: (): void => {
+      ctx.recursionDepth++;
+      if (ctx.recursionDepth > MAX_RECURSION_DEPTH) {
+        // Throw a recoverable DiagnosticError (NOT a raw RangeError) so the
+        // decl-parser recovery loop can catch it and continue.
+        Diagnostics.nestingTooDeep(MAX_RECURSION_DEPTH, ctx.peek().start).throw();
+      }
+    },
+    exitRecursion: (): void => {
+      if (ctx.recursionDepth > 0) ctx.recursionDepth--;
     },
   };
 

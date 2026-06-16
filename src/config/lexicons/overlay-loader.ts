@@ -8,6 +8,10 @@
 import type { TypeInferenceRule, PrimitiveTypeName } from '../../types/type-inference.js';
 import type { ValueGenerationRule } from '../../parser/input-generator.js';
 import type { LspUiTexts } from './lsp-ui-texts.js';
+import { compileGuardedRegex } from './regex-guard.js';
+import { createLogger } from '../../utils/logger.js';
+
+const overlayLogger = createLogger('overlay-loader');
 
 interface RawTypeInferenceRule {
   readonly pattern: string;
@@ -57,19 +61,39 @@ export interface OverlayData {
 }
 
 export function loadTypeInferenceRules(overlay: TypeInferenceOverlay): readonly TypeInferenceRule[] {
-  return overlay.rules.map(r => ({
-    pattern: new RegExp(r.pattern, r.flags ?? ''),
-    type: r.type as PrimitiveTypeName,
-    priority: r.priority,
-  }));
+  const rules: TypeInferenceRule[] = [];
+  for (const r of overlay.rules) {
+    const result = compileGuardedRegex(r.pattern, r.flags ?? '', 'typeInferenceRule');
+    if (!result.ok) {
+      // External overlay pattern is dangerous/invalid — skip it rather than
+      // compile (and run, per source line) a ReDoS-prone or broken regex.
+      overlayLogger.warn(`Skipping type-inference rule: ${result.error}`);
+      continue;
+    }
+    rules.push({
+      pattern: result.regex,
+      type: r.type as PrimitiveTypeName,
+      priority: r.priority,
+    });
+  }
+  return rules;
 }
 
 export function loadInputGenerationRules(overlay: InputGenerationOverlay): readonly ValueGenerationRule[] {
-  return overlay.rules.map(r => ({
-    pattern: new RegExp(r.pattern, r.flags ?? ''),
-    generate: () => r.value,
-    priority: r.priority,
-  }));
+  const rules: ValueGenerationRule[] = [];
+  for (const r of overlay.rules) {
+    const result = compileGuardedRegex(r.pattern, r.flags ?? '', 'inputGenerationRule');
+    if (!result.ok) {
+      overlayLogger.warn(`Skipping input-generation rule: ${result.error}`);
+      continue;
+    }
+    rules.push({
+      pattern: result.regex,
+      generate: () => r.value,
+      priority: r.priority,
+    });
+  }
+  return rules;
 }
 
 export function loadDiagnosticMessages(overlay: DiagnosticMessagesOverlay): Readonly<Partial<Record<string, string>>> {

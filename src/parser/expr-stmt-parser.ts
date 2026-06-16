@@ -584,7 +584,16 @@ export function parseExpr(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Expression {
-  return parseOr(ctx, error);
+  // Enforce a max nesting depth. Every parenthesized sub-expression re-enters
+  // parseExpr, so counting here bounds the recursive-descent stack and turns a
+  // pathological input (e.g. 5000 nested `(`) into a recoverable DiagnosticError
+  // instead of a native RangeError / stack overflow.
+  ctx.enterRecursion();
+  try {
+    return parseOr(ctx, error);
+  } finally {
+    ctx.exitRecursion();
+  }
 }
 
 /**

@@ -34,3 +34,18 @@ Owner: @aster/lang-stewards
 cd ../aster-lang-test/packages/js
 pnpm pack --pack-destination ../../../aster-lang-ts/vendor
 ```
+
+## ⚠️ 版本同步守卫（Version sync guard — #24）
+
+存在版本错位风险：**vendored 0.0.3 / npm published 0.0.2 / source 1.0.2**。
+
+真正的修复需要把 corpus 发布到 npm（见上文“删除条件”），暂不在范围内。
+作为临时守卫，`test/unit/corpus-version.test.ts` 会断言**已安装的 corpus 版本**
+等于 `EXPECTED_CORPUS_VERSION`（当前 `0.0.3`），并断言 `package.json` 中的
+tarball 引用包含该版本。
+
+**重新同步（re-sync）corpus 时必须同时更新以下三处，否则该守卫测试会失败：**
+
+1. `vendor/aster-cloud-aster-lang-test-<新版本>.tgz`（重新 `pnpm pack`）
+2. `package.json` 的 `devDependencies["@aster-cloud/aster-lang-test"]`
+3. `test/unit/corpus-version.test.ts` 的 `EXPECTED_CORPUS_VERSION`
