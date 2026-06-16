@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.1
+
+### Added
+
+- **Hindi (hi-IN) lexicon** — fourth locale (ADR 0017). 78 Devanagari
+  keywords, danda「।」statement-end, ENGLISH whitespace mode. Generated
+  from aster-lang-core's lexicon export, exported as `HI_IN` and
+  registered (opt-in) via `initializeAllBundledLexicons`. Devanagari
+  abugida marks are now accepted by the lexer (matches the Java engine);
+  TS↔Java parse-parity verified.
+
 ## Unreleased
 
 ### Deprecations (will be removed in 0.3.0 / next major)
