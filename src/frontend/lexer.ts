@@ -52,8 +52,9 @@ function getEffectiveLexicon(lexicon?: Lexicon): Lexicon {
 function isLetter(ch: string, lexicon?: Lexicon): boolean {
   if (!ch) return false;
 
-  // 英语模式：允许 ASCII 字母和 Latin Extended 字母（包括德语元音变音）
-  // 德语使用 whitespaceMode: 'english' 但关键词包含 ü, ö, ä, ß 等字符
+  // 英语模式：允许 ASCII 字母、Latin Extended（德语元音变音）和天城文 Devanagari
+  // 字母（Hindi，ADR 0017 Phase 1）。德语用 whitespaceMode: 'english' 但关键词含
+  // ü/ö/ä/ß；Hindi 同样用 'english'（Devanagari 词间有空格），关键词/标识符含天城文。
   if (!lexicon || lexicon.canonicalization.whitespaceMode === 'english') {
     // ASCII letters
     if (/[A-Za-z]/.test(ch)) return true;
@@ -62,6 +63,11 @@ function isLetter(ch: string, lexicon?: Lexicon): boolean {
     // Latin Extended-A: 0x0100-0x017F
     const code = ch.charCodeAt(0);
     if ((code >= 0x00C0 && code <= 0x00FF) || (code >= 0x0100 && code <= 0x017F)) {
+      return true;
+    }
+    // Devanagari letters 0x0900-0x097F，排除 danda U+0964 / 双 danda U+0965
+    // （它们是标点/句末符，由 punctuation.statementEnd 处理，不是标识符字符）。
+    if (code >= 0x0900 && code <= 0x097F && code !== 0x0964 && code !== 0x0965) {
       return true;
     }
     return false;
