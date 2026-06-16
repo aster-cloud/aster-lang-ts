@@ -21,6 +21,7 @@ import { LexiconRegistry as Registry } from './registry.js';
 import { EN_US as EnglishLexicon } from './en-US.js';
 import { ZH_CN as ChineseLexicon } from './zh-CN.js';
 import { DE_DE as GermanLexicon } from './de-DE.js';
+import { HI_IN as HindiLexicon } from './hi-IN.js';
 
 // 类型导出
 export type {
@@ -56,6 +57,9 @@ export { EN_US } from './en-US.js';
 export { ZH_CN } from './zh-CN.js';
 /** @deprecated 将迁移到独立 npm 包 @aster-cloud/aster-lang-ts-de。 */
 export { DE_DE } from './de-DE.js';
+// hi-IN（Hindi/天城文）= 第四语种（ADR 0017 Phase 2 的 2a）。
+// 与 zh/de 一样不默认注册，消费者按需 `LexiconRegistry.register(HI_IN)`。
+export { HI_IN } from './hi-IN.js';
 
 // FallbackLexicon 工厂 + 类型守卫（公开，便于消费者直接用 + 测试）
 export {
@@ -110,6 +114,7 @@ export function initializeAllBundledLexicons(): void {
   if (enWasNew) Registry.register(EnglishLexicon);
   if (!Registry.has('zh-CN')) Registry.register(ChineseLexicon);
   if (!Registry.has('de-DE')) Registry.register(GermanLexicon);
+  if (!Registry.has('hi-IN')) Registry.register(HindiLexicon);
   // 同 initializeDefaultLexicons：仅首次注册时强制回置 default
   if (enWasNew) Registry.setDefault('en-US');
 }
