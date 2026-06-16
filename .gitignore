@@ -142,3 +142,6 @@ junit-reports/
 /operations-log.md
 /perf-report.json
 .ace-tool/
+
+# CCG workflow scaffolding (local task state, not source)
+.ccg/
