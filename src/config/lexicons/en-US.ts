@@ -105,9 +105,9 @@ export const EN_US: Lexicon = {
     removeArticles: true,
     articles: ['a', 'an', 'the'],
     allowedDuplicates: [
-      [SemanticTokenKind.FUNC_TO, SemanticTokenKind.TO_WORD],
+      [SemanticTokenKind.TO_WORD, SemanticTokenKind.FUNC_TO],
       [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN],
-      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
+      [SemanticTokenKind.MORE_THAN, SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN],
     ],
   },
 
