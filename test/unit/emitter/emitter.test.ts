@@ -216,7 +216,7 @@ describe('JVM 代码生成器', () => {
     }
   });
 
-  it('Start 与 Wait 语句暂未实现时应输出占位注释', async () => {
+  it('Start 与 Wait 语句异步降级未实现时应抛出硬错误 (#24)', async () => {
     const funcDecl: CoreTypes.Func = Core.Func(
       'asyncStub',
       [],
@@ -231,10 +231,12 @@ describe('JVM 代码生成器', () => {
     const module = Core.Module('test.emitter.async', [funcDecl]);
     const { outDir, cleanup } = await emitToTemp(module);
     try {
-      await emitJava(module, outDir);
-      const filePath = path.join(outDir, 'test', 'emitter', 'async', 'asyncStub_fn.java');
-      const content = readFile(filePath);
-      assert.equal(content.includes('// async not implemented in MVP'), true);
+      // Async lowering is not implemented; the emitter must fail loudly rather
+      // than silently emit a no-op placeholder that drops async semantics.
+      await assert.rejects(
+        () => emitJava(module, outDir),
+        /async statement 'Start' is not supported/
+      );
     } finally {
       cleanup();
     }
@@ -1088,7 +1090,7 @@ describe('JVM 代码生成器', () => {
     assert.equal(content.includes('return !(source.contains("a"));'), true);
   });
 
-  it('Start 语句应输出占位注释', async () => {
+  it('Start 语句异步降级未实现时应抛出硬错误 (#24)', async () => {
     const func = Core.Func(
       'launch',
       [],
@@ -1098,16 +1100,19 @@ describe('JVM 代码生成器', () => {
       Core.Block([Core.Start('job', Core.Name('producer'))])
     );
     const module = Core.Module('test.emitter.start_stmt', [func]);
-    const content = await emitJavaClassContent(module, [
-      'test',
-      'emitter',
-      'start_stmt',
-      'launch_fn.java',
-    ]);
-    assert.equal(content.includes('// async not implemented in MVP'), true);
+    await assert.rejects(
+      () =>
+        emitJavaClassContent(module, [
+          'test',
+          'emitter',
+          'start_stmt',
+          'launch_fn.java',
+        ]),
+      /async statement 'Start' is not supported/
+    );
   });
 
-  it('Wait 语句应输出占位注释', async () => {
+  it('Wait 语句异步降级未实现时应抛出硬错误 (#24)', async () => {
     const func = Core.Func(
       'awaitAll',
       [],
@@ -1117,13 +1122,16 @@ describe('JVM 代码生成器', () => {
       Core.Block([Core.Wait(['first', 'second'])])
     );
     const module = Core.Module('test.emitter.wait_stmt', [func]);
-    const content = await emitJavaClassContent(module, [
-      'test',
-      'emitter',
-      'wait_stmt',
-      'awaitAll_fn.java',
-    ]);
-    assert.equal(content.includes('// async not implemented in MVP'), true);
+    await assert.rejects(
+      () =>
+        emitJavaClassContent(module, [
+          'test',
+          'emitter',
+          'wait_stmt',
+          'awaitAll_fn.java',
+        ]),
+      /async statement 'Wait' is not supported/
+    );
   });
 
   it('Within scope 语句应串联内部赋值', async () => {

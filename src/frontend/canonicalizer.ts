@@ -26,6 +26,10 @@ import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/i
 import type { IdentifierIndex } from '../config/lexicons/identifiers/types.js';
 import { vocabularyRegistry, initBuiltinVocabularies } from '../config/lexicons/identifiers/registry.js';
 import { applyTransformers } from './transformers.js';
+import { compileGuardedRegex } from '../config/lexicons/regex-guard.js';
+import { createLogger } from '../utils/logger.js';
+
+const canonicalizerLogger = createLogger('canonicalizer');
 
 /**
  * R30+ audit P1：customRules 的 RegExp 原本每次 canonicalize 调用都重新
@@ -39,10 +43,18 @@ function compiledCustomRules(lexicon: Lexicon): ReadonlyArray<{ re: RegExp; repl
   const cached = CUSTOM_RULE_REGEX_CACHE.get(lexicon);
   if (cached) return cached;
   const rules = lexicon.canonicalization.customRules ?? [];
-  const compiled = rules.map(r => ({
-    re: new RegExp(r.pattern, 'g'),
-    replacement: r.replacement,
-  }));
+  // customRules patterns come from (potentially external) lexicon overlays and
+  // run via .replace() against every source line. Validate each against ReDoS
+  // shapes / length limits before compiling; skip dangerous or invalid ones.
+  const compiled: Array<{ re: RegExp; replacement: string }> = [];
+  for (const r of rules) {
+    const result = compileGuardedRegex(r.pattern, 'g', `customRule(${lexicon.id})`);
+    if (!result.ok) {
+      canonicalizerLogger.warn(`Skipping canonicalization custom rule: ${result.error}`);
+      continue;
+    }
+    compiled.push({ re: result.regex, replacement: r.replacement });
+  }
   CUSTOM_RULE_REGEX_CACHE.set(lexicon, compiled);
   return compiled;
 }

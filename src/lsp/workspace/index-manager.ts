@@ -77,7 +77,21 @@ export function invalidateDocument(uri: string): void {
 export async function loadIndex(indexPath: string): Promise<boolean> {
   try {
     const content = await fs.readFile(indexPath, 'utf-8');
-    const data = JSON.parse(content) as {
+    const parsed: unknown = JSON.parse(content);
+
+    // Validate the persisted shape rather than blind-casting: a corrupt index
+    // file must not crash the LSP. Both fields must be arrays of [key, value]
+    // pairs; anything else is treated as "no usable index".
+    if (
+      parsed === null ||
+      typeof parsed !== 'object' ||
+      !Array.isArray((parsed as { indexByUri?: unknown }).indexByUri) ||
+      !Array.isArray((parsed as { indexByModule?: unknown }).indexByModule)
+    ) {
+      console.error('[LSP Index] Ignoring malformed index file:', indexPath);
+      return false;
+    }
+    const data = parsed as {
       indexByUri: Array<[string, ModuleIndex]>;
       indexByModule: Array<[string, ModuleIndex]>;
     };

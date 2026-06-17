@@ -14,6 +14,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
+import { escapeRegExp } from './navigation/shared.js';
 
 /**
  * 注册 CodeAction 相关的 LSP 处理器
@@ -391,7 +392,7 @@ function headerInsertEffectEdit(text: string, func: string, cap: 'IO' | 'CPU'): 
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? '';
-    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line)) {
+    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${escapeRegExp(func)}\\b`).test(line)) {
       if (/It performs/i.test(line)) return null;
       const withEff = line.replace(/(:|\.)\s*$/, `. It performs ${cap}:`);
       return TextEdit.replace({ start: { line: i, character: 0 }, end: { line: i, character: line.length } }, withEff);
@@ -407,7 +408,7 @@ function headerRemoveEffectEdit(text: string, func: string): TextEdit | null {
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? '';
-    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line) && /It performs/i.test(line)) {
+    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${escapeRegExp(func)}\\b`).test(line) && /It performs/i.test(line)) {
       const cleaned = line.replace(/\. It performs (IO|CPU):/i, ':');
       return TextEdit.replace({ start: { line: i, character: 0 }, end: { line: i, character: line.length } }, cleaned);
     }
@@ -426,12 +427,12 @@ function addEffectVarToSignature(text: string, func: string, varName: string): T
     // CNL: "Rule funcName given params:"
     // Formal: "fn funcName(params): RetType" 或 "fn funcName of T, E(params): RetType"
 
-    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line)) {
+    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${escapeRegExp(func)}\\b`).test(line)) {
       // CNL 语法暂不支持效应变量，跳过
       return null;
     }
 
-    if (/^fn\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line)) {
+    if (/^fn\s+/i.test(line) && new RegExp(`\\b${escapeRegExp(func)}\\b`).test(line)) {
       // Formal 语法: fn funcName of T, E(params): RetType
       // 检查是否已有 "of" 子句
       if (/\s+of\s+/.test(line)) {
@@ -543,7 +544,7 @@ function addConsentAnnotation(text: string, func: string): TextEdit | null {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? '';
     // 查找 CNL 语法: "Rule funcName ..."
-    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line)) {
+    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${escapeRegExp(func)}\\b`).test(line)) {
       // 在函数定义前插入 @consent_required 注解
       const indent = line.match(/^(\s*)/)?.[1] || '';
       return TextEdit.insert(
@@ -552,7 +553,7 @@ function addConsentAnnotation(text: string, func: string): TextEdit | null {
       );
     }
     // 查找 formal 语法: "fn funcName ..." 或 "@... fn funcName ..."
-    if (/^(\s*)(@\w+\s+)*fn\s+/i.test(line) && new RegExp(`\\b${func}\\b`).test(line)) {
+    if (/^(\s*)(@\w+\s+)*fn\s+/i.test(line) && new RegExp(`\\b${escapeRegExp(func)}\\b`).test(line)) {
       // 检查前一行是否已有注解
       const prevLine = i > 0 ? lines[i - 1] ?? '' : '';
       if (prevLine.trim().startsWith('@consent_required')) {

@@ -79,7 +79,16 @@ async function main() {
 
   const context = {};
   const paramNames = (fn.params || []).map((p) => p.name);
-  for (let i = 0; i < paramNames.length && i < input.length; i++) {
+  // Arity mismatch silently dropped/ignored args before, masking test bugs and
+  // producing misleading cross-engine results. Fail explicitly instead.
+  if (input.length !== paramNames.length) {
+    process.stdout.write(JSON.stringify({
+      success: false,
+      error: `Arity mismatch for '${entry}': expected ${paramNames.length} argument(s) [${paramNames.join(', ')}], got ${input.length}`,
+    }) + '\n');
+    process.exit(0);
+  }
+  for (let i = 0; i < paramNames.length; i++) {
     context[paramNames[i]] = input[i];
   }
 

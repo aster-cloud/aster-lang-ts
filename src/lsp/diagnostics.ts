@@ -218,7 +218,20 @@ export async function loadCapabilityManifest(): Promise<CapabilityManifest | nul
 
   try {
     const content = await fs.readFile(path, 'utf8');
-    const data = JSON.parse(content) as CapabilityManifest;
+    const parsed: unknown = JSON.parse(content);
+    // Validate shape rather than blind-casting: a malformed manifest must not
+    // poison capability checks. `allow` is required and must be an object.
+    if (
+      parsed === null ||
+      typeof parsed !== 'object' ||
+      typeof (parsed as { allow?: unknown }).allow !== 'object' ||
+      (parsed as { allow?: unknown }).allow === null
+    ) {
+      console.error('[Diagnostics] Ignoring malformed capability manifest:', path);
+      manifestCache = { path, data: null };
+      return null;
+    }
+    const data = parsed as CapabilityManifest;
     manifestCache = { path, data };
     return data;
   } catch (error) {

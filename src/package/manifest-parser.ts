@@ -18,10 +18,29 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // 从dist/src/package回到项目根目录：../../../
 const schemaPath = join(__dirname, '..', '..', '..', 'manifest.schema.json');
-const schema = JSON.parse(readFileSync(schemaPath, 'utf-8'));
 
-const ajv = new Ajv({ strict: true, allErrors: true });
-const validateSchema: ValidateFunction = ajv.compile(schema);
+// 懒加载并缓存编译后的校验函数。
+// 之前在模块顶层直接 `JSON.parse(readFileSync(...))`：schema 文件缺失或
+// 损坏会在 *import 时* 抛异常并使整个进程崩溃（无法降级为诊断）。改为
+// 在首次解析 manifest 时再加载、用 try/catch 包裹，失败时返回一个永远
+// 通过的 validator（让 schema 校验被跳过，语义校验仍生效）而不是崩溃。
+let cachedValidateSchema: ValidateFunction | null = null;
+let schemaLoadFailed = false;
+
+function getValidateSchema(): ValidateFunction | null {
+  if (cachedValidateSchema) return cachedValidateSchema;
+  if (schemaLoadFailed) return null;
+  try {
+    const schema = JSON.parse(readFileSync(schemaPath, 'utf-8'));
+    const ajv = new Ajv({ strict: true, allErrors: true });
+    cachedValidateSchema = ajv.compile(schema);
+    return cachedValidateSchema;
+  } catch {
+    // schema 文件缺失/损坏：记一次失败，跳过 schema 校验（语义校验仍跑）。
+    schemaLoadFailed = true;
+    return null;
+  }
+}
 
 /**
  * 解析manifest.json文件
@@ -66,16 +85,19 @@ export function parseManifest(filePath: string): Manifest | Diagnostic[] {
     ];
   }
 
-  // JSON Schema验证
-  const isValid = validateSchema(manifest);
-  if (!isValid && validateSchema.errors) {
-    const diagnostics: Diagnostic[] = [];
-    for (const error of validateSchema.errors) {
-      const fieldPath = error.instancePath || '/';
-      const errorDiagnostic = mapAjvErrorToDiagnostic(error, fieldPath, manifest);
-      diagnostics.push(errorDiagnostic);
+  // JSON Schema验证（schema 加载失败时跳过，仅靠语义校验兜底）
+  const validateSchema = getValidateSchema();
+  if (validateSchema) {
+    const isValid = validateSchema(manifest);
+    if (!isValid && validateSchema.errors) {
+      const diagnostics: Diagnostic[] = [];
+      for (const error of validateSchema.errors) {
+        const fieldPath = error.instancePath || '/';
+        const errorDiagnostic = mapAjvErrorToDiagnostic(error, fieldPath, manifest);
+        diagnostics.push(errorDiagnostic);
+      }
+      return diagnostics;
     }
-    return diagnostics;
   }
 
   // 语义验证

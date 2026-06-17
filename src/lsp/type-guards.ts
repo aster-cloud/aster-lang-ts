@@ -8,25 +8,28 @@ import type {
   Data as AstData,
   Enum as AstEnum,
   Block as AstBlock,
+  Declaration,
+  Statement,
+  Token,
   Span,
 } from '../types.js';
 
 /**
  * 类型守卫：检查是否为带有 decls 的 Module
  */
-export function isModule(ast: unknown): ast is { decls: readonly any[] } {
+export function isModule(ast: unknown): ast is { decls: readonly Declaration[] } {
   return (
     ast !== null &&
     typeof ast === 'object' &&
     'decls' in ast &&
-    Array.isArray((ast as any).decls)
+    Array.isArray((ast as { decls: unknown }).decls)
   );
 }
 
 /**
  * 类型守卫：检查是否为 Token 数组
  */
-export function isTokenArray(tokens: unknown): tokens is readonly any[] {
+export function isTokenArray(tokens: unknown): tokens is readonly Token[] {
   return Array.isArray(tokens);
 }
 
@@ -67,7 +70,7 @@ export function hasNameSpan(node: unknown): node is { nameSpan: Span | undefined
 /**
  * 安全地获取 AST 节点的 decls
  */
-export function getDecls(ast: unknown): readonly any[] {
+export function getDecls(ast: unknown): readonly Declaration[] {
   if (isModule(ast)) {
     return ast.decls;
   }
@@ -149,25 +152,25 @@ export function getVariantSpans(node: unknown): (Span | undefined)[] {
 /**
  * 类型守卫：检查是否为 Statement 数组
  */
-export function isStatementArray(arr: unknown): arr is readonly any[] {
+export function isStatementArray(arr: unknown): arr is readonly Statement[] {
   return Array.isArray(arr);
 }
 
 /**
  * 类型守卫：检查节点是否有 statements 字段
  */
-export function hasStatements(node: unknown): node is { statements: readonly any[] } {
+export function hasStatements(node: unknown): node is { statements: readonly Statement[] } {
   return (
     node !== null &&
     typeof node === 'object' &&
     'statements' in node &&
-    Array.isArray((node as any).statements)
+    Array.isArray((node as { statements: unknown }).statements)
   );
 }
 
 /**
  * 安全地获取节点的 statements，如果不存在则返回空数组
  */
-export function getStatements(node: unknown): readonly any[] {
+export function getStatements(node: unknown): readonly Statement[] {
   return hasStatements(node) ? node.statements : [];
 }
