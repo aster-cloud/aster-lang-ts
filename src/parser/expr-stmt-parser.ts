@@ -220,9 +220,10 @@ function parseInlineIf(
   let elseBlock: Block | null = null;
   if (ctx.isKeyword(KW.OTHERWISE) || ctx.isKeyword(KW.ELSE)) {
     ctx.nextWord();
-    if (peekInlineThen(ctx) || ctx.isKeyword(KW.IF)) {
-      // else if：消费 `if`，递归。
-      if (ctx.isKeyword(KW.IF)) ctx.nextWord();
+    if (ctx.isKeyword(KW.IF)) {
+      // else if：消费 `if`，递归。（Codex 审查：仅认 `else if`，不靠 peekInlineThen
+      // 兜底——否则非法 `else then ...` 会走 else-if 路径产生绕弯诊断。）
+      ctx.nextWord();
       const nestedCond = parseExpr(ctx, error);
       const nested = parseInlineIf(ctx, error, nestedCond);
       elseBlock = Node.Block([nested as unknown as Statement]);
