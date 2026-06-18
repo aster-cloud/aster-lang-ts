@@ -230,6 +230,11 @@ export const KW = {
   SET: 'set',
   TO_WORD: 'to',
   IF: 'if',
+  // ADR 0019 G2a：内联 if 的 then 连接词 + else（与 core ELSE: Else|Otherwise 对齐，
+  // 此前 TS 只认 otherwise）。两者在 parser 用 isKeyword 文本匹配，不依赖 lexicon
+  // 注册（isKeyword 比较小写 token 文本，then/else 作 IDENT 也能命中）。
+  THEN: 'then',
+  ELSE: 'else',
   OTHERWISE: 'otherwise',
   MATCH: 'match',
   WHEN: 'when',
