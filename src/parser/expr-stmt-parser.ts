@@ -3,6 +3,7 @@ import type {
   Case,
   ConstructField,
   Expression,
+  If,
   Parameter,
   Pattern,
   Span,
@@ -166,6 +167,83 @@ function expectPeriodEndOrLine(
  * @param error 错误报告函数
  * @returns Statement 节点
  */
+/**
+ * ADR 0019 G2a：探测 if 条件之后是否跟内联 `then`（可隔着换行+缩进，文档里
+ * `if cond \n then return ...`）。不消费 token——只前瞻。block-if 走 `:`/NEWLINE
+ * 进缩进块，无 then，故 then 是两者的消歧点。
+ */
+function peekInlineThen(ctx: ParserContext): boolean {
+  let k = ctx.index;
+  // 跳过可选的 NEWLINE / INDENT（then 换行缩进场景）。
+  while (ctx.tokens[k] && (ctx.tokens[k]!.kind === TokenKind.NEWLINE || ctx.tokens[k]!.kind === TokenKind.INDENT)) {
+    k++;
+  }
+  const tok = ctx.tokens[k];
+  if (!tok) return false;
+  return ((tok.value as string) || '').toLowerCase() === KW.THEN;
+}
+
+/** 跳过 then 前的可选 NEWLINE/INDENT 布局 token。 */
+function skipInlineThenLayout(ctx: ParserContext): void {
+  while (ctx.at(TokenKind.NEWLINE) || ctx.at(TokenKind.INDENT)) ctx.next();
+}
+
+/** 跳过 else 前的可选 NEWLINE/DEDENT 布局 token（then 分支缩进产生的 DEDENT）。 */
+function skipInlineElseLayout(ctx: ParserContext): void {
+  while (ctx.at(TokenKind.NEWLINE) || ctx.at(TokenKind.DEDENT)) ctx.next();
+}
+
+/**
+ * ADR 0019 G2a：解析内联 if 的 then/else 链，降级为与块式 if 相同的 {@link AST.If}
+ * ——单语句 return 包成单元素 Block，else-if 链右递归成嵌套 If 的 else 分支。
+ * 调用方已消费 `if` 和 cond，此处从 then 前布局开始。
+ */
+function parseInlineIf(
+  ctx: ParserContext,
+  error: (msg: string) => never,
+  cond: Expression
+): If {
+  skipInlineThenLayout(ctx);
+  if (!ctx.isKeyword(KW.THEN)) error("Expected 'then' in inline if");
+  ctx.nextWord();
+  // then 分支：单个 return（内联，不带句点；句点由整条 inline-if 末尾的 return 承担）。
+  if (!ctx.isKeyword(KW.RETURN)) error("Expected 'return' after 'then'");
+  const thenRetTok = ctx.peek();
+  ctx.nextWord();
+  const thenExpr = parseExpr(ctx, error);
+  const thenRet = Node.Return(thenExpr);
+  assignSpan(thenRet, spanFromTokens(thenRetTok, lastConsumedToken(ctx)));
+  const thenBlock = Node.Block([thenRet as unknown as Statement]);
+
+  // else 分支：可选。`else if ...`（嵌套）或 `else return X.`（末尾带句点）。
+  skipInlineElseLayout(ctx);
+  let elseBlock: Block | null = null;
+  if (ctx.isKeyword(KW.OTHERWISE) || ctx.isKeyword(KW.ELSE)) {
+    ctx.nextWord();
+    if (peekInlineThen(ctx) || ctx.isKeyword(KW.IF)) {
+      // else if：消费 `if`，递归。
+      if (ctx.isKeyword(KW.IF)) ctx.nextWord();
+      const nestedCond = parseExpr(ctx, error);
+      const nested = parseInlineIf(ctx, error, nestedCond);
+      elseBlock = Node.Block([nested as unknown as Statement]);
+    } else {
+      // else return X.（末尾 return，带句点）。
+      if (!ctx.isKeyword(KW.RETURN)) error("Expected 'return' or 'if' after 'else'");
+      const elseRetTok = ctx.peek();
+      ctx.nextWord();
+      const elseExpr = parseExpr(ctx, error);
+      expectPeriodEnd(ctx, error);
+      const elseRet = Node.Return(elseExpr);
+      assignSpan(elseRet, spanFromTokens(elseRetTok, lastConsumedToken(ctx)));
+      elseBlock = Node.Block([elseRet as unknown as Statement]);
+    }
+  } else {
+    // 无 else：then 分支的 return 必须带句点收尾。
+    expectPeriodEnd(ctx, error);
+  }
+  return Node.If(cond, thenBlock, elseBlock);
+}
+
 export function parseStatement(
   ctx: ParserContext,
   error: (msg: string) => never
@@ -259,13 +337,21 @@ export function parseStatement(
     const ifTok = ctx.peek();
     ctx.nextWord();
     const cond = parseExpr(ctx, error);
+    // ADR 0019 G2a：内联 if（`if cond then return X else return Y`）。在 cond 之后、
+    // 块式分隔符之前探测 then——then 前可有换行+缩进（文档里 `if ... \n then ...`）。
+    if (peekInlineThen(ctx)) {
+      const nd = parseInlineIf(ctx, error, cond);
+      assignSpan(nd, spanFromTokens(ifTok, lastConsumedToken(ctx)));
+      return nd;
+    }
     // 可选逗号或冒号分隔（兼容 Java ANTLR 语法 If condition:）
     if (ctx.at(TokenKind.COMMA)) ctx.next();
     if (ctx.at(TokenKind.COLON)) ctx.next();
     expectNewline(ctx, error);
     const thenBlock = parseBlock(ctx, error);
     let elseBlock: Block | null = null;
-    if (ctx.isKeyword(KW.OTHERWISE)) {
+    // else 与 otherwise 都接受（与 core ELSE: Else|Otherwise 对齐）。
+    if (ctx.isKeyword(KW.OTHERWISE) || ctx.isKeyword(KW.ELSE)) {
       ctx.nextWord();
       if (ctx.at(TokenKind.COMMA)) ctx.next();
       if (ctx.at(TokenKind.COLON)) ctx.next();
