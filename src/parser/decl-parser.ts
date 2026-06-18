@@ -346,25 +346,36 @@ export function parseFuncDecl(
   if (params.length > 0) expectCommaOr();
   else if (ctx.at(TokenKind.COMMA)) ctx.next();
 
-  // 期望 'produce' 和返回类型
+  // `produce` 子句可选（与 core grammar `(PRODUCE annotatedType?)?` 对齐，ADR 0019 G0）：
+  //   - `produce T`：显式返回类型
+  //   - `produce`（无类型）/ `produce .` / `produce :`：返回类型推断
+  //   - 完全省略 produce（`Rule greet given name:` 直接接块/`.`/`It performs`）：同样推断
+  // 省略 produce 时直接走下方场景分派（COLON 块 / DOT 无体 / It performs）。
   skipLayoutTrivia();
   const produceTok = ctx.peek();
-  expectKeyword(KW.PRODUCE, "Expected 'produce' and return type");
-  skipLayoutTrivia();
   let retType: Type;
   let retTypeInferred = false;
-  if (
-    ctx.at(TokenKind.COLON) ||
-    ctx.at(TokenKind.DOT) ||
-    ctx.isKeyword(KW.WITH) ||
-    ctx.isKeywordSeq(KW.PERFORMS) ||
-    (tokLowerAt(ctx, ctx.index) === 'it' && tokLowerAt(ctx, ctx.index + 1) === 'performs')
-  ) {
+  if (ctx.isKeyword(KW.PRODUCE)) {
+    ctx.nextWords(kwParts(KW.PRODUCE));
+    skipLayoutTrivia();
+    if (
+      ctx.at(TokenKind.COLON) ||
+      ctx.at(TokenKind.DOT) ||
+      ctx.isKeyword(KW.WITH) ||
+      ctx.isKeywordSeq(KW.PERFORMS) ||
+      (tokLowerAt(ctx, ctx.index) === 'it' && tokLowerAt(ctx, ctx.index + 1) === 'performs')
+    ) {
+      retTypeInferred = true;
+      retType = Node.TypeName('Unknown');
+      assignSpan(retType, spanFromTokens(produceTok, produceTok));
+    } else {
+      retType = parseType(ctx, error);
+    }
+  } else {
+    // 完全省略 produce：返回类型推断，直接进入函数体/效果场景分派。
     retTypeInferred = true;
     retType = Node.TypeName('Unknown');
     assignSpan(retType, spanFromTokens(produceTok, produceTok));
-  } else {
-    retType = parseType(ctx, error);
   }
 
   let effects: string[] = [];

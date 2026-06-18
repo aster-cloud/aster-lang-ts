@@ -84,6 +84,45 @@ Rule format given name as Text and times as Int, produce Text:
     assert.equal(func.retType.kind, 'TypeName');
   });
 
+  // ADR 0019 G0：produce 子句可选（与 core grammar `(PRODUCE annotatedType?)?` 对齐）。
+  // 文档/现代写法 `Rule greet given name:` 完全省略 produce，返回类型推断。
+  test('应该解析完全省略 produce 的规则（G0）', () => {
+    const module = parseSource(`
+Module test.parser.omit_produce.
+
+Rule greet given name:
+  Return name.
+`);
+    const func = findDecl(module, 'Func');
+    assert.equal(func.name, 'greet');
+    assert.equal(func.params.length, 1);
+    assert.equal(func.params[0]!.name, 'name');
+    // 省略 produce → 返回类型推断（Unknown 占位）
+    assert.equal(func.retType.kind, 'TypeName');
+    if (func.retType.kind === 'TypeName') {
+      assert.equal(func.retType.name, 'Unknown');
+    }
+    const statements = func.body?.statements ?? [];
+    assert.equal(statements.length, 1);
+    assert.equal(statements[0]!.kind, 'Return');
+  });
+
+  test('应该解析省略 produce 的多参数规则（G0）', () => {
+    const module = parseSource(`
+Module test.parser.omit_produce_multi.
+
+Rule add given a, b:
+  Return a plus b.
+`);
+    const func = findDecl(module, 'Func');
+    assert.equal(func.name, 'add');
+    assert.equal(func.params.length, 2);
+    assert.equal(func.retType.kind, 'TypeName');
+    if (func.retType.kind === 'TypeName') {
+      assert.equal(func.retType.name, 'Unknown');
+    }
+  });
+
   test('应该解析函数体中的 Return 语句', () => {
     const module = parseSource(`
 Module test.parser.return_stmt.
@@ -401,7 +440,9 @@ Rule broken given first as Int second as Int, produce Int:
   Return first.
 `);
       assert.ok(result.diagnostics.length > 0, '应有诊断信息');
-      assert.match(result.diagnostics[0]!.message, /Expected 'produce' and return type/i);
+      // ADR 0019 G0：produce 子句现在可选，缺失参数分隔符不再卡在 produce 检查，
+      // 而是后移到块/结束符检查（'.' 或 ':'）——仍报诊断，只是消息变了。
+      assert.match(result.diagnostics[0]!.message, /Expected '\.' or ':' after return type/i);
     });
 
     it('应该在括号不匹配时报告诊断', () => {
