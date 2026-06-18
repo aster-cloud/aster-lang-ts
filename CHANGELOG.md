@@ -11,7 +11,18 @@
   abugida marks are now accepted by the lexer (matches the Java engine);
   TS↔Java parse-parity verified.
 
-## Unreleased
+## 1.0.2
+
+### Added
+
+- **Optional `produce` clause** (ADR 0019 G0) — `Rule greet given name:`
+  may now omit the `produce <type>` clause entirely; the return type is
+  inferred. This matches aster-lang-core's grammar (`(PRODUCE
+  annotatedType?)?` was already fully optional) — the TS parser previously
+  required `produce` unconditionally, breaking dual-engine parse-parity for
+  any omit-produce source. Both `produce <type>` and bare `produce` continue
+  to work unchanged. Locked by `g0-omit-produce` tier1-parity fixture
+  (209 samples, parse-parity identical).
 
 ### Deprecations (will be removed in 0.3.0 / next major)
 
