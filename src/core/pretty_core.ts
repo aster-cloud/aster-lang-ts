@@ -152,6 +152,9 @@ class PrettyCoreVisitor extends DefaultCoreVisitor {
       case 'Await': {
         return `await(${this.formatExpr(e.expr)})`;
       }
+      case 'IfExpr':
+        // ADR 0019 G2b：表达式级 if。
+        return `if ${this.formatExpr(e.cond)} then ${this.formatExpr(e.thenE)} else ${this.formatExpr(e.elseE)}`;
       default: {
         const _exhaustiveCheck: never = e;
         return `<unknown expr: ${(_exhaustiveCheck as any).kind}>`;

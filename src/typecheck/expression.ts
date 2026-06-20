@@ -219,6 +219,17 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         this.handled = true;
         return;
       }
+      case 'IfExpr': {
+        // ADR 0019 G2b：表达式级 if 的类型 = then 分支类型（两分支类型一致性由
+        // Java 引擎 typecheck + 双引擎 parity 把守；TS typechecker 取 then 作代表）。
+        // 仍递归 cond/else 以触发其中的子表达式类型检查。
+        typeOfExpr(module, symbols, expression.cond, diagnostics);
+        const thenType = typeOfExpr(module, symbols, expression.thenE, diagnostics);
+        typeOfExpr(module, symbols, expression.elseE, diagnostics);
+        this.result = thenType;
+        this.handled = true;
+        return;
+      }
       case 'Call': {
         if (expression.target.kind === 'Name' && expression.target.name === 'not') {
           if (expression.args.length !== 1) {

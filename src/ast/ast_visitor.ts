@@ -226,6 +226,13 @@ export class DefaultAstVisitor<Ctx> implements AstVisitor<Ctx, void> {
       case 'Await':
         this.visitExpression(e.expr, ctx);
         return;
+      case 'IfExpr':
+        // ADR 0019 G2b：表达式级 if —— 递归三子表达式（否则 lowering 的 CaptureVisitor
+        // 会漏掉 if-expr 分支里引用的捕获变量，毁掉闭包）。
+        this.visitExpression(e.cond, ctx);
+        this.visitExpression(e.thenE, ctx);
+        this.visitExpression(e.elseE, ctx);
+        return;
     }
   }
 }

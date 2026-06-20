@@ -154,6 +154,13 @@ export class DefaultCoreVisitor<Ctx = VisitorContext> implements CoreVisitor<Ctx
       case 'Lambda':
         this.visitBlock(e.body, ctx);
         return;
+      case 'IfExpr':
+        // ADR 0019 G2b：表达式级 if —— 递归三个子表达式（否则 effect/capability
+        // 推理会漏掉分支里的调用）。
+        this.visitExpression(e.cond, ctx);
+        this.visitExpression(e.thenE, ctx);
+        this.visitExpression(e.elseE, ctx);
+        return;
       default:
         // 穷尽性守卫：若 Core.Expression union 新增了 kind 而未在此处理，
         // TS 编译期会直接报错；运行期则抛出明确错误而非静默漏处理。

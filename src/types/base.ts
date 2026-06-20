@@ -425,6 +425,17 @@ export interface BaseAwait<S = Span | Origin, Expr = unknown> extends BaseNode<S
   readonly expr: Expr;
 }
 
+/**
+ * IfExpr 表达式级条件基础接口（ADR 0019 G2b）：`if cond then thenE else elseE`。
+ * 三分支都是表达式，求值产出值；else 必需。与语句级 If（块分支）区别开。
+ */
+export interface BaseIfExpr<S = Span | Origin, Expr = unknown> extends BaseNode<S> {
+  readonly kind: 'IfExpr';
+  readonly cond: Expr;
+  readonly thenE: Expr;
+  readonly elseE: Expr;
+}
+
 // ============================================================
 // 共享类型节点
 // ============================================================

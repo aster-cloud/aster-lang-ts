@@ -336,9 +336,15 @@ export type Expression =
   | Some
   | None
   | Lambda
-  | Await;
+  | Await
+  | IfExpr;
 
 export interface Await extends Base.BaseAwait<Span, Expression> {
+  span: Span;
+}
+
+/** 表达式级 if（ADR 0019 G2b，surface AST）。 */
+export interface IfExpr extends Base.BaseIfExpr<Span, Expression> {
   span: Span;
 }
 
@@ -631,7 +637,8 @@ export namespace Core {
     | Some
     | None
     | Lambda
-    | Await;
+    | Await
+    | IfExpr;
 
   export interface Name extends Base.BaseName<Origin> {}
 
@@ -667,6 +674,9 @@ export namespace Core {
   export interface None extends Base.BaseNone<Origin> {}
 
   export interface Await extends Base.BaseAwait<Origin, Expression> {}
+
+  /** 表达式级 if（ADR 0019 G2b，Core IR）。kind="IfExpr"，与 core/truffle 对齐。 */
+  export interface IfExpr extends Base.BaseIfExpr<Origin, Expression> {}
 
   // Extended with generics (preview)
   export type Type =

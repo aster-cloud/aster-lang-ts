@@ -272,6 +272,15 @@ function inferExprPii(expr: Core.Expression, env: PiiEnv, ctx: FunctionContext):
       traverseBlock(expr.body, lambdaEnv, lambdaCtx);
       return null;
     }
+    case 'IfExpr': {
+      // ADR 0019 G2b：表达式级 if —— cond/then/else 都要走 sink 检查（分支里可能有
+      // sink 调用），结果 PII = 两分支 PII 的并（值可能来自任一分支）。否则分支里的
+      // sink 与 taint 会被静默漏报（Codex 审查抓出）。
+      void inferExprPii(expr.cond, env, ctx);
+      const thenMeta = inferExprPii(expr.thenE, env, ctx);
+      const elseMeta = inferExprPii(expr.elseE, env, ctx);
+      return mergePiiMeta(thenMeta, elseMeta);
+    }
     default:
       return null;
   }

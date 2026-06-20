@@ -173,26 +173,15 @@ jobs:
           path: aster-lang-core
           token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
 
-      - name: Checkout aster-lang-en
+      # 语言包源：aster-lang-locales（现役，catalog 驱动）。旧独立 en/zh/de 仓
+      # 已归档且 pin core 1.0.2，与 catalog 1.0.3 漂移——迁移到 aster-lang-locales
+      # （与 aster-lang-core / aster-lang-test ci.yml 一致）。
+      - name: Checkout aster-lang-locales
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
         uses: actions/checkout@v6
         with:
-          repository: aster-cloud/aster-lang-en
-          path: aster-lang-en
-          token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
-      - name: Checkout aster-lang-zh
-        if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
-        uses: actions/checkout@v6
-        with:
-          repository: aster-cloud/aster-lang-zh
-          path: aster-lang-zh
-          token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
-      - name: Checkout aster-lang-de
-        if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
-        uses: actions/checkout@v6
-        with:
-          repository: aster-cloud/aster-lang-de
-          path: aster-lang-de
+          repository: aster-cloud/aster-lang-locales
+          path: aster-lang-locales
           token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
 
       # aster-lang-runtime + aster-lang-truffle are only needed by the
@@ -252,12 +241,12 @@ jobs:
         working-directory: aster-lang-core
         run: ./gradlew compileJava publishToMavenLocal -x test
 
+      # 语言包从 aster-lang-locales（catalog 驱动）一次性发布。verifyLexiconParity
+      # 需 aster-lang-core sibling（本 workspace 已 checkout 到 aster-lang-core）。
       - name: Publish locale packs to Maven Local
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
         run: |
-          cd aster-lang-en && ./gradlew publishToMavenLocal -x test
-          cd ../aster-lang-zh && ./gradlew publishToMavenLocal -x test
-          cd ../aster-lang-de && ./gradlew publishToMavenLocal -x test
+          cd aster-lang-locales && ./gradlew publishToMavenLocal -x test
 
       - name: Publish aster-lang-runtime to Maven Local
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
