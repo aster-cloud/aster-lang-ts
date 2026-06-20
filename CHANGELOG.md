@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.3
+
+### Added
+
+- **Expression-level if (ADR 0019 G2b)** — `return if c then a else b`,
+  `let x be if c then a else b`, nested else-if chains, and if-expressions as
+  sub-expressions. New Core IR `IfExpr` node (kind="IfExpr", fields
+  cond/thenE/elseE). Anchored at the `expr` top level (not in the operator
+  precedence chain) to avoid dangling-else / precedence ambiguity; the else
+  branch is mandatory. Dual-engine parse-parity 213/213 and eval byte-identical
+  with the Java/Truffle engine (aster-lang-core#32 / aster-lang-truffle#18 /
+  aster-lang-test#36). Covered across parser, lowering, interpreter, type
+  checker, PII flow, JVM emitter, formatter, and LSP diagnostics.
+
 ## 1.0.1
 
 ### Added
