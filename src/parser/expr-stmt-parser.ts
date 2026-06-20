@@ -677,10 +677,48 @@ export function parseExpr(
   // instead of a native RangeError / stack overflow.
   ctx.enterRecursion();
   try {
+    // ADR 0019 G2b：表达式级 if（`if cond then a else b`）锚在表达式入口，与 Java grammar
+    // `expr : ifExpr | orExpr` 对齐。cond 用 parseOr（不含 if-expr，避免 `if if ...` 歧义），
+    // then/else 用 parseExpr → 支持嵌套。else 必需（表达式两方向都要有值）。
+    if (ctx.isKeyword(KW.IF)) {
+      return parseIfExpr(ctx, error);
+    }
     return parseOr(ctx, error);
   } finally {
     ctx.exitRecursion();
   }
+}
+
+/**
+ * 表达式级 if（ADR 0019 G2b）：`IF cond THEN thenE ELSE elseE`，产出 IfExpr 表达式。
+ * 调用方已确认当前 token 是 IF。then 前用 G2a 的 skipInlineThenLayout 吸收可选换行/缩进，
+ * 保持与文档 `if ... \n  then ...` 写法一致。
+ */
+function parseIfExpr(
+  ctx: ParserContext,
+  error: (msg: string) => never
+): Expression {
+  const startTok = ctx.peek();
+  ctx.nextWord(); // 消费 IF
+  const cond = parseOr(ctx, error);
+  skipInlineThenLayout(ctx);
+  if (!ctx.isKeyword(KW.THEN)) error("Expected 'then' in if-expression");
+  ctx.nextWord(); // 消费 THEN
+  const thenE = parseExpr(ctx, error);
+  skipInlineElseLayout(ctx);
+  if (!ctx.isKeyword(KW.ELSE) && !ctx.isKeyword(KW.OTHERWISE)) {
+    error("Expected 'else' in if-expression (else is mandatory for expression-level if)");
+  }
+  ctx.nextWord(); // 消费 ELSE / OTHERWISE
+  const elseE = parseExpr(ctx, error);
+  const node = {
+    kind: 'IfExpr' as const,
+    cond,
+    thenE,
+    elseE,
+    span: spanFromTokens(startTok, lastConsumedToken(ctx)),
+  };
+  return node as unknown as Expression;
 }
 
 /**

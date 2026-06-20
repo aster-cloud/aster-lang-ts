@@ -520,6 +520,9 @@ function lowerExpr(e: Expression): import('./types.js').Core.Expression {
       return withOrigin(Core.None(), e);
     case 'Await':
       return withOrigin(Core.Await(lowerExpr(e.expr)), e);
+    case 'IfExpr':
+      // ADR 0019 G2b：表达式级 if → Core IR IfExpr（三分支递归 lower）。
+      return withOrigin(Core.IfExpr(lowerExpr(e.cond), lowerExpr(e.thenE), lowerExpr(e.elseE)), e);
     case 'Lambda': {
       // 使用统一 AST 访客进行捕获变量收集
       const paramNames = new Set(e.params.map(p => p.name));

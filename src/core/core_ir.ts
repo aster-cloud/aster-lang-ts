@@ -172,6 +172,17 @@ export const Core = {
     kind: 'Await',
     expr,
   }),
+  // ADR 0019 G2b：表达式级 if（kind="IfExpr"，与 core/truffle 对齐）。
+  IfExpr: (
+    cond: CoreTypes.Expression,
+    thenE: CoreTypes.Expression,
+    elseE: CoreTypes.Expression,
+  ): CoreTypes.IfExpr => ({
+    kind: 'IfExpr',
+    cond,
+    thenE,
+    elseE,
+  }),
   PatCtor: (
     typeName: string,
     names: readonly string[] = [],

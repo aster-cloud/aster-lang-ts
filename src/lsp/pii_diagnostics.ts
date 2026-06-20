@@ -125,6 +125,8 @@ export function isPiiTainted(expr: Core.Expression): boolean {
     case 'Err':
     case 'Some':
       return evaluateWithEnv(expr.expr, env);
+    case 'IfExpr': // ADR 0019 G2b：任一分支污染则结果视为污染（值可能来自任一分支）
+      return evaluateWithEnv(expr.thenE, env) || evaluateWithEnv(expr.elseE, env);
     default:
       return false;
   }
@@ -370,6 +372,10 @@ function expressionHasConsentCheck(expr: Core.Expression): boolean {
     case 'Err':
     case 'Some':
       return expressionHasConsentCheck(expr.expr);
+    case 'IfExpr': // ADR 0019 G2b：三分支任一含 consent check 即算有
+      return expressionHasConsentCheck(expr.cond)
+        || expressionHasConsentCheck(expr.thenE)
+        || expressionHasConsentCheck(expr.elseE);
     default:
       return false;
   }
@@ -504,6 +510,10 @@ function expressionHasCapability(expr: Core.Expression, effect: ParsedEffect, ct
     case 'Err':
     case 'Some':
       return expressionHasCapability(expr.expr, effect, ctx);
+    case 'IfExpr': // ADR 0019 G2b：三分支任一含 capability 即算有
+      return expressionHasCapability(expr.cond, effect, ctx)
+        || expressionHasCapability(expr.thenE, effect, ctx)
+        || expressionHasCapability(expr.elseE, effect, ctx);
     default:
       return false;
   }

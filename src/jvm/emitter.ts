@@ -207,6 +207,9 @@ function emitExpr(e: Core.Expression, helpers: EmitHelpers): string {
       const args = e.args.map(a => emitExpr(a, helpers)).join(', ');
       return `${tgt}(${args})`;
     }
+    case 'IfExpr':
+      // ADR 0019 G2b：表达式级 if → Java 三元（条件真值语义与 TS/Truffle 一致）。
+      return `((${emitExpr(e.cond, helpers)}) ? (${emitExpr(e.thenE, helpers)}) : (${emitExpr(e.elseE, helpers)}))`;
     default:
       return 'null';
   }

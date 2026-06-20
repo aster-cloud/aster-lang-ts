@@ -373,6 +373,12 @@ class Interpreter {
         return new Closure(expr.params, expr.body, new Map(env));
       case 'Await':
         throw new InterpreterError('Await expressions are not supported in the interpreter');
+      case 'IfExpr':
+        // ADR 0019 G2b：表达式级 if —— 求 cond，按真值选分支求值产出值（与 Truffle
+        // IfExprNode 同语义）。else 必有（Core IR IfExpr 保证）。
+        return this.isTruthy(this.evalExpr(expr.cond, env))
+          ? this.evalExpr(expr.thenE, env)
+          : this.evalExpr(expr.elseE, env);
       default:
         throw new InterpreterError(`Unknown expression kind: ${(expr as any).kind}`);
     }

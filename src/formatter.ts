@@ -252,6 +252,9 @@ class AstFormatterVisitor extends DefaultAstVisitor<void> {
         const ps = e.params.map(p => `${p.name}: ${this.fmtType(p.type)}`).join(', ');
         return `function with ${ps}, produce ${this.fmtType(e.retType)}:\n${this.fmtBlock(e.body, 1)}`;
       }
+      case 'IfExpr':
+        // ADR 0019 G2b：表达式级 if。
+        return `if ${this.fmtExpr(e.cond)} then ${this.fmtExpr(e.thenE)} else ${this.fmtExpr(e.elseE)}`;
       default:
         return '<expr>';
     }
