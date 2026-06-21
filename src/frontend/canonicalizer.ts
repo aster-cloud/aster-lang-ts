@@ -39,6 +39,79 @@ const canonicalizerLogger = createLogger('canonicalizer');
  */
 const CUSTOM_RULE_REGEX_CACHE = new WeakMap<Lexicon, ReadonlyArray<{ re: RegExp; replacement: string }>>();
 
+/**
+ * 关键词「词」集合缓存（应用过 customRules 之后的形态）。
+ *
+ * customRules（如德文 `oe→ö`/`ue→ü`/`ae→ä`）原本对整段源码做全局替换，会误伤
+ * 任何含这些二合字母的【用户标识符】（`fruehereSchaeden`→`frühereSchäden`），
+ * 导致标识符与调用方传入的 context 键不匹配。这些转写的本意只是让用户能用 ASCII
+ * 输入德文关键词（`hoechstens`→`höchstens`），不该波及标识符。
+ *
+ * 修复：把 customRules 改为【按词】应用，且仅当某个词转写后的整词是一个【关键词词】
+ * 时才保留转写。本集合即所有关键词（含多词关键词拆分出的单词）经 customRules 转写后
+ * 的形态，用于判定「转写后是否落在关键词上」。
+ */
+const KEYWORD_WORD_SET_CACHE = new WeakMap<Lexicon, ReadonlySet<string>>();
+
+/** 把一段文本应用全部（已编译的）customRules，返回转写后的文本。 */
+function applyCompiledRules(
+  text: string,
+  rules: ReadonlyArray<{ re: RegExp; replacement: string }>,
+): string {
+  let out = text;
+  for (const rule of rules) {
+    out = out.replace(rule.re, rule.replacement);
+  }
+  return out;
+}
+
+/**
+ * 构建关键词「词」集合：枚举 lexicon 全部关键词值，按空白拆成单词，对每个单词
+ * 应用 customRules 得到转写后形态，全部转小写收集。判定「某词转写后是否是关键词」
+ * 时按小写比对。
+ */
+function getKeywordWordSet(lexicon: Lexicon): ReadonlySet<string> {
+  const cached = KEYWORD_WORD_SET_CACHE.get(lexicon);
+  if (cached) return cached;
+  const rules = compiledCustomRules(lexicon);
+  const set = new Set<string>();
+  const keywords = lexicon.keywords ?? {};
+  for (const value of Object.values(keywords)) {
+    if (typeof value !== 'string') continue;
+    for (const word of value.split(/\s+/)) {
+      if (!word) continue;
+      // 同时收集原形与转写后形态，确保 ASCII 关键词输入（hoechstens）和已是
+      // 正字形态的关键词（少数 lexicon 直接写 ü）都能命中。
+      set.add(word.toLowerCase());
+      set.add(applyCompiledRules(word, rules).toLowerCase());
+    }
+  }
+  KEYWORD_WORD_SET_CACHE.set(lexicon, set);
+  return set;
+}
+
+/**
+ * 按词应用 customRules：仅当某词转写后的整词是关键词词时才保留转写，否则原样
+ * 保留该词。这样关键词（hoechstens→höchstens）照常转写，用户标识符
+ * （fruehereSchaeden）不被波及。按完整 identifier token 切分，标点/空白/字符串原样透传。
+ *
+ * 注意：本函数只在【字符串字面量之外】的文本上调用（调用点已隔离字符串）。
+ */
+function applyCustomRulesKeywordGated(text: string, lexicon: Lexicon): string {
+  const rules = compiledCustomRules(lexicon);
+  if (rules.length === 0) return text;
+  const keywordWords = getKeywordWordSet(lexicon);
+  // 按【完整标识符 token】切分（字母/下划线起头，后接字母/数字/下划线），而非连续字母块。
+  // 否则 `fuer_foo`/`fuer2` 会被拆出字母段 `fuer` 误转成 `für_foo`/`für2`——整 token 才是
+  // 判定单位：仅当整个 token 转写后是关键词词时才采纳。
+  return text.replace(/[\p{L}_][\p{L}\p{N}_]*/gu, (token) => {
+    const transliterated = applyCompiledRules(token, rules);
+    if (transliterated === token) return token; // 无变化
+    // 仅当整 token 转写后是关键词词才采纳，否则保留原标识符（防止误伤）。
+    return keywordWords.has(transliterated.toLowerCase()) ? transliterated : token;
+  });
+}
+
 function compiledCustomRules(lexicon: Lexicon): ReadonlyArray<{ re: RegExp; replacement: string }> {
   const cached = CUSTOM_RULE_REGEX_CACHE.get(lexicon);
   if (cached) return cached;
@@ -268,14 +341,11 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
     s = normalizeAlternatingQuotes(s, '"', quotes.open, quotes.close);
   }
 
-  // R30+ audit P1：复用预编译的 RegExp，避免每次 canonicalize 都重新
-  // build customRules.length 个正则。
+  // customRules（如德文二合字母 oe→ö/ue→ü/ae→ä）按【词】应用并仅在转写后
+  // 落在关键词上时才采纳，避免误伤含这些二合字母的用户标识符
+  // （fruehereSchaeden 不再被错写成 frühereSchäden）。预编译 RegExp 仍走缓存。
   if (effectiveLexicon.canonicalization.customRules) {
-    for (const rule of compiledCustomRules(effectiveLexicon)) {
-      // g 标志的 RegExp 内部维护 lastIndex 状态。每次 .replace() 调用
-      // 会把它重置为 0，所以共享 RegExp 在串行调用里是安全的。
-      s = s.replace(rule.re, rule.replacement);
-    }
+    s = applyCustomRulesKeywordGated(s, effectiveLexicon);
   }
 
   // 翻译前变换器（如英语所有格 driver's age → driver.age）

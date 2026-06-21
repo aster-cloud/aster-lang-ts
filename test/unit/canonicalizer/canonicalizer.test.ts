@@ -6,6 +6,7 @@ import {
   initBuiltinVocabularies,
 } from '../../../src/config/lexicons/identifiers/registry.js';
 import { IdentifierKind } from '../../../src/config/lexicons/identifiers/types.js';
+import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 
 describe('canonicalizer', () => {
   describe('注释处理', () => {
@@ -419,6 +420,55 @@ describe('canonicalizer', () => {
         tenantId: 't-parity',
       });
       assert.strictEqual(lower, 'Return Driver.age.');
+    });
+  });
+
+  describe('德文二合字母转写（只转关键词，不碰标识符）', () => {
+    it('用户标识符含 ue/ae 不被转写', () => {
+      // fruehereSchaeden 是标识符，不该被错写成 frühereSchäden
+      const out = canonicalize('sei fruehereSchaeden gleich 1.', DE_DE);
+      assert.ok(out.includes('fruehereSchaeden'), `标识符应保留, 实际: ${out}`);
+      assert.ok(!out.includes('frühereSchäden'), `标识符不该被转写, 实际: ${out}`);
+    });
+
+    it('关键词 hoechstens 仍转写为 höchstens', () => {
+      const out = canonicalize('x hoechstens 5', DE_DE);
+      assert.ok(out.includes('höchstens'), `关键词应转写, 实际: ${out}`);
+    });
+
+    it('同一行：标识符保留 + 关键词转写', () => {
+      const out = canonicalize('wenn fruehereSchaeden hoechstens 5', DE_DE);
+      assert.ok(out.includes('fruehereSchaeden'), `标识符保留, 实际: ${out}`);
+      assert.ok(out.includes('höchstens'), `关键词转写, 实际: ${out}`);
+    });
+
+    it('字符串字面量内的二合字母不被转写', () => {
+      const out = canonicalize('gib zurueck "Bonitaet zu niedrig".', DE_DE);
+      assert.ok(out.includes('"Bonitaet zu niedrig"'), `字符串内容应保留, 实际: ${out}`);
+    });
+
+    it('需多条规则串联的关键词仍成形（groesser→größer）', () => {
+      // groesser 经 oe→ö 再 \bgrösser\b→größer 两条规则串联，一次性应用确保不在中间态中断
+      const out = canonicalize('wenn x groesser als 5', DE_DE);
+      assert.ok(out.includes('größer'), `groesser 应转写为 größer, 实际: ${out}`);
+    });
+
+    it('标识符以关键词词开头但整体非关键词不被部分转写', () => {
+      // fuer 是关键词词(fuer jedes=for each)，但 fuer_foo/fuer2 是完整标识符，
+      // 整 token 才是判定单位，不该被拆出 fuer 误转成 für_foo/für2
+      assert.ok(
+        canonicalize('sei fuer_foo gleich 1.', DE_DE).includes('fuer_foo'),
+        'fuer_foo 应整体保留',
+      );
+      assert.ok(
+        canonicalize('sei fuer2 gleich 1.', DE_DE).includes('fuer2'),
+        'fuer2 应整体保留',
+      );
+      // 但作为独立关键词的 fuer（fuer jedes）仍应转写
+      assert.ok(
+        canonicalize('fuer jedes x', DE_DE).includes('für'),
+        'fuer jedes 关键词应转写为 für',
+      );
     });
   });
 });
