@@ -587,12 +587,62 @@ function syncToNextDecl(ctx: ParserContext): void {
   }
 }
 
+/**
+ * 预扫描所有顶层类型声明名（Define / Type alias），先于正式解析填充 ctx.declaredTypes。
+ * <p>
+ * 与 aster-lang-core 的 AstBuilder 预扫描对齐：Java 在建 AST 前先遍历全部 topLevelDecl
+ * 登记类型名，因此【前向引用】的位置式构造（在 Define 之前用 TypeName(...)）也能被识别。
+ * TS 原先是单遍顺序解析，类型声明在后面时 declaredTypes 尚未登记 → 与 Java 行为不一致
+ * （位置式构造禁止规则一边拦一边放）。本预扫描消除该 parity 破坏。
+ *
+ * <b>口径收窄</b>：只识别【顶层声明位置】的 `define`/`type`，避免把它们作为字段名/普通词
+ * 出现在其它上下文时误登记（如 `Define Event has type Foo` 里的字段名 `type` 不该让 `Foo`
+ * 被当类型名）。顶层位置 = 该关键词前一个有意义 token 是 NEWLINE/DEDENT/DOT，或它是流首。
+ * 另外 `type` 仅当形如 `type <Name> as`（别名声明）才登记，与字段/注解用法区分。
+ */
+function prescanDeclaredTypes(ctx: ParserContext): void {
+  const tokens = ctx.tokens;
+  // 顶层声明起始的边界 token：声明前必是换行/反缩进/上一声明的句末点，或流首。
+  const isDeclBoundary = (idx: number): boolean => {
+    for (let j = idx - 1; j >= 0; j--) {
+      const k = tokens[j]!.kind;
+      if (k === TokenKind.INDENT) continue; // 顶层不应有 INDENT，但跳过以稳健
+      return k === TokenKind.NEWLINE || k === TokenKind.DEDENT || k === TokenKind.DOT;
+    }
+    return true; // 流首
+  };
+  for (let i = 0; i < tokens.length; i++) {
+    const v = tokLowerAt(ctx, i);
+    if (v !== KW.DEFINE && v !== KW.TYPE) continue;
+    if (!isDeclBoundary(i)) continue; // 非顶层声明位置（如字段名 type）跳过
+    const nameTok = tokens[i + 1];
+    if (!nameTok || (nameTok.kind !== TokenKind.IDENT && nameTok.kind !== TokenKind.TYPE_IDENT)) {
+      continue;
+    }
+    if (v === KW.TYPE) {
+      // 类型别名须形如 `type <Name> as ...`；否则 type 是字段名/其它用法，不登记。
+      const afterName = tokens[i + 2];
+      if (!afterName || (afterName.value as string)?.toLowerCase() !== KW.AS) {
+        continue;
+      }
+      // type alias 别名标量，不可构造 → 只进 declaredTypes（类型解析），不进 record 集。
+      ctx.declaredTypes.add(nameTok.value as string);
+    } else {
+      // Define 记录类型（Data/Enum）：可构造 → 两个集合都进。
+      ctx.declaredTypes.add(nameTok.value as string);
+      ctx.declaredRecordTypes.add(nameTok.value as string);
+    }
+  }
+}
+
 export function collectTopLevelDecls(
   ctx: ParserContext,
   tools: ParserTools
 ): { decls: Declaration[]; diagnostics: Diagnostic[] } {
   const decls: Declaration[] = [];
   const diagnostics: Diagnostic[] = [];
+  // 预扫描类型名，支持前向引用 + 与 Java 引擎 parity（见函数注释）
+  prescanDeclaredTypes(ctx);
   ctx.skipTrivia(); // 跳过开头的注释
   ctx.consumeNewlines();
 

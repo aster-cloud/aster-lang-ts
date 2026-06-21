@@ -15,6 +15,12 @@ export interface ParserContext {
   index: number;
   moduleName: string | null;
   declaredTypes: Set<string>;
+  /**
+   * 可【构造】的类型名（Data/Enum 记录类型），不含 type alias。
+   * 仅用于「位置式构造禁止」检查——type alias 别名标量（如 Int），本就不该用
+   * `with..set to` 构造，故不纳入；与 aster-lang-core 行为对齐（Java 只对记录类型报错）。
+   */
+  declaredRecordTypes: Set<string>;
   currentTypeVars: Set<string>;
   currentEffectVars: Set<string>;
   collectedEffects: string[] | null;
@@ -142,6 +148,7 @@ export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon)
     index: 0,
     moduleName: null,
     declaredTypes: new Set<string>(),
+    declaredRecordTypes: new Set<string>(),
     currentTypeVars: new Set<string>(),
     currentEffectVars: new Set<string>(),
     collectedEffects: null,

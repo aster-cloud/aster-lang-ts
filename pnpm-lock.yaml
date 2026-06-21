@@ -110,7 +110,7 @@ packages:
         optional: true
 
   '@aster-cloud/aster-lang-test@file:vendor/aster-cloud-aster-lang-test-0.0.3.tgz':
-    resolution: {integrity: sha512-aajOhpaTLOi7eqEkk4ztDNL7uWo9/O1usiZljRK9ZNHmQX715+Lvbo7pJ033XXmK15wodjifKugUtQP5sBf/vg==, tarball: file:vendor/aster-cloud-aster-lang-test-0.0.3.tgz}
+    resolution: {integrity: sha512-Spxhjp4KVoJ4LYoN4LqGdlE6ZgBMBmWXh7jq+gds/hn51jR/2fezb/bI0PyJVuwG5YUCQXMvE9I0Pfl/nCwpAQ==, tarball: file:vendor/aster-cloud-aster-lang-test-0.0.3.tgz}
     version: 0.0.3
 
   '@babel/runtime@7.28.4':

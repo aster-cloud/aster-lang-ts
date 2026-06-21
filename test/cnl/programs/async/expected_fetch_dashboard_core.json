@@ -131,19 +131,22 @@
             "expr": {
               "kind": "Ok",
               "expr": {
-                "kind": "Call",
-                "target": {
-                  "kind": "Name",
-                  "name": "Dash"
-                },
-                "args": [
+                "kind": "Construct",
+                "typeName": "Dash",
+                "fields": [
                   {
-                    "kind": "Name",
-                    "name": "profile"
+                    "name": "profile",
+                    "expr": {
+                      "kind": "Name",
+                      "name": "profile"
+                    }
                   },
                   {
-                    "kind": "Name",
-                    "name": "timeline"
+                    "name": "timeline",
+                    "expr": {
+                      "kind": "Name",
+                      "name": "timeline"
+                    }
                   }
                 ]
               }
