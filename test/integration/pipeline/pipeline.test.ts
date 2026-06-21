@@ -111,7 +111,7 @@ Module test.data.
 Define User has name as Text, age as Int.
 
 Rule createUser given n as Text, a as Int, produce User:
-  Return User(n, a).
+  Return User with name set to n and age set to a.
 `;
 
       const result = compileEnd2End(source);
@@ -234,7 +234,7 @@ Module test.structure.
 Define User has name as Text.
 
 Rule createUser given n as Text, produce User:
-  Return User(n).
+  Return User with name set to n.
 `;
 
       const result = compileEnd2End(source);

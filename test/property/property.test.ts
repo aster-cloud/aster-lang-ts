@@ -224,7 +224,7 @@ const testStartWaitPrecedence = (): void => {
     '  Start profile as async ProfileSvc.load(u.id).',
     '  Start timeline as async FeedSvc.timeline(u.id).',
     '  Wait for profile and timeline.',
-    '  Return Ok(Dash(profile, timeline)).',
+    '  Return Ok(Dash with profile set to profile and timeline set to timeline).',
     '',
   ].join('\n');
 

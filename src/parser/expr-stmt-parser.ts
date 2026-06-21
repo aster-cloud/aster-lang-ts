@@ -1315,6 +1315,16 @@ function parsePrimary(
     const target = Node.Name(full);
     assignSpan(target, spanFromSources(...consumedTokens));
     if (ctx.at(TokenKind.LPAREN)) {
+      // 位置式 `TypeName(args)` 对【已声明类型】不是合法语法——结构体构造必须用命名字段
+      // `TypeName with field set to expr and ...`。原先位置式被静默降级成函数调用，
+      // 直到运行时才抛 Undefined function；在此于编译期就报错并给出正确写法。
+      // 仅拦截裸类型名（无点链后缀），点链形态（如 SomeType.method(...)）不受影响。
+      if (full === typeName && ctx.declaredRecordTypes.has(typeName)) {
+        error(
+          `Cannot construct '${typeName}' with positional arguments. ` +
+          `Use named fields instead: '${typeName} with <field> set to <value> and ...'`,
+        );
+      }
       const args = parseArgList(ctx, error);
       const call = Node.Call(target, args);
       const endTok = lastConsumedToken(ctx);
@@ -1350,6 +1360,13 @@ function parsePrimary(
     const target = Node.Name(full);
     assignSpan(target, spanFromSources(...consumedTokens));
     if (ctx.at(TokenKind.LPAREN)) {
+      // 同 TYPE_IDENT 分支：拦截对已声明类型的位置式构造（无大小写语言里类型名是 IDENT）。
+      if (full === name && ctx.declaredRecordTypes.has(name)) {
+        error(
+          `Cannot construct '${name}' with positional arguments. ` +
+          `Use named fields instead: '${name} with <field> set to <value> and ...'`,
+        );
+      }
       const args = parseArgList(ctx, error);
       const call = Node.Call(target, args);
       const endTok = lastConsumedToken(ctx);

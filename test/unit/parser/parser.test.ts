@@ -1483,4 +1483,75 @@ Rule greet given name as Text, produce Text:
       assert.equal(letStmt.name, 'result');
     });
   });
+
+  describe('结构体位置式构造编译期报错', () => {
+    it('对已声明类型用 TypeName(args) 应报错并提示用 with..set to', () => {
+      const r = parseWithDiag(
+        'Module a.b.\nDefine Box has v, w.\nRule f given x, produce:\n  Return Box(5, 6).\n',
+      );
+      const err = r.diagnostics.find(d => d.severity === 'error');
+      assert.ok(err, '应产生 error 诊断');
+      assert.match(err!.message, /Box/, '应提及类型名');
+      assert.match(err!.message, /set to/, '应提示用命名字段 with..set to');
+    });
+
+    it('命名字段构造 Box with..set to 不报错', () => {
+      const r = parseWithDiag(
+        'Module a.b.\nDefine Box has v, w.\nRule f given x, produce:\n  Return Box with v set to 5 and w set to 6.\n',
+      );
+      assert.equal(r.diagnostics.filter(d => d.severity === 'error').length, 0);
+    });
+
+    it('内置变体构造 Ok(x) 仍合法（非已声明类型）', () => {
+      const r = parseWithDiag(
+        'Module a.b.\nRule f given x, produce:\n  Return Ok(x).\n',
+      );
+      assert.equal(r.diagnostics.filter(d => d.severity === 'error').length, 0);
+    });
+
+    it('普通函数调用 g(x) 不受影响', () => {
+      const r = parseWithDiag(
+        'Module a.b.\nRule g given y, produce:\n  Return y.\nRule f given x, produce:\n  Return g(x).\n',
+      );
+      assert.equal(r.diagnostics.filter(d => d.severity === 'error').length, 0);
+    });
+
+    it('前向引用：Define 在后也应报错（与 Java 引擎 parity，预扫描类型名）', () => {
+      const r = parseWithDiag(
+        'Module a.b.\nRule f given x, produce:\n  Return Box(5, 6).\nDefine Box has v, w.\n',
+      );
+      const err = r.diagnostics.find(d => d.severity === 'error');
+      assert.ok(err, '前向引用的位置式构造也应报错');
+      assert.match(err!.message, /set to/);
+    });
+
+    it('前向引用且 Define 前有注释/空行：仍应报错（边界判定稳健）', () => {
+      // 注释在 canonicalize 阶段被剥离，Define 前只剩 NEWLINE/DEDENT 结构 token，
+      // 预扫描的顶层边界判定应仍命中 Define → 前向位置式构造被拦。
+      const r = parseWithDiag(
+        'Module a.b.\nRule f given x, produce:\n  Return Box(5).\n\n// comment\nDefine Box has v.\n',
+      );
+      assert.ok(
+        r.diagnostics.some(d => d.severity === 'error'),
+        '注释/空行隔开的前向位置式构造也应报错',
+      );
+    });
+
+    it('type alias 不是可构造记录类型，Score(5) 不报错（与 Java parity）', () => {
+      const r = parseWithDiag(
+        'Module a.b.\nRule f given x, produce:\n  Return Score(5).\nType Score as Int.\n',
+      );
+      assert.equal(r.diagnostics.filter(d => d.severity === 'error').length, 0);
+    });
+
+    it('预扫描只认顶层声明头：非顶层位置的 type 不误登记（与函数调用不冲突）', () => {
+      // 即便后续函数名与某些声明结构词相近，预扫描的顶层位置判定也不应把普通函数调用拦成构造。
+      const r = parseWithDiag(
+        'Module a.b.\nDefine Event has kind, payload.\n'
+        + 'Rule build given k, p, produce Event:\n  Return Event with kind set to k and payload set to p.\n'
+        + 'Rule run given e, produce:\n  Return build(e, e).\n',
+      );
+      assert.equal(r.diagnostics.filter(d => d.severity === 'error').length, 0);
+    });
+  });
 });
