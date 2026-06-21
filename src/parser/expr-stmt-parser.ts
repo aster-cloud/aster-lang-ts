@@ -16,7 +16,7 @@ import type {
   WorkflowStmt,
 } from '../types.js';
 import type { ParserContext } from './context.js';
-import { kwParts, tokLowerAt } from './context.js';
+import { kwParts, tokLowerAt, tryReadTranslatedIdent } from './context.js';
 import { TokenKind, KW } from '../frontend/tokens.js';
 import { Node } from '../ast/ast.js';
 import { parseType, parseEffectList } from './type-parser.js';
@@ -1655,6 +1655,9 @@ function parseIdent(
   ctx: ParserContext,
   error: (msg: string) => never
 ): string {
+  // 标识符位置容忍"被翻译成关键词的标识符"（见 tryReadTranslatedIdent），否则要求 IDENT。
+  const recovered = tryReadTranslatedIdent(ctx);
+  if (recovered !== null) return recovered;
   if (!ctx.at(TokenKind.IDENT)) {
     error('Expected identifier');
   }

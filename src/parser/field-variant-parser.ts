@@ -6,6 +6,7 @@
 import { KW, TokenKind } from '../frontend/tokens.js';
 import type { Field, Span, Token, Type } from '../types.js';
 import type { ParserContext } from './context.js';
+import { tryReadTranslatedIdent } from './context.js';
 import { parseType } from './type-parser.js';
 import { parseConstraints } from './constraint-parser.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
@@ -52,11 +53,14 @@ export function parseFieldList(
 
     const nameTok = ctx.peek();
 
-    // 解析字段名（必须是普通标识符）
-    if (!ctx.at(TokenKind.IDENT)) {
-      error("Expected field name", nameTok);
+    // 解析字段名：先尝试还原"被翻译成关键词的标识符"（非英文词法包），否则要求普通标识符。
+    let name = tryReadTranslatedIdent(ctx);
+    if (name === null) {
+      if (!ctx.at(TokenKind.IDENT)) {
+        error("Expected field name", nameTok);
+      }
+      name = ctx.next().value as string;
     }
-    const name = ctx.next().value as string;
 
     let t: Type;
     let colonTok: Token | undefined;

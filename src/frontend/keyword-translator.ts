@@ -242,11 +242,13 @@ export function translateToken(token: Token, index: KeywordTranslationIndex): To
   const translated = index.get(value.toLowerCase());
   if (!translated) return token;
 
-  // 返回新 token，修正 kind：翻译后首字母大写的应为 TYPE_IDENT
+  // 返回新 token，修正 kind：翻译后首字母大写的应为 TYPE_IDENT。
+  // 保留 originalValue：若本 token 处于标识符位置，parser 可据此还原原始单词为标识符。
   return {
     ...token,
     kind: inferTokenKind(translated, token.kind),
     value: translated,
+    originalValue: value,
   };
 }
 
@@ -463,26 +465,31 @@ export function translateTokensWithMarkers(
       }
 
       if (translated) {
+        // 原始单词（用于标识符位置还原）：仅当源 token 是标识符形态时保留。
+        const srcOriginal = value;
         const targetWords = translated.split(/\s+/);
         if (targetWords.length > 1) {
-          // 单源词→多目标词：拆分为多个 token
-          for (const word of targetWords) {
+          // 单源词→多目标词：拆分为多个 token。在首个 token 记 originalValue +
+          // transUnitLen，供 parser 在标识符位置还原成单个标识符并跳过整组。
+          for (let k = 0; k < targetWords.length; k++) {
             result.push({
-              kind: inferTokenKind(word, token.kind),
-              value: word,
+              kind: inferTokenKind(targetWords[k]!, token.kind),
+              value: targetWords[k]!,
               start: token.start,
               end: token.end,
+              ...(k === 0 ? { originalValue: srcOriginal, transUnitLen: targetWords.length } : {}),
             });
           }
           i++;
           continue;
         }
-        // 单词翻译
+        // 单词翻译：保留 originalValue 供标识符位置还原。
         result.push({
           kind: inferTokenKind(translated, token.kind),
           value: translated,
           start: token.start,
           end: token.end,
+          originalValue: srcOriginal,
         });
         i++;
         continue;
