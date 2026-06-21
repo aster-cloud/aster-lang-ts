@@ -92,6 +92,10 @@ export function createParserTools(ctx: ParserContext): ParserTools {
     },
 
     parseIdent(): string {
+      // 先尝试还原"被翻译成关键词的标识符"（OF 家族当函数名/导入别名等标识符位置，
+      // 非英文词法包）。与 aster-lang-core 引擎口径一致。
+      const recovered = tryReadTranslatedIdent(ctx);
+      if (recovered !== null) return recovered;
       if (!ctx.at(TokenKind.IDENT))
         Diagnostics.expectedIdentifier(ctx.peek().start).throw();
       return ctx.next().value as string;

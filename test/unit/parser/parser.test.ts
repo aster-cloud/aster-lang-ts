@@ -1554,4 +1554,67 @@ Rule greet given name as Text, produce Text:
       assert.equal(r.diagnostics.filter(d => d.severity === 'error').length, 0);
     });
   });
+
+  describe('关键词当标识符（非英文词法包）', () => {
+    // zh `结果`=RESULT_OF、`成功值`=OK_OF 等"单源词→多英文词"关键词当用户标识符时，
+    // 在标识符位置应当标识符（名=源词），关键词位置仍当关键词。与 aster-lang-core parity。
+    function zhParses(src: string): boolean {
+      const tokens = lex(canonicalize(src, ZH_CN), ZH_CN);
+      return parseWithLexicon(tokens, ZH_CN).diagnostics.filter(d => d.severity === 'error').length === 0;
+    }
+
+    it('结果(RESULT_OF) 当字段名', () => {
+      assert.ok(zhParses('模块 a.b。\n定义 盒子 包含 结果。\n'));
+    });
+
+    it('结果 在字段列表逗号前后', () => {
+      assert.ok(zhParses('模块 a.b。\n定义 盒子 包含 年龄，结果。\n'));
+      assert.ok(zhParses('模块 a.b。\n定义 盒子 包含 结果，年龄。\n'));
+    });
+
+    it('结果 当参数名 / 变量名 / 类型名', () => {
+      assert.ok(zhParses('模块 a.b。\n规则 f 给定 结果 产出：\n  返回 结果。\n'));
+      assert.ok(zhParses('模块 a.b。\n规则 f 给定 x 产出：\n  令 结果 定义为 x。\n  返回 结果。\n'));
+      assert.ok(zhParses('模块 a.b。\n定义 结果 包含 值。\n'));
+    });
+
+    it('成功值(OK_OF) 既当字段名又当构造器', () => {
+      assert.ok(zhParses('模块 a.b。\n定义 盒子 包含 成功值。\n'), '当字段名');
+      assert.ok(zhParses('模块 a.b。\n规则 f 给定 x 产出：\n  返回 成功值 x。\n'), '当构造器');
+    });
+
+    it('OF 家族当函数名 / 值右值构造器', () => {
+      assert.ok(zhParses('模块 a.b。\n规则 结果 给定 x 产出：\n  返回 x。\n'), '结果 当函数名');
+      assert.ok(
+        zhParses('模块 a.b。\n规则 f 给定 x 产出：\n  令 y 定义为 成功值 x。\n  返回 y。\n'),
+        'Let y be 成功值 x 构造器',
+      );
+    });
+
+    it('标识符名 = 源词 结果（与 Java 引擎 parity）', () => {
+      const tokens = lex(canonicalize('模块 a.b。\n定义 盒子 包含 结果。\n', ZH_CN), ZH_CN);
+      const mod = parseWithLexicon(tokens, ZH_CN).ast;
+      const data = mod.decls.find(d => d.kind === 'Data');
+      assert.ok(data && data.kind === 'Data');
+      if (data && data.kind === 'Data') {
+        assert.equal(data.fields[0]!.name, '结果', '字段名应为源词 结果');
+      }
+    });
+
+    it('结构短语当字段名两引擎都拒绝（仅 OF 家族还原，保持 parity）', () => {
+      // 为以下之一(as one of)/结果为(the result is) 是结构短语,不在 OF 家族,当字段名
+      // 两引擎都不还原 → 与 Java 一致拒绝。它们的关键词用法(enum/return)不受影响。
+      function zhFails(src: string): boolean {
+        const tokens = lex(canonicalize(src, ZH_CN), ZH_CN);
+        return parseWithLexicon(tokens, ZH_CN).diagnostics.some(d => d.severity === 'error');
+      }
+      assert.ok(zhFails('模块 a.b。\n定义 盒子 包含 为以下之一。\n'), '为以下之一 当字段名应拒绝');
+      // 但 enum 关键词用法不受影响
+      const ok = lex(canonicalize('模块 a.b。\n定义 状态 为以下之一 甲，乙。\n', ZH_CN), ZH_CN);
+      assert.equal(
+        parseWithLexicon(ok, ZH_CN).diagnostics.filter(d => d.severity === 'error').length, 0,
+        '为以下之一 enum 用法应正常',
+      );
+    });
+  });
 });
