@@ -44,19 +44,22 @@
           {
             "kind": "Return",
             "expr": {
-              "kind": "Call",
-              "target": {
-                "kind": "Name",
-                "name": "User"
-              },
-              "args": [
+              "kind": "Construct",
+              "typeName": "User",
+              "fields": [
                 {
-                  "kind": "String",
-                  "value": "test@example.com"
+                  "name": "email",
+                  "expr": {
+                    "kind": "String",
+                    "value": "test@example.com"
+                  }
                 },
                 {
-                  "kind": "String",
-                  "value": "John"
+                  "name": "name",
+                  "expr": {
+                    "kind": "String",
+                    "value": "John"
+                  }
                 }
               ]
             }
