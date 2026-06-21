@@ -76,6 +76,19 @@ export interface Token {
   readonly start: Position;
   readonly end: Position;
   readonly channel?: 'trivia';
+  /**
+   * 关键词翻译前的原始源值（仅当本 token 由非英文关键词翻译而来时设置）。
+   * 非英文词法包下，用户标识符可能与某 CNL 关键词的词同形而被翻译层翻译（甚至拆成
+   * 多 token）。在【标识符位置】，parser 可借本字段还原原始单词作为标识符——与 EN
+   * 路径的 nameIdent 软关键词容忍机制对齐。
+   */
+  readonly originalValue?: string;
+  /**
+   * 当本 token 由【单源词翻译成多目标词】（如 zh `结果`→`result of`）拆分而来时，
+   * 标记同一翻译单元的目标 token 数（≥2），仅设在该单元【首个】token 上。parser 在
+   * 标识符位置还原 originalValue 后，据此跳过整组拆分 token。
+   */
+  readonly transUnitLen?: number;
 }
 
 export enum TokenKind {

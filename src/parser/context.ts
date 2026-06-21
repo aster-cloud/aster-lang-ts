@@ -109,6 +109,24 @@ export function tokLowerAt(ctx: ParserContext, idx: number): string | null {
   return ((tok.value as string) || '').toLowerCase();
 }
 
+/**
+ * 在【标识符位置】尝试还原"被翻译成关键词的标识符"。
+ *
+ * 非英文词法包下，用户标识符可能与某 CNL 关键词的词同形而被翻译层翻译（甚至拆成多
+ * token，见 Token.originalValue / transUnitLen）。各处读取用户命名（字段/变量/参数/
+ * 别名等）的 parser 代码在尝试常规 IDENT 之前先调本函数：若当前 token 由翻译而来，
+ * 还原其原始单词并消费整个翻译单元，返回原始标识符；否则返回 null（调用方继续走常规
+ * IDENT 逻辑）。与 EN 路径 nameIdent 软关键词容忍机制对齐。
+ */
+export function tryReadTranslatedIdent(ctx: ParserContext): string | null {
+  const tok = ctx.peek();
+  if (!tok || tok.originalValue === undefined) return null;
+  ctx.next();
+  const extra = (tok.transUnitLen ?? 1) - 1;
+  for (let k = 0; k < extra; k++) ctx.next();
+  return tok.originalValue;
+}
+
 const parserLogger = createLogger('parser');
 
 export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon): ParserContext {

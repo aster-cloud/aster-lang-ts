@@ -42,6 +42,35 @@ function inferTokenKind(translatedValue: string, originalKind: TokenKind): Token
 }
 
 /**
+ * OF 家族关键词种类（`X of expr` 构造器：result/option/ok/err/some of）——其英文首词是
+ * 普通 IDENT，与用户标识符真撞名。仅对这些关键词在标识符位置还原 originalValue，
+ * 与 aster-lang-core 引擎口径一致（结构短语如"as one of"/"the result is"不在此列，
+ * 当字段名两引擎都不还原，保持 parity）。
+ */
+const OF_FAMILY_KINDS: ReadonlySet<SemanticTokenKind> = new Set([
+  SemanticTokenKind.RESULT_OF,
+  SemanticTokenKind.OPTION_OF,
+  SemanticTokenKind.OK_OF,
+  SemanticTokenKind.ERR_OF,
+  SemanticTokenKind.SOME_OF,
+]);
+
+const OF_FAMILY_SOURCE_CACHE = new WeakMap<Lexicon, ReadonlySet<string>>();
+
+/** 从词法表取 OF 家族关键词的源词集合（小写），用于把 originalValue 还原限定在 OF 家族。 */
+function getOfFamilySourceWords(lexicon: Lexicon): ReadonlySet<string> {
+  const cached = OF_FAMILY_SOURCE_CACHE.get(lexicon);
+  if (cached) return cached;
+  const set = new Set<string>();
+  for (const kind of OF_FAMILY_KINDS) {
+    const v = lexicon.keywords[kind];
+    if (typeof v === 'string' && v) set.add(v.toLowerCase());
+  }
+  OF_FAMILY_SOURCE_CACHE.set(lexicon, set);
+  return set;
+}
+
+/**
  * 关键词映射索引类型。
  *
  * 从本地化关键词（小写）映射到规范化关键词。
@@ -242,7 +271,10 @@ export function translateToken(token: Token, index: KeywordTranslationIndex): To
   const translated = index.get(value.toLowerCase());
   if (!translated) return token;
 
-  // 返回新 token，修正 kind：翻译后首字母大写的应为 TYPE_IDENT
+  // 返回新 token，修正 kind：翻译后首字母大写的应为 TYPE_IDENT。
+  // 注意：OF 家族"关键词当标识符"的 originalValue 还原由 translateTokensWithMarkers
+  // 显式处理（按 OF 家族源词集合限定），此单 token 路径不设 originalValue，避免结构短语
+  // 被误还原（破坏与 aster-lang-core 的 parity）。
   return {
     ...token,
     kind: inferTokenKind(translated, token.kind),
@@ -293,7 +325,8 @@ function isTranslatableToken(token: Token): boolean {
 export function translateTokensWithMarkers(
   tokens: readonly Token[],
   index: KeywordTranslationIndex,
-  markerIndex: MarkerKeywordIndex
+  markerIndex: MarkerKeywordIndex,
+  ofFamilySources: ReadonlySet<string> = new Set()
 ): Token[] {
   const result: Token[] = [];
   let i = 0;
@@ -463,26 +496,36 @@ export function translateTokensWithMarkers(
       }
 
       if (translated) {
+        // 仅 OF 家族关键词（result/option/ok/err/some of）在标识符位置还原 originalValue，
+        // 与 aster-lang-core 口径一致；结构短语不还原，保持双引擎 parity。
+        const keepOriginal = ofFamilySources.has(value.toLowerCase());
+        const srcOriginal = value;
         const targetWords = translated.split(/\s+/);
         if (targetWords.length > 1) {
-          // 单源词→多目标词：拆分为多个 token
-          for (const word of targetWords) {
+          // 单源词→多目标词：拆分为多个 token。OF 家族在首个 token 记 originalValue +
+          // transUnitLen，供 parser 在标识符位置还原成单个标识符并跳过整组。
+          for (let k = 0; k < targetWords.length; k++) {
             result.push({
-              kind: inferTokenKind(word, token.kind),
-              value: word,
+              kind: inferTokenKind(targetWords[k]!, token.kind),
+              value: targetWords[k]!,
               start: token.start,
               end: token.end,
+              ...(k === 0 && keepOriginal
+                ? { originalValue: srcOriginal, transUnitLen: targetWords.length }
+                : {}),
             });
           }
           i++;
           continue;
         }
-        // 单词翻译
+        // 单词翻译：OF 家族保留 originalValue 供标识符位置还原（单词关键词其实不会落这里，
+        // 但保持逻辑一致）。
         result.push({
           kind: inferTokenKind(translated, token.kind),
           value: translated,
           start: token.start,
           end: token.end,
+          ...(keepOriginal ? { originalValue: srcOriginal } : {}),
         });
         i++;
         continue;
@@ -519,6 +562,7 @@ export function createKeywordTranslator(
   getMarkerTranslation: (value: string) => string | undefined;
 } {
   const { index, markerIndex } = buildFullTranslationIndex(sourceLexicon, targetLexicon);
+  const ofFamilySources = getOfFamilySourceWords(sourceLexicon);
 
   return {
     /** 普通关键词翻译索引 */
@@ -532,7 +576,7 @@ export function createKeywordTranslator(
 
     /** 翻译 token 数组（包括标记关键词序列处理） */
     translateTokens: (tokens: readonly Token[]): Token[] =>
-      translateTokensWithMarkers(tokens, index, markerIndex),
+      translateTokensWithMarkers(tokens, index, markerIndex, ofFamilySources),
 
     /** 检查普通关键词是否有翻译 */
     hasTranslation: (value: string): boolean => index.has(value.toLowerCase()),
