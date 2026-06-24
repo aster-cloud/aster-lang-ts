@@ -244,6 +244,32 @@ export function buildFullTranslationIndex(
     addToIndex(src, tgt, true);
   }
 
+  // 阶段 3：别名 → 目标规范关键词（ADR 0022）。别名只在识别侧，归一成规范拼写后
+  // 再进下游 → IR 零损。对英文源（aliases 在 en-US 自身），target=本语言规范拼写；
+  // 对非英文源，target=英文规范关键词（与 keywords 同走 targetLexicon）。直接映射，
+  // 高优先级，但不覆盖已存在的规范映射（校验已保证别名不遮蔽规范拼写）。
+  if (sourceLexicon.aliases) {
+    for (const kind of Object.values(SemanticTokenKind)) {
+      const aliasList = sourceLexicon.aliases[kind];
+      if (!aliasList || aliasList.length === 0) {
+        continue;
+      }
+      const targetKeyword = targetLexicon.keywords[kind];
+      if (!targetKeyword) {
+        continue;
+      }
+      for (const alias of aliasList) {
+        const srcLower = alias.toLowerCase();
+        if (srcLower === targetKeyword.toLowerCase()) {
+          continue; // 别名恰等于目标规范，无需映射
+        }
+        if (!index.has(srcLower)) {
+          addToIndex(srcLower, targetKeyword, true);
+        }
+      }
+    }
+  }
+
   return { index, markerIndex };
 }
 
@@ -605,5 +631,10 @@ export function needsKeywordTranslation(
   sourceLexicon: Lexicon,
   targetLexicon: Lexicon = EN_US
 ): boolean {
-  return sourceLexicon.id !== targetLexicon.id;
+  // 非英文必翻；英文若带别名也要走翻译，把别名归一成规范拼写（ADR 0022）。
+  if (sourceLexicon.id !== targetLexicon.id) {
+    return true;
+  }
+  return sourceLexicon.aliases != null
+    && Object.values(sourceLexicon.aliases).some(list => (list?.length ?? 0) > 0);
 }

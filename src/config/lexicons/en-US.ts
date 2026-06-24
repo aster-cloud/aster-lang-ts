@@ -88,6 +88,15 @@ export const EN_US: Lexicon = {
     [SemanticTokenKind.PATTERN]: 'pattern',
   },
 
+  // ADR 0022 首批：仅多词别名。单词别名（Policy/Whenever/above…）虽机检不撞规范拼写，
+  // 但会占用标识符命名空间——用户用同名字段/参数会被当关键词，破坏用户空间（铁律）。
+  // 多词别名（含空格）天然安全：仅相邻序列匹配，子词仍可作标识符。单词别名需位置感知
+  // 识别（同 keyword-identifier-disambiguation 的 OF 家族机制），列为后续。
+  aliases: {
+    [SemanticTokenKind.TIMES]: ['multiplied by'],
+    [SemanticTokenKind.DIVIDED_BY]: ['split by'],
+  },
+
   punctuation: {
     statementEnd: '.',
     listSeparator: ',',

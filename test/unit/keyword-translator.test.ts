@@ -26,6 +26,11 @@ import { EN_US } from '../../src/config/lexicons/en-US.js';
 import { TokenKind } from '../../src/frontend/tokens.js';
 import type { Token } from '../../src/types.js';
 
+// en-US 去掉别名（ADR 0022）。下列"同词表无需翻译/空索引"断言测的是规范路径，
+// 而内置 EN_US 现自带别名（别名也要归一成规范拼写，故 EN_US→EN_US 需要翻译）。
+// 用去别名副本保持这些测试原本的语义。
+const EN_NO_ALIAS = { ...EN_US, aliases: undefined };
+
 describe('关键词翻译器', () => {
   describe('buildKeywordTranslationIndex', () => {
     it('应构建 zh-CN 到 en-US 的翻译索引（v2 关键字）', () => {
@@ -64,8 +69,8 @@ describe('关键词翻译器', () => {
       assert.strictEqual(index.get('如果'), 'If');
     });
 
-    it('对相同词法表应返回空索引', () => {
-      const index = buildKeywordTranslationIndex(EN_US, EN_US);
+    it('对相同词法表（无别名）应返回空索引', () => {
+      const index = buildKeywordTranslationIndex(EN_NO_ALIAS, EN_NO_ALIAS);
       assert.strictEqual(index.size, 0);
     });
   });
@@ -96,13 +101,17 @@ describe('关键词翻译器', () => {
       assert.strictEqual(needsKeywordTranslation(ZH_CN, EN_US), true);
     });
 
-    it('en-US 到 en-US 不需要翻译', () => {
-      assert.strictEqual(needsKeywordTranslation(EN_US, EN_US), false);
+    it('en-US（无别名）到 en-US 不需要翻译', () => {
+      assert.strictEqual(needsKeywordTranslation(EN_NO_ALIAS, EN_NO_ALIAS), false);
+    });
+
+    it('en-US 带别名时需要翻译（把别名归一成规范拼写，ADR 0022）', () => {
+      assert.strictEqual(needsKeywordTranslation(EN_US, EN_US), true);
     });
 
     it('默认目标为 en-US', () => {
       assert.strictEqual(needsKeywordTranslation(ZH_CN), true);
-      assert.strictEqual(needsKeywordTranslation(EN_US), false);
+      assert.strictEqual(needsKeywordTranslation(EN_NO_ALIAS), false);
     });
   });
 
@@ -298,16 +307,16 @@ describe('关键词翻译器', () => {
       assert.ok(ast, '应生成 AST');
     });
 
-    it('英文 CNL 不受影响', () => {
+    it('英文 CNL 不受影响（规范路径，无别名）', () => {
       // 英文源代码
       const enSource = 'Rule id, produce Int:\n  Return 1.';
 
-      // 完整编译流程（英文不需要翻译，但测试流程不会出错）
-      const canonical = canonicalize(enSource, EN_US);
-      const tokens = lex(canonical, EN_US);
+      // 完整编译流程（无别名英文不需要翻译，测试流程不会出错）
+      const canonical = canonicalize(enSource, EN_NO_ALIAS);
+      const tokens = lex(canonical, EN_NO_ALIAS);
 
-      // 英文不需要翻译
-      assert.strictEqual(needsKeywordTranslation(EN_US), false);
+      // 无别名英文不需要翻译
+      assert.strictEqual(needsKeywordTranslation(EN_NO_ALIAS), false);
 
       // 直接解析
       const ast = parse(tokens).ast;
