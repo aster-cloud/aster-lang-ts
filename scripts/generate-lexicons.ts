@@ -32,6 +32,8 @@ interface ExportedLexicon {
   name: string;
   direction: string;
   keywords: Record<string, string>;
+  /** 关键词别名（ADR 0022）：kind -> [别名,...]。可选，缺省=无别名。 */
+  aliases?: Record<string, string[]>;
   punctuation: {
     statementEnd: string;
     listSeparator: string;
@@ -105,6 +107,19 @@ function generateLexiconFile(lex: ExportedLexicon, tokenKinds: string[]): string
   }
   lines.push(`  },`);
   lines.push(``);
+
+  // aliases（ADR 0022）：kind -> [别名,...]，仅在非空时产出（向后兼容）
+  if (lex.aliases && Object.keys(lex.aliases).length > 0) {
+    lines.push(`  aliases: {`);
+    for (const kind of tokenKinds) {
+      const list = lex.aliases[kind];
+      if (list && list.length > 0) {
+        lines.push(`    [SemanticTokenKind.${kind}]: [${list.map(quote).join(', ')}],`);
+      }
+    }
+    lines.push(`  },`);
+    lines.push(``);
+  }
 
   // punctuation
   lines.push(`  punctuation: {`);

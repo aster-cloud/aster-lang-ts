@@ -28,8 +28,17 @@ export interface Lexicon {
   /** 文字方向 ('ltr': 左到右, 'rtl': 右到左) */
   readonly direction: 'ltr' | 'rtl';
 
-  /** 关键词映射：SemanticTokenKind -> 该语言的关键词字符串 */
+  /** 关键词映射：SemanticTokenKind -> 该语言的关键词字符串（规范拼写，唯一） */
   readonly keywords: Readonly<Record<SemanticTokenKind, string>>;
+
+  /**
+   * 关键词别名：SemanticTokenKind -> 该语义的别名拼写列表（ADR 0022）。
+   *
+   * 别名只存在于「识别侧」（输入）；规范拼写（{@link keywords}）是唯一的「产出侧」。
+   * canonicalize/translate 把别名归一成规范拼写后再进下游，故别名不影响 Core IR——
+   * 用别名与规范拼写写的同一逻辑产出字节一致的 IR。缺省/未提供 = 无别名，向后兼容。
+   */
+  readonly aliases?: Readonly<Partial<Record<SemanticTokenKind, readonly string[]>>>;
 
   /** 标点符号配置 */
   readonly punctuation: PunctuationConfig;
@@ -229,6 +238,17 @@ export function buildKeywordIndex(lexicon: Lexicon): KeywordIndex {
   for (const [kind, keyword] of Object.entries(lexicon.keywords)) {
     index.set(keyword.toLowerCase(), kind as SemanticTokenKind);
   }
+  // 别名进索引（识别侧多对一，ADR 0022）。规范拼写优先：别名不覆盖已存在的 key。
+  if (lexicon.aliases) {
+    for (const [kind, aliasList] of Object.entries(lexicon.aliases)) {
+      for (const alias of aliasList ?? []) {
+        const lower = alias.toLowerCase();
+        if (!index.has(lower)) {
+          index.set(lower, kind as SemanticTokenKind);
+        }
+      }
+    }
+  }
   return index;
 }
 
@@ -239,9 +259,19 @@ export function buildKeywordIndex(lexicon: Lexicon): KeywordIndex {
  * @returns 多词关键词数组
  */
 export function getMultiWordKeywords(lexicon: Lexicon): string[] {
-  return Object.values(lexicon.keywords)
-    .filter(kw => kw.includes(' ') || (lexicon.punctuation.markers && kw.includes(lexicon.punctuation.markers.open)))
-    .sort((a, b) => b.length - a.length);
+  const isMulti = (kw: string): boolean =>
+    kw.includes(' ') || (lexicon.punctuation.markers !== undefined && kw.includes(lexicon.punctuation.markers.open));
+  const canonical = Object.values(lexicon.keywords).filter(isMulti);
+  // 多词别名也纳入最长匹配集（ADR 0022 §5.4），否则含空格别名会被按单词拆开。
+  const aliasMulti: string[] = [];
+  if (lexicon.aliases) {
+    for (const aliasList of Object.values(lexicon.aliases)) {
+      for (const alias of aliasList ?? []) {
+        if (isMulti(alias)) aliasMulti.push(alias);
+      }
+    }
+  }
+  return [...canonical, ...aliasMulti].sort((a, b) => b.length - a.length);
 }
 
 /**
@@ -258,6 +288,16 @@ export function findSemanticTokenKind(lexicon: Lexicon, keyword: string): Semant
       return kind as SemanticTokenKind;
     }
   }
+  // 识别侧也认别名（ADR 0022）。
+  if (lexicon.aliases) {
+    for (const [kind, aliasList] of Object.entries(lexicon.aliases)) {
+      for (const alias of aliasList ?? []) {
+        if (alias.toLowerCase() === lower) {
+          return kind as SemanticTokenKind;
+        }
+      }
+    }
+  }
   return undefined;
 }
 
@@ -270,5 +310,16 @@ export function findSemanticTokenKind(lexicon: Lexicon, keyword: string): Semant
  */
 export function isLexiconKeyword(lexicon: Lexicon, word: string): boolean {
   const lower = word.toLowerCase();
-  return Object.values(lexicon.keywords).some(kw => kw.toLowerCase() === lower);
+  if (Object.values(lexicon.keywords).some(kw => kw.toLowerCase() === lower)) {
+    return true;
+  }
+  // 别名也算关键词（识别侧，ADR 0022）。
+  if (lexicon.aliases) {
+    for (const aliasList of Object.values(lexicon.aliases)) {
+      if ((aliasList ?? []).some(a => a.toLowerCase() === lower)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }

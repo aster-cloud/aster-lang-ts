@@ -88,6 +88,9 @@ export const EN_US: Lexicon = {
     [SemanticTokenKind.PATTERN]: 'pattern',
   },
 
+  // ADR 0022：官方 builtin 不内置别名（方案 A 已回滚）。别名机制保留供方案 D
+  // （用户自定义、随版本快照固化的 aliasSet）在编译期注入。
+
   punctuation: {
     statementEnd: '.',
     listSeparator: ',',

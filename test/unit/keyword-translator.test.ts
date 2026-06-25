@@ -7,7 +7,7 @@
  * 以支持完整的中文 CNL 编译流程。
  */
 
-import { describe, it, beforeEach } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
 import {
@@ -25,6 +25,17 @@ import { ZH_CN } from '../../src/config/lexicons/zh-CN.js';
 import { EN_US } from '../../src/config/lexicons/en-US.js';
 import { TokenKind } from '../../src/frontend/tokens.js';
 import type { Token } from '../../src/types.js';
+
+// en-US 显式去掉 aliases 字段（ADR 0022）：下列"同词表无需翻译/空索引"断言测规范路径。
+// builtin EN_US 本身无 aliases（方案 A 已撤）；这里**删除属性**而非置 undefined，否则
+// exactOptionalPropertyTypes 下 {aliases:undefined} 不是合法 Lexicon→tsc 报错。
+// 用辅助函数删键，避免解构产生未用绑定（lint no-unused-vars）。
+function withoutAliases(lex: typeof EN_US): typeof EN_US {
+  const copy = { ...lex };
+  delete (copy as { aliases?: unknown }).aliases;
+  return copy;
+}
+const EN_NO_ALIAS = withoutAliases(EN_US);
 
 describe('关键词翻译器', () => {
   describe('buildKeywordTranslationIndex', () => {
@@ -64,8 +75,8 @@ describe('关键词翻译器', () => {
       assert.strictEqual(index.get('如果'), 'If');
     });
 
-    it('对相同词法表应返回空索引', () => {
-      const index = buildKeywordTranslationIndex(EN_US, EN_US);
+    it('对相同词法表（无别名）应返回空索引', () => {
+      const index = buildKeywordTranslationIndex(EN_NO_ALIAS, EN_NO_ALIAS);
       assert.strictEqual(index.size, 0);
     });
   });
@@ -96,13 +107,20 @@ describe('关键词翻译器', () => {
       assert.strictEqual(needsKeywordTranslation(ZH_CN, EN_US), true);
     });
 
-    it('en-US 到 en-US 不需要翻译', () => {
-      assert.strictEqual(needsKeywordTranslation(EN_US, EN_US), false);
+    it('en-US（无别名）到 en-US 不需要翻译', () => {
+      assert.strictEqual(needsKeywordTranslation(EN_NO_ALIAS, EN_NO_ALIAS), false);
+    });
+
+    it('en-US 注入别名时需要翻译（把别名归一成规范拼写，ADR 0022 方案 D）', () => {
+      // 官方 builtin 无别名（方案 A 已回滚）；别名经方案 D 编译期注入。注入了别名的
+      // 英文 lexicon 必须走翻译，才能把别名归一成规范拼写。
+      const enWithAlias = { ...EN_US, aliases: { TIMES: ['multiplied by'] } };
+      assert.strictEqual(needsKeywordTranslation(enWithAlias, EN_US), true);
     });
 
     it('默认目标为 en-US', () => {
       assert.strictEqual(needsKeywordTranslation(ZH_CN), true);
-      assert.strictEqual(needsKeywordTranslation(EN_US), false);
+      assert.strictEqual(needsKeywordTranslation(EN_NO_ALIAS), false);
     });
   });
 
@@ -298,16 +316,16 @@ describe('关键词翻译器', () => {
       assert.ok(ast, '应生成 AST');
     });
 
-    it('英文 CNL 不受影响', () => {
+    it('英文 CNL 不受影响（规范路径，无别名）', () => {
       // 英文源代码
       const enSource = 'Rule id, produce Int:\n  Return 1.';
 
-      // 完整编译流程（英文不需要翻译，但测试流程不会出错）
-      const canonical = canonicalize(enSource, EN_US);
-      const tokens = lex(canonical, EN_US);
+      // 完整编译流程（无别名英文不需要翻译，测试流程不会出错）
+      const canonical = canonicalize(enSource, EN_NO_ALIAS);
+      const tokens = lex(canonical, EN_NO_ALIAS);
 
-      // 英文不需要翻译
-      assert.strictEqual(needsKeywordTranslation(EN_US), false);
+      // 无别名英文不需要翻译
+      assert.strictEqual(needsKeywordTranslation(EN_NO_ALIAS), false);
 
       // 直接解析
       const ast = parse(tokens).ast;
