@@ -7,7 +7,7 @@
  * 以支持完整的中文 CNL 编译流程。
  */
 
-import { describe, it, beforeEach } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
 import {
@@ -26,10 +26,16 @@ import { EN_US } from '../../src/config/lexicons/en-US.js';
 import { TokenKind } from '../../src/frontend/tokens.js';
 import type { Token } from '../../src/types.js';
 
-// en-US 去掉别名（ADR 0022）。下列"同词表无需翻译/空索引"断言测的是规范路径，
-// 而内置 EN_US 现自带别名（别名也要归一成规范拼写，故 EN_US→EN_US 需要翻译）。
-// 用去别名副本保持这些测试原本的语义。
-const EN_NO_ALIAS = { ...EN_US, aliases: undefined };
+// en-US 显式去掉 aliases 字段（ADR 0022）：下列"同词表无需翻译/空索引"断言测规范路径。
+// builtin EN_US 本身无 aliases（方案 A 已撤）；这里**删除属性**而非置 undefined，否则
+// exactOptionalPropertyTypes 下 {aliases:undefined} 不是合法 Lexicon→tsc 报错。
+// 用辅助函数删键，避免解构产生未用绑定（lint no-unused-vars）。
+function withoutAliases(lex: typeof EN_US): typeof EN_US {
+  const copy = { ...lex };
+  delete (copy as { aliases?: unknown }).aliases;
+  return copy;
+}
+const EN_NO_ALIAS = withoutAliases(EN_US);
 
 describe('关键词翻译器', () => {
   describe('buildKeywordTranslationIndex', () => {
