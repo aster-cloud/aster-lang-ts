@@ -259,8 +259,8 @@ export function buildKeywordIndex(lexicon: Lexicon): KeywordIndex {
  * @returns 多词关键词数组
  */
 export function getMultiWordKeywords(lexicon: Lexicon): string[] {
-  const isMulti = (kw: string) =>
-    kw.includes(' ') || (lexicon.punctuation.markers != null && kw.includes(lexicon.punctuation.markers.open));
+  const isMulti = (kw: string): boolean =>
+    kw.includes(' ') || (lexicon.punctuation.markers !== undefined && kw.includes(lexicon.punctuation.markers.open));
   const canonical = Object.values(lexicon.keywords).filter(isMulti);
   // 多词别名也纳入最长匹配集（ADR 0022 §5.4），否则含空格别名会被按单词拆开。
   const aliasMulti: string[] = [];

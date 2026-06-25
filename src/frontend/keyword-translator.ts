@@ -635,6 +635,6 @@ export function needsKeywordTranslation(
   if (sourceLexicon.id !== targetLexicon.id) {
     return true;
   }
-  return sourceLexicon.aliases != null
+  return sourceLexicon.aliases !== undefined
     && Object.values(sourceLexicon.aliases).some(list => (list?.length ?? 0) > 0);
 }
