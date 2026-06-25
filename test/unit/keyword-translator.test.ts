@@ -105,8 +105,11 @@ describe('关键词翻译器', () => {
       assert.strictEqual(needsKeywordTranslation(EN_NO_ALIAS, EN_NO_ALIAS), false);
     });
 
-    it('en-US 带别名时需要翻译（把别名归一成规范拼写，ADR 0022）', () => {
-      assert.strictEqual(needsKeywordTranslation(EN_US, EN_US), true);
+    it('en-US 注入别名时需要翻译（把别名归一成规范拼写，ADR 0022 方案 D）', () => {
+      // 官方 builtin 无别名（方案 A 已回滚）；别名经方案 D 编译期注入。注入了别名的
+      // 英文 lexicon 必须走翻译，才能把别名归一成规范拼写。
+      const enWithAlias = { ...EN_US, aliases: { TIMES: ['multiplied by'] } };
+      assert.strictEqual(needsKeywordTranslation(enWithAlias, EN_US), true);
     });
 
     it('默认目标为 en-US', () => {

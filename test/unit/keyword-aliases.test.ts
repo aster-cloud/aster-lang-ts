@@ -79,20 +79,15 @@ describe('关键词别名（ADR 0022）', () => {
     assert.equal(rc.success, true);
   });
 
-  it('内置 EN_US 多词别名直接可用（multiplied by / split by 编译成功）', () => {
-    // 首批仅多词别名进内置 en-US（单词别名会占标识符命名空间，见 en-US.ts 注释）。
-    const src = `Module Pricing.
-
-Rule discountedPrice given amount as Int, produce Int:
-  If amount greater than 100
-    Return amount multiplied by 90 split by 100.
-  Return amount.`;
-    const r = compile(src, { lexicon: EN_US });
-    assert.equal(r.success, true, JSON.stringify(r.parseErrors));
+  it('官方 builtin EN_US 不内置别名（方案 A 已回滚，机制保留供方案 D）', () => {
+    // 方案 A（官方全租户别名）已回滚：builtin 无 aliases。别名只经方案 D 在编译期
+    // 注入（如 EN_ALIAS），机制本身保留。
+    assert.equal(EN_US.aliases, undefined);
   });
 
-  it('内置别名不占标识符命名空间（policy/above 仍可作字段/参数名）', () => {
-    // 铁律：别名不得破坏用户空间。多词别名安全，单词常用词未进首批。
+  it('注入别名不占标识符命名空间（policy/above 在无别名 EN_US 下仍可作字段/参数名）', () => {
+    // 铁律：别名不得破坏用户空间。多词注入别名安全；单词别名占标识符命名空间，
+    // 故方案 D 只放开白名单多词别名（见 ADR §11.5）。
     const r1 = compile(
       'Module M.\n\nDefine Account has policy as Int.\n\nRule c given a as Account, produce Int:\n  Return a.policy.',
       { lexicon: EN_US },
