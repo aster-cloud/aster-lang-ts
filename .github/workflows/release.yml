@@ -4,10 +4,63 @@ on:
   push:
     tags:
       - 'v*'
+  # orchestrator 入口：dispatch 只创建 tag（用 CROSS_REPO_TOKEN，PAT 才能让 tag-push
+  # 再触发 ci+publish），真正发布仍只走 tag-push 路径。详见 ADR 0023 阶段2。
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '要发布的 npm 版本（不含 v 前缀），须等于 package.json version'
+        required: true
+        type: string
+      artifactIds:
+        required: false
+        type: string
+      trainId:
+        required: false
+        type: string
+
+concurrency:
+  group: release-${{ github.repository }}-${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
-  # First run CI to ensure tests pass
+  # dispatch 路径：仅创建 tag（用 PAT），让既有 tag-push ci+publish 复用。
+  create-tag:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+          fetch-depth: 0
+      - name: Create & push release tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::dispatch version ($VERSION) != package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch --tags origin
+          TAG="v${VERSION}"
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            TAG_SHA=$(git rev-list -n1 "$TAG"); HEAD_SHA=$(git rev-parse HEAD)
+            if [ "$TAG_SHA" = "$HEAD_SHA" ]; then
+              echo "::notice::$TAG already on this commit → no-op (idempotent)"; exit 0
+            fi
+            echo "::error::$TAG exists but points to $TAG_SHA, not HEAD $HEAD_SHA"; exit 1
+          fi
+          git tag "$TAG"
+          git push origin "$TAG"
+
+  # First run CI to ensure tests pass（仅 tag-push 路径）
   ci:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:
