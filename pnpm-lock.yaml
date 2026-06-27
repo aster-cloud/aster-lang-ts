@@ -16,8 +16,8 @@ importers:
         version: 7.7.3
     devDependencies:
       '@aster-cloud/aster-lang-test':
-        specifier: file:vendor/aster-cloud-aster-lang-test-0.0.3.tgz
-        version: file:vendor/aster-cloud-aster-lang-test-0.0.3.tgz
+        specifier: ^1.0.3
+        version: 1.0.3
       '@changesets/cli':
         specifier: ^2.29.8
         version: 2.29.8(@types/node@24.10.7)
@@ -109,9 +109,8 @@ packages:
       zod:
         optional: true
 
-  '@aster-cloud/aster-lang-test@file:vendor/aster-cloud-aster-lang-test-0.0.3.tgz':
-    resolution: {integrity: sha512-Spxhjp4KVoJ4LYoN4LqGdlE6ZgBMBmWXh7jq+gds/hn51jR/2fezb/bI0PyJVuwG5YUCQXMvE9I0Pfl/nCwpAQ==, tarball: file:vendor/aster-cloud-aster-lang-test-0.0.3.tgz}
-    version: 0.0.3
+  '@aster-cloud/aster-lang-test@1.0.3':
+    resolution: {integrity: sha512-h5scd6bTANrLnzmZ7cInyNri5URHHEEOkTDFQeZIUkV3l8JNhnxZm4xk0uUOo0ALVbJZ2Kyj+tEmx9+2TktZDg==}
 
   '@babel/runtime@7.28.4':
     resolution: {integrity: sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ==}
@@ -1948,7 +1947,7 @@ snapshots:
       json-schema-to-ts: 3.1.1
     optional: true
 
-  '@aster-cloud/aster-lang-test@file:vendor/aster-cloud-aster-lang-test-0.0.3.tgz': {}
+  '@aster-cloud/aster-lang-test@1.0.3': {}
 
   '@babel/runtime@7.28.4': {}
 

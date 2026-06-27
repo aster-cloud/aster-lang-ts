@@ -196,7 +196,7 @@
     }
   },
   "devDependencies": {
-    "@aster-cloud/aster-lang-test": "file:vendor/aster-cloud-aster-lang-test-0.0.3.tgz",
+    "@aster-cloud/aster-lang-test": "^1.0.3",
     "@changesets/cli": "^2.29.8",
     "@types/node": "^24.6.0",
     "@typescript-eslint/eslint-plugin": "^8.48.1",
