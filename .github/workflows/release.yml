@@ -138,7 +138,12 @@ jobs:
           generate_release_notes: true
           draft: false
 
+      # 下游 consumer 升级触发是**尽力而为**：npm publish + GitHub Release 已在上面完成，
+      # 这些步骤失败（如目标仓缺 workflow_dispatch / 临时不可达）绝不能让已成功的发布变红，
+      # 否则 release-train 会把整个 publish run 判定为 failure 而中断列车（ADR 0023 §9 实证：
+      # aster-lang-dev/auto-upgrade.yml 无 workflow_dispatch → HTTP 422 拖垮 ts 1.0.5 发车）。
       - name: Trigger aster-cloud dependency upgrade
+        continue-on-error: true
         run: |
           gh workflow run auto-upgrade.yml \
             --repo aster-cloud/aster-cloud \
@@ -147,6 +152,7 @@ jobs:
           GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
 
       - name: Trigger aster-lang-dev dependency upgrade
+        continue-on-error: true
         run: |
           gh workflow run auto-upgrade.yml \
             --repo aster-cloud/aster-lang-dev \
