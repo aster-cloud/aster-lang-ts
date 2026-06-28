@@ -554,6 +554,16 @@ class Interpreter {
       }
       return e ? this.evalExpr(e, env) : null;
     };
+    // 通用集合 stdlib 辅助（与 truffle requireList/requireNonEmpty 镜像）。
+    const reqList = (op: string, v: unknown): unknown[] => {
+      if (!Array.isArray(v)) throw new InterpreterError(`${op}: expected List, got ${typeof v}`);
+      return v;
+    };
+    const reqNonEmpty = (op: string, v: unknown): unknown[] => {
+      const l = reqList(op, v);
+      if (l.length === 0) throw new InterpreterError(`${op}: expected non-empty List`);
+      return l;
+    };
     switch (name) {
       case 'Text.concat': { const [x, y] = a(); return text(x) + text(y); }
       case 'Text.toUpper': return text(a()[0]).toUpperCase();
@@ -612,6 +622,72 @@ class Interpreter {
         let acc: unknown = init;
         for (const item of list) acc = this.applyCallable(fn, [acc, item]);
         return acc;
+      }
+
+      // === 通用集合 stdlib（ADR 0024 受控扩展，与 truffle Builtins 镜像，逐位 parity）===
+      // 数值序用 Number() 比较；排序稳定、升序。
+      case 'List.sum': {
+        const l = reqList('List.sum', a()[0]);
+        let s = 0; for (const x of l) s += Number(x); return s;
+      }
+      case 'List.min': {
+        const l = reqNonEmpty('List.min', a()[0]);
+        let best = l[0]; for (const x of l) if (Number(x) < Number(best)) best = x; return best;
+      }
+      case 'List.max': {
+        const l = reqNonEmpty('List.max', a()[0]);
+        let best = l[0]; for (const x of l) if (Number(x) > Number(best)) best = x; return best;
+      }
+      case 'List.distinct': {
+        const l = reqList('List.distinct', a()[0]);
+        const out: unknown[] = [];
+        for (const x of l) if (!out.some((y) => y === x)) out.push(x);
+        return out;
+      }
+      case 'List.range': {
+        const [s, e] = a();
+        const out: number[] = [];
+        for (let i = Number(s); i < Number(e); i++) out.push(i);
+        return out;
+      }
+      case 'List.sort': {
+        const l = reqList('List.sort', a()[0]);
+        return [...l].sort((x, y) => Number(x) - Number(y));
+      }
+      case 'List.count': {
+        const l = reqList('List.count', this.evalExpr(argExprs[0]!, env));
+        const pred = callableArg(1);
+        let n = 0; for (const item of l) if (this.applyCallable(pred, [item]) === true) n++;
+        return n;
+      }
+      case 'List.sortBy': {
+        const l = reqList('List.sortBy', this.evalExpr(argExprs[0]!, env));
+        const keyFn = callableArg(1);
+        return [...l].sort((x, y) => Number(this.applyCallable(keyFn, [x])) - Number(this.applyCallable(keyFn, [y])));
+      }
+      case 'List.minBy': {
+        const l = reqNonEmpty('List.minBy', this.evalExpr(argExprs[0]!, env));
+        const keyFn = callableArg(1);
+        let best = l[0]; let bestK = Number(this.applyCallable(keyFn, [best]));
+        for (const x of l) { const k = Number(this.applyCallable(keyFn, [x])); if (k < bestK) { best = x; bestK = k; } }
+        return best;
+      }
+      case 'List.maxBy': {
+        const l = reqNonEmpty('List.maxBy', this.evalExpr(argExprs[0]!, env));
+        const keyFn = callableArg(1);
+        let best = l[0]; let bestK = Number(this.applyCallable(keyFn, [best]));
+        for (const x of l) { const k = Number(this.applyCallable(keyFn, [x])); if (k > bestK) { best = x; bestK = k; } }
+        return best;
+      }
+      case 'List.groupBy': {
+        const l = reqList('List.groupBy', this.evalExpr(argExprs[0]!, env));
+        const keyFn = callableArg(1);
+        const groups: Record<string, unknown[]> = {};
+        for (const item of l) {
+          const key = text(this.applyCallable(keyFn, [item]));
+          (groups[key] ??= []).push(item);
+        }
+        return groups;
       }
       // === 高阶 Maybe / Result 操作 ===
       // Maybe.map(opt, fn)：Some(v)→Some(fn(v))，None 原样返回。
