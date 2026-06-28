@@ -161,6 +161,10 @@ export class DefaultCoreVisitor<Ctx = VisitorContext> implements CoreVisitor<Ctx
         this.visitExpression(e.thenE, ctx);
         this.visitExpression(e.elseE, ctx);
         return;
+      case 'ListLit':
+        // ADR 0024 C0：列表字面量 —— 递归每个元素（元素里可能有调用/能力需求）。
+        for (const el of e.elements) this.visitExpression(el, ctx);
+        return;
       default:
         // 穷尽性守卫：若 Core.Expression union 新增了 kind 而未在此处理，
         // TS 编译期会直接报错；运行期则抛出明确错误而非静默漏处理。

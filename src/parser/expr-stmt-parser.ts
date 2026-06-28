@@ -1236,6 +1236,29 @@ function parsePrimary(
     return call;
   }
 
+  // ADR 0024 C0：列表字面量 [a, b, c]（含空列表 []）。元素为任意表达式，逗号分隔。
+  if (ctx.at(TokenKind.LBRACKET)) {
+    const lbrackTok = ctx.next();
+    const elements: Expression[] = [];
+    if (!ctx.at(TokenKind.RBRACKET)) {
+      while (true) {
+        elements.push(parseExpr(ctx, error));
+        if (ctx.at(TokenKind.COMMA)) {
+          ctx.next();
+          // 容忍尾随逗号前的 ]（[a, b,] 合法）。
+          if (ctx.at(TokenKind.RBRACKET)) break;
+          continue;
+        }
+        break;
+      }
+    }
+    if (!ctx.at(TokenKind.RBRACKET)) error("Expected ']' to close list literal");
+    const rbrackTok = ctx.next();
+    const list = Node.ListLit(elements);
+    assignSpan(list, spanFromSources(lbrackTok, rbrackTok));
+    return list;
+  }
+
   // Parenthesized expressions
   if (ctx.at(TokenKind.LPAREN)) {
     const lparenTok = ctx.next();

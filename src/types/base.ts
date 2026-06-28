@@ -436,6 +436,15 @@ export interface BaseIfExpr<S = Span | Origin, Expr = unknown> extends BaseNode<
   readonly elseE: Expr;
 }
 
+/**
+ * 列表字面量基础接口（ADR 0024 C0）：`[a, b, c]`，求值产出有序列表值。
+ * Core IR kind 序列化为 "ListLit"（与 Java CoreModel.ListE 对齐，双引擎 IR-parity 契约）。
+ */
+export interface BaseListLit<S = Span | Origin, Expr = unknown> extends BaseNode<S> {
+  readonly kind: 'ListLit';
+  readonly elements: readonly Expr[];
+}
+
 // ============================================================
 // 共享类型节点
 // ============================================================

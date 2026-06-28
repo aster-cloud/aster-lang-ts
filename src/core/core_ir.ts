@@ -183,6 +183,11 @@ export const Core = {
     thenE,
     elseE,
   }),
+  // ADR 0024 C0：列表字面量（kind="ListLit"，与 Java CoreModel.ListE 对齐）。
+  ListLit: (elements: readonly CoreTypes.Expression[]): CoreTypes.ListLit => ({
+    kind: 'ListLit',
+    elements,
+  }),
   PatCtor: (
     typeName: string,
     names: readonly string[] = [],

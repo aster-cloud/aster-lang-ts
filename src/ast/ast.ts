@@ -169,6 +169,8 @@ export const Node = {
     span: createEmptySpan(),
   }),
   Await: (expr: AST.Expression): AST.Await => ({ kind: 'Await', expr, span: createEmptySpan() }),
+  // ADR 0024 C0：列表字面量 [a, b, c]。
+  ListLit: (elements: AST.Expression[]): AST.ListLit => ({ kind: 'ListLit', elements, span: createEmptySpan() }),
 
   // Types
   TypeName: (name: string): AST.TypeName => ({ kind: 'TypeName', name, span: createEmptySpan() }),
