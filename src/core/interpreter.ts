@@ -588,6 +588,12 @@ class Interpreter {
       case 'Map.get': { const [m, k] = a(); return m && typeof m === 'object' ? (m as Record<string, unknown>)[String(k)] ?? null : null; }
       case 'Map.contains': { const [m, k] = a(); return m && typeof m === 'object' ? String(k) in (m as object) : false; }
       case 'Map.size': { const [m] = a(); return m && typeof m === 'object' ? Object.keys(m as object).length : 0; }
+      // 补齐与 truffle Builtins 对等的 Map.* （put/remove/keys/values）——TS 之前缺这 4 个，
+      // List.groupBy(...) 的 Map.values 链需要。put/remove 不可变（返回新对象）。
+      case 'Map.put': { const [m, k, v] = a(); const o = { ...(m && typeof m === 'object' ? m as Record<string, unknown> : {}) }; o[String(k)] = v; return o; }
+      case 'Map.remove': { const [m, k] = a(); const o = { ...(m && typeof m === 'object' ? m as Record<string, unknown> : {}) }; delete o[String(k)]; return o; }
+      case 'Map.keys': { const [m] = a(); return m && typeof m === 'object' ? Object.keys(m as object) : []; }
+      case 'Map.values': { const [m] = a(); return m && typeof m === 'object' ? Object.values(m as object) : []; }
       // Maybe/Option/Result（非 lambda 部分）。Some/Ok/Err/None 形如 { __type, value }。
       case 'Maybe.withDefault': case 'Option.unwrapOr': case 'Maybe.unwrapOr': {
         const [x, d] = a();
