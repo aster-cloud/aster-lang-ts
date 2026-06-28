@@ -379,6 +379,9 @@ class Interpreter {
         return this.isTruthy(this.evalExpr(expr.cond, env))
           ? this.evalExpr(expr.thenE, env)
           : this.evalExpr(expr.elseE, env);
+      case 'ListLit':
+        // ADR 0024 C0：列表字面量 —— 逐元素求值成 JS 数组（List.* builtin 消费 Array）。
+        return expr.elements.map((el) => this.evalExpr(el, env));
       default:
         throw new InterpreterError(`Unknown expression kind: ${(expr as any).kind}`);
     }
