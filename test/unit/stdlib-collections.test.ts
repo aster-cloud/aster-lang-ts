@@ -3,6 +3,35 @@ import assert from 'node:assert/strict';
 import { compile } from '../../src/browser.js';
 import { evaluate } from '../../src/core/interpreter.js';
 
+// evaluate 的 maxSteps 选项：受信、计算量已知有界的场景（如 poker best-5-of-7：
+// 21 组合×classify ~数万步但 <6ms）可上调步数闸门；默认 10000 不变（untrusted DoS 防护）。
+describe('evaluate maxSteps option', () => {
+  // 制造一个超过默认 10000 步但有界的计算：对一个长列表反复 map（步数随长度线性增长）。
+  const heavy = `Module probe.
+Rule dbl given x, produce:
+  Return x times 2.
+Rule main given seed as Int, produce Int:
+  Let xs be List.range(0, 4000).
+  Let a be List.map(xs, dbl).
+  Let b be List.map(a, dbl).
+  Let c be List.map(b, dbl).
+  Return List.length(c).`;
+  it('heavy computation exceeds default 10000 steps', () => {
+    const m = compile(heavy);
+    assert.ok(m.core);
+    const ev = evaluate(m.core!, 'main', { seed: 0 });
+    assert.equal(ev.success, false);
+    assert.match(String(ev.error), /Maximum execution steps \(10000\)/);
+  });
+  it('same computation succeeds with raised maxSteps', () => {
+    const m = compile(heavy);
+    assert.ok(m.core);
+    const ev = evaluate(m.core!, 'main', { seed: 0 }, { maxSteps: 200000 });
+    assert.ok(ev.success, `eval: ${ev.error ?? ''}`);
+    assert.equal(ev.value, 4000);
+  });
+});
+
 // ADR 0024 受控 stdlib：通用集合 builtin（与 truffle Builtins 镜像，逐位 parity）。
 function run(body: string): unknown {
   const c = compile(`Module probe.\n${body}\n`);
