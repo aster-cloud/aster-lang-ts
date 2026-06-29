@@ -77,8 +77,9 @@ describe('ADR 0026 — 边界（本批仅等缩进）', () => {
   it('块边界不被续行误并：两条独立语句', () => {
     const c = compile('Module probe.\nRule r given a as Int, produce Int:\n  Let m be a plus 1.\n  Return m.\n', { lexicon: EN_US });
     assert.ok(c.success && c.core);
-    const fn = (c.core!.decls as Array<{ name?: string; body?: { statements: unknown[] } }>).find(d => d.name === 'r');
-    assert.equal(fn?.body?.statements.length, 2, '应为两条独立语句');
+    const fn = c.core!.decls.find(d => d.kind === 'Func' && d.name === 'r');
+    assert.ok(fn && fn.kind === 'Func', 'rule r found');
+    assert.equal(fn.body?.statements.length, 2, '应为两条独立语句');
   });
   it('续行不影响行内运算符链（无换行时行为不变）', () => {
     // 回归保护：单行运算符链照常工作，续行逻辑只在 NEWLINE 后命中，不干扰行内解析。
