@@ -44,10 +44,11 @@ export function evaluate(
   core: CoreTypes.Module,
   functionName: string,
   context: Record<string, unknown>,
+  options?: { maxSteps?: number },
 ): EvalResult {
   const start = performance.now();
   try {
-    const interp = new Interpreter(core);
+    const interp = new Interpreter(core, options?.maxSteps ?? MAX_STEPS);
     const value = interp.callFunction(functionName, context);
     return {
       success: true,
@@ -103,6 +104,9 @@ class Closure {
 }
 
 /** 安全限制常量 */
+// 默认步数上限（防无限循环/DoS——未知/不可信调用方的安全闸门）。可经 evaluate 的
+// maxSteps 选项为受信、计算量已知有界的场景上调（如 poker best-5-of-7：21 组合×classify
+// ~数万步但 <6ms，是有界计算非死循环）。上调不改默认，untrusted 调用仍受 10000 保护。
 const MAX_STEPS = 10_000;
 const MAX_CALL_DEPTH = 50;
 
@@ -129,10 +133,13 @@ class Interpreter {
   private readonly dataDecls: Map<string, CoreTypes.Data>;
   /** 执行步数计数器（防无限循环） */
   private steps = 0;
+  /** 步数上限（默认 MAX_STEPS，可由受信调用方上调） */
+  private readonly maxSteps: number;
   /** 调用深度计数器（防无限递归） */
   private callDepth = 0;
 
-  constructor(private readonly module: CoreTypes.Module) {
+  constructor(private readonly module: CoreTypes.Module, maxSteps: number = MAX_STEPS) {
+    this.maxSteps = maxSteps > 0 ? maxSteps : MAX_STEPS;
     this.funcs = new Map();
     this.dataDecls = new Map();
 
@@ -895,9 +902,9 @@ class Interpreter {
   /** 步数计数器，防止无限循环 */
   private tick(): void {
     this.steps++;
-    if (this.steps > MAX_STEPS) {
+    if (this.steps > this.maxSteps) {
       throw new InterpreterError(
-        `Maximum execution steps (${MAX_STEPS}) exceeded — possible infinite loop`,
+        `Maximum execution steps (${this.maxSteps}) exceeded — possible infinite loop`,
       );
     }
   }
