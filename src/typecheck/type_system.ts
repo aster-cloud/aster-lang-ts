@@ -541,6 +541,10 @@ export class TypeSystem {
               return { kind: 'TypeName', name: 'Text' };
             case 'Text.length':
               return { kind: 'TypeName', name: 'Int' };
+            case 'Decimal.round':
+            case 'Decimal.divide':
+              // ADR 0025 M2：精确舍入/除法返回 Decimal。
+              return { kind: 'TypeName', name: 'Decimal' };
           }
         }
         return null;
@@ -572,13 +576,16 @@ export class TypeSystem {
 
   private static promoteNumericTypes(left: Type, right: Type): Type | null {
     if (!TypeSystem.isNumericType(left) || !TypeSystem.isNumericType(right)) return null;
+    // Decimal 一等公民（ADR 0025）：Decimal 与 Int/Long 精确提升为 Decimal；Decimal↔Double
+    // 混算是非法的（编译期 error 在 expression.ts 报，这里只在合法组合下推 Decimal 结果）。
+    if (TypeSystem.hasTypeName(left, right, 'Decimal')) return { kind: 'TypeName', name: 'Decimal' };
     if (TypeSystem.hasTypeName(left, right, 'Double')) return { kind: 'TypeName', name: 'Double' };
     if (TypeSystem.hasTypeName(left, right, 'Long')) return { kind: 'TypeName', name: 'Long' };
     return { kind: 'TypeName', name: 'Int' };
   }
 
   private static isNumericType(type: Type): boolean {
-    return type.kind === 'TypeName' && ['Int', 'Long', 'Double'].includes(type.name);
+    return type.kind === 'TypeName' && ['Int', 'Long', 'Double', 'Decimal'].includes(type.name);
   }
 
   private static hasTypeName(left: Type, right: Type, name: string): boolean {

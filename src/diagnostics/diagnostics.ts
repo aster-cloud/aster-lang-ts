@@ -15,6 +15,7 @@ export enum DiagnosticCode {
   L002_UnterminatedString = 'L002',
   L003_InvalidIndentation = 'L003',
   L004_InconsistentDedent = 'L004',
+  L005_DecimalTooManyDigits = 'L005',
 
   // Lowering errors (L101-L199)
   L101_UnknownDeclKind = 'L101',
@@ -270,6 +271,13 @@ export const Diagnostics = {
   inconsistentDedent: (pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L004_InconsistentDedent)
       .withMessage('Inconsistent dedent level')
+      .withPosition(pos),
+
+  // Decimal 字面量有效位上限（ADR 0025 v1：≤38 位）。超限会让 decimal.js（precision 80）
+  // 在乘法时静默按有效位舍入、而 Java BigDecimal 精确 → 双引擎分歧。硬拒以保 parity。
+  decimalTooManyDigits: (digits: number, pos: Position): DiagnosticBuilder =>
+    DiagnosticBuilder.error(DiagnosticCode.L005_DecimalTooManyDigits)
+      .withMessage(`Decimal literal has ${digits} significant digits; the v1 maximum is 38 (ADR 0025). Split or round the value.`)
       .withPosition(pos),
 
   unexpectedCharacter: (char: string, pos: Position): DiagnosticBuilder =>

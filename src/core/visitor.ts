@@ -130,6 +130,7 @@ export class DefaultCoreVisitor<Ctx = VisitorContext> implements CoreVisitor<Ctx
       case 'Int':
       case 'Long':
       case 'Double':
+      case 'Decimal':
       case 'String':
       case 'Null':
       case 'None':

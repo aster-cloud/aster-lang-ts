@@ -122,6 +122,7 @@ export enum TokenKind {
   INT = 'INT',
   FLOAT = 'FLOAT',
   LONG = 'LONG',
+  DECIMAL = 'DECIMAL',
   BOOL = 'BOOL',
   NULL = 'NULL',
   KEYWORD = 'KEYWORD',
@@ -340,6 +341,7 @@ export type Expression =
   | Int
   | Long
   | Double
+  | Decimal
   | String
   | Null
   | Call
@@ -384,6 +386,11 @@ export interface Long extends Base.BaseLong<Span> {
 }
 
 export interface Double extends Base.BaseDouble<Span> {
+  span: Span;
+}
+
+/** Decimal 字面量（ADR 0025，canonical 十进制字符串值）。 */
+export interface Decimal extends Base.BaseDecimal<Span> {
   span: Span;
 }
 
@@ -647,6 +654,7 @@ export namespace Core {
     | Int
     | Long
     | Double
+    | Decimal
     | String
     | Null
     | Call
@@ -669,6 +677,9 @@ export namespace Core {
   export interface Long extends Base.BaseLong<Origin> {}
 
   export interface Double extends Base.BaseDouble<Origin> {}
+
+  /** Decimal 字面量（ADR 0025，canonical 十进制字符串值）。 */
+  export interface Decimal extends Base.BaseDecimal<Origin> {}
 
   export interface String extends Base.BaseString<Origin> {}
 

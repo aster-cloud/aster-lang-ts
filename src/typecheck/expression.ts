@@ -112,6 +112,11 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         this.result = { kind: 'TypeName', name: 'Double' } as Core.TypeName;
         this.handled = true;
         return;
+      case 'Decimal':
+        // Decimal 一等公民（ADR 0025）：m 后缀字面量的静态类型。
+        this.result = { kind: 'TypeName', name: 'Decimal' } as Core.TypeName;
+        this.handled = true;
+        return;
       case 'String':
         this.result = { kind: 'TypeName', name: 'Text' } as Core.TypeName;
         this.handled = true;
@@ -246,6 +251,64 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           void typeOfExpr(module, symbols, arg, diagnostics);
         }
 
+        // Decimal↔Double 混算编译期拦截（ADR 0025）。runtime 只能 catch 非整数 Double
+        // （2.5），整数值 Double（2.0）与 Int（2）在 JS number 不可分——必须靠编译期 AST
+        // 节点 kind（Double vs Decimal）区分。Codex 审查 P0：不止算术 +/-/*///%，还须覆盖
+        // **比较运算符** == != < <= > >=（lower 为 Call{Name op}）——`1.0m equals to 1.0`
+        // TS runtime 当 Int 提升=true，Truffle 区分 Double 抛错 → 双引擎分歧。Int/Long↔Decimal
+        // 精确提升放行。
+        const named = (t: Core.Type, n: string): boolean => t.kind === 'TypeName' && t.name === n;
+        const isDec = (t: Core.Type): boolean => named(t, 'Decimal');
+        const isDbl = (t: Core.Type): boolean => named(t, 'Double');
+        const isIntLong = (t: Core.Type): boolean => named(t, 'Int') || named(t, 'Long');
+        const ARITH_OPS = ['+', '-', '*', '/', '//', '%'];
+        const COMPARE_OPS = ['==', '!=', '<', '<=', '>', '>='];
+        if (
+          expression.target.kind === 'Name' &&
+          (ARITH_OPS.includes(expression.target.name) || COMPARE_OPS.includes(expression.target.name)) &&
+          expression.args.length === 2
+        ) {
+          const op = expression.target.name;
+          const lhs = typeOfExpr(module, symbols, expression.args[0]!, diagnostics);
+          const rhs = typeOfExpr(module, symbols, expression.args[1]!, diagnostics);
+          if ((isDec(lhs) && isDbl(rhs)) || (isDbl(lhs) && isDec(rhs))) {
+            diagnostics.error(
+              ErrorCode.DECIMAL_DOUBLE_MIXING,
+              originToSpan(expression.origin) ?? originToSpan(expression.target.origin),
+              { operator: op },
+            );
+          }
+          // 传播算术结果类型（与 type_system.ts promoteNumericTypes 对齐 + Decimal 扩展），
+          // 使嵌套算术（如 `(a times b) plus 2.5m`）的 Decimal-ness 能继续被上层检查到。
+          // 仅算术运算符返回操作数类型；比较运算符返回 Bool（不在此设 result，走后续默认）。
+          if (
+            ARITH_OPS.includes(op) &&
+            (isDec(lhs) || isDec(rhs)) && (isDec(lhs) || isIntLong(lhs)) && (isDec(rhs) || isIntLong(rhs))
+          ) {
+            this.result = { kind: 'TypeName', name: 'Decimal' } as Core.TypeName;
+            this.handled = true;
+            return;
+          }
+        }
+
+        // Codex 审查 P0：Decimal.round(x,…) / Decimal.divide(x,y,…) 的 Decimal 操作数位（x、y）
+        // 不得是 Double——`Decimal.divide(1m, 2.0, …)` TS runtime 当 Int 提升、Truffle 拒 = 分歧。
+        // scale/mode 位（Int/Text）不在此检查。
+        if (expression.target.kind === 'Name' &&
+            (expression.target.name === 'Decimal.round' || expression.target.name === 'Decimal.divide')) {
+          const decimalArgCount = expression.target.name === 'Decimal.divide' ? 2 : 1;
+          for (let i = 0; i < Math.min(decimalArgCount, expression.args.length); i++) {
+            const at = typeOfExpr(module, symbols, expression.args[i]!, diagnostics);
+            if (isDbl(at)) {
+              diagnostics.error(
+                ErrorCode.DECIMAL_DOUBLE_MIXING,
+                originToSpan(expression.args[i]!.origin) ?? originToSpan(expression.origin),
+                { operator: expression.target.name },
+              );
+            }
+          }
+        }
+
         if (expression.target.kind === 'Name' && expression.target.name.includes('.')) {
           let hasInt = false;
           let hasLong = false;
@@ -289,6 +352,12 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         }
 
         if (expression.target.kind === 'Name') {
+          // Decimal.* 精确舍入/除法返回 Decimal（ADR 0025 M2），使嵌套混算检查也能看到 Decimal。
+          if (expression.target.name === 'Decimal.round' || expression.target.name === 'Decimal.divide') {
+            this.result = { kind: 'TypeName', name: 'Decimal' } as Core.TypeName;
+            this.handled = true;
+            return;
+          }
           const signature = module.funcSignatures.get(expression.target.name);
           if (signature) {
             this.result = signature.ret;

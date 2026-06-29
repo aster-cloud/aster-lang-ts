@@ -121,6 +121,23 @@ function isDigit(ch: string): boolean {
   return /[0-9]/.test(ch);
 }
 
+/**
+ * Decimal 字面量规范化（ADR 0025，与 truffle BigDecimal `stripTrailingZeros().toPlainString()`
+ * 逐位对齐）：去整数部前导零、去小数尾零、小数全零去小数点、零统一 "0"、无指数无前导+。
+ * 输入是纯数字串（无 'm' 后缀，无符号；负号由 unary-minus 处理）。值语义非格式语义：
+ * "1.00"→"1"、"001.2300"→"1.23"、"0.000"→"0"。
+ */
+export function canonicalizeDecimal(raw: string): string {
+  const parts = raw.split('.');
+  let intPart = parts[0] ?? '0';
+  let fracPart = parts[1] ?? '';
+  intPart = intPart.replace(/^0+(?=\d)/, ''); // 去前导零，但保留单个 0
+  if (intPart === '') intPart = '0';
+  fracPart = fracPart.replace(/0+$/, ''); // 去尾零
+  const out = fracPart === '' ? intPart : `${intPart}.${fracPart}`;
+  return out === '-0' || out === '' ? '0' : out;
+}
+
 function isLineBreak(ch: string): boolean {
   return ch === '\n' || ch === '\r';
 }
@@ -551,12 +568,30 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
       const start = { line, col };
       let num = '';
       while (isDigit(peek())) num += next();
+      let hasFraction = false;
       // Look for decimal part
       if (peek() === '.' && /\d/.test(peekAt(1))) {
         num += next(); // '.'
         while (isDigit(peek())) num += next();
-        const val = parseFloat(num);
-        push(TokenKind.FLOAT, val, start);
+        hasFraction = true;
+      }
+      // Decimal 字面量后缀 'm'/'M'（ADR 0025）：123m / 123.45m。**先于 FLOAT 判定**，
+      // 否则 1.08m 被切成 FLOAT(1.08)+IDENT(m)。token 值=规范化 canonical 十进制字符串
+      // （去尾零/去前导零/1.00→"1"/零→"0"，与 truffle BigDecimal toPlainString 对齐）。
+      if (peek().toLowerCase() === 'm') {
+        next();
+        const canonical = canonicalizeDecimal(num);
+        // ADR 0025 v1：Decimal 有效位 ≤38。超限会让 decimal.js（precision 80）乘法静默舍入、
+        // BigDecimal 精确 → 双引擎分歧（Codex 审查 P1）。硬拒以保 parity 与确定性。
+        const sigDigits = canonical.replace(/[.-]/g, '').replace(/^0+(?=\d)/, '').length;
+        if (sigDigits > 38) {
+          Diagnostics.decimalTooManyDigits(sigDigits, start).throw();
+        }
+        push(TokenKind.DECIMAL, canonical, start);
+        continue;
+      }
+      if (hasFraction) {
+        push(TokenKind.FLOAT, parseFloat(num), start);
         continue;
       }
       // Look for long suffix 'L' or 'l'

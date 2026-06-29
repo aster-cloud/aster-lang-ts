@@ -131,6 +131,7 @@ class PrettyCoreVisitor extends DefaultCoreVisitor {
       case 'Int': return String(e.value);
       case 'Long': return String(e.value) + 'L';
       case 'Double': return String(e.value);
+      case 'Decimal': return String(e.value) + 'm';
       case 'String': return JSON.stringify(e.value);
       case 'Null': return 'null';
       case 'Call': {
