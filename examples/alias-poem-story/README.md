@@ -15,7 +15,7 @@ Ballad nightfall.
 Verse stars of n:
   where n but 1
     sing "a single star".
-  let earlier be stars(n less 1).
+  let earlier become stars(n less 1).
   sing earlier then ", then another star".
 
 Verse sky of hour:
@@ -31,11 +31,17 @@ Verse fate of hour:
   sing "and the wanderer turns home, leaving ".
 
 Verse nightsong of hour:
-  let opening be sky(hour).
-  let turning be fate(hour).
-  let heavens be stars(3).
-  sing opening then turning then heavens.
+  let opening become sky(hour).
+  let turning become fate(hour).
+  let heavens become stars(3).
+  sing opening
+  then turning
+  then heavens.
 ```
+
+The closing verse spans three lines — equal-indent **multi-line continuation** (ADR 0026):
+a line beginning with the join word `then` continues the previous expression. And `be` is
+aliased to `become`, so bindings read `let opening become sky(hour)`.
 
 That whole thing is **executable Aster**. No `as Int`, no `produce Text`, no
 `Text.concat(...)` — it reads as verse.
@@ -65,7 +71,8 @@ One source, three fates by arrival hour:
 | `Module`      | `Ballad`   | declares the work                     |
 | `Rule`        | `Verse`    | a named, callable verse               |
 | `given`       | `of`       | a verse's input                       |
-| `Let`         | `let`      | bind a line (`let earlier be …`)      |
+| `Let`         | `let`      | bind a line                           |
+| `be`          | `become`   | binding's verb (`let earlier become …`) |
 | `If`          | `where`    | a fork in the tale                    |
 | `Return`      | `sing`     | yield the line                        |
 | `+` (concat)  | `then`     | join verses left-to-right (infix)     |

@@ -34,6 +34,7 @@ export const BARD_EN = {
     [K.FUNC_TO]: ['Verse'],
     [K.FUNC_GIVEN]: ['of'],
     [K.LET]: ['let'],
+    [K.BE]: ['become'],
     [K.IF]: ['where'],
     [K.RETURN]: ['sing'],
     [K.PLUS]: ['then'],
