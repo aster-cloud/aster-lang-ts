@@ -113,6 +113,51 @@ const MAX_CALL_DEPTH = 50;
 /** evalStdlibCall 的哨兵返回值：表示"不是已知 stdlib 调用"。用 Symbol 避免与任何合法返回值冲突。 */
 const NOT_STDLIB = Symbol('not-stdlib');
 
+// ── Date.* 合规原语支撑：纯整数 proleptic Gregorian 历法（与 truffle 逐位一致）。 ──
+// 铁律：内部日期 = epoch-day Int（自 1970-01-01 的天数）。**不用 JS Date**（避时区/DST/
+// year 0..99 陷阱）。年份范围 0001-9999。禁 today()（确定性——"今天"必须作输入字段）。
+const DATE_MIN_EPOCH = -719162; // 0001-01-01
+const DATE_MAX_EPOCH = 2932896; // 9999-12-31
+function isLeapYear(y: number): boolean {
+  return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+}
+/** 严格 YYYY-MM-DD 解析 + 闰年/月日校验 → epoch-day。非法抛 Date.InvalidISODate。 */
+function dateFromISO(textValue: unknown): number {
+  const s = typeof textValue === 'string' ? textValue : String(textValue);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) throw new InterpreterError(`Date.InvalidISODate: ${JSON.stringify(s)}`);
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  if (y < 1 || y > 9999 || mo < 1 || mo > 12 || d < 1) {
+    throw new InterpreterError(`Date.InvalidISODate: ${JSON.stringify(s)}`);
+  }
+  const dim = [31, isLeapYear(y) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (d > dim[mo - 1]!) throw new InterpreterError(`Date.InvalidISODate: ${JSON.stringify(s)}`);
+  // Howard Hinnant days-from-civil（纯整数，proleptic Gregorian）。
+  const yy = mo <= 2 ? y - 1 : y;
+  const era = Math.floor((yy >= 0 ? yy : yy - 399) / 400);
+  const yoe = yy - era * 400;
+  const doy = Math.floor((153 * (mo + (mo > 2 ? -3 : 9)) + 2) / 5) + d - 1;
+  const doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
+  return era * 146097 + doe - 719468;
+}
+/** epoch-day → {year, month, day}（civil-from-days，纯整数）。范围外抛 Date.OutOfRange。 */
+function dateToCivil(epochDay: unknown): { y: number; m: number; d: number } {
+  const z0 = Number(epochDay);
+  if (!Number.isInteger(z0) || z0 < DATE_MIN_EPOCH || z0 > DATE_MAX_EPOCH) {
+    throw new InterpreterError(`Date.OutOfRange: epoch-day ${String(epochDay)}`);
+  }
+  const z = z0 + 719468;
+  const era = Math.floor((z >= 0 ? z : z - 146096) / 146097);
+  const doe = z - era * 146097;
+  const yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365);
+  const y = yoe + era * 400;
+  const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
+  const mp = Math.floor((5 * doy + 2) / 153);
+  const d = doy - Math.floor((153 * mp + 2) / 5) + 1;
+  const m = mp + (mp < 10 ? 3 : -9);
+  return { y: m <= 2 ? y + 1 : y, m, d };
+}
+
 /** 内置运算符集合 */
 const BUILTIN_OPS = new Set([
   '+', '-', '*', '/', '//', '%',
@@ -599,6 +644,19 @@ class Interpreter {
       // List.groupBy(...) 的 Map.values 链需要。put/remove 不可变（返回新对象）。
       case 'Map.put': { const [m, k, v] = a(); const o = { ...(m && typeof m === 'object' ? m as Record<string, unknown> : {}) }; o[String(k)] = v; return o; }
       case 'Map.remove': { const [m, k] = a(); const o = { ...(m && typeof m === 'object' ? m as Record<string, unknown> : {}) }; delete o[String(k)]; return o; }
+      // Date.* 合规原语（Stable v1）：epoch-day Int 内部表示，纯整数 proleptic Gregorian
+      // （与 truffle 逐位一致，不用 JS Date）。禁 today()——"今天"作输入字段 evaluation_date。
+      case 'Date.fromISO': return dateFromISO(a()[0]);
+      case 'Date.daysBetween': { const [d1, d2] = a(); return Number(d2) - Number(d1); }
+      case 'Date.addDays': {
+        const [d, n] = a();
+        const r = Number(d) + Number(n);
+        if (r < DATE_MIN_EPOCH || r > DATE_MAX_EPOCH) throw new InterpreterError(`Date.OutOfRange: epoch-day ${r}`);
+        return r;
+      }
+      case 'Date.year': return dateToCivil(a()[0]).y;
+      case 'Date.month': return dateToCivil(a()[0]).m;
+      case 'Date.day': return dateToCivil(a()[0]).d;
       case 'Map.keys': { const [m] = a(); return m && typeof m === 'object' ? Object.keys(m as object) : []; }
       case 'Map.values': { const [m] = a(); return m && typeof m === 'object' ? Object.values(m as object) : []; }
       // Maybe/Option/Result（非 lambda 部分）。Some/Ok/Err/None 形如 { __type, value }。
