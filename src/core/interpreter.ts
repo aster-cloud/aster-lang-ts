@@ -15,6 +15,56 @@
  */
 
 import type { Core as CoreTypes } from '../types.js';
+import Decimal from 'decimal.js';
+
+// Decimal 精确十进制配置（ADR 0025）：锁死 precision/rounding，**不依赖默认**，避免环境差异
+// 与双引擎不一致。precision 设高（80）让 plus/minus/times 不被有效数字上下文截断（v1 输入
+// 上限 38 位/scale 18，结果上限 76 < 80）；ROUND_HALF_EVEN 默认（除法/舍入走显式 builtin
+// 才指定 mode，此默认仅兜底）。toExpNeg/toExpPos 设极值禁科学计数法（toPlainString 风格）。
+Decimal.set({ precision: 80, rounding: Decimal.ROUND_HALF_EVEN, toExpNeg: -1e9, toExpPos: 1e9 });
+
+/** Decimal 运行时值=decimal.js 实例。值语义（new Decimal("1.00") 与 "1" comparedTo=0），
+ * toFixed() 输出无指数的 canonical 串，与 truffle BigDecimal.toPlainString 对齐。 */
+function isDecimalValue(v: unknown): v is Decimal {
+  return v instanceof Decimal;
+}
+
+/**
+ * 舍入模式字符串 → decimal.js rounding 常量（ADR 0025 M2）。三引擎统一这三种：
+ * HALF_UP（四舍五入，远离零）/ HALF_EVEN（银行家舍入，向偶数）/ DOWN（截断，朝零）。
+ * 与 Java BigDecimal.RoundingMode 同名同义——舍入结果逐位一致（已实测含 2.5→2/3.5→4 边界）。
+ */
+function decimalRoundingMode(mode: unknown): Decimal.Rounding {
+  switch (mode) {
+    case 'HALF_UP': return Decimal.ROUND_HALF_UP;
+    case 'HALF_EVEN': return Decimal.ROUND_HALF_EVEN;
+    case 'DOWN': return Decimal.ROUND_DOWN;
+    default:
+      throw new InterpreterError(
+        `Decimal: unknown rounding mode ${JSON.stringify(mode)}; use "HALF_UP", "HALF_EVEN" or "DOWN".`);
+  }
+}
+
+/** scale 参数校验：必须是 0..18 的整数（v1 上限 scale 18，与 ADR 0025 一致）。 */
+function decimalScale(scale: unknown): number {
+  const n = typeof scale === 'number' ? scale : Number(scale);
+  if (!Number.isInteger(n) || n < 0 || n > 18) {
+    throw new InterpreterError(`Decimal: scale must be an integer in [0, 18], got ${JSON.stringify(scale)}.`);
+  }
+  return n;
+}
+
+/** 把任意操作数转成 Decimal（Int/Long 精确提升；Double 禁；已是 Decimal 原样）。 */
+function toDecimalArg(v: unknown, ctx: string): Decimal {
+  if (v instanceof Decimal) return v;
+  if (typeof v === 'number') {
+    if (!Number.isInteger(v)) {
+      throw new InterpreterError(`Cannot combine Decimal and Double (${ctx}). Use a Decimal literal such as 1.08m.`);
+    }
+    return new Decimal(v);
+  }
+  throw new InterpreterError(`Decimal: expected Decimal/Int operand (${ctx}), got ${typeof v}.`);
+}
 
 // ============================================================================
 // 公共接口
@@ -397,6 +447,9 @@ class Interpreter {
         return expr.value;
       case 'Double':
         return expr.value;
+      case 'Decimal':
+        // value 是 canonical 十进制字符串（ADR 0025），运行时=decimal.js 实例（精确）。
+        return new Decimal(expr.value);
       case 'Bool':
         return expr.value;
       case 'String':
@@ -657,6 +710,21 @@ class Interpreter {
       case 'Date.year': return dateToCivil(a()[0]).y;
       case 'Date.month': return dateToCivil(a()[0]).m;
       case 'Date.day': return dateToCivil(a()[0]).d;
+      // Decimal.* 精确舍入/除法（ADR 0025 M2）。mode 字符串 HALF_UP/HALF_EVEN/DOWN，scale 0..18。
+      // 与 truffle BigDecimal.setScale/divide(RoundingMode) 逐位一致（含 2.5→2 银行家舍入）。
+      // 结果是 decimal.js Decimal，序列化走 canonical（去尾零）路径。
+      case 'Decimal.round': {
+        const [x, scale, mode] = a();
+        return toDecimalArg(x, 'Decimal.round').toDecimalPlaces(decimalScale(scale), decimalRoundingMode(mode));
+      }
+      case 'Decimal.divide': {
+        const [x, y, scale, mode] = a();
+        const divisor = toDecimalArg(y, 'Decimal.divide divisor');
+        if (divisor.isZero()) throw new InterpreterError('Decimal.divide: division by zero.');
+        return toDecimalArg(x, 'Decimal.divide dividend')
+          .dividedBy(divisor)
+          .toDecimalPlaces(decimalScale(scale), decimalRoundingMode(mode));
+      }
       case 'Map.keys': { const [m] = a(); return m && typeof m === 'object' ? Object.keys(m as object) : []; }
       case 'Map.values': { const [m] = a(); return m && typeof m === 'object' ? Object.values(m as object) : []; }
       // Maybe/Option/Result（非 lambda 部分）。Some/Ok/Err/None 形如 { __type, value }。
@@ -876,6 +944,40 @@ class Interpreter {
 
     const left = this.evalExpr(arg0, env);
     const right = this.evalExpr(arg1, env);
+
+    // Decimal 运算（ADR 0025）：任一操作数是 Decimal 时走精确十进制。Int/Long(number)→
+    // Decimal 精确提升；**Double↔Decimal 禁止**（double 已不精确，提升=假精确）；plus/minus/
+    // times 精确，**除法/取模禁**（走显式 Decimal.divide builtin）；比较用 compareTo。
+    if (isDecimalValue(left) || isDecimalValue(right)) {
+      const toDec = (v: unknown, side: string): Decimal => {
+        if (isDecimalValue(v)) return v;
+        if (typeof v === 'number') {
+          if (!Number.isInteger(v)) {
+            throw new InterpreterError(
+              `Cannot combine Decimal and Double (${side}). Use a Decimal literal such as 1.08m.`);
+          }
+          return new Decimal(v); // Int/Long 整数精确提升
+        }
+        throw new InterpreterError(`Decimal ${op}: expected Decimal/Int operand, got ${typeof v}`);
+      };
+      const l = toDec(left, 'left'), r = toDec(right, 'right');
+      switch (op) {
+        case '+': return l.plus(r);
+        case '-': return l.minus(r);
+        case '*': return l.times(r);
+        case '/': case '//': case '%':
+          throw new InterpreterError(
+            `Decimal '${op}' not supported — use Decimal.divide(x, y, scale, mode) for exact division.`);
+        case '==': return l.comparedTo(r) === 0;
+        case '!=': return l.comparedTo(r) !== 0;
+        case '<': return l.comparedTo(r) < 0;
+        case '<=': return l.comparedTo(r) <= 0;
+        case '>': return l.comparedTo(r) > 0;
+        case '>=': return l.comparedTo(r) >= 0;
+        default:
+          throw new InterpreterError(`Decimal: unsupported operator '${op}'`);
+      }
+    }
 
     // 算术运算
     switch (op) {

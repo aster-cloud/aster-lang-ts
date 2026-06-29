@@ -122,6 +122,7 @@ export const Core = {
   Int: (value: number): CoreTypes.Int => ({ kind: 'Int', value }),
   Long: (value: string): CoreTypes.Long => ({ kind: 'Long', value }),
   Double: (value: number): CoreTypes.Double => ({ kind: 'Double', value }),
+  Decimal: (value: string): CoreTypes.Decimal => ({ kind: 'Decimal', value }),
   String: (value: string): CoreTypes.String => ({ kind: 'String', value }),
   Null: (): CoreTypes.Null => ({ kind: 'Null' }),
   Call: (target: CoreTypes.Expression, args: readonly CoreTypes.Expression[]): CoreTypes.Call => ({

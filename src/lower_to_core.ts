@@ -496,6 +496,8 @@ function lowerExpr(e: Expression): import('./types.js').Core.Expression {
       return withOrigin(Core.Long(e.value), e);
     case 'Double':
       return withOrigin(Core.Double(e.value), e);
+    case 'Decimal':
+      return withOrigin(Core.Decimal(e.value), e);
     case 'String':
       return withOrigin(Core.String(e.value), e);
     case 'Null':

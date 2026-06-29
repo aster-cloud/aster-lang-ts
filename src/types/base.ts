@@ -336,6 +336,17 @@ export interface BaseDouble<S = Span | Origin> extends BaseNode<S> {
 }
 
 /**
+ * Decimal 字面量基础接口（ADR 0025，精确十进制）。
+ *
+ * **注意**: value 使用 **canonical 十进制字符串** 存储（去尾零/去前导零/零统一 "0"），
+ * 不用 number——避免 IEEE754 二进制误差与双引擎不一致。与 truffle BigDecimal 逐位对齐。
+ */
+export interface BaseDecimal<S = Span | Origin> extends BaseNode<S> {
+  readonly kind: 'Decimal';
+  readonly value: string;
+}
+
+/**
  * 字符串字面量基础接口。
  */
 export interface BaseString<S = Span | Origin> extends BaseNode<S> {

@@ -1225,6 +1225,13 @@ function parsePrimary(
     assignSpan(node, spanFromToken(tok));
     return node;
   }
+  if (ctx.at(TokenKind.DECIMAL)) {
+    const tok = ctx.next();
+    // tok.value 已是 lexer 规范化的 canonical 十进制字符串（ADR 0025）。
+    const node = Node.Decimal(tok.value as string);
+    assignSpan(node, spanFromToken(tok));
+    return node;
+  }
   if (ctx.isKeyword(KW.AWAIT)) {
     const awaitTok = ctx.nextWord();
     const args = parseArgList(ctx, error);

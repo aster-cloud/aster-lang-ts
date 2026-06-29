@@ -144,6 +144,7 @@ export const Node = {
   Int: (value: number): AST.Int => ({ kind: 'Int', value, span: createEmptySpan() }),
   Long: (value: string): AST.Long => ({ kind: 'Long', value, span: createEmptySpan() }),
   Double: (value: number): AST.Double => ({ kind: 'Double', value, span: createEmptySpan() }),
+  Decimal: (value: string): AST.Decimal => ({ kind: 'Decimal', value, span: createEmptySpan() }),
   String: (value: string): AST.String => ({ kind: 'String', value, span: createEmptySpan() }),
   Call: (target: AST.Expression, args: readonly AST.Expression[]): AST.Call => ({
     kind: 'Call',
