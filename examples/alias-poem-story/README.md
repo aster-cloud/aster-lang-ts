@@ -1,7 +1,8 @@
-# Alias demo — a runnable ballad
+# Alias demo — runnable ballads
 
-A poem **and** a branching story, written in a custom **"Bard" dialect** of Aster — yet
-it compiles and executes on the exact same engine that runs production policies. The trick
+Two runnable poems — a branching story (`nightfall`) and a Match/List piece (`tides`) —
+written in a custom **"Bard" dialect** of Aster, yet they compile and execute on the exact
+same engine that runs production policies. The trick
 is Aster's **keyword-alias mechanism** (ADR 0022): a custom *lexicon* renames the structural
 keywords into bardic words, and during canonicalization those aliases normalize back to the
 canonical keywords. The lexer, parser, and Core IR never see the aliases — so the "Bard
@@ -79,6 +80,8 @@ One source, three fates by arrival hour:
 | `at most`     | `but`      | `n but 1` ⟺ `n <= 1`                  |
 | `at least`    | `past`     | `hour past 18` ⟺ `hour >= 18`         |
 | `minus`       | `less`     | `n less 1` ⟺ `n - 1`                  |
+| `Match`       | `behold`   | choose a verse by value               |
+| `When`        | `as`       | a case (`as 0, sing …`)               |
 
 ### How the verse stays clean (no grammar changes)
 
@@ -110,6 +113,45 @@ Three things can't be hidden by aliases alone (they'd need grammar changes, out 
   binds three named images — `opening`, `turning`, `heavens` — and the closing line weaves
   them with no parentheses in sight: `sing opening then turning then heavens.` The *same*
   source yields three different fates depending on `hour`.
+
+## A second ballad — TIDES (Match + List)
+
+`tides.ballad.aster` shows two more language features in verse form:
+
+```
+Verse moon of phase:
+  behold phase:
+    as 0, sing "the new moon hides".
+    as 1, sing "the crescent leans".
+    as 2, sing "the full moon climbs".
+    as 3, sing "the old moon wanes".
+
+Verse waves of count:
+  let crests become List.range(1, count).
+  sing List.sum(crests).
+
+Verse seasong of phase:
+  let omen become moon(phase).
+  let surf become waves(phase plus 1).
+  sing omen
+  then ", and "
+  then surf
+  then " waves answer the shore.".
+```
+
+- **`behold` is `Match`** — `moon(phase)` chooses the omen by the moon's phase (each `as` is a
+  `When` case).
+- **`List` generates the surf** — `waves(count)` ranges `1..count` and sums it (a triangular
+  number), woven into the line as the wave-count.
+
+Reciting the four phases:
+
+```
+☾ phase 0: the new moon hides, and 0 waves answer the shore.
+☾ phase 1: the crescent leans, and 1 waves answer the shore.
+☾ phase 2: the full moon climbs, and 3 waves answer the shore.
+☾ phase 3: the old moon wanes, and 6 waves answer the shore.
+```
 
 ## Why this matters
 

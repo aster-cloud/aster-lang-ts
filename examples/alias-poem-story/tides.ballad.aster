@@ -1,0 +1,20 @@
+Ballad tides.
+
+Verse moon of phase:
+  behold phase:
+    as 0, sing "the new moon hides".
+    as 1, sing "the crescent leans".
+    as 2, sing "the full moon climbs".
+    as 3, sing "the old moon wanes".
+
+Verse waves of count:
+  let crests become List.range(1, count).
+  sing List.sum(crests).
+
+Verse seasong of phase:
+  let omen become moon(phase).
+  let surf become waves(phase plus 1).
+  sing omen
+  then ", and "
+  then surf
+  then " waves answer the shore.".

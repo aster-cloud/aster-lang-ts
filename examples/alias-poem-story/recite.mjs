@@ -8,29 +8,43 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { recite, BARD_EN } from './bard.mjs';
+import { recite, reciteVerse, BARD_EN } from './bard.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, 'nightfall.ballad.aster'), 'utf8');
-
+const read = (f) => readFileSync(join(here, f), 'utf8');
 const bar = '─'.repeat(64);
+
+// ── Ballad 1: NIGHTFALL — branching story (If) + recursive poem ──────────────
+const nightfall = read('nightfall.ballad.aster');
 console.log(bar);
 console.log('  NIGHTFALL — a runnable ballad, written in the Bard dialect');
 console.log(`  (custom lexicon "${BARD_EN.name}" aliases Aster keywords:`);
 console.log('   Module→Ballad  Rule→Verse  given→of  Let→let  be→become  If→where');
 console.log('   Return→sing  plus→then(join)  at most→but  at least→past  minus→less');
-console.log('   — types omitted (inferred); the closing verse joins across lines (ADR 0026))');
+console.log('   Match→behold  When→as  — types omitted; verses join across lines (ADR 0026))');
 console.log(bar);
 console.log('\nThe source reads as verse, yet compiles + runs on the real engine:\n');
-for (const line of source.trimEnd().split('\n')) console.log('   ' + line);
+for (const line of nightfall.trimEnd().split('\n')) console.log('   ' + line);
 console.log('\n' + bar);
-console.log('  Reciting at three hours — the same poem, three fates:');
+console.log('  Reciting at three hours — the same poem, three fates (If-branching):');
 console.log(bar);
-
-const arg = Number.parseInt(process.argv[2] ?? '', 10);
-const hours = Number.isInteger(arg) ? [arg] : [8, 19, 23];
-for (const hour of hours) {
+for (const hour of [8, 19, 23]) {
   console.log(`\n  ⏾ hour ${String(hour).padStart(2, '0')}:`);
-  console.log('    ' + recite(source, hour));
+  console.log('    ' + recite(nightfall, hour));
+}
+
+// ── Ballad 2: TIDES — Match (moon phase) + List (waves) ──────────────────────
+const tides = read('tides.ballad.aster');
+console.log('\n' + bar);
+console.log('  TIDES — a second ballad: Match (behold) on the moon phase +');
+console.log('  List generation (List.range / List.sum) for the waves.');
+console.log(bar);
+console.log('\n' + tides.trimEnd().split('\n').map((l) => '   ' + l).join('\n'));
+console.log('\n' + bar);
+console.log('  Reciting four moon phases — Match picks the omen, List counts the surf:');
+console.log(bar);
+for (const phase of [0, 1, 2, 3]) {
+  console.log(`\n  ☾ phase ${phase}:`);
+  console.log('    ' + reciteVerse(tides, 'seasong', { phase }));
 }
 console.log('');

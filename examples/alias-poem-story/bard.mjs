@@ -37,6 +37,8 @@ export const BARD_EN = {
     [K.BE]: ['become'],
     [K.IF]: ['where'],
     [K.RETURN]: ['sing'],
+    [K.MATCH]: ['behold'],
+    [K.WHEN]: ['as'],
     [K.PLUS]: ['then'],
     [K.AT_MOST]: ['but'],
     [K.AT_LEAST]: ['past'],
@@ -59,14 +61,25 @@ export function compileBallad(source) {
 }
 
 /**
- * 吟诵：编译 + 在给定 hour 下执行 `nightsong`，返回成诗的文本行。
+ * 通用吟诵：编译 + 执行给定 verse（入口）于给定上下文，返回成诗的文本行。
+ * @param {string} source ballad 源码
+ * @param {string} entry 入口 verse 名（如 nightsong / seasong）
+ * @param {Record<string, unknown>} context 入参（如 { hour } / { phase }）
+ * @returns {string}
+ */
+export function reciteVerse(source, entry, context) {
+  const core = compileBallad(source);
+  const ev = evaluate(core, entry, context);
+  if (!ev.success) throw new Error(`ballad failed to recite ${entry}: ${ev.error}`);
+  return String(ev.value);
+}
+
+/**
+ * 吟诵：编译 + 在给定 hour 下执行 `nightsong`，返回成诗的文本行（nightfall 谣曲专用便捷形）。
  * @param {string} source ballad 源码
  * @param {number} hour 到达时辰（0-23），决定故事走向
  * @returns {string}
  */
 export function recite(source, hour) {
-  const core = compileBallad(source);
-  const ev = evaluate(core, 'nightsong', { hour });
-  if (!ev.success) throw new Error(`ballad failed to recite: ${ev.error}`);
-  return String(ev.value);
+  return reciteVerse(source, 'nightsong', { hour });
 }
