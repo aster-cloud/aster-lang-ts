@@ -656,6 +656,39 @@ class Interpreter {
         for (let i = Number(s); i < Number(e); i++) out.push(i);
         return out;
       }
+      // List.combinations(list, k) — list 的所有 k 元素子集，确定性递增索引字典序。
+      // 与 truffle 逐位一致：纯整数索引推进算法（不依赖语言细节）。DoS 防护：n≤64 +
+      // 结果数 C(n,k)≤上限（先算组合数，超限即抛，不先生成）——多租户沙箱铁律。
+      // 边界：k<0 抛错；k>n 返回 []；k=0 返回 [[]]。保留元素原值与相对顺序。
+      case 'List.combinations': {
+        const l = reqList('List.combinations', a()[0]);
+        const k = Number(a()[1]);
+        if (!Number.isInteger(k) || k < 0) throw new InterpreterError(`List.combinations: k 须为非负整数，got ${a()[1]}`);
+        const n = l.length;
+        const MAX_N = 64, MAX_RESULT = 5000;
+        if (n > MAX_N) throw new InterpreterError(`List.combinations: 列表过长（${n} > ${MAX_N}），拒绝以防组合爆炸`);
+        if (k > n) return [];
+        // 先算 C(n,k)，超限即抛（不先生成，防 DoS）。
+        let count = 1;
+        for (let i = 0; i < k; i++) {
+          count = (count * (n - i)) / (i + 1);
+          if (count > MAX_RESULT) throw new InterpreterError(`List.combinations: 组合数过多（C(${n},${k}) > ${MAX_RESULT}）`);
+        }
+        if (k === 0) return [[]];
+        const out: unknown[][] = [];
+        const idx: number[] = [];
+        for (let i = 0; i < k; i++) idx.push(i);
+        for (;;) {
+          out.push(idx.map((i) => l[i]));
+          // 从右向左找还能自增的位置
+          let i = k - 1;
+          while (i >= 0 && idx[i]! === n - k + i) i--;
+          if (i < 0) break;
+          idx[i]!++;
+          for (let j = i + 1; j < k; j++) idx[j] = idx[j - 1]! + 1;
+        }
+        return out;
+      }
       case 'List.sort': {
         const l = reqList('List.sort', a()[0]);
         return [...l].sort((x, y) => Number(x) - Number(y));

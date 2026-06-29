@@ -27,4 +27,11 @@ describe('ADR 0024 stdlib — 通用集合 builtin', () => {
   it('List.maxBy', () => assert.equal(run(Rf('Rule id given x, produce:\n  Return x.', 'List.maxBy([3, 8, 1], id)')), 8));
   it('List.minBy', () => assert.equal(run(Rf('Rule id given x, produce:\n  Return x.', 'List.minBy([3, 8, 1], id)')), 1));
   it('List.groupBy', () => assert.equal(run(Rf('Rule par given x, produce:\n  Return x modulo 2.', 'Map.size(List.groupBy([1, 2, 3, 4, 5], par))')), 2));
+  // List.combinations(list, k)：C(n,k) 个 k 元素子集，确定性递增索引字典序。
+  it('List.combinations count C(4,2)=6', () => assert.equal(run(R('List.length(List.combinations([10, 20, 30, 40], 2))')), 6));
+  it('List.combinations count C(7,5)=21 (poker best-5-of-7)', () => assert.equal(run(R('List.length(List.combinations([2, 3, 4, 5, 6, 7, 8], 5))')), 21));
+  it('List.combinations k=0 → [[]]', () => assert.equal(run(R('List.length(List.combinations([1, 2, 3], 0))')), 1));
+  it('List.combinations k>n → []', () => assert.equal(run(R('List.length(List.combinations([1, 2], 5))')), 0));
+  it('List.combinations first subset is [0,1] indices', () => assert.equal(run(R('List.get(List.get(List.combinations([10, 20, 30], 2), 0), 0)')), 10));
+  it('List.combinations second subset is [0,2] → [10,30]', () => assert.equal(run(R('List.get(List.get(List.combinations([10, 20, 30], 2), 1), 1)')), 30));
 });
