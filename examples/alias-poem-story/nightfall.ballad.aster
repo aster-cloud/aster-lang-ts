@@ -1,0 +1,25 @@
+Ballad nightfall.
+
+Verse stars of n:
+  where n but 1
+    sing "a single star".
+  let earlier be stars(n less 1).
+  sing earlier then ", then another star".
+
+Verse sky of hour:
+  where hour past 21
+    sing "midnight crowns the hill, ".
+  where hour past 18
+    sing "dusk unfolds her veil, ".
+  sing "dawn still lingers low, ".
+
+Verse fate of hour:
+  where hour past 18
+    sing "and the wanderer walks on, counting ".
+  sing "and the wanderer turns home, leaving ".
+
+Verse nightsong of hour:
+  let opening be sky(hour).
+  let turning be fate(hour).
+  let heavens be stars(3).
+  sing opening then turning then heavens.
