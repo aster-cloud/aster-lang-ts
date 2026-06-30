@@ -62,25 +62,30 @@ describe('examples/alias-poem-story — tides 谣曲 (Match + List)', () => {
     assert.ok(c.success && c.core, `compile: ${JSON.stringify(c.parseErrors ?? [])}`);
   });
 
-  it('Match（behold）按月相选 omen，四相各不同', () => {
-    assert.match(seasong(0), /^the new moon hides/);
-    assert.match(seasong(1), /^the crescent leans/);
-    assert.match(seasong(2), /^the full moon climbs/);
-    assert.match(seasong(3), /^the old moon wanes/);
+  it('Match（behold）按月相选 omen，四相各不同（押 -eep 韵）', () => {
+    // 第一行（moon 行）押 -eep 韵：deep / sleep / leap / creep。
+    assert.match(seasong(0), /^The new moon hides; the cove lies black and deep,/);
+    assert.match(seasong(1), /^The crescent leans; the shallows stir from sleep,/);
+    assert.match(seasong(2), /^The full moon climbs; the breakers rise to leap,/);
+    assert.match(seasong(3), /^The old moon wanes; the long grey waters creep,/);
   });
 
-  it('List 生成（List.range/List.sum）数浪：phase p → 三角数 sum(1..p+1)', () => {
-    // waves(count) = List.sum(List.range(1, count)); seasong 传 phase+1。
-    // phase 0 → range(1,1)=[1]→1? 实测 range(1,1) 行为见下；用实际值锁定。
-    assert.match(seasong(0), /0 waves answer the shore\.$/); // sum(range(1,1))=0（半开区间）
-    assert.match(seasong(2), /3 waves answer the shore\.$/); // sum(range(1,3))=1+2=3
-    assert.match(seasong(3), /6 waves answer the shore\.$/); // sum(range(1,4))=1+2+3=6
+  it('List 驱动意象（数字退到幕后）：swell 高度选潮汐意象，不念数字', () => {
+    // swell(count)=List.sum(List.range(1,count)) 算出高度，behold 高度选意象（不印数字）；
+    // 第二行也押 -eep 韵（keep）。phase p → height = sum(1..p)（半开区间 range(1,p+1)）。
+    assert.match(seasong(0), /and not one wave to keep\.$/);      // height 0
+    assert.match(seasong(1), /and a single tide to keep\.$/);     // height 1
+    assert.match(seasong(2), /and a rising tide to keep\.$/);     // height 3
+    assert.match(seasong(3), /and a flood the shore will keep\.$/); // height 6
+    // 台面上看不到阿拉伯数字。
+    assert.doesNotMatch(seasong(3), /[0-9]/);
   });
 
-  it('多行续行：seasong 收尾四行 then 连接成一句', () => {
-    assert.equal(
-      seasong(2),
-      'the full moon climbs, and 3 waves answer the shore.',
-    );
+  it('多行续行 + 分行：seasong 是两行押韵对句', () => {
+    const out = seasong(2);
+    const lines = out.split('\n');
+    assert.equal(lines.length, 2, 'moon 行 + swell 行');
+    assert.equal(lines[0], 'The full moon climbs; the breakers rise to leap,');
+    assert.equal(lines[1], 'and a rising tide to keep.');
   });
 });

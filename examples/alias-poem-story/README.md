@@ -13,54 +13,68 @@ version" and the plain-keyword version compile to **structurally identical Core 
 ```
 Ballad nightfall.
 
-Verse stars of n:
+Verse refrain of n:
   where n but 1
-    sing "a single star".
-  let earlier become stars(n less 1).
-  sing earlier then ", then another star".
+    sing "  one star opens in the dark,".
+  where n but 2
+    sing "  a second leans to join the spark,".
+  sing "  a third, and then the sky is stark.".
 
-Verse sky of hour:
+Verse stanza of n:
+  where n but 1
+    sing refrain(1).
+  let above become stanza(n less 1).
+  sing above then "
+" then refrain(n).
+
+Verse opening of hour:
   where hour past 21
-    sing "midnight crowns the hill, ".
+    sing "Midnight crowns the hill with frost,".
   where hour past 18
-    sing "dusk unfolds her veil, ".
-  sing "dawn still lingers low, ".
+    sing "Dusk lets fall the day she lost,".
+  sing "Dawn still lingers, faint and crossed,".
 
-Verse fate of hour:
+Verse turning of hour:
   where hour past 18
-    sing "and the wanderer walks on, counting ".
-  sing "and the wanderer turns home, leaving ".
+    sing "the wanderer walks on, the road uncrossed;".
+  sing "the wanderer turns for home, the daylight lost;".
 
 Verse nightsong of hour:
-  let opening become sky(hour).
-  let turning become fate(hour).
-  let heavens become stars(3).
-  sing opening
-  then turning
-  then heavens.
+  sing opening(hour)
+  then "
+"
+  then turning(hour)
+  then "
+"
+  then stanza(3).
 ```
 
-The closing verse spans three lines — equal-indent **multi-line continuation** (ADR 0026):
-a line beginning with the join word `then` continues the previous expression. And `be` is
-aliased to `become`, so bindings read `let opening become sky(hour)`.
+The closing verse spans lines — equal-indent **multi-line continuation** (ADR 0026): a line
+beginning with the join word `then` continues the previous expression. `be` is aliased to
+`become`. The string literals carry real line breaks, so the recited poem prints as stanzas.
 
 That whole thing is **executable Aster**. No `as Int`, no `produce Text`, no
-`Text.concat(...)` — it reads as verse.
+`Text.concat(...)` — yet it rhymes: the openings end **-ost / -ossed** (frost / lost /
+crossed), the turnings **-ossed / -ost**, and the star refrain climbs **-ark** (dark / spark
+/ stark). The recursion makes the refrain *build* — one star, a second, a third — rather than
+repeat.
 
 ## Run it
 
 ```bash
 pnpm build                                   # produce dist/
-node examples/alias-poem-story/recite.mjs    # recite at hours 08 / 19 / 23
-node examples/alias-poem-story/recite.mjs 18 # recite at one chosen hour
+node examples/alias-poem-story/recite.mjs    # recite both ballads
 ```
 
 One source, three fates by arrival hour:
 
 ```
-⏾ hour 08: dawn still lingers low, and the wanderer turns home, leaving a single star, then another star, then another star
-⏾ hour 19: dusk unfolds her veil, and the wanderer walks on, counting a single star, then another star, then another star
-⏾ hour 23: midnight crowns the hill, and the wanderer walks on, counting a single star, then another star, then another star
+⏾ hour 23:
+    Midnight crowns the hill with frost,
+    the wanderer walks on, the road uncrossed;
+      one star opens in the dark,
+      a second leans to join the spark,
+      a third, and then the sky is stark.
 ```
 
 ## The dialect
@@ -104,53 +118,60 @@ Three things can't be hidden by aliases alone (they'd need grammar changes, out 
 
 ## How the poem works
 
-`nightfall.ballad.aster` is **two forms in one module**:
+`nightfall.ballad.aster` is **a story and a refrain in one module**:
 
-- **A recursive poem.** `stars(n)` sings "a single star" at the base case and, for larger `n`,
-  joins the earlier verse with ", then another star" — a cumulative stanza built by recursion.
-- **A branching story.** `sky(hour)` and `fate(hour)` fork on the hour of arrival (guard
-  clauses: each `where … sing` returns when true, else falls through). `nightsong(hour)`
-  binds three named images — `opening`, `turning`, `heavens` — and the closing line weaves
-  them with no parentheses in sight: `sing opening then turning then heavens.` The *same*
-  source yields three different fates depending on `hour`.
+- **A building refrain.** `refrain(n)` gives a different line per depth (one / a second / a
+  third); `stanza(n)` stacks them with line breaks via recursion — so the star-image *climbs*
+  rather than repeats.
+- **A branching story.** `opening(hour)` and `turning(hour)` fork on the hour of arrival (guard
+  clauses: each `where … sing` returns when true, else falls through). `nightsong(hour)` weaves
+  the opening, the turning, and the stanza into a lined poem. The *same* source yields three
+  different fates depending on `hour`.
 
 ## A second ballad — TIDES (Match + List)
 
-`tides.ballad.aster` shows two more language features in verse form:
+`tides.ballad.aster` shows two more language features, also in rhyme:
 
 ```
 Verse moon of phase:
   behold phase:
-    as 0, sing "the new moon hides".
-    as 1, sing "the crescent leans".
-    as 2, sing "the full moon climbs".
-    as 3, sing "the old moon wanes".
+    as 0, sing "The new moon hides; the cove lies black and deep,".
+    as 1, sing "The crescent leans; the shallows stir from sleep,".
+    as 2, sing "The full moon climbs; the breakers rise to leap,".
+    as 3, sing "The old moon wanes; the long grey waters creep,".
 
-Verse waves of count:
+Verse swell of count:
   let crests become List.range(1, count).
-  sing List.sum(crests).
+  let height become List.sum(crests).
+  behold height:
+    as 0, sing "and not one wave to keep.".
+    as 1, sing "and a single tide to keep.".
+    as 3, sing "and a rising tide to keep.".
+    as 6, sing "and a flood the shore will keep.".
 
 Verse seasong of phase:
-  let omen become moon(phase).
-  let surf become waves(phase plus 1).
-  sing omen
-  then ", and "
-  then surf
-  then " waves answer the shore.".
+  sing moon(phase)
+  then "
+"
+  then swell(phase plus 1).
 ```
 
-- **`behold` is `Match`** — `moon(phase)` chooses the omen by the moon's phase (each `as` is a
-  `When` case).
-- **`List` generates the surf** — `waves(count)` ranges `1..count` and sums it (a triangular
-  number), woven into the line as the wave-count.
+- **`behold` is `Match`** — `moon(phase)` picks the omen by the moon's phase (each `as` is a
+  `When` case). The moon lines all rhyme **-eep**: deep / sleep / leap / creep.
+- **`List` drives the imagery, not a printed number.** `swell(count)` ranges `1..count` and
+  sums it (a triangular number), then a *second* `behold` turns that height into a tidal image
+  (`not one wave` / `a single tide` / `a rising tide` / `a flood`) — the computation stays in
+  the engine, the image is on the page (and rhymes **-eep**: keep).
 
 Reciting the four phases:
 
 ```
-☾ phase 0: the new moon hides, and 0 waves answer the shore.
-☾ phase 1: the crescent leans, and 1 waves answer the shore.
-☾ phase 2: the full moon climbs, and 3 waves answer the shore.
-☾ phase 3: the old moon wanes, and 6 waves answer the shore.
+☾ phase 2:
+    The full moon climbs; the breakers rise to leap,
+    and a rising tide to keep.
+☾ phase 3:
+    The old moon wanes; the long grey waters creep,
+    and a flood the shore will keep.
 ```
 
 ## Why this matters

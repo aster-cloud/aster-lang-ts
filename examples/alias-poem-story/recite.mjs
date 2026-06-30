@@ -13,6 +13,8 @@ import { recite, reciteVerse, BARD_EN } from './bard.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (f) => readFileSync(join(here, f), 'utf8');
 const bar = '─'.repeat(64);
+/** 缩进多行诗：每一行都加前缀（诗现在含真换行，逐行对齐）。 */
+const indent = (text, pad = '    ') => text.split('\n').map((l) => pad + l).join('\n');
 
 // ── Ballad 1: NIGHTFALL — branching story (If) + recursive poem ──────────────
 const nightfall = read('nightfall.ballad.aster');
@@ -30,7 +32,7 @@ console.log('  Reciting at three hours — the same poem, three fates (If-branch
 console.log(bar);
 for (const hour of [8, 19, 23]) {
   console.log(`\n  ⏾ hour ${String(hour).padStart(2, '0')}:`);
-  console.log('    ' + recite(nightfall, hour));
+  console.log(indent(recite(nightfall, hour)));
 }
 
 // ── Ballad 2: TIDES — Match (moon phase) + List (waves) ──────────────────────
@@ -45,6 +47,6 @@ console.log('  Reciting four moon phases — Match picks the omen, List counts t
 console.log(bar);
 for (const phase of [0, 1, 2, 3]) {
   console.log(`\n  ☾ phase ${phase}:`);
-  console.log('    ' + reciteVerse(tides, 'seasong', { phase }));
+  console.log(indent(reciteVerse(tides, 'seasong', { phase })));
 }
 console.log('');

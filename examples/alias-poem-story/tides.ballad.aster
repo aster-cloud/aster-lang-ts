@@ -2,19 +2,22 @@ Ballad tides.
 
 Verse moon of phase:
   behold phase:
-    as 0, sing "the new moon hides".
-    as 1, sing "the crescent leans".
-    as 2, sing "the full moon climbs".
-    as 3, sing "the old moon wanes".
+    as 0, sing "The new moon hides; the cove lies black and deep,".
+    as 1, sing "The crescent leans; the shallows stir from sleep,".
+    as 2, sing "The full moon climbs; the breakers rise to leap,".
+    as 3, sing "The old moon wanes; the long grey waters creep,".
 
-Verse waves of count:
+Verse swell of count:
   let crests become List.range(1, count).
-  sing List.sum(crests).
+  let height become List.sum(crests).
+  behold height:
+    as 0, sing "and not one wave to keep.".
+    as 1, sing "and a single tide to keep.".
+    as 3, sing "and a rising tide to keep.".
+    as 6, sing "and a flood the shore will keep.".
 
 Verse seasong of phase:
-  let omen become moon(phase).
-  let surf become waves(phase plus 1).
-  sing omen
-  then ", and "
-  then surf
-  then " waves answer the shore.".
+  sing moon(phase)
+  then "
+"
+  then swell(phase plus 1).

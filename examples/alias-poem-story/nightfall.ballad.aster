@@ -1,27 +1,36 @@
 Ballad nightfall.
 
-Verse stars of n:
+Verse refrain of n:
   where n but 1
-    sing "a single star".
-  let earlier become stars(n less 1).
-  sing earlier then ", then another star".
+    sing "  one star opens in the dark,".
+  where n but 2
+    sing "  a second leans to join the spark,".
+  sing "  a third, and then the sky is stark.".
 
-Verse sky of hour:
+Verse stanza of n:
+  where n but 1
+    sing refrain(1).
+  let above become stanza(n less 1).
+  sing above then "
+" then refrain(n).
+
+Verse opening of hour:
   where hour past 21
-    sing "midnight crowns the hill, ".
+    sing "Midnight crowns the hill with frost,".
   where hour past 18
-    sing "dusk unfolds her veil, ".
-  sing "dawn still lingers low, ".
+    sing "Dusk lets fall the day she lost,".
+  sing "Dawn still lingers, faint and crossed,".
 
-Verse fate of hour:
+Verse turning of hour:
   where hour past 18
-    sing "and the wanderer walks on, counting ".
-  sing "and the wanderer turns home, leaving ".
+    sing "the wanderer walks on, the road uncrossed;".
+  sing "the wanderer turns for home, the daylight lost;".
 
 Verse nightsong of hour:
-  let opening become sky(hour).
-  let turning become fate(hour).
-  let heavens become stars(3).
-  sing opening
-  then turning
-  then heavens.
+  sing opening(hour)
+  then "
+"
+  then turning(hour)
+  then "
+"
+  then stanza(3).
