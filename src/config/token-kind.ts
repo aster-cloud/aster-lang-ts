@@ -88,6 +88,10 @@ export enum SemanticTokenKind {
   /** 返回语句 - "return" / "返回" */
   RETURN = 'RETURN',
 
+  /** 无括号单参调用引入词（ADR 0027）- "apply" / "应用"。软关键词：仅 `apply <名> to <expr>`
+   *  形态触发，其余位置仍是普通标识符（现有 `Rule apply given …` 不破）。 */
+  APPLY = 'APPLY',
+
   /** 结果表达式 - "the result is" / "结果为" */
   RESULT_IS = 'RESULT_IS',
 

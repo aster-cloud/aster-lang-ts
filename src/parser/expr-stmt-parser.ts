@@ -1064,7 +1064,7 @@ function parseMultiplication(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Expression {
-  let left = parsePrimary(ctx, error);
+  let left = parseApplyOrPrimary(ctx, error);
 
   const dividedByParts = kwParts(KW.DIVIDED_BY);
   const intDividedByParts = kwParts(KW.INTEGER_DIVIDED_BY);
@@ -1086,7 +1086,7 @@ function parseMultiplication(
     if (ctx.at(TokenKind.STAR)) {
       const opTok = ctx.next();
       skipOperandContinuation(ctx);
-      const right = parsePrimary(ctx, error);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('*'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
@@ -1094,7 +1094,7 @@ function parseMultiplication(
     } else if (ctx.at(TokenKind.SLASH)) {
       const opTok = ctx.next();
       skipOperandContinuation(ctx);
-      const right = parsePrimary(ctx, error);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('/'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
@@ -1102,7 +1102,7 @@ function parseMultiplication(
     } else if (ctx.isKeyword(KW.TIMES)) {
       const opTok = ctx.nextWord();
       skipOperandContinuation(ctx);
-      const right = parsePrimary(ctx, error);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('*'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
@@ -1117,7 +1117,7 @@ function parseMultiplication(
         ctx.nextWord();
       }
       skipOperandContinuation(ctx);
-      const right = parsePrimary(ctx, error);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('//'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
@@ -1130,7 +1130,7 @@ function parseMultiplication(
         ctx.nextWord();
       }
       skipOperandContinuation(ctx);
-      const right = parsePrimary(ctx, error);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('/'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
@@ -1139,7 +1139,7 @@ function parseMultiplication(
       // KW.MODULO（已由 isMulOp 保证命中其一）。取模，降级为 Call(Name('%'))。
       const opTok = ctx.nextWord();
       skipOperandContinuation(ctx);
-      const right = parsePrimary(ctx, error);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('%'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
@@ -1155,6 +1155,101 @@ function parseMultiplication(
  * @param error 错误报告函数
  * @returns Expression 节点
  */
+/**
+ * 无括号单参调用 `apply <fn> to <arg>`（ADR 0027）。在 parsePrimary 之上的一层（与 Java
+ * unaryExpr 的 applyExpr 同层，保 parity）：
+ * - `apply` 是**软关键词**：仅当其后形如 `<callTarget> to`（名/限定名 + to）时才作调用引入词；
+ *   否则（如名为 apply 的变量引用）回退当普通 primary。这样现有 `Rule apply given …` 不破。
+ * - `<fn>` 用 parseCallTargetName（仅裸名/限定名点链，**不吃调用后缀/构造**），与 Java callTarget
+ *   一致——否则 TS 会吃 `apply f(y) to x` 而 Java 不会 → 分歧。
+ * - `<arg>` 取顶层 parseExpr（贪婪）：`apply f to a plus b` ≡ `Call(f, [a plus b])`。
+ * lower 成现有 Call(fn, [arg])，零新节点。
+ */
+// 所有规范关键词的小写文本集合（token 进 parser 前已 canonicalize 成英文 KW 值）。
+const ALL_KEYWORDS = new Set<string>((Object.values(KW) as string[]).map((k) => k.toLowerCase()));
+
+// apply 调用目标段（callTarget segment）允许的**软关键词**——与 Java AsterParser.g4
+// `callTargetSegment : IDENT | TYPE_IDENT | MAP | structKeywordName` 的放行集逐一对齐
+// （Codex 审查 019f1639 第三处分歧）。普通标识符天然允许；这里只额外放行这些词性上是
+// 关键词、但在标识符位置当软关键字的词。其余硬关键词（and/or/not/with/to/given/produce/set/…）
+// **不**可作目标名——否则 TS（上下文关键词模型，把它们 lex 成 IDENT）会接受、Java 拒绝。
+const APPLY_TARGET_SOFT_KEYWORDS = new Set<string>([
+  KW.LET, KW.MATCH, KW.IF, KW.RETURN, KW.RULE, KW.DEFINE, KW.WHEN,
+  KW.START, KW.OTHERWISE, KW.ELSE, KW.THEN, KW.APPLY,
+  // 字面量：这些是 Java structKeywordName/MAP 成员，但 TS 的 KW 对象未必有同名键。
+  'wait', 'map', 'max', 'attempts',
+].map((k) => k.toLowerCase()));
+
+/** 该词可否作 apply 调用目标的一段名字？非关键词→可；软关键词→可；其余硬关键词→否（对齐 Java）。 */
+function isValidCallTargetWord(word: string): boolean {
+  const lower = word.toLowerCase();
+  return !ALL_KEYWORDS.has(lower) || APPLY_TARGET_SOFT_KEYWORDS.has(lower);
+}
+
+function parseApplyOrPrimary(
+  ctx: ParserContext,
+  error: (msg: string) => never
+): Expression {
+  if (ctx.isKeyword(KW.APPLY) && applyLooksLikeCall(ctx)) {
+    const applyTok = ctx.nextWord();
+    const fn = parseCallTargetName(ctx, error);
+    expectKeyword(ctx, error, KW.TO_WORD, "Use 'apply <fn> to <arg>' (expected 'to').");
+    const arg = parseExpr(ctx, error);
+    const call = Node.Call(fn, [arg]);
+    assignSpan(call, spanFromSources(applyTok, arg));
+    return call;
+  }
+  return parsePrimary(ctx, error);
+}
+
+/**
+ * 软关键词消歧：`apply` 之后是否形如 `<名>(.<名>)* to`？是 → 当调用引入词；否 → apply 是普通名。
+ * 只前瞻不移动游标。
+ */
+function applyLooksLikeCall(ctx: ParserContext): boolean {
+  // offset 0 = apply。期望 offset 1 是名（IDENT/TYPE_IDENT），随后零或多个 `.名`，再是 `to`。
+  // 每段名字须是合法调用目标词（对齐 Java callTargetSegment 放行集）——TS 把 and/or/with/to 等
+  // 硬关键词 lex 成 IDENT，若不在此过滤，`apply and to x` 会 TS 收、Java 拒（Codex 019f1639 #3）。
+  let off = 1;
+  const seg = ctx.peek(off);
+  if (seg.kind !== TokenKind.IDENT && seg.kind !== TokenKind.TYPE_IDENT) return false;
+  if (typeof seg.value !== 'string' || !isValidCallTargetWord(seg.value)) return false;
+  off++;
+  while (ctx.peek(off).kind === TokenKind.DOT &&
+    (ctx.peek(off + 1).kind === TokenKind.IDENT || ctx.peek(off + 1).kind === TokenKind.TYPE_IDENT)) {
+    const part = ctx.peek(off + 1);
+    if (typeof part.value !== 'string' || !isValidCallTargetWord(part.value)) return false;
+    off += 2;
+  }
+  // 其后须是 `to`（TO_WORD）。tokLowerAt 按非 trivia 顺序，与 peek 偏移口径需一致——用 peek 文本判定。
+  const t = ctx.peek(off);
+  return (t.kind === TokenKind.IDENT || t.kind === TokenKind.KEYWORD) &&
+    typeof t.value === 'string' && (t.value as string).toLowerCase() === KW.TO_WORD;
+}
+
+/** 解析调用目标名：裸名或限定名点链（不吃 `(`、不构造 Call/Construct）。与 Java callTarget 对齐。 */
+function parseCallTargetName(
+  ctx: ParserContext,
+  error: (msg: string) => never
+): Expression {
+  const startTok = ctx.peek();
+  if (!ctx.at(TokenKind.IDENT) && !ctx.at(TokenKind.TYPE_IDENT)) {
+    error("Expected a function name after 'apply'.");
+  }
+  const consumed: Token[] = [ctx.peek()];
+  let full = ctx.at(TokenKind.IDENT) ? parseIdent(ctx, error) : (ctx.next().value as string);
+  while (ctx.at(TokenKind.DOT) &&
+    (ctx.peek(1).kind === TokenKind.IDENT || ctx.peek(1).kind === TokenKind.TYPE_IDENT)) {
+    consumed.push(ctx.next()); // dot
+    const partTok = ctx.peek();
+    full += '.' + (ctx.at(TokenKind.IDENT) ? parseIdent(ctx, error) : (ctx.next().value as string));
+    consumed.push(partTok);
+  }
+  const target = Node.Name(full);
+  assignSpan(target, spanFromSources(startTok, consumed[consumed.length - 1]!));
+  return target;
+}
+
 function parsePrimary(
   ctx: ParserContext,
   error: (msg: string) => never

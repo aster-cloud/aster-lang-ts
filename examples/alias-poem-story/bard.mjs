@@ -53,8 +53,10 @@ export const BARD_EN = {
  *   Module→Nightfall  Rule→I  given→count  If→while  Return→sing  Let→let  be→be
  *   plus→with(join)  minus→less  at most→but
  * Read nightfall.ballad.aster top-to-bottom — it is a poem; it also compiles and runs
- * (recursively gathering the lights one by one). The lone seam the grammar can't hide is the
- * recursive call's parentheses: `gather(stars less 1)`.
+ * (recursively gathering the lights one by one). The last seam — the recursive call's
+ * parentheses `gather(stars less 1)` — is now hidden too: ADR 0027's paren-free call
+ * `apply <fn> to <arg>`, with APPLY aliased to the verse word `echoing`, turns the line into
+ * `echoing gather to stars less 1` (the recursion lowers to the identical Call IR as before).
  */
 export const NIGHTFALL_EN = {
   ...EN_US,
@@ -71,6 +73,8 @@ export const NIGHTFALL_EN = {
     [K.PLUS]: ['with'],
     [K.MINUS_WORD]: ['less'],
     [K.AT_MOST]: ['but'],
+    // ADR 0027：无括号单参调用引入词，别名成诗词 `echoing`（回响）——递归=回响。
+    [K.APPLY]: ['echoing'],
   },
 };
 

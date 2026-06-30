@@ -149,6 +149,7 @@ export const TEMPLATE: Lexicon = {
 
     /** 返回语句 - 英语 "return" / 中文 "返回" */
     [SemanticTokenKind.RETURN]: '', // TODO: 翻译
+    [SemanticTokenKind.APPLY]: '', // TODO: 翻译
 
     /** 循环遍历 - 英语 "for each" / 中文 "对每个" */
     [SemanticTokenKind.FOR_EACH]: '', // TODO: 翻译

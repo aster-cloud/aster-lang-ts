@@ -29,6 +29,8 @@ const NIGHTFALL_EN: Lexicon = {
     [SemanticTokenKind.PLUS]: ['with'],
     [SemanticTokenKind.MINUS_WORD]: ['less'],
     [SemanticTokenKind.AT_MOST]: ['but'],
+    // ADR 0027：无括号单参调用引入词别名成诗词 `echoing`（与 bard.mjs 同源）。
+    [SemanticTokenKind.APPLY]: ['echoing'],
   },
 };
 
@@ -91,8 +93,8 @@ describe('examples/alias-poem-story — 源码即诗的 nightfall', () => {
   it('别名不变式：诗体方言版 ≡ 规范关键词版（结构一致 Core IR）', () => {
     // 取 nightfall 的最小递归骨架，分别用 NIGHTFALL_EN 别名与规范关键词写，编译应得结构一致 IR
     //（剥 origin）。两版都省类型，确保走类型推断、IR 对齐。
-    const poem = `Nightfall comes.\n\nI gather count stars:\n  while stars but 1\n    sing "a".\n  let earlier be gather(stars less 1).\n  sing earlier with "b".`;
-    const canon = `Module comes.\n\nRule gather given stars:\n  If stars at most 1\n    Return "a".\n  Let earlier be gather(stars minus 1).\n  Return earlier + "b".`;
+    const poem = `Nightfall comes.\n\nI gather count stars:\n  while stars but 1\n    sing "a".\n  let earlier be echoing gather to stars less 1.\n  sing earlier with "b".`;
+    const canon = `Module comes.\n\nRule gather given stars:\n  If stars at most 1\n    Return "a".\n  Let earlier be apply gather to stars minus 1.\n  Return earlier + "b".`;
     const rp = compile(poem, { lexicon: NIGHTFALL_EN });
     const rc = compile(canon, { lexicon: EN_US });
     assert.ok(rp.success && rc.success, 'both compile');

@@ -26,6 +26,7 @@ export const DE_DE: Lexicon = {
     [SemanticTokenKind.MATCH]: 'pruefe',
     [SemanticTokenKind.WHEN]: 'bei',
     [SemanticTokenKind.RETURN]: 'gib zurueck',
+    [SemanticTokenKind.APPLY]: 'wende an',
     [SemanticTokenKind.RESULT_IS]: 'Ergebnis ist',
     [SemanticTokenKind.FOR_EACH]: 'fuer jedes',
     [SemanticTokenKind.IN]: 'in',
