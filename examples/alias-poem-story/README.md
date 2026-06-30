@@ -1,134 +1,76 @@
-# Alias demo — runnable ballads
+# Alias demo — when the source is the poem
 
-Two runnable poems — a branching story (`nightfall`) and a Match/List piece (`tides`) —
-written in a custom **"Bard" dialect** of Aster, yet they compile and execute on the exact
-same engine that runs production policies. The trick
-is Aster's **keyword-alias mechanism** (ADR 0022): a custom *lexicon* renames the structural
-keywords into bardic words, and during canonicalization those aliases normalize back to the
-canonical keywords. The lexer, parser, and Core IR never see the aliases — so the "Bard
-version" and the plain-keyword version compile to **structurally identical Core IR**.
+Two takes on "a poem that is also a program", via Aster's **keyword-alias mechanism**
+(ADR 0022): a custom *lexicon* renames the structural keywords, and during canonicalization
+those aliases normalize back to canonical keywords. The lexer, parser, and Core IR never see
+the aliases — so the aliased source and the plain-keyword version compile to **structurally
+identical Core IR**.
 
-## The ballad
+- **`nightfall`** — the **source itself is a poem**: read the `.aster` top-to-bottom and it
+  scans as verse; it also runs.
+- **`tides`** — the source is the Bard dialect, and the **running output** is a rhymed poem
+  (Match picks the image, List counts the surf).
+
+## NIGHTFALL — the source is the poem
+
+The whole `.aster` file reads as a poem:
 
 ```
-Ballad nightfall.
+Nightfall comes.
 
-Verse refrain of n:
-  where n but 1
-    sing "  one star opens in the dark,".
-  where n but 2
-    sing "  a second leans to join the spark,".
-  sing "  a third, and then the sky is stark.".
-
-Verse stanza of n:
-  where n but 1
-    sing refrain(1).
-  let above become stanza(n less 1).
-  sing above then "
-" then refrain(n).
-
-Verse opening of hour:
-  where hour past 21
-    sing "Midnight crowns the hill with frost,".
-  where hour past 18
-    sing "Dusk lets fall the day she lost,".
-  sing "Dawn still lingers, faint and crossed,".
-
-Verse turning of hour:
-  where hour past 18
-    sing "the wanderer walks on, the road uncrossed;".
-  sing "the wanderer turns for home, the daylight lost;".
-
-Verse nightsong of hour:
-  sing opening(hour)
-  then "
-"
-  then turning(hour)
-  then "
-"
-  then stanza(3).
+I gather count stars:
+  while stars but 1
+    sing "and one last light to keep the dark from me".
+  let earlier be gather(stars less 1).
+  sing earlier with " and one more light to set the evening free".
 ```
 
-The closing verse spans lines — equal-indent **multi-line continuation** (ADR 0026): a line
-beginning with the join word `then` continues the previous expression. `be` is aliased to
-`become`. The string literals carry real line breaks, so the recited poem prints as stanzas.
+…and it is **executable Aster**. The `Nightfall (English)` dialect aliases the keywords so each
+line scans as verse: `Module`→`Nightfall` (the title `Nightfall comes.` — `comes` is the
+module name), `Rule`→`I`, `given`→`count`, `If`→`while`, `Return`→`sing`, `Let`→`let`, `be`→`be`,
+`+`→`with` (join), `minus`→`less`, `at most`→`but`. No `as Int` / `produce Text` (inferred).
+The two end-words rhyme: **me / free**.
 
-That whole thing is **executable Aster**. No `as Int`, no `produce Text`, no
-`Text.concat(...)` — yet it rhymes: the openings end **-ost / -ossed** (frost / lost /
-crossed), the turnings **-ossed / -ost**, and the star refrain climbs **-ark** (dark / spark
-/ stark). The recursion makes the refrain *build* — one star, a second, a third — rather than
-repeat.
+Running it recursively gathers the lights one by one:
+
+```
+✦ 1 star:  and one last light to keep the dark from me
+✦ 2 stars: and one last light to keep the dark from me and one more light to set the evening free
+```
+
+### The one seam
+
+A recursive call needs parentheses — `gather(stars less 1)` — and the grammar can't hide
+them; that single line is the one place the program shows through the poem. Everything else
+reads as verse. (A trailing `.` ends each statement too, but a period reads as a full stop.)
 
 ## Run it
 
 ```bash
 pnpm build                                   # produce dist/
-node examples/alias-poem-story/recite.mjs    # recite both ballads
+node examples/alias-poem-story/recite.mjs    # print both poems + run them
 ```
 
-One source, three fates by arrival hour:
+It prints each `.aster` source, then runs it.
 
-```
-⏾ hour 23:
-    Midnight crowns the hill with frost,
-    the wanderer walks on, the road uncrossed;
-      one star opens in the dark,
-      a second leans to join the spark,
-      a third, and then the sky is stark.
-```
+## What aliases can hide (and what they can't)
 
-## The dialect
+`bard.mjs` builds each dialect by layering aliases onto `EN_US` (canonical spellings unchanged).
+Two general lessons the poems lean on:
 
-`bard.mjs` builds a `Lexicon` by layering aliases onto `EN_US` (canonical spellings unchanged):
+- **Types vanish.** Aster's `as <Type>` / `produce <Type>` are optional — the engine infers
+  them, so no type noise on the page.
+- **Joins read as verse.** The `+` operator concatenates strings; aliasing it to a word
+  (`with` / `then`) turns nested `Text.concat(...)` into an infix chain. Across equal-indent
+  lines it even spans the page (ADR 0026 multi-line continuation).
 
-| Aster keyword | Bard alias | what it does                          |
-|---------------|------------|---------------------------------------|
-| `Module`      | `Ballad`   | declares the work                     |
-| `Rule`        | `Verse`    | a named, callable verse               |
-| `given`       | `of`       | a verse's input                       |
-| `Let`         | `let`      | bind a line                           |
-| `be`          | `become`   | binding's verb (`let earlier become …`) |
-| `If`          | `where`    | a fork in the tale                    |
-| `Return`      | `sing`     | yield the line                        |
-| `+` (concat)  | `then`     | join verses left-to-right (infix)     |
-| `at most`     | `but`      | `n but 1` ⟺ `n <= 1`                  |
-| `at least`    | `past`     | `hour past 18` ⟺ `hour >= 18`         |
-| `minus`       | `less`     | `n less 1` ⟺ `n - 1`                  |
-| `Match`       | `behold`   | choose a verse by value               |
-| `When`        | `as`       | a case (`as 0, sing …`)               |
+Three seams aliases can't remove (they'd need grammar changes, out of scope):
 
-### How the verse stays clean (no grammar changes)
+- **Call parentheses** — `gather(stars less 1)`, `moon(phase)`.
+- **A trailing `.`** on each statement (reads as a full stop).
+- **Digit literals** — `but 1`, `phase 0` — numbers must be Arabic digits.
 
-- **Types vanish.** Aster's `as <Type>` and `produce <Type>` are optional — the engine
-  infers them. So `Verse stars of n:` carries no type noise.
-- **Joins read as verse.** The `+` operator already concatenates strings; aliasing it to
-  `then` turns nested `Text.concat(Text.concat(a, b), c)` into left-associative
-  `a then b then c`.
-- **No double-`be`.** `Let <name> be <expr>` — aliasing only `Let`→`let` (leaving `be`
-  itself) gives the natural `let earlier be …`.
-
-### What still shows through
-
-Three things can't be hidden by aliases alone (they'd need grammar changes, out of scope):
-
-- **Call parentheses:** `stars(n less 1)`, `sky(hour)` — calls require `(...)`.
-- **A trailing period:** every statement ends with `.` — though a period reads as a poetic
-  full stop / caesura, so it's kept on purpose.
-- **Digit literals:** `but 1`, `past 18` — numbers must be Arabic digits (no word-numbers).
-
-## How the poem works
-
-`nightfall.ballad.aster` is **a story and a refrain in one module**:
-
-- **A building refrain.** `refrain(n)` gives a different line per depth (one / a second / a
-  third); `stanza(n)` stacks them with line breaks via recursion — so the star-image *climbs*
-  rather than repeats.
-- **A branching story.** `opening(hour)` and `turning(hour)` fork on the hour of arrival (guard
-  clauses: each `where … sing` returns when true, else falls through). `nightsong(hour)` weaves
-  the opening, the turning, and the stanza into a lined poem. The *same* source yields three
-  different fates depending on `hour`.
-
-## A second ballad — TIDES (Match + List)
+## TIDES — the running output is the poem (Match + List)
 
 `tides.ballad.aster` shows two more language features, also in rhyme:
 

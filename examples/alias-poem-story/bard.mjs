@@ -47,12 +47,41 @@ export const BARD_EN = {
 };
 
 /**
- * 把一段 Bard 方言源码编译成 Core IR。失败时抛出可读错误（含诊断）。
- * @param {string} source ballad 源码（Bard 别名拼写）
+ * NIGHTFALL_EN — a second dialect where the **source itself reads as a poem**, not just its
+ * output (the goal of nightfall.ballad.aster). Different alias choices than BARD_EN so each
+ * source line scans as a line of verse:
+ *   Module→Nightfall  Rule→I  given→count  If→while  Return→sing  Let→let  be→be
+ *   plus→with(join)  minus→less  at most→but
+ * Read nightfall.ballad.aster top-to-bottom — it is a poem; it also compiles and runs
+ * (recursively gathering the lights one by one). The lone seam the grammar can't hide is the
+ * recursive call's parentheses: `gather(stars less 1)`.
+ */
+export const NIGHTFALL_EN = {
+  ...EN_US,
+  id: 'nightfall-en',
+  name: 'Nightfall (English)',
+  aliases: {
+    [K.MODULE_DECL]: ['Nightfall'],
+    [K.FUNC_TO]: ['I'],
+    [K.FUNC_GIVEN]: ['count'],
+    [K.IF]: ['while'],
+    [K.RETURN]: ['sing'],
+    [K.LET]: ['let'],
+    [K.BE]: ['be'],
+    [K.PLUS]: ['with'],
+    [K.MINUS_WORD]: ['less'],
+    [K.AT_MOST]: ['but'],
+  },
+};
+
+/**
+ * 把一段方言源码编译成 Core IR。失败时抛出可读错误（含诊断）。
+ * @param {string} source ballad 源码
+ * @param {object} [lexicon] 方言（默认 BARD_EN；nightfall 用 NIGHTFALL_EN）
  * @returns {import('../../dist/src/types.js').Core.Module}
  */
-export function compileBallad(source) {
-  const result = compile(source, { lexicon: BARD_EN });
+export function compileBallad(source, lexicon = BARD_EN) {
+  const result = compile(source, { lexicon });
   if (!result.success || !result.core) {
     const diags = (result.parseErrors ?? []).map((e) => e.message).join('; ');
     throw new Error(`ballad failed to compile: ${diags || 'unknown error'}`);
@@ -63,23 +92,14 @@ export function compileBallad(source) {
 /**
  * 通用吟诵：编译 + 执行给定 verse（入口）于给定上下文，返回成诗的文本行。
  * @param {string} source ballad 源码
- * @param {string} entry 入口 verse 名（如 nightsong / seasong）
- * @param {Record<string, unknown>} context 入参（如 { hour } / { phase }）
+ * @param {string} entry 入口 verse 名（如 seasong / gather）
+ * @param {Record<string, unknown>} context 入参（如 { phase } / { stars }）
+ * @param {object} [lexicon] 方言（默认 BARD_EN）
  * @returns {string}
  */
-export function reciteVerse(source, entry, context) {
-  const core = compileBallad(source);
+export function reciteVerse(source, entry, context, lexicon = BARD_EN) {
+  const core = compileBallad(source, lexicon);
   const ev = evaluate(core, entry, context);
   if (!ev.success) throw new Error(`ballad failed to recite ${entry}: ${ev.error}`);
   return String(ev.value);
-}
-
-/**
- * 吟诵：编译 + 在给定 hour 下执行 `nightsong`，返回成诗的文本行（nightfall 谣曲专用便捷形）。
- * @param {string} source ballad 源码
- * @param {number} hour 到达时辰（0-23），决定故事走向
- * @returns {string}
- */
-export function recite(source, hour) {
-  return reciteVerse(source, 'nightsong', { hour });
 }

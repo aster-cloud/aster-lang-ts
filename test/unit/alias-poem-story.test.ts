@@ -7,29 +7,28 @@ import { compile, evaluate, EN_US, initializeAllBundledLexicons } from '../../sr
 import { SemanticTokenKind } from '../../src/config/token-kind.js';
 import type { Lexicon } from '../../src/config/lexicons/types.js';
 
-// examples/alias-poem-story 的 CI 防回归：那份「可运行的谣曲」demo（用关键词别名机制把
-// Aster 结构词改写成吟游词）必须始终能编译 + 执行 + 产出预期诗句。别名是 recognition-side
-// 归一（ADR 0022），故「Bard 方言版」与「规范关键词版」编译到结构一致的 Core IR——本测试
-// 同时把这条不变式钉死（既证 demo 活着，也证别名机制本身）。
+// examples/alias-poem-story/nightfall.ballad.aster 的 CI 防回归：这份谣曲的**源码本身就是一首诗**
+// （NIGHTFALL_EN 方言把结构词别名成诗的词），且必须能编译 + 执行（递归聚拢星光）。别名是
+// recognition-side 归一（ADR 0022），故「诗体源码」与「规范关键词版」编译到结构一致的 Core IR
+// ——本测试把这条不变式钉死（既证 demo 活着，也证别名机制本身）。
 initializeAllBundledLexicons();
 
-/** 与 examples/alias-poem-story/bard.mjs 同源的 Bard 方言 Lexicon。 */
-const BARD_EN: Lexicon = {
+/** 与 examples/alias-poem-story/bard.mjs 的 NIGHTFALL_EN 同源——「源码即诗」方言。 */
+const NIGHTFALL_EN: Lexicon = {
   ...EN_US,
-  id: 'bard-en',
-  name: 'Bard (English)',
+  id: 'nightfall-en',
+  name: 'Nightfall (English)',
   aliases: {
-    [SemanticTokenKind.MODULE_DECL]: ['Ballad'],
-    [SemanticTokenKind.FUNC_TO]: ['Verse'],
-    [SemanticTokenKind.FUNC_GIVEN]: ['of'],
-    [SemanticTokenKind.LET]: ['let'],
-    [SemanticTokenKind.BE]: ['become'],
-    [SemanticTokenKind.IF]: ['where'],
+    [SemanticTokenKind.MODULE_DECL]: ['Nightfall'],
+    [SemanticTokenKind.FUNC_TO]: ['I'],
+    [SemanticTokenKind.FUNC_GIVEN]: ['count'],
+    [SemanticTokenKind.IF]: ['while'],
     [SemanticTokenKind.RETURN]: ['sing'],
-    [SemanticTokenKind.PLUS]: ['then'],
-    [SemanticTokenKind.AT_MOST]: ['but'],
-    [SemanticTokenKind.AT_LEAST]: ['past'],
+    [SemanticTokenKind.LET]: ['let'],
+    [SemanticTokenKind.BE]: ['be'],
+    [SemanticTokenKind.PLUS]: ['with'],
     [SemanticTokenKind.MINUS_WORD]: ['less'],
+    [SemanticTokenKind.AT_MOST]: ['but'],
   },
 };
 
@@ -48,72 +47,56 @@ const BALLAD = readFileSync(
   'utf8',
 );
 
-function recite(hour: number): string {
-  const c = compile(BALLAD, { lexicon: BARD_EN });
+/** 编译并执行 `gather`（递归聚拢 n 颗星的光）。 */
+function gather(stars: number): string {
+  const c = compile(BALLAD, { lexicon: NIGHTFALL_EN });
   assert.ok(c.success && c.core, `ballad compile: ${JSON.stringify(c.parseErrors ?? [])}`);
-  const ev = evaluate(c.core!, 'nightsong', { hour });
+  const ev = evaluate(c.core!, 'gather', { stars });
   assert.ok(ev.success, `ballad recite: ${ev.error ?? ''}`);
   return String(ev.value);
 }
 
-describe('examples/alias-poem-story — 可运行的别名谣曲 demo', () => {
-  it('Bard 方言源码编译成功（别名归一回规范关键词）', () => {
-    const c = compile(BALLAD, { lexicon: BARD_EN });
+describe('examples/alias-poem-story — 源码即诗的 nightfall', () => {
+  it('诗体源码编译成功（别名归一回规范关键词）', () => {
+    const c = compile(BALLAD, { lexicon: NIGHTFALL_EN });
     assert.ok(c.success && c.core, `compile: ${JSON.stringify(c.parseErrors ?? [])}`);
   });
 
-  it('递归诗节 stanza(3)：三行变化的星之叠唱（押 -ark 韵，分行）', () => {
-    // stanza 用递归把 refrain 逐行叠起，三行各不同（one / a second / a third），押 -ark 韵。
-    const c = compile(BALLAD, { lexicon: BARD_EN });
-    assert.ok(c.success && c.core, `compile: ${JSON.stringify(c.parseErrors ?? [])}`);
-    const ev = evaluate(c.core!, 'stanza', { n: 3 });
-    assert.ok(ev.success, `stanza: ${ev.error ?? ''}`);
-    const lines = String(ev.value).split('\n');
-    assert.equal(lines.length, 3, '三行叠唱');
-    assert.match(lines[0]!, /one star opens in the dark,$/);
-    assert.match(lines[1]!, /a second leans to join the spark,$/);
-    assert.match(lines[2]!, /a third, and then the sky is stark\.$/);
+  it('源码每行都是诗句（标题 + 第一人称 + 缩进诗行）', () => {
+    // 「源码即诗」契约：读源码本身就是一首诗。锁住几行的字面诗句形态。
+    assert.match(BALLAD, /^Nightfall comes\./m);
+    assert.match(BALLAD, /^I gather count stars:/m);
+    assert.match(BALLAD, /and one last light to keep the dark from me/);
+    assert.match(BALLAD, /and one more light to set the evening free/);
   });
 
-  it('分支故事：到达时辰决定开场与去向（同源三命运，押 -ost/-ossed 韵）', () => {
-    const dawn = recite(8);
-    const dusk = recite(19);
-    const midnight = recite(23);
-    // 开场行各不同（frost / lost / crossed 同韵）。
-    assert.match(dawn, /^Dawn still lingers, faint and crossed,/);
-    assert.match(dusk, /^Dusk lets fall the day she lost,/);
-    assert.match(midnight, /^Midnight crowns the hill with frost,/);
-    // 黄昏后「walks on … uncrossed」，黎明「turns for home … daylight lost」。
-    assert.match(dawn, /turns for home, the daylight lost;/);
-    assert.match(dusk, /walks on, the road uncrossed;/);
-    assert.match(midnight, /walks on, the road uncrossed;/);
-    // 三命运彼此不同，且各为三行（开场 / 去向 / 三行星唱）。
-    assert.notEqual(dawn, dusk);
-    assert.notEqual(dusk, midnight);
-    assert.equal(midnight.split('\n').length, 5, '开场+去向+三行星唱=5 行');
+  it('运行：gather 递归聚拢星光（押 me/free 韵）', () => {
+    // base：一颗星 → 仅 "keep the dark from me"。
+    assert.equal(gather(1), 'and one last light to keep the dark from me');
+    // 递归累积：每多一颗星，叠一句 "set the evening free"。
+    const two = gather(2);
+    assert.match(two, /^and one last light to keep the dark from me/);
+    assert.match(two, /and one more light to set the evening free$/);
+    assert.notEqual(gather(1), gather(2));
+    assert.notEqual(gather(2), gather(3));
   });
 
-  it('边界时辰 18：恰好入夜（past 18 → 黄昏走向）', () => {
-    assert.match(recite(18), /the wanderer walks on, the road uncrossed;/);
-  });
-
-  it('类型全省：无 as/produce 的诗体规则也能编译执行（类型推断）', () => {
-    // demo 的所有 Verse 都没写类型；这里单测最小递归 refrain 确认推断可行。
-    const c = compile(BALLAD, { lexicon: BARD_EN });
+  it('类型全省：诗体源码无 as/produce 也能编译执行（类型推断）', () => {
+    const c = compile(BALLAD, { lexicon: NIGHTFALL_EN });
     assert.ok(c.success, '全省类型仍编译');
-    const ev = evaluate(c.core!, 'refrain', { n: 1 });
-    assert.ok(ev.success && String(ev.value).includes('one star opens in the dark'), String(ev.value));
+    const ev = evaluate(c.core!, 'gather', { stars: 1 });
+    assert.ok(ev.success && String(ev.value).includes('keep the dark from me'), String(ev.value));
   });
 
-  it('别名不变式：Bard 方言版 ≡ 规范关键词版（结构一致 Core IR）', () => {
-    // 取一段最小递归，分别用 Bard 别名（无类型 + 中缀 then）与规范关键词写，编译应得结构一致
-    // IR（剥离 origin）。注：规范版也省类型，确保两边都走类型推断、IR 对齐。
-    const bard = `Ballad t.\n\nVerse echo of n:\n  where n but 1\n    sing "one".\n  let rest become echo(n less 1).\n  sing rest then "!".`;
-    const canon = `Module t.\n\nRule echo given n:\n  If n at most 1\n    Return "one".\n  Let rest be echo(n minus 1).\n  Return rest + "!".`;
-    const rb = compile(bard, { lexicon: BARD_EN });
+  it('别名不变式：诗体方言版 ≡ 规范关键词版（结构一致 Core IR）', () => {
+    // 取 nightfall 的最小递归骨架，分别用 NIGHTFALL_EN 别名与规范关键词写，编译应得结构一致 IR
+    //（剥 origin）。两版都省类型，确保走类型推断、IR 对齐。
+    const poem = `Nightfall comes.\n\nI gather count stars:\n  while stars but 1\n    sing "a".\n  let earlier be gather(stars less 1).\n  sing earlier with "b".`;
+    const canon = `Module comes.\n\nRule gather given stars:\n  If stars at most 1\n    Return "a".\n  Let earlier be gather(stars minus 1).\n  Return earlier + "b".`;
+    const rp = compile(poem, { lexicon: NIGHTFALL_EN });
     const rc = compile(canon, { lexicon: EN_US });
-    assert.ok(rb.success && rc.success, 'both compile');
-    assert.deepEqual(stripOrigin(rb.core), stripOrigin(rc.core));
+    assert.ok(rp.success && rc.success, 'both compile');
+    assert.deepEqual(stripOrigin(rp.core), stripOrigin(rc.core));
   });
 });
 

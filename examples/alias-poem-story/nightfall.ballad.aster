@@ -1,36 +1,7 @@
-Ballad nightfall.
+Nightfall comes.
 
-Verse refrain of n:
-  where n but 1
-    sing "  one star opens in the dark,".
-  where n but 2
-    sing "  a second leans to join the spark,".
-  sing "  a third, and then the sky is stark.".
-
-Verse stanza of n:
-  where n but 1
-    sing refrain(1).
-  let above become stanza(n less 1).
-  sing above then "
-" then refrain(n).
-
-Verse opening of hour:
-  where hour past 21
-    sing "Midnight crowns the hill with frost,".
-  where hour past 18
-    sing "Dusk lets fall the day she lost,".
-  sing "Dawn still lingers, faint and crossed,".
-
-Verse turning of hour:
-  where hour past 18
-    sing "the wanderer walks on, the road uncrossed;".
-  sing "the wanderer turns for home, the daylight lost;".
-
-Verse nightsong of hour:
-  sing opening(hour)
-  then "
-"
-  then turning(hour)
-  then "
-"
-  then stanza(3).
+I gather count stars:
+  while stars but 1
+    sing "and one last light to keep the dark from me".
+  let earlier be gather(stars less 1).
+  sing earlier with " and one more light to set the evening free".

@@ -1,38 +1,36 @@
 #!/usr/bin/env node
-// 吟游者：读取 nightfall.ballad.aster（用 Bard 方言别名写的谣曲），用生产引擎编译执行，
-// 在不同时辰把它「唱」出来——同一份源码，因到达时辰不同走向不同的诗节与结局。
+// 吟游者：读取两首 .aster 谣曲，用生产引擎编译执行。两种「诗 × 程序」理念：
+//   NIGHTFALL — **源码本身就是一首诗**（NIGHTFALL_EN 方言），且它能运行（递归聚拢星光）。
+//   TIDES     — 源码是 Bard 方言，**运行结果**是押韵的诗（Match 选意象 + List 数浪）。
 //
 // 运行（先 `pnpm build` 出 dist/）：
 //   node examples/alias-poem-story/recite.mjs
-//   node examples/alias-poem-story/recite.mjs 8     # 指定时辰
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { recite, reciteVerse, BARD_EN } from './bard.mjs';
+import { reciteVerse, BARD_EN, NIGHTFALL_EN } from './bard.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (f) => readFileSync(join(here, f), 'utf8');
 const bar = '─'.repeat(64);
-/** 缩进多行诗：每一行都加前缀（诗现在含真换行，逐行对齐）。 */
+/** 缩进多行诗：每一行都加前缀（诗含真换行，逐行对齐）。 */
 const indent = (text, pad = '    ') => text.split('\n').map((l) => pad + l).join('\n');
 
-// ── Ballad 1: NIGHTFALL — branching story (If) + recursive poem ──────────────
+// ── NIGHTFALL — the SOURCE itself is the poem ────────────────────────────────
 const nightfall = read('nightfall.ballad.aster');
 console.log(bar);
-console.log('  NIGHTFALL — a runnable ballad, written in the Bard dialect');
-console.log(`  (custom lexicon "${BARD_EN.name}" aliases Aster keywords:`);
-console.log('   Module→Ballad  Rule→Verse  given→of  Let→let  be→become  If→where');
-console.log('   Return→sing  plus→then(join)  at most→but  at least→past  minus→less');
-console.log('   Match→behold  When→as  — types omitted; verses join across lines (ADR 0026))');
+console.log('  NIGHTFALL — the source itself reads as a poem, and also runs');
+console.log(`  (dialect "${NIGHTFALL_EN.name}": Module→Nightfall  Rule→I  given→count`);
+console.log('   If→while  Return→sing  Let→let  be→be  plus→with  minus→less  at most→but)');
 console.log(bar);
-console.log('\nThe source reads as verse, yet compiles + runs on the real engine:\n');
+console.log('\nRead the source top-to-bottom — it is a poem:\n');
 for (const line of nightfall.trimEnd().split('\n')) console.log('   ' + line);
 console.log('\n' + bar);
-console.log('  Reciting at three hours — the same poem, three fates (If-branching):');
+console.log('  …and it runs — gathering the lights one by one:');
 console.log(bar);
-for (const hour of [8, 19, 23]) {
-  console.log(`\n  ⏾ hour ${String(hour).padStart(2, '0')}:`);
-  console.log(indent(recite(nightfall, hour)));
+for (const stars of [1, 2, 3]) {
+  console.log(`\n  ✦ ${stars} star${stars === 1 ? '' : 's'}:`);
+  console.log(indent(reciteVerse(nightfall, 'gather', { stars }, NIGHTFALL_EN)));
 }
 
 // ── Ballad 2: TIDES — Match (moon phase) + List (waves) ──────────────────────
