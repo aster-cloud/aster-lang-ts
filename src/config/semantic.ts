@@ -238,6 +238,7 @@ export const KW = {
   OTHERWISE: 'otherwise',
   MATCH: 'match',
   WHEN: 'when',
+  APPLY: 'apply',
   WORKFLOW: 'workflow',
   STEP: 'step',
   DEPENDS: 'depends',

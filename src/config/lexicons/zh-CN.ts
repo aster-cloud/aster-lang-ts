@@ -26,6 +26,7 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.MATCH]: '匹配于',
     [SemanticTokenKind.WHEN]: '当',
     [SemanticTokenKind.RETURN]: '返回',
+    [SemanticTokenKind.APPLY]: '应用',
     [SemanticTokenKind.RESULT_IS]: '结果为',
     [SemanticTokenKind.FOR_EACH]: '对每个',
     [SemanticTokenKind.IN]: '属于',

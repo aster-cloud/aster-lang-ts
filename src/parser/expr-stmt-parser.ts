@@ -751,6 +751,46 @@ function isListSeparatorAnd(ctx: ParserContext): boolean {
 }
 
 /**
+ * 等缩进多行表达式续行（ADR 0026）。二元运算循环判断「是否还有下一个运算符」时调用：
+ * 若当前是 NEWLINE，先跨过连续 NEWLINE（**遇 INDENT/DEDENT/EOF 即放弃**，绝不消费缩进
+ * token），再用调用方的 `isOpAtCursor()`（在游标处、offset 0 判定本层运算符）测试续行行首；
+ * 命中则保留已消费的 NEWLINE、返回 true；未命中则回退游标、返回 false（一个 token 都不动）。
+ *
+ * 安全性（Codex 审查 019f157b）：只跨等缩进的 NEWLINE，**绝不碰 INDENT/DEDENT**——缩进栈不动、
+ * 块结构零风险。只在已处于 expr 循环内、续行行首确为本层运算符时触发，与 block 发起新语句不冲突。
+ *
+ * @param isOpAtCursor 谓词：在当前游标（offset 0）判断是否为本层运算符起点（复用各循环原有判定）。
+ */
+function tryContinuation(ctx: ParserContext, isOpAtCursor: () => boolean): boolean {
+  if (!ctx.at(TokenKind.NEWLINE)) return false;
+  const saved = ctx.index;
+  while (ctx.at(TokenKind.NEWLINE)) ctx.next();
+  // 跨过 NEWLINE 后若是缩进变化（INDENT/DEDENT）或文件尾，则非等缩进续行——回退。
+  if (ctx.at(TokenKind.INDENT) || ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.EOF)) {
+    ctx.index = saved;
+    return false;
+  }
+  if (!isOpAtCursor()) {
+    ctx.index = saved;
+    return false;
+  }
+  return true; // 已停在续行行首的运算符上，NEWLINE 已消费。
+}
+
+/**
+ * 取右操作数前跳过等缩进续行换行（支持行尾运算符续行 `a then\n b`）。仅当其后确有可解析的操作数
+ * （非 INDENT/DEDENT/EOF/DOT）时才跳，避免误吞语句边界换行；否则回退不动。
+ */
+function skipOperandContinuation(ctx: ParserContext): void {
+  if (!ctx.at(TokenKind.NEWLINE)) return;
+  const saved = ctx.index;
+  while (ctx.at(TokenKind.NEWLINE)) ctx.next();
+  if (ctx.at(TokenKind.INDENT) || ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.EOF) || ctx.at(TokenKind.DOT)) {
+    ctx.index = saved;
+  }
+}
+
+/**
  * 解析逻辑或（or）
  * 优先级最低；左结合；短路语义在求值器处理。
  * 形如：a or b or c → ((a or b) or c)
@@ -760,8 +800,9 @@ function parseOr(
   error: (msg: string) => never
 ): Expression {
   let left = parseAnd(ctx, error);
-  while (ctx.isKeyword(KW.OR)) {
+  while (ctx.isKeyword(KW.OR) || tryContinuation(ctx, () => ctx.isKeyword(KW.OR))) {
     const opTok = ctx.nextWord();
+    skipOperandContinuation(ctx);
     const right = parseAnd(ctx, error);
     const target = assignTokenSpan(Node.Name('or'), opTok);
     const call = Node.Call(target, [left, right]);
@@ -780,8 +821,10 @@ function parseAnd(
   error: (msg: string) => never
 ): Expression {
   let left = parseNot(ctx, error);
-  while (ctx.isKeyword(KW.AND) && !isListSeparatorAnd(ctx)) {
+  const isAndOp = (): boolean => ctx.isKeyword(KW.AND) && !isListSeparatorAnd(ctx);
+  while (isAndOp() || tryContinuation(ctx, isAndOp)) {
     const opTok = ctx.nextWord();
+    skipOperandContinuation(ctx);
     const right = parseNot(ctx, error);
     const target = assignTokenSpan(Node.Name('and'), opTok);
     const call = Node.Call(target, [left, right]);
@@ -838,6 +881,7 @@ function parseComparison(
   // 辅助：消费符号运算符并构造 Call 节点
   const consumeSymbol = (irName: string): void => {
     const opTok = ctx.next(); // 消费符号 token
+    skipOperandContinuation(ctx); // ADR 0026：行尾运算符续行。
     const right = parseAddition(ctx, error);
     const target = assignTokenSpan(Node.Name(irName), opTok);
     const call = Node.Call(target, [left, right]);
@@ -853,6 +897,7 @@ function parseComparison(
     } else {
       ctx.nextWord();
     }
+    skipOperandContinuation(ctx); // ADR 0026：行尾运算符续行。
     const right = parseAddition(ctx, error);
     const target = assignTokenSpan(Node.Name(irName), opTok);
     const call = Node.Call(target, [left, right]);
@@ -881,8 +926,39 @@ function parseComparison(
     }
   };
 
+  // 本层（比较）运算符在游标处的判定：覆盖所有符号 + 词形分支（含可选 `is` 前缀形）。
+  const isCompareOp = (): boolean => {
+    if (
+      ctx.at(TokenKind.LT) || ctx.at(TokenKind.GT) || ctx.at(TokenKind.LTE) || ctx.at(TokenKind.GTE) ||
+      ctx.at(TokenKind.NEQ) || ctx.at(TokenKind.EQ) || ctx.at(TokenKind.EQUALS)
+    ) return true;
+    if (
+      ctx.isKeywordSeq(isNotEqualToParts) || ctx.isKeywordSeq(notEqualToParts) ||
+      ctx.isKeyword(KW.LESS_THAN) || ctx.isKeywordSeq(lessThanParts) ||
+      ctx.isKeyword(KW.GREATER_THAN) || ctx.isKeywordSeq(greaterThanParts) ||
+      ctx.isKeywordSeq(isEqualToParts) || ctx.isKeyword(KW.EQUALS_TO) || ctx.isKeywordSeq(equalsToParts) ||
+      ctx.isKeyword(KW.AT_LEAST) || ctx.isKeywordSeq(atLeastParts) ||
+      ctx.isKeyword(KW.AT_MOST) || ctx.isKeywordSeq(atMostParts) ||
+      ctx.isKeyword(KW.UNDER) || ctx.isKeyword(KW.MORE_THAN) || ctx.isKeywordSeq(moreThanParts) || ctx.isKeyword(KW.OVER)
+    ) return true;
+    // 可选 `is` 前缀形：is at least / is at most / is greater than / ...
+    for (const parts of isComparatorPrefixParts) {
+      if (ctx.isKeywordSeq(['is', ...parts])) return true;
+    }
+    return false;
+  };
+
   let more = true;
+  let consumedComparison = false; // ADR 0026：续行不扩大「链式比较」面（Java comparisonExpr 单比较）。
   while (more) {
+    // ADR 0026：等缩进续行——内联无比较运算符时尝试跨 NEWLINE 续接。但**不跨行续接第二个比较**
+    // （Codex 审查 019f157b §5）：Java comparisonExpr 是单比较非链式，若 TS 跨行续接第二个比较会
+    // 与 Java 分歧。故续行只在尚未消费过比较时尝试（首个比较的行尾/行首续行仍支持，仅禁「比较\n比较」）。
+    if (!isCompareOp() && (consumedComparison || !tryContinuation(ctx, isCompareOp))) {
+      more = false;
+      continue;
+    }
+    consumedComparison = true;
     tryAbsorbIsPrefix();
     // 符号运算符：<, >, <=, >=, !=, ==, =
     if (ctx.at(TokenKind.LT)) {
@@ -942,39 +1018,38 @@ function parseAddition(
 ): Expression {
   let left = parseMultiplication(ctx, error);
 
+  // 本层（加减）运算符在游标处的判定：符号 + / -，或词形 plus / minus。
+  const isAddOp = (): boolean =>
+    ctx.at(TokenKind.PLUS) || ctx.at(TokenKind.MINUS) || ctx.isKeyword(KW.PLUS) || ctx.isKeyword(KW.MINUS);
+
   let more = true;
   while (more) {
-    if (ctx.at(TokenKind.PLUS)) {
-      const opTok = ctx.next();
-      const right = parseMultiplication(ctx, error);
-      const target = assignTokenSpan(Node.Name('+'), opTok);
-      const call = Node.Call(target, [left, right]);
-      assignSpan(call, spanFromSources(left, opTok, right));
-      left = call;
-    } else if (ctx.at(TokenKind.MINUS)) {
-      const opTok = ctx.next();
-      const right = parseMultiplication(ctx, error);
-      const target = assignTokenSpan(Node.Name('-'), opTok);
-      const call = Node.Call(target, [left, right]);
-      assignSpan(call, spanFromSources(left, opTok, right));
-      left = call;
-    } else if (ctx.isKeyword(KW.PLUS)) {
-      const opTok = ctx.nextWord();
-      const right = parseMultiplication(ctx, error);
-      const target = assignTokenSpan(Node.Name('+'), opTok);
-      const call = Node.Call(target, [left, right]);
-      assignSpan(call, spanFromSources(left, opTok, right));
-      left = call;
-    } else if (ctx.isKeyword(KW.MINUS)) {
-      const opTok = ctx.nextWord();
-      const right = parseMultiplication(ctx, error);
-      const target = assignTokenSpan(Node.Name('-'), opTok);
-      const call = Node.Call(target, [left, right]);
-      assignSpan(call, spanFromSources(left, opTok, right));
-      left = call;
-    } else {
+    // ADR 0026：等缩进续行——内联无运算符时，尝试跨 NEWLINE 续接（命中则游标已停在运算符上）。
+    if (!isAddOp() && !tryContinuation(ctx, isAddOp)) {
       more = false;
+      continue;
     }
+    let opTok: ReturnType<typeof ctx.next>;
+    let irName: string;
+    if (ctx.at(TokenKind.PLUS)) {
+      opTok = ctx.next();
+      irName = '+';
+    } else if (ctx.at(TokenKind.MINUS)) {
+      opTok = ctx.next();
+      irName = '-';
+    } else if (ctx.isKeyword(KW.PLUS)) {
+      opTok = ctx.nextWord();
+      irName = '+';
+    } else {
+      opTok = ctx.nextWord();
+      irName = '-';
+    }
+    skipOperandContinuation(ctx); // 行尾运算符续行：取右操作数前跳等缩进换行。
+    const right = parseMultiplication(ctx, error);
+    const target = assignTokenSpan(Node.Name(irName), opTok);
+    const call = Node.Call(target, [left, right]);
+    assignSpan(call, spanFromSources(left, opTok, right));
+    left = call;
   }
   return left;
 }
@@ -989,30 +1064,45 @@ function parseMultiplication(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Expression {
-  let left = parsePrimary(ctx, error);
+  let left = parseApplyOrPrimary(ctx, error);
 
   const dividedByParts = kwParts(KW.DIVIDED_BY);
   const intDividedByParts = kwParts(KW.INTEGER_DIVIDED_BY);
 
+  // 本层（乘除模）运算符在游标处的判定：符号 * /，或词形 times / divided by / integer divided by / modulo。
+  const isMulOp = (): boolean =>
+    ctx.at(TokenKind.STAR) || ctx.at(TokenKind.SLASH) ||
+    ctx.isKeyword(KW.TIMES) || ctx.isKeyword(KW.MODULO) ||
+    ctx.isKeyword(KW.INTEGER_DIVIDED_BY) || ctx.isKeywordSeq(intDividedByParts) ||
+    ctx.isKeyword(KW.DIVIDED_BY) || ctx.isKeywordSeq(dividedByParts);
+
   let more = true;
   while (more) {
+    // ADR 0026：等缩进续行——内联无运算符时，尝试跨 NEWLINE 续接。
+    if (!isMulOp() && !tryContinuation(ctx, isMulOp)) {
+      more = false;
+      continue;
+    }
     if (ctx.at(TokenKind.STAR)) {
       const opTok = ctx.next();
-      const right = parsePrimary(ctx, error);
+      skipOperandContinuation(ctx);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('*'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
       left = call;
     } else if (ctx.at(TokenKind.SLASH)) {
       const opTok = ctx.next();
-      const right = parsePrimary(ctx, error);
+      skipOperandContinuation(ctx);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('/'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
       left = call;
     } else if (ctx.isKeyword(KW.TIMES)) {
       const opTok = ctx.nextWord();
-      const right = parsePrimary(ctx, error);
+      skipOperandContinuation(ctx);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('*'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
@@ -1026,7 +1116,8 @@ function parseMultiplication(
       } else {
         ctx.nextWord();
       }
-      const right = parsePrimary(ctx, error);
+      skipOperandContinuation(ctx);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('//'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
@@ -1038,21 +1129,21 @@ function parseMultiplication(
       } else {
         ctx.nextWord();
       }
-      const right = parsePrimary(ctx, error);
+      skipOperandContinuation(ctx);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('/'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
       left = call;
-    } else if (ctx.isKeyword(KW.MODULO)) {
-      // 取模，降级为 Call(Name('%'))。单词关键字，无子序列冲突。
+    } else {
+      // KW.MODULO（已由 isMulOp 保证命中其一）。取模，降级为 Call(Name('%'))。
       const opTok = ctx.nextWord();
-      const right = parsePrimary(ctx, error);
+      skipOperandContinuation(ctx);
+      const right = parseApplyOrPrimary(ctx, error);
       const target = assignTokenSpan(Node.Name('%'), opTok);
       const call = Node.Call(target, [left, right]);
       assignSpan(call, spanFromSources(left, opTok, right));
       left = call;
-    } else {
-      more = false;
     }
   }
   return left;
@@ -1064,6 +1155,101 @@ function parseMultiplication(
  * @param error 错误报告函数
  * @returns Expression 节点
  */
+/**
+ * 无括号单参调用 `apply <fn> to <arg>`（ADR 0027）。在 parsePrimary 之上的一层（与 Java
+ * unaryExpr 的 applyExpr 同层，保 parity）：
+ * - `apply` 是**软关键词**：仅当其后形如 `<callTarget> to`（名/限定名 + to）时才作调用引入词；
+ *   否则（如名为 apply 的变量引用）回退当普通 primary。这样现有 `Rule apply given …` 不破。
+ * - `<fn>` 用 parseCallTargetName（仅裸名/限定名点链，**不吃调用后缀/构造**），与 Java callTarget
+ *   一致——否则 TS 会吃 `apply f(y) to x` 而 Java 不会 → 分歧。
+ * - `<arg>` 取顶层 parseExpr（贪婪）：`apply f to a plus b` ≡ `Call(f, [a plus b])`。
+ * lower 成现有 Call(fn, [arg])，零新节点。
+ */
+// 所有规范关键词的小写文本集合（token 进 parser 前已 canonicalize 成英文 KW 值）。
+const ALL_KEYWORDS = new Set<string>((Object.values(KW) as string[]).map((k) => k.toLowerCase()));
+
+// apply 调用目标段（callTarget segment）允许的**软关键词**——与 Java AsterParser.g4
+// `callTargetSegment : IDENT | TYPE_IDENT | MAP | structKeywordName` 的放行集逐一对齐
+// （Codex 审查 019f1639 第三处分歧）。普通标识符天然允许；这里只额外放行这些词性上是
+// 关键词、但在标识符位置当软关键字的词。其余硬关键词（and/or/not/with/to/given/produce/set/…）
+// **不**可作目标名——否则 TS（上下文关键词模型，把它们 lex 成 IDENT）会接受、Java 拒绝。
+const APPLY_TARGET_SOFT_KEYWORDS = new Set<string>([
+  KW.LET, KW.MATCH, KW.IF, KW.RETURN, KW.RULE, KW.DEFINE, KW.WHEN,
+  KW.START, KW.OTHERWISE, KW.ELSE, KW.THEN, KW.APPLY,
+  // 字面量：这些是 Java structKeywordName/MAP 成员，但 TS 的 KW 对象未必有同名键。
+  'wait', 'map', 'max', 'attempts',
+].map((k) => k.toLowerCase()));
+
+/** 该词可否作 apply 调用目标的一段名字？非关键词→可；软关键词→可；其余硬关键词→否（对齐 Java）。 */
+function isValidCallTargetWord(word: string): boolean {
+  const lower = word.toLowerCase();
+  return !ALL_KEYWORDS.has(lower) || APPLY_TARGET_SOFT_KEYWORDS.has(lower);
+}
+
+function parseApplyOrPrimary(
+  ctx: ParserContext,
+  error: (msg: string) => never
+): Expression {
+  if (ctx.isKeyword(KW.APPLY) && applyLooksLikeCall(ctx)) {
+    const applyTok = ctx.nextWord();
+    const fn = parseCallTargetName(ctx, error);
+    expectKeyword(ctx, error, KW.TO_WORD, "Use 'apply <fn> to <arg>' (expected 'to').");
+    const arg = parseExpr(ctx, error);
+    const call = Node.Call(fn, [arg]);
+    assignSpan(call, spanFromSources(applyTok, arg));
+    return call;
+  }
+  return parsePrimary(ctx, error);
+}
+
+/**
+ * 软关键词消歧：`apply` 之后是否形如 `<名>(.<名>)* to`？是 → 当调用引入词；否 → apply 是普通名。
+ * 只前瞻不移动游标。
+ */
+function applyLooksLikeCall(ctx: ParserContext): boolean {
+  // offset 0 = apply。期望 offset 1 是名（IDENT/TYPE_IDENT），随后零或多个 `.名`，再是 `to`。
+  // 每段名字须是合法调用目标词（对齐 Java callTargetSegment 放行集）——TS 把 and/or/with/to 等
+  // 硬关键词 lex 成 IDENT，若不在此过滤，`apply and to x` 会 TS 收、Java 拒（Codex 019f1639 #3）。
+  let off = 1;
+  const seg = ctx.peek(off);
+  if (seg.kind !== TokenKind.IDENT && seg.kind !== TokenKind.TYPE_IDENT) return false;
+  if (typeof seg.value !== 'string' || !isValidCallTargetWord(seg.value)) return false;
+  off++;
+  while (ctx.peek(off).kind === TokenKind.DOT &&
+    (ctx.peek(off + 1).kind === TokenKind.IDENT || ctx.peek(off + 1).kind === TokenKind.TYPE_IDENT)) {
+    const part = ctx.peek(off + 1);
+    if (typeof part.value !== 'string' || !isValidCallTargetWord(part.value)) return false;
+    off += 2;
+  }
+  // 其后须是 `to`（TO_WORD）。tokLowerAt 按非 trivia 顺序，与 peek 偏移口径需一致——用 peek 文本判定。
+  const t = ctx.peek(off);
+  return (t.kind === TokenKind.IDENT || t.kind === TokenKind.KEYWORD) &&
+    typeof t.value === 'string' && (t.value as string).toLowerCase() === KW.TO_WORD;
+}
+
+/** 解析调用目标名：裸名或限定名点链（不吃 `(`、不构造 Call/Construct）。与 Java callTarget 对齐。 */
+function parseCallTargetName(
+  ctx: ParserContext,
+  error: (msg: string) => never
+): Expression {
+  const startTok = ctx.peek();
+  if (!ctx.at(TokenKind.IDENT) && !ctx.at(TokenKind.TYPE_IDENT)) {
+    error("Expected a function name after 'apply'.");
+  }
+  const consumed: Token[] = [ctx.peek()];
+  let full = ctx.at(TokenKind.IDENT) ? parseIdent(ctx, error) : (ctx.next().value as string);
+  while (ctx.at(TokenKind.DOT) &&
+    (ctx.peek(1).kind === TokenKind.IDENT || ctx.peek(1).kind === TokenKind.TYPE_IDENT)) {
+    consumed.push(ctx.next()); // dot
+    const partTok = ctx.peek();
+    full += '.' + (ctx.at(TokenKind.IDENT) ? parseIdent(ctx, error) : (ctx.next().value as string));
+    consumed.push(partTok);
+  }
+  const target = Node.Name(full);
+  assignSpan(target, spanFromSources(startTok, consumed[consumed.length - 1]!));
+  return target;
+}
+
 function parsePrimary(
   ctx: ParserContext,
   error: (msg: string) => never

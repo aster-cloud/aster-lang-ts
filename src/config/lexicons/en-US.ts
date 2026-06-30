@@ -26,6 +26,7 @@ export const EN_US: Lexicon = {
     [SemanticTokenKind.MATCH]: 'Match',
     [SemanticTokenKind.WHEN]: 'When',
     [SemanticTokenKind.RETURN]: 'Return',
+    [SemanticTokenKind.APPLY]: 'apply',
     [SemanticTokenKind.RESULT_IS]: 'the result is',
     [SemanticTokenKind.FOR_EACH]: 'for each',
     [SemanticTokenKind.IN]: 'in',

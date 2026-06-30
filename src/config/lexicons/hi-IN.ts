@@ -26,6 +26,7 @@ export const HI_IN: Lexicon = {
     [SemanticTokenKind.MATCH]: 'मिलान',
     [SemanticTokenKind.WHEN]: 'जब',
     [SemanticTokenKind.RETURN]: 'लौटाएं',
+    [SemanticTokenKind.APPLY]: 'लागू करें',
     [SemanticTokenKind.RESULT_IS]: 'परिणाम है',
     [SemanticTokenKind.FOR_EACH]: 'प्रत्येक',
     [SemanticTokenKind.IN]: 'में',

@@ -1,0 +1,7 @@
+Nightfall comes.
+
+I gather count stars:
+  while stars but 1
+    sing "and one last light to keep the dark from me".
+  let earlier be echoing gather to stars less 1.
+  sing earlier with " and one more light to set the evening free".
