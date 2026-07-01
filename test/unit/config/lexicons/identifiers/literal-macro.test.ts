@@ -64,11 +64,31 @@ describe('字面量宏 IdentifierKind.LITERAL', () => {
     assert.equal(validateVocabulary(v).valid, false, '含换行必须被拒');
   });
 
-  it('拒绝裸双引号或反斜杠', () => {
-    assert.equal(validateVocabulary(vocab(
-      [{ localized: '注入1', canonical: 'say "hi"', kind: IdentifierKind.LITERAL }])).valid, false);
-    assert.equal(validateVocabulary(vocab(
-      [{ localized: '注入2', canonical: 'path\\x', kind: IdentifierKind.LITERAL }])).valid, false);
+  it('拒绝任何引号定界符或反斜杠（含 CJK「」，防 zh-CN 提前闭合注入）', () => {
+    // Codex 复审 P0：zh-CN 引号是「」，内容含它会提前闭合字符串逃逸出 token。
+    for (const bad of ['say "hi"', 'path\\x', '静夜思」. Return evil', '「注入', 'a『b', '»x«']) {
+      assert.equal(validateVocabulary(vocab(
+        [{ localized: '注入', canonical: bad, kind: IdentifierKind.LITERAL }])).valid, false,
+        `含引号定界符/反斜杠必须被拒: ${bad}`);
+    }
+  });
+
+  it('字面量宏触发词与普通标识符冲突 → error（防"字符串 vs 标识符"歧义）', () => {
+    // 同一个词「月」既是字面量宏触发词、又是 struct localized → 展开成字符串还是标识符不可预测。
+    const v = vocab(
+      [{ localized: '月', canonical: '静夜思', kind: IdentifierKind.LITERAL }],
+      { structs: [{ localized: '月', canonical: 'moon', kind: IdentifierKind.STRUCT }] },
+    );
+    assert.equal(validateVocabulary(v).valid, false, '字面量宏触发词与普通标识符同名必须被拒');
+  });
+
+  it('两个普通标识符同名（不同 kind）仍只是 warning（既有行为不变）', () => {
+    // 回归：struct 与 field 同名靠上下文消歧，不因新校验被误报 error。
+    const v = vocab([], {
+      structs: [{ localized: '额度', canonical: 'Limit', kind: IdentifierKind.STRUCT }],
+      fields: [{ localized: '额度', canonical: 'limit', kind: IdentifierKind.FIELD, parent: 'Loan' }],
+    });
+    assert.equal(validateVocabulary(v).valid, true, '普通标识符跨 kind 同名不应报 error');
   });
 
   it('拒绝空内容', () => {

@@ -243,6 +243,7 @@ export function validateVocabulary(vocabulary: DomainVocabulary): {
   const warnings: string[] = [];
   const seenCanonical = new Set<string>();
   const seenLocalized = new Set<string>();
+  const seenTrigger = new Map<string, boolean>(); // 触发词(localized+aliases) → 是否字面量宏；字面量宏须全局唯一
 
   const checkMapping = (mapping: IdentifierMapping, context: string): void => {
     if (mapping.kind === IdentifierKind.LITERAL) {
@@ -257,9 +258,11 @@ export function validateVocabulary(vocabulary: DomainVocabulary): {
       if (/[\u0000-\u001F\u007F]/.test(content)) {
         errors.push(`${context}: 字面量宏内容含控制字符/换行，禁止（防注入）`);
       }
-      // 禁裸引号与反斜杠——内容会被包进 lexicon 引号里，裸引号/反斜杠可能逃逸字符串
-      if (/["\\]/.test(content)) {
-        errors.push(`${context}: 字面量宏内容不得含双引号或反斜杠 "${content}"（防逃逸/注入）`);
+      // 禁任何字符串定界符与反斜杠——内容会被包进 lexicon 引号里，若含该 lexicon（或任何
+      // 已知 lexicon）的引号字符可提前闭合字符串、逃逸出 token 注入源码（Codex 复审 P0）。
+      // 禁：ASCII 双引号 "、反斜杠 \、CJK 直角引号「」『』、书名号/法式引号 « »。
+      if (/["\\「」『』«»]/.test(content)) {
+        errors.push(`${context}: 字面量宏内容不得含引号定界符（" 「 」 『 』 « »）或反斜杠 "${content}"（防逃逸/注入）`);
       }
     } else {
       // 普通标识符：canonical 必须是有效 ASCII 标识符（不变）
@@ -280,6 +283,24 @@ export function validateVocabulary(vocabulary: DomainVocabulary): {
       warnings.push(`${context}: 本地化名称 "${mapping.localized}" 重复，可能导致歧义`);
     }
     seenLocalized.add(localizedKey);
+
+    // 字面量宏触发词隔离（Codex 复审 P0）：canonicalizer 上下文无关替换——**字面量宏**
+    // 展开成字符串、普通标识符展开成标识符，二者语义天差地别。故要求：字面量宏的触发词
+    // （localized + aliases）不得与**任何其它映射**（含普通标识符、其它字面量宏）的触发词
+    // 冲突，否则一个词到底展开成字符串还是标识符不可预测。普通标识符之间同名（不同 kind，
+    // 靠上下文消歧，如 struct/field 同名）仍是既有的 warning 行为，不动。
+    const isLit = mapping.kind === IdentifierKind.LITERAL;
+    const triggers = [mapping.localized, ...(mapping.aliases ?? [])];
+    for (const t of triggers) {
+      const key = t.toLowerCase();
+      const prev = seenTrigger.get(key);
+      if (prev !== undefined && (prev || isLit)) {
+        // prev 是字面量宏、或当前是字面量宏 → 字面量宏与他人触发词冲突，error。
+        errors.push(`${context}: 触发词 "${t}" 与另一条映射冲突（字面量宏触发词须全局唯一，防"字符串 vs 标识符"替换歧义）`);
+      }
+      // 记录：值=是否字面量宏（一旦记为 true 不回退，保证后续普通标识符命中同名也报错）
+      seenTrigger.set(key, (prev ?? false) || isLit);
+    }
 
     // 检查字段映射是否有父结构体
     if (mapping.kind === IdentifierKind.FIELD && !mapping.parent) {
