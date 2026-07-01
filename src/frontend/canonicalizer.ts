@@ -673,7 +673,7 @@ function translateIdentifiers(
   return segments
     .map(segment => {
       if (segment.inString) return segment.text;
-      return translateIdentifiersInSegment(segment.text, index);
+      return translateIdentifiersInSegment(segment.text, index, quotes);
     })
     .join('');
 }
@@ -684,12 +684,24 @@ function translateIdentifiers(
  * 识别标识符边界（字母/下划线/中文字符序列），
  * 用词汇表索引将本地化名称替换为规范化名称。
  */
-function translateIdentifiersInSegment(text: string, index: IdentifierIndex): string {
+function translateIdentifiersInSegment(
+  text: string,
+  index: IdentifierIndex,
+  quotes: { open: string; close: string },
+): string {
   // 标识符匹配模式：ASCII 标识符 + 中文字符序列
   const IDENT_RE = /[a-zA-Z_\u4e00-\u9fa5][\w\u4e00-\u9fa5]*/g;
 
   return text.replace(IDENT_RE, match => {
-    const canonical = index.toCanonical.get(match.toLowerCase());
-    return canonical ?? match;
+    const key = match.toLowerCase();
+    const canonical = index.toCanonical.get(key);
+    if (canonical === undefined) return match;
+    // 字面量宏（IdentifierKind.LITERAL）：把 toCanonical 里的内容用当前 lexicon 的
+    // stringQuotes 包裹展开成字符串字面量（<open>content<close>），使其被后续
+    // segmentString 正确保护——而非当作普通标识符原样插入。
+    if (index.literals.has(key)) {
+      return `${quotes.open}${canonical}${quotes.close}`;
+    }
+    return canonical;
   });
 }

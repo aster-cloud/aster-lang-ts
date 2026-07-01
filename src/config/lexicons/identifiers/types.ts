@@ -22,6 +22,17 @@ export enum IdentifierKind {
   FUNCTION = 'function',
   /** 枚举值 */
   ENUM_VALUE = 'enum_value',
+  /**
+   * 字面量宏（token → 字符串字面量）。与其它 kind 不同：canonical **不是** ASCII
+   * 标识符，而是要替换出去的**字符串内容**（不含引号）。canonicalize 时把 localized
+   * token 逐字替换成 `<open>content<close>`（用当前 lexicon 的 stringQuotes 包裹，
+   * 从而被 segmentString 正确保护，避免插入 ASCII 引号在标点归一化后不被隔离）。
+   *
+   * <p>用途：把一个领域术语固定展开成一段标准文案（合规场景常见），例如
+   * `思故乡 → "静夜思"`。内容受严格校验（单行、无控制字符、无裸引号/反斜杠），
+   * 防止编译期文本注入。仅用于**表达式位置**；用在声明位置会由 parser 报错。
+   */
+  LITERAL = 'literal',
 }
 
 /**
@@ -75,6 +86,12 @@ export interface DomainVocabulary {
   /** 枚举值映射 */
   readonly enumValues?: readonly IdentifierMapping[];
 
+  /**
+   * 字面量宏映射（kind = LITERAL）。localized token 展开成字符串字面量。
+   * 独立数组（不塞进 enumValues）以免语义错位。canonical 为字面量**内容**（不含引号）。
+   */
+  readonly literals?: readonly IdentifierMapping[];
+
   /** 元数据 */
   readonly metadata?: {
     /** 作者/来源 */
@@ -103,6 +120,12 @@ export interface IdentifierIndex {
 
   /** 字段映射（按父结构体索引） */
   readonly fieldsByParent: ReadonlyMap<string, ReadonlyMap<string, IdentifierMapping>>;
+
+  /**
+   * 字面量宏的 localized key（已 toLowerCase）。canonicalize 替换时据此判定：
+   * 命中则把 `toCanonical` 里存的**内容**用 lexicon 引号包裹后插入，而非当作标识符原样插入。
+   */
+  readonly literals: ReadonlySet<string>;
 }
 
 /**
@@ -116,6 +139,7 @@ export function buildIdentifierIndex(vocabulary: DomainVocabulary): IdentifierIn
   const toLocalized = new Map<string, string>();
   const byKind = new Map<IdentifierKind, Map<string, IdentifierMapping>>();
   const fieldsByParent = new Map<string, Map<string, IdentifierMapping>>();
+  const literals = new Set<string>();
 
   // 初始化 byKind 分类
   for (const kind of Object.values(IdentifierKind)) {
@@ -123,26 +147,34 @@ export function buildIdentifierIndex(vocabulary: DomainVocabulary): IdentifierIn
   }
 
   const addMapping = (mapping: IdentifierMapping): void => {
-    // 双向映射
-    toCanonical.set(mapping.localized.toLowerCase(), mapping.canonical);
-    toLocalized.set(mapping.canonical.toLowerCase(), mapping.localized);
+    const localizedKey = mapping.localized.toLowerCase();
+    // localized → canonical（字面量宏存的是「内容」，替换阶段再包引号）
+    toCanonical.set(localizedKey, mapping.canonical);
+    // 字面量宏是单向宏展开，不建反向映射（避免 toLocalized 暴露怪异的内容反查）。
+    if (mapping.kind === IdentifierKind.LITERAL) {
+      literals.add(localizedKey);
+    } else {
+      toLocalized.set(mapping.canonical.toLowerCase(), mapping.localized);
+    }
 
-    // 别名也加入映射
+    // 别名也加入映射（字面量宏的别名同样触发宏展开）
     if (mapping.aliases) {
       for (const alias of mapping.aliases) {
-        toCanonical.set(alias.toLowerCase(), mapping.canonical);
+        const aliasKey = alias.toLowerCase();
+        toCanonical.set(aliasKey, mapping.canonical);
+        if (mapping.kind === IdentifierKind.LITERAL) literals.add(aliasKey);
       }
     }
 
     // 按类型分类
-    byKind.get(mapping.kind)!.set(mapping.localized.toLowerCase(), mapping);
+    byKind.get(mapping.kind)!.set(localizedKey, mapping);
 
     // 字段按父结构体索引
     if (mapping.kind === IdentifierKind.FIELD && mapping.parent) {
       if (!fieldsByParent.has(mapping.parent)) {
         fieldsByParent.set(mapping.parent, new Map());
       }
-      fieldsByParent.get(mapping.parent)!.set(mapping.localized.toLowerCase(), mapping);
+      fieldsByParent.get(mapping.parent)!.set(localizedKey, mapping);
     }
   };
 
@@ -151,12 +183,14 @@ export function buildIdentifierIndex(vocabulary: DomainVocabulary): IdentifierIn
   vocabulary.fields.forEach(addMapping);
   vocabulary.functions.forEach(addMapping);
   vocabulary.enumValues?.forEach(addMapping);
+  vocabulary.literals?.forEach(addMapping);
 
   return {
     toCanonical,
     toLocalized,
     byKind: byKind as ReadonlyMap<IdentifierKind, ReadonlyMap<string, IdentifierMapping>>,
     fieldsByParent: fieldsByParent as ReadonlyMap<string, ReadonlyMap<string, IdentifierMapping>>,
+    literals,
   };
 }
 
@@ -211,9 +245,27 @@ export function validateVocabulary(vocabulary: DomainVocabulary): {
   const seenLocalized = new Set<string>();
 
   const checkMapping = (mapping: IdentifierMapping, context: string): void => {
-    // 检查规范化名称是否为有效 ASCII 标识符
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(mapping.canonical)) {
-      errors.push(`${context}: 规范化名称 "${mapping.canonical}" 必须是有效的 ASCII 标识符`);
+    if (mapping.kind === IdentifierKind.LITERAL) {
+      // 字面量宏：canonical 是要展开的**字符串内容**（不含引号），严格校验以防编译期注入：
+      // 单行、无控制字符、无裸双引号（"）或反斜杠（\）。允许中文/标点/空格等普通可见字符。
+      const content = mapping.canonical ?? '';
+      if (content.length === 0) {
+        errors.push(`${context}: 字面量宏内容不得为空`);
+      }
+      // 禁控制字符（0x00-0x1F 与 0x7F，含 \r \n \t \0）——单行、防注入
+      // eslint-disable-next-line no-control-regex
+      if (/[\u0000-\u001F\u007F]/.test(content)) {
+        errors.push(`${context}: 字面量宏内容含控制字符/换行，禁止（防注入）`);
+      }
+      // 禁裸引号与反斜杠——内容会被包进 lexicon 引号里，裸引号/反斜杠可能逃逸字符串
+      if (/["\\]/.test(content)) {
+        errors.push(`${context}: 字面量宏内容不得含双引号或反斜杠 "${content}"（防逃逸/注入）`);
+      }
+    } else {
+      // 普通标识符：canonical 必须是有效 ASCII 标识符（不变）
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(mapping.canonical)) {
+        errors.push(`${context}: 规范化名称 "${mapping.canonical}" 必须是有效的 ASCII 标识符`);
+      }
     }
 
     // 检查重复
@@ -239,6 +291,7 @@ export function validateVocabulary(vocabulary: DomainVocabulary): {
   vocabulary.fields.forEach((m, i) => checkMapping(m, `fields[${i}]`));
   vocabulary.functions.forEach((m, i) => checkMapping(m, `functions[${i}]`));
   vocabulary.enumValues?.forEach((m, i) => checkMapping(m, `enumValues[${i}]`));
+  vocabulary.literals?.forEach((m, i) => checkMapping(m, `literals[${i}]`));
 
   return {
     valid: errors.length === 0,
