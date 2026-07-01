@@ -160,6 +160,11 @@ class Closure {
 const MAX_STEPS = 10_000;
 const MAX_CALL_DEPTH = 50;
 
+// 红队 P0-B：List.range 生成列表长度上限（防「小标量→巨列表」内存耗尽 DoS）。
+// statementLimit/MAX_STEPS 只数解释器步进不数 native range 循环 → range(0, 2e9) 会
+// 撑爆内存。与 aster-lang-truffle Builtins.MAX_RANGE_SIZE 保持一致，维持双引擎 parity。
+const MAX_RANGE_SIZE = 1_000_000;
+
 /** evalStdlibCall 的哨兵返回值：表示"不是已知 stdlib 调用"。用 Symbol 避免与任何合法返回值冲突。 */
 const NOT_STDLIB = Symbol('not-stdlib');
 
@@ -785,8 +790,15 @@ class Interpreter {
       }
       case 'List.range': {
         const [s, e] = a();
+        const start = Number(s);
+        const end = Number(e);
+        // 红队 P0-B：先按长度判上限，超限即抛（不先生成，防 DoS）。
+        const size = end - start;
+        if (size > MAX_RANGE_SIZE) {
+          throw new InterpreterError(`List.range: 长度过大（${size} > ${MAX_RANGE_SIZE}），拒绝以防内存耗尽 DoS`);
+        }
         const out: number[] = [];
-        for (let i = Number(s); i < Number(e); i++) out.push(i);
+        for (let i = start; i < end; i++) out.push(i);
         return out;
       }
       // List.combinations(list, k) — list 的所有 k 元素子集，确定性递增索引字典序。
