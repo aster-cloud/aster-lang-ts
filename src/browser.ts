@@ -93,6 +93,27 @@ export type { Lexicon } from './config/lexicons/types.js';
 export { getLspUiTexts } from './config/lexicons/lsp-ui-texts.js';
 export type { LspUiTexts } from './config/lexicons/lsp-ui-texts.js';
 
+// 领域标识符词汇表（ADR 0014）+ 字面量宏（IdentifierKind.LITERAL）：让浏览器消费者
+// 能经 vocabularyRegistry.registerCustom 注册自定义词汇（含 token→字符串字面量宏），
+// 再用 compile(source, { lexicon, domain, tenantId }) 触发标识符/字面量宏展开。
+export {
+  IdentifierKind,
+  vocabularyRegistry,
+  initBuiltinVocabularies,
+  VocabularyRegistry,
+  buildIdentifierIndex,
+  canonicalizeIdentifier,
+  localizeIdentifier,
+  hasIdentifierMapping,
+  validateVocabulary,
+} from './config/lexicons/identifiers/index.js';
+export type {
+  IdentifierMapping,
+  DomainVocabulary,
+  IdentifierIndex,
+  VocabularyEntry,
+} from './config/lexicons/identifiers/index.js';
+
 // ============================================================================
 // High-level compilation API (browser-friendly)
 // ============================================================================
