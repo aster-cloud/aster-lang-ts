@@ -91,6 +91,22 @@ function getKeywordWordSet(lexicon: Lexicon): ReadonlySet<string> {
 }
 
 /**
+ * 完整标识符 token 的匹配模式：起头为字母(\p{L})或下划线，后接字母/**组合记号**(\p{M})/
+ * **十进制数字**(\p{Nd})/下划线。
+ *
+ * - 含 `\p{M}`（组合记号）：天城文(Hindi)等印度系文字的元音符号(matra，如 जागे 里的 ◌ा/◌े)
+ *   属 Unicode Mark 而非 Letter，不纳入会把 जागे 切成 ज+ग 丢元音 → 标识符/字面量宏永不匹配。
+ * - 数字用 `\p{Nd}`（十进制）而非 `\p{N}`：Java 引擎的 Character.isDigit 只认 Nd，用 `\p{N}`
+ *   会含 Nl（罗马数字Ⅻ）/No（上标²）→ 与 Java 切分不一致 → parity 漂移（Codex 审查抓出）。
+ *   与 Java Canonicalizer.isIdentifierPart（isLetterOrDigit || Mn/Mc/Me）对齐。
+ *
+ * 注：正则带 `/g` 有 lastIndex 状态，故用工厂每次返回全新实例，避免跨调用串扰。
+ */
+function identifierTokenRegex(): RegExp {
+  return /[\p{L}_][\p{L}\p{M}\p{Nd}_]*/gu;
+}
+
+/**
  * 按词应用 customRules：仅当某词转写后的整词是关键词词时才保留转写，否则原样
  * 保留该词。这样关键词（hoechstens→höchstens）照常转写，用户标识符
  * （fruehereSchaeden）不被波及。按完整 identifier token 切分，标点/空白/字符串原样透传。
@@ -101,10 +117,9 @@ function applyCustomRulesKeywordGated(text: string, lexicon: Lexicon): string {
   const rules = compiledCustomRules(lexicon);
   if (rules.length === 0) return text;
   const keywordWords = getKeywordWordSet(lexicon);
-  // 按【完整标识符 token】切分（字母/下划线起头，后接字母/数字/下划线），而非连续字母块。
-  // 否则 `fuer_foo`/`fuer2` 会被拆出字母段 `fuer` 误转成 `für_foo`/`für2`——整 token 才是
-  // 判定单位：仅当整个 token 转写后是关键词词时才采纳。
-  return text.replace(/[\p{L}_][\p{L}\p{N}_]*/gu, (token) => {
+  // 按【完整标识符 token】切分（见 identifierTokenRegex）。否则 `fuer_foo`/`fuer2` 会被拆出
+  // 字母段 `fuer` 误转成 `für_foo`/`für2`——整 token 才是判定单位。
+  return text.replace(identifierTokenRegex(), (token) => {
     const transliterated = applyCompiledRules(token, rules);
     if (transliterated === token) return token; // 无变化
     // 仅当整 token 转写后是关键词词才采纳，否则保留原标识符（防止误伤）。
@@ -689,8 +704,10 @@ function translateIdentifiersInSegment(
   index: IdentifierIndex,
   quotes: { open: string; close: string },
 ): string {
-  // 标识符匹配模式：ASCII 标识符 + 中文字符序列
-  const IDENT_RE = /[a-zA-Z_\u4e00-\u9fa5][\w\u4e00-\u9fa5]*/g;
+  // 标识符匹配模式：与 applyCustomRulesKeywordGated 共用同一 token 切分口径（见
+  // identifierTokenRegex 的详细说明——含 \p{M} 支持天城文 matra、用 \p{Nd} 对齐 Java isDigit）。
+  // 原先硬编码 [a-zA-Z_\u4e00-\u9fa5] 只认 ASCII+CJK，导致 Hindi 等脚本的标识符/字面量宏永不匹配。
+  const IDENT_RE = identifierTokenRegex();
 
   return text.replace(IDENT_RE, match => {
     const key = match.toLowerCase();
