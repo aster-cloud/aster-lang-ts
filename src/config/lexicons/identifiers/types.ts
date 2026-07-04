@@ -260,9 +260,11 @@ export function validateVocabulary(vocabulary: DomainVocabulary): {
       }
       // 禁任何字符串定界符与反斜杠——内容会被包进 lexicon 引号里，若含该 lexicon（或任何
       // 已知 lexicon）的引号字符可提前闭合字符串、逃逸出 token 注入源码（Codex 复审 P0）。
-      // 禁：ASCII 双引号 "、反斜杠 \、CJK 直角引号「」『』、书名号/法式引号 « »。
-      if (/["\\「」『』«»]/.test(content)) {
-        errors.push(`${context}: 字面量宏内容不得含引号定界符（" 「 」 『 』 « »）或反斜杠 "${content}"（防逃逸/注入）`);
+      // 禁：ASCII 双引号 "、反斜杠 \、CJK 直角引号「」『』、书名号/法式引号 « »、
+      // 以及智能/弯引号 “ ” ‘ ’（canonicalize 会先做智能引号归一化，若放行则展开非幂等，
+      // 重编译 canonical 输出会因 unterminated-string 失败）。
+      if (/["\\「」『』«»“”‘’]/.test(content)) {
+        errors.push(`${context}: 字面量宏内容不得含引号定界符（" 「 」 『 』 « » “ ” ‘ ’）或反斜杠 "${content}"（防逃逸/注入）`);
       }
     } else {
       // 普通标识符：canonical 必须是有效 ASCII 标识符（不变）
