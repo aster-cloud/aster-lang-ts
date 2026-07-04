@@ -416,15 +416,29 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   const keywordMarkers = new Map<string, string>();
   let markerIndex = 0;
 
-  // Step 1: Replace multi-word keywords with markers (sorted by length, longest first)
+  // Step 1: Replace multi-word keywords with markers (sorted by length, longest first).
+  // 必须只在字符串字面量**之外**替换：否则含 "greater than" / "at least" / "for each"
+  // 等多词关键字的字符串字面量会被大小写改写（如 "Salary Greater Than target" →
+  // "...greater than..."）。走 segmentString、跳过 inString 段（与冠词移除 pass 一致）。
   const sortedKeywords = [...multiWordKeywords].sort((a, b) => b.length - a.length);
-  for (const phrase of sortedKeywords) {
-    const re = new RegExp(phrase.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'ig');
-    marked = marked.replace(re, m => {
-      const marker = `\x00KW${markerIndex++}\x00`;
-      keywordMarkers.set(marker, m.toLowerCase());
-      return marker;
-    });
+  if (sortedKeywords.length > 0) {
+    const keywordRes = sortedKeywords.map(
+      phrase => new RegExp(phrase.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'ig'),
+    );
+    marked = segmentString(marked, quotes)
+      .map(segment => {
+        if (segment.inString) return segment.text;
+        let text = segment.text;
+        for (const re of keywordRes) {
+          text = text.replace(re, m => {
+            const marker = `\x00KW${markerIndex++}\x00`;
+            keywordMarkers.set(marker, m.toLowerCase());
+            return marker;
+          });
+        }
+        return text;
+      })
+      .join('');
   }
 
   // Step 1.5: 翻译后变换器（如 "The result is X" → "Return X", "Set X to Y" → "Let X be Y"）

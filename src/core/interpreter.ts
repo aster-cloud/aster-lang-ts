@@ -153,6 +153,74 @@ class Closure {
   ) {}
 }
 
+/**
+ * Guest Map 运行时值。以真正的 `Map` 作后端，杜绝原型污染 / 原型链泄漏
+ * （`Map.get(m,"constructor")` 不再泄漏 `Object`；`Map.put(m,"__proto__",x)`
+ * 只会写入一个普通条目，不污染任何原型），并保留插入序（含数字样式键，
+ * 与 JVM `LinkedHashMap` 契约一致）。`toJSON` 让 `JSON.stringify`（dual-engine
+ * runner / 浏览器输出）仍产出有序的普通对象。
+ */
+class GuestMap extends Map<string, unknown> {
+  toJSON(): Record<string, unknown> {
+    const o: Record<string, unknown> = {};
+    for (const [k, v] of this) o[k] = v;
+    return o;
+  }
+}
+
+/**
+ * 把任意运行时值规约为 GuestMap（只读视图，不复制已是 GuestMap 的输入）。
+ * 防御性地兼容历史普通对象 / 原生 Map 形态；对 null / 非对象返回空 map。
+ * 仅遍历自有可枚举键（不触碰原型链）。
+ */
+function asGuestMap(v: unknown): GuestMap {
+  if (v instanceof GuestMap) return v;
+  const m = new GuestMap();
+  if (v && typeof v === 'object') {
+    if (v instanceof Map) {
+      for (const [k, val] of v) m.set(String(k), val);
+    } else {
+      for (const k of Object.keys(v as object)) {
+        m.set(k, (v as Record<string, unknown>)[k]);
+      }
+    }
+  }
+  return m;
+}
+
+/**
+ * 值相等（value equality），与 JVM `equals` 契约对齐——**不是** JS 引用相等。
+ * - Decimal↔Decimal 用 `.equals`（`1.5m === 1.5m` 引用不等但值相等）。
+ * - 数组 / 普通对象（构造体）做结构比较。
+ * 供 List.distinct / List.contains 使用，修复 Decimal / 结构体去重的 parity 破缺。
+ */
+function valueEquals(x: unknown, y: unknown): boolean {
+  if (x === y) return true;
+  const xd = x instanceof Decimal;
+  const yd = y instanceof Decimal;
+  if (xd || yd) return xd && yd && (x as Decimal).equals(y as Decimal);
+  if (Array.isArray(x) && Array.isArray(y)) {
+    if (x.length !== y.length) return false;
+    for (let i = 0; i < x.length; i++) if (!valueEquals(x[i], y[i])) return false;
+    return true;
+  }
+  if (
+    x && y && typeof x === 'object' && typeof y === 'object'
+    && !Array.isArray(x) && !Array.isArray(y)
+    && !(x instanceof Map) && !(y instanceof Map)
+  ) {
+    const kx = Object.keys(x as object);
+    const ky = Object.keys(y as object);
+    if (kx.length !== ky.length) return false;
+    for (const k of kx) {
+      if (!Object.prototype.hasOwnProperty.call(y, k)) return false;
+      if (!valueEquals((x as Record<string, unknown>)[k], (y as Record<string, unknown>)[k])) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
 /** 安全限制常量 */
 // 默认步数上限（防无限循环/DoS——未知/不可信调用方的安全闸门）。可经 evaluate 的
 // maxSteps 选项为受信、计算量已知有界的场景上调（如 poker best-5-of-7：21 组合×classify
@@ -690,18 +758,19 @@ class Interpreter {
       case 'List.length': { const [l] = a(); return Array.isArray(l) ? l.length : 0; }
       case 'List.isEmpty': { const [l] = a(); return Array.isArray(l) ? l.length === 0 : true; }
       case 'List.get': { const [l, i] = a(); return Array.isArray(l) ? (l as unknown[])[Number(i)] : null; }
-      case 'List.contains': { const [l, x] = a(); return Array.isArray(l) ? (l as unknown[]).includes(x) : false; }
+      case 'List.contains': { const [l, x] = a(); return Array.isArray(l) ? (l as unknown[]).some((y) => valueEquals(y, x)) : false; }
       case 'List.append': { const [l, x] = a(); return Array.isArray(l) ? [...(l as unknown[]), x] : [x]; }
       case 'List.concat': { const [l1, l2] = a(); return [...(Array.isArray(l1) ? l1 : []), ...(Array.isArray(l2) ? l2 : [])]; }
-      // Map.* — guest map 是普通对象 { key: value }
-      case 'Map.empty': return {};
-      case 'Map.get': { const [m, k] = a(); return m && typeof m === 'object' ? (m as Record<string, unknown>)[String(k)] ?? null : null; }
-      case 'Map.contains': { const [m, k] = a(); return m && typeof m === 'object' ? String(k) in (m as object) : false; }
-      case 'Map.size': { const [m] = a(); return m && typeof m === 'object' ? Object.keys(m as object).length : 0; }
+      // Map.* — guest map 以真正的 Map（GuestMap）作后端：防原型污染 / 链泄漏，
+      // 且保留插入序（含数字样式键，对齐 JVM LinkedHashMap）。绝不用 key in obj / obj[key]。
+      case 'Map.empty': return new GuestMap();
+      case 'Map.get': { const [m, k] = a(); const g = asGuestMap(m); const key = String(k); return g.has(key) ? g.get(key) : null; }
+      case 'Map.contains': { const [m, k] = a(); return asGuestMap(m).has(String(k)); }
+      case 'Map.size': { const [m] = a(); return asGuestMap(m).size; }
       // 补齐与 truffle Builtins 对等的 Map.* （put/remove/keys/values）——TS 之前缺这 4 个，
-      // List.groupBy(...) 的 Map.values 链需要。put/remove 不可变（返回新对象）。
-      case 'Map.put': { const [m, k, v] = a(); const o = { ...(m && typeof m === 'object' ? m as Record<string, unknown> : {}) }; o[String(k)] = v; return o; }
-      case 'Map.remove': { const [m, k] = a(); const o = { ...(m && typeof m === 'object' ? m as Record<string, unknown> : {}) }; delete o[String(k)]; return o; }
+      // List.groupBy(...) 的 Map.values 链需要。put/remove 不可变（返回新 GuestMap）。
+      case 'Map.put': { const [m, k, v] = a(); const g = new GuestMap(asGuestMap(m)); g.set(String(k), v); return g; }
+      case 'Map.remove': { const [m, k] = a(); const g = new GuestMap(asGuestMap(m)); g.delete(String(k)); return g; }
       // Date.* 合规原语（Stable v1）：epoch-day Int 内部表示，纯整数 proleptic Gregorian
       // （与 truffle 逐位一致，不用 JS Date）。禁 today()——"今天"作输入字段 evaluation_date。
       case 'Date.fromISO': return dateFromISO(a()[0]);
@@ -730,8 +799,8 @@ class Interpreter {
           .dividedBy(divisor)
           .toDecimalPlaces(decimalScale(scale), decimalRoundingMode(mode));
       }
-      case 'Map.keys': { const [m] = a(); return m && typeof m === 'object' ? Object.keys(m as object) : []; }
-      case 'Map.values': { const [m] = a(); return m && typeof m === 'object' ? Object.values(m as object) : []; }
+      case 'Map.keys': { const [m] = a(); return [...asGuestMap(m).keys()]; }
+      case 'Map.values': { const [m] = a(); return [...asGuestMap(m).values()]; }
       // Maybe/Option/Result（非 lambda 部分）。Some/Ok/Err/None 形如 { __type, value }。
       case 'Maybe.withDefault': case 'Option.unwrapOr': case 'Maybe.unwrapOr': {
         const [x, d] = a();
@@ -785,7 +854,9 @@ class Interpreter {
       case 'List.distinct': {
         const l = reqList('List.distinct', a()[0]);
         const out: unknown[] = [];
-        for (const x of l) if (!out.some((y) => y === x)) out.push(x);
+        // 每元素 tick()：让 MAX_STEPS 约束原生 O(n²) 循环（range→distinct DoS 防护）。
+        // 值相等（valueEquals）：Decimal / 结构体按值去重，非 JS 引用相等。
+        for (const x of l) { this.tick(); if (!out.some((y) => valueEquals(y, x))) out.push(x); }
         return out;
       }
       case 'List.range': {
@@ -866,10 +937,15 @@ class Interpreter {
       case 'List.groupBy': {
         const l = reqList('List.groupBy', this.evalExpr(argExprs[0]!, env));
         const keyFn = callableArg(1);
-        const groups: Record<string, unknown[]> = {};
+        // GuestMap 后端：防原型污染、保留插入序、供 Map.values 链消费。
+        // 每元素 tick()：让 MAX_STEPS 约束原生循环（range→groupBy DoS 防护）。
+        const groups = new GuestMap();
         for (const item of l) {
+          this.tick();
           const key = text(this.applyCallable(keyFn, [item]));
-          (groups[key] ??= []).push(item);
+          const arr = groups.get(key) as unknown[] | undefined;
+          if (arr) arr.push(item);
+          else groups.set(key, [item]);
         }
         return groups;
       }
