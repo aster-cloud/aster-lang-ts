@@ -854,9 +854,16 @@ class Interpreter {
       case 'List.distinct': {
         const l = reqList('List.distinct', a()[0]);
         const out: unknown[] = [];
-        // 每元素 tick()：让 MAX_STEPS 约束原生 O(n²) 循环（range→distinct DoS 防护）。
+        // 每次比较 tick()：让 MAX_STEPS 约束原生 O(n²) 循环（range→distinct DoS 防护）。
+        // 必须 tick 内层比较而非仅外层元素——否则 MAX_STEPS 只在 ~1e4 个外层元素后才触发，
+        // 期间内层扫描已做 ~5e7 次比较（实测 ~10s）。tick 每次比较后，总工作量被 MAX_STEPS 界住。
         // 值相等（valueEquals）：Decimal / 结构体按值去重，非 JS 引用相等。
-        for (const x of l) { this.tick(); if (!out.some((y) => valueEquals(y, x))) out.push(x); }
+        for (const x of l) {
+          this.tick();
+          let dup = false;
+          for (const y of out) { this.tick(); if (valueEquals(y, x)) { dup = true; break; } }
+          if (!dup) out.push(x);
+        }
         return out;
       }
       case 'List.range': {
