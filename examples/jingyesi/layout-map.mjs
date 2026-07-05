@@ -41,31 +41,30 @@ export function toDisplay(spans) {
 }
 
 /**
- * 轻量一致性检查（**非安全证明**，Codex 审查后如实定级）：确认结构 span 不夹带内容词——
- * 结构 span 的 canonical/display 只应是块标点/空白/换行，不得含语义内容文本，否则诗里会
- * 凭空多出/篡改词。
+ * **Lint，不是安全边界**（Codex 审查两轮后如实定级，勿高估）。它只做两件小事：
+ *   ① 确认至少有内容 span（display 不能全是结构/连接词而无实体内容）。
+ *   ② 拦截结构 span 的 canonical 侧夹带**显式字符串字面量**（引号 `"「」『』`）——这是「结构
+ *      span 偷塞内容→canonical 编译出 display 读不到的东西」里**最直接的一条**路径，顺手堵掉。
  *
- * ⚠️ 它**不**证明 display 与 canonical「语义一致」：结构标点（`。：，`）本身就是会改变
- * 语法结构的 token，「同一批内容词 + 不同结构标点」仍可能编译成不同程序。防「显示欺骗」
- * （用户看到诗、实际运行别的东西）的真正防线是三者叠加：①展示 canonical view ②
- * `toCanonical === .aster` 字节守卫 ③语义测试（编译结果 + 运行值断言）。本函数只是其中
- * 一道轻量闸。
+ * ⚠️ 它**堵不住**的欺骗路径（务必知悉，别把它当防线）：
+ *   - localized literal（如 jingyesi 的 `思故乡`，源码**无引号**、canonicalize 后才变字符串）
+ *     可藏进结构 span 而 display 只显标点——本函数放行。
+ *   - 结构 span 塞**非字面量但改变决策**的东西：`else 凶手即 某变量`、额外条件、额外调用、
+ *     数字/布尔字面量——本函数放行。
+ *
+ * 故防「显示欺骗」（看到的 ≠ 运行的）**只能**靠：①UI 展示 canonical view 供人审阅 ②针对性
+ * 语义测试（断言编译结果 + 运行值）。`toCanonical === .aster` 字节守卫只防 LayoutMap 与文件
+ * 漂移，**不**防 .aster 与 LayoutMap 一起把未显示的语义放进 canonical。本函数是 lint。
  *
  * @returns {{ ok: boolean, reason?: string }}
  */
 export function verifyContentParity(spans) {
   const contentPieces = spans.filter((s) => 'text' in s).map((s) => s.text.trim()).filter(Boolean);
-  // 结构 span 允许的字符：显式列举（Codex 审 Medium：不用 \s，它含 \r\v\f/NBSP/U+2028/U+2029
-  // 等不可见/非预期空白，作为通用模块不够严）。仅允许 ASCII 空格/tab/换行 + 中英块标点。
-  const STRUCT_ALLOWED = /^[ \t\n。，、：；.,:;]*$/u;
   for (const s of spans) {
     if ('canonical' in s) {
-      if (!STRUCT_ALLOWED.test(s.canonical)) {
-        return { ok: false, reason: `结构 span 的 canonical 含非结构字符: ${JSON.stringify(s.canonical)}` };
-      }
-      // display 侧允许为空（隐藏）或结构标点；不得夹带内容词，否则会在诗里凭空多出词。
-      if (s.display && !STRUCT_ALLOWED.test(s.display)) {
-        return { ok: false, reason: `结构 span 的 display 含非结构字符: ${JSON.stringify(s.display)}` };
+      // canonical 侧禁字符串字面量（ASCII " 或中文「」/『』引号）——字面量是内容，须走 text span。
+      if (/["「」『』]/u.test(s.canonical)) {
+        return { ok: false, reason: `结构 span 的 canonical 含字符串字面量（须用内容 span）: ${JSON.stringify(s.canonical)}` };
       }
     }
   }
