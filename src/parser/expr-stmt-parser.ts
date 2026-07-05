@@ -142,7 +142,6 @@ export function parseExplicitBlock(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Block {
-  const startTok = ctx.peek();
   const statements: Statement[] = [];
   ctx.consumeNewlines();
   while (!ctx.at(TokenKind.BLOCK_END) && !ctx.at(TokenKind.EOF)) {
