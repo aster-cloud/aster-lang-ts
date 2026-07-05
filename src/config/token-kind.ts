@@ -79,6 +79,9 @@ export enum SemanticTokenKind {
   /** 否则分支 - "otherwise" / "否则" */
   OTHERWISE = 'OTHERWISE',
 
+  /** 内联 if 的 then 连接词 - "then" / "那么" */
+  THEN = 'THEN',
+
   /** 模式匹配 - "match" / "把" */
   MATCH = 'MATCH',
 
@@ -346,6 +349,7 @@ export const SEMANTIC_TOKEN_CATEGORIES: Record<string, SemanticTokenKind[]> = {
   control: [
     SemanticTokenKind.IF,
     SemanticTokenKind.OTHERWISE,
+    SemanticTokenKind.THEN,
     SemanticTokenKind.MATCH,
     SemanticTokenKind.WHEN,
     SemanticTokenKind.RETURN,

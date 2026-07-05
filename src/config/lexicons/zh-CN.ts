@@ -23,6 +23,7 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.FUNC_PERFORMS]: '执行',
     [SemanticTokenKind.IF]: '如果',
     [SemanticTokenKind.OTHERWISE]: '否则',
+    [SemanticTokenKind.THEN]: '那么',
     [SemanticTokenKind.MATCH]: '匹配于',
     [SemanticTokenKind.WHEN]: '当',
     [SemanticTokenKind.RETURN]: '返回',
