@@ -96,6 +96,9 @@ export enum TokenKind {
   NEWLINE = 'NEWLINE',
   INDENT = 'INDENT',
   DEDENT = 'DEDENT',
+  // ADR 0028：显式块结束词（如「毕」）。dialect reserved closer——只在启用了
+  // lexicon.blockDelimiters.end 的方言里产生，让函数体块可脱离缩进、以显式词收尾。
+  BLOCK_END = 'BLOCK_END',
   DOT = 'DOT',
   COLON = 'COLON',
   COMMA = 'COMMA',
