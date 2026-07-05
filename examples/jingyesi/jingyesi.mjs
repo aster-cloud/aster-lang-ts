@@ -22,6 +22,8 @@ import { dirname, join } from 'node:path';
 import { compile, evaluate, ZH_CN, initializeAllBundledLexicons } from '../../dist/src/browser.js';
 import { SemanticTokenKind as K } from '../../dist/src/config/token-kind.js';
 import { vocabularyRegistry, initBuiltinVocabularies } from '../../dist/src/config/lexicons/identifiers/registry.js';
+import { toCanonical, toDisplay, verifyContentParity } from './layout-map.mjs';
+import { JINGYESI_LAYOUT } from './jingyesi.layout.mjs';
 
 initializeAllBundledLexicons();
 initBuiltinVocabularies?.();
@@ -56,20 +58,41 @@ vocabularyRegistry.registerCustom(DOMAIN, {
 });
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, 'jingyesi.aster'), 'utf8');
 const bar = '─'.repeat(48);
+
+// LayoutMap（研究方案 A 的最小实现）：把「显示排版」与「编译规范源码」解耦。
+// canonical = 编译用的唯一真源（= jingyesi.aster，受 Aster 语法结构约束）；
+// display   = 李白原诗的工整四句（结构标点/缩进在显示层被替换/隐藏）。
+// 不变式：toCanonical(layout) 逐字节 === jingyesi.aster，故编译走 canonical、确定性不变；
+// display 仅供展示，让诗回到本来的样子而无损编译运行。
+const canonical = toCanonical(JINGYESI_LAYOUT);
+const display = toDisplay(JINGYESI_LAYOUT);
+
+// 完整性守卫：LayoutMap 的 canonical 必须与 .aster 文件一致（忽略尾随换行后相等，防映射
+// 与真源漂移），且内容 token 两视图一致（防显示层凭空增删诗词）。任一不符立即失败。
+const asterFile = readFileSync(join(here, 'jingyesi.aster'), 'utf8').replace(/\n+$/, '');
+if (canonical !== asterFile) {
+  throw new Error(`LayoutMap.canonical 与 jingyesi.aster 不一致：\n  layout=${JSON.stringify(canonical)}\n  file  =${JSON.stringify(asterFile)}`);
+}
+const parity = verifyContentParity(JINGYESI_LAYOUT);
+if (!parity.ok) throw new Error(`LayoutMap 内容一致性校验失败：${parity.reason}`);
 
 console.log(bar);
 console.log('  《静夜思》— 李白   ·   这首诗就是 Aster Lang 源码');
 console.log(bar);
-console.log('\n  原诗：');
-console.log('    床前明月光，疑是地上霜。');
-console.log('    举头望明月，低头思故乡。\n');
-console.log('  作为源码逐字读（原词序即程序）：\n');
-for (const line of source.trimEnd().split('\n')) console.log('    ' + (line || ''));
 
-// 编译：诗句 → 规范化（别名 + 字面量宏 思故乡→"静夜思"）→ Core IR（真程序）。
-const compiled = compile(source, { lexicon: JINGYESI, domain: DOMAIN, tenantId: DOMAIN });
+// ① 显示视图（display）：用户想要的效果——李白原诗，工整四句，不受 Aster 语法排版约束。
+console.log('\n  【显示视图】按原诗排版（LayoutMap display）：\n');
+for (const line of display.split('\n')) console.log('    ' + line);
+
+// ② 编译视图（canonical）：底层唯一可编译真源，换行/缩进迁就 Aster 语法结构。
+console.log('\n  【编译视图】底层规范源码（LayoutMap canonical = jingyesi.aster）：\n');
+for (const line of canonical.split('\n')) console.log('    ' + (line || ''));
+console.log('\n  ↑ 同一段程序的两种排版：显示层自由成诗，编译层仍是合法 Aster。');
+
+// 编译：**永远走 canonical**（不试图编译 display）。诗句 → 规范化（别名 + 字面量宏
+// 思故乡→"静夜思"）→ Core IR（真程序）。
+const compiled = compile(canonical, { lexicon: JINGYESI, domain: DOMAIN, tenantId: DOMAIN });
 if (!compiled.success || !compiled.core) {
   const diags = (compiled.parseErrors ?? []).map((e) => e.message).join('; ');
   throw new Error(`《静夜思》编译失败：${diags || 'unknown error'}`);
