@@ -12,18 +12,28 @@
  * - 空 constraints 数组
  */
 import fs from 'node:fs';
-import { canonicalize, lex, parse } from '../src/index.js';
+import { canonicalize, lex, parse, parseWithLexicon } from '../src/index.js';
+import { EN_US } from '../src/config/lexicons/en-US.js';
 
-const inputPath = process.argv[2];
+// 用法: core-ir-json <file.aster> [--block-end=词]
+//   --block-end=词  ADR 0028：启用显式块（en-US 叠 blockDelimiters.end=[词]），供跨编译器
+//                   显式块 parity 测试用。不传则用默认 lexicon（原有行为，向后兼容）。
+const args = process.argv.slice(2);
+const inputPath = args.find((a) => !a.startsWith('--'));
+const blockEndArg = args.find((a) => a.startsWith('--block-end='));
+const blockEndWord = blockEndArg ? blockEndArg.slice('--block-end='.length) : undefined;
 if (!inputPath) {
-  console.error('用法: core-ir-json <file.aster>');
+  console.error('用法: core-ir-json <file.aster> [--block-end=词]');
   process.exit(1);
 }
 
 const src = fs.readFileSync(inputPath, 'utf8');
-const can = canonicalize(src);
-const toks = lex(can);
-const { ast, diagnostics } = parse(toks);
+const lexicon = blockEndWord
+  ? { ...EN_US, id: 'x', name: 'x', blockDelimiters: { end: [blockEndWord] } }
+  : undefined;
+const can = canonicalize(src, lexicon);
+const toks = lex(can, lexicon);
+const { ast, diagnostics } = lexicon ? parseWithLexicon(toks, lexicon) : parse(toks);
 
 // 仅在存在 error 级别诊断时失败（warning/info/hint 不阻塞）
 if (diagnostics && diagnostics.length > 0) {
