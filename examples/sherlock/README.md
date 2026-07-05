@@ -69,13 +69,33 @@ $ node examples/sherlock/sherlock.mjs
 > ⚠️ 诚实边界：LayoutMap 的 `verifyContentParity` 只是 **lint**（拦引号字面量偷塞），不是安全
 > 边界——防「显示 ≠ 运行」的欺骗只能靠展示 canonical view + 语义测试（见 layout-map.mjs 注释）。
 
+## 单行化变体（ADR 0028 显式块分隔符）
+
+`sherlock-oneline.mjs` 是同一推理的**单行化**变体：用**显式块分隔符**（块结束词「毕」）让整个
+函数体压成**一行**，源码摆脱缩进约束：
+
+```
+探案笔记 斑点带子案。
+推断 揪出真凶 已知 铃绳通风口，保险箱藏毒蛇，唯继父可入密室，产出：若 铃绳通风口 且 保险箱藏毒蛇 then 凶手即 "继父罗伊洛特" else 若 唯继父可入密室 then 凶手即 "继父罗伊洛特" else 凶手即 "疑点未清"。毕
+```
+
+跑 `node examples/sherlock/sherlock-oneline.mjs` → 与缩进块编译到**同一决策规则**，运行输出
+同样的真凶。「毕」是 zh 方言配的中文块结束词（同脚本约束，ADR §6：块结束词须所在 lexicon
+可 lex）；默认无 `blockDelimiters` 时「毕」是普通标识符（`sherlock-oneline.test.mjs` ③ 反证：
+无 blockDelimiters 时单行显式块 parse 失败 → 单行化确实靠 blockDelimiters 配置）。
+
+**两条互补路径**（ADR 0028 §8）：
+- **LayoutMap**（`sherlock.mjs`）：显示层自由——原诗/推理独白排版，编译走 canonical。
+- **显式块分隔符**（`sherlock-oneline.mjs`）：语言层——**源码本身**可单行化。
+
 ## 文件
 - `sherlock.aster`：canonical 编译真源（侦探方言别名 + inline-if 决策链）
 - `sherlock.layout.mjs`：LayoutMap 定义（canonical ↔ 推理独白）
-- `sherlock.mjs`：demo 入口（两视图展示 + 编译 + 三场景运行）
-- `sherlock.test.mjs`：回归测试
+- `sherlock.mjs`：demo 入口（LayoutMap 两视图展示 + 编译 + 四场景运行）
+- `sherlock-oneline.mjs`：单行化变体（ADR 0028 显式块，函数体一行以「毕」收尾）
+- `sherlock.test.mjs` / `sherlock-oneline.test.mjs`：回归测试
 
 ## 与 ADR 0028（显式块分隔符）的关系
-本 demo **不需要** ADR 0028——现有 inline-if + 别名 + LayoutMap 已足够（Codex 设计审确认）。
-ADR 0028 解决的是「源码本身任意排版/单行化、多语句块脱离缩进」，是独立的语言层能力，
-本 demo 用不到。见 `aster-api/.claude/adr/0028-explicit-block-delimiters.md`（已立项）。
+主 demo（`sherlock.mjs`）**不需要** ADR 0028——inline-if + 别名 + LayoutMap 已足够（Codex 设计审
+确认）。单行化变体（`sherlock-oneline.mjs`）则**演示 ADR 0028 的价值**：源码本身可单行化。
+ADR 0028 已**实现**（双引擎，见 `aster-api/.claude/adr/0028-explicit-block-delimiters.md`）。
