@@ -23,6 +23,7 @@ export const HI_IN: Lexicon = {
     [SemanticTokenKind.FUNC_PERFORMS]: 'यह करता है',
     [SemanticTokenKind.IF]: 'यदि',
     [SemanticTokenKind.OTHERWISE]: 'अन्यथा',
+    [SemanticTokenKind.THEN]: 'तो',
     [SemanticTokenKind.MATCH]: 'मिलान',
     [SemanticTokenKind.WHEN]: 'जब',
     [SemanticTokenKind.RETURN]: 'लौटाएं',

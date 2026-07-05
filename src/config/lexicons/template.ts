@@ -138,6 +138,9 @@ export const TEMPLATE: Lexicon = {
     /** 否则分支 - 英语 "otherwise" / 中文 "否则" */
     [SemanticTokenKind.OTHERWISE]: '', // TODO: 翻译
 
+    /** 内联 if 的 then 连接词 - 英语 "then" / 中文 "那么" */
+    [SemanticTokenKind.THEN]: '', // TODO: 翻译
+
     /** 模式匹配 - 英语 "match" / 中文 "把" */
     [SemanticTokenKind.MATCH]: '', // TODO: 翻译
 

@@ -23,6 +23,7 @@ export const DE_DE: Lexicon = {
     [SemanticTokenKind.FUNC_PERFORMS]: 'fuehrt aus',
     [SemanticTokenKind.IF]: 'wenn',
     [SemanticTokenKind.OTHERWISE]: 'sonst',
+    [SemanticTokenKind.THEN]: 'dann',
     [SemanticTokenKind.MATCH]: 'pruefe',
     [SemanticTokenKind.WHEN]: 'bei',
     [SemanticTokenKind.RETURN]: 'gib zurueck',
