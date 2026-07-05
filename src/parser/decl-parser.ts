@@ -13,7 +13,7 @@ import { kwParts, tokLowerAt } from './context.js';
 import type { ParserTools } from './parser-tools.js';
 import { parseModuleHeader, parseImport } from './import-parser.js';
 import { parseType, parseEffectList, separateEffectsAndCaps } from './type-parser.js';
-import { parseBlock, parseParamList } from './expr-stmt-parser.js';
+import { parseBlock, parseExplicitBlock, parseParamList } from './expr-stmt-parser.js';
 import { parseFieldList, parseVariantList } from './field-variant-parser.js';
 import { assignSpan, spanFromSources, lastConsumedToken, spanFromTokens } from './span-utils.js';
 import type { Span } from '../types.js';
@@ -283,6 +283,27 @@ export function parseFuncDecl(
     }
   };
 
+  // ADR 0028：COLON 已消费后，分派函数体形态——
+  //   显式块（新增）：仅当 ① lexicon 启用了 blockDelimiters ② 且 COLON 后**紧跟语句**
+  //     （无 NEWLINE，语句立即开始）时，走 parseExplicitBlock，以 BLOCK_END 词（如「毕」）收尾。
+  //   缩进块（现有，默认）：其余一切走原 parseBlock + 消费 DEDENT —— 含「COLON 换行缩进」
+  //     和「多行参数已在缩进上下文、body 同缩进」两种（parseBlock 的两分支各自处理）。
+  //
+  // ★零回归的关键（修多行参数回归）：判定用「COLON 后紧跟非 NEWLINE 语句 token」而非「无
+  //   INDENT」——因为多行参数场景 body 也无新 INDENT（已在缩进上下文），但 COLON 后是 NEWLINE，
+  //   故仍走缩进块。缺省 lexicon 无 blockDelimiters → 恒走缩进块，完全向后兼容。
+  const explicitEnabled = (ctx.lexicon?.blockDelimiters?.end?.length ?? 0) > 0;
+  const parseColonBody = (): Block => {
+    if (explicitEnabled && !ctx.at(TokenKind.NEWLINE)) {
+      // COLON 后语句立即开始（无换行）→ 显式块。
+      return parseExplicitBlock(ctx, error);
+    }
+    expectNewline();
+    const b = parseBlock(ctx, error);
+    if (ctx.at(TokenKind.DEDENT)) ctx.next();
+    return b;
+  };
+
   // 允许函数名后换行或缩进
   skipLayoutTrivia();
 
@@ -406,12 +427,7 @@ export function parseFuncDecl(
         ctx.next();
       } else if (ctx.at(TokenKind.COLON)) {
         ctx.next();
-        expectNewline();
-        body = parseBlock(ctx, error);
-        // 如果 parseBlock 没有消费 DEDENT（多行参数情况），这里消费它
-        if (ctx.at(TokenKind.DEDENT)) {
-          ctx.next();
-        }
+        body = parseColonBody(); // ADR 0028：缩进块或显式块
       } else {
         error("Expected '.' or ':' after effect clause");
       }
@@ -429,12 +445,7 @@ export function parseFuncDecl(
       ctx.next();
     } else if (ctx.at(TokenKind.COLON)) {
       ctx.next();
-      expectNewline();
-      body = parseBlock(ctx, error);
-      // 如果 parseBlock 没有消费 DEDENT（多行参数情况），这里消费它
-      if (ctx.at(TokenKind.DEDENT)) {
-        ctx.next();
-      }
+      body = parseColonBody(); // ADR 0028：缩进块或显式块
     } else {
       error("Expected '.' or ':' after effect clause");
     }
@@ -442,12 +453,7 @@ export function parseFuncDecl(
   // 场景3: produce Type: ...（直接进入函数体）
   else if (ctx.at(TokenKind.COLON)) {
     ctx.next();
-    expectNewline();
-    body = parseBlock(ctx, error);
-    // 如果 parseBlock 没有消费 DEDENT（多行参数情况），这里消费它
-    if (ctx.at(TokenKind.DEDENT)) {
-      ctx.next();
-    }
+    body = parseColonBody(); // ADR 0028：缩进块或显式块
   } else {
     error("Expected '.' or ':' after return type");
   }

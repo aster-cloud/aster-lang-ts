@@ -40,6 +40,22 @@ export interface Lexicon {
    */
   readonly aliases?: Readonly<Partial<Record<SemanticTokenKind, readonly string[]>>>;
 
+  /**
+   * ADR 0028：显式块分隔符。`end` 列出该方言的「块结束词」（如「毕」），让函数体块可脱离
+   * 缩进、以显式词收尾（`... 产出：语句. 语句. 毕`）。
+   *
+   * 安全（ADR 0028 §6）：块结束词属**结构安全面**（改变审阅者对「哪些语句受块管辖」的感知），
+   * 故独立于普通 keyword alias 通道、只应由官方受信 lexicon 提供、不给租户自定义。
+   * 缺省/未提供 = 关闭（无显式块，纯缩进，向后兼容）——存量 lexicon（en/zh/de/hi）不开。
+   *
+   * lexing：作为 dialect **reserved word** 处理——lexer 在识别标识符前最长匹配 `end` 词，
+   * 且要求整词边界（不在标识符/内容词中间子串匹配）。不做上下文前后 token 判定（保证双引擎
+   * 字节级 parity——ANTLR lexer 无上下文，见 ADR 0028 §10 与设计审 session 019f3083）。
+   */
+  readonly blockDelimiters?: {
+    readonly end: readonly string[];
+  };
+
   /** 标点符号配置 */
   readonly punctuation: PunctuationConfig;
 

@@ -540,6 +540,17 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
       }
       const lower = word.toLowerCase();
 
+      // ADR 0028：显式块结束词（如「毕」）。作为 dialect reserved closer——读完**整词**后
+      // 判定它是否等于某个 blockDelimiters.end 词。用「整词相等」而非「前缀最长匹配」：既天然
+      // 满足词边界（`毕` 不会误匹配内容词 `毕业` 的前缀，因 `毕业` 作为整词读入后 !== `毕`），
+      // 又不依赖上下文前后 token（ANTLR lexer 无上下文，此法两引擎可字节级一致，见设计审
+      // session 019f3083）。缺省无 blockDelimiters = 关闭，走普通标识符路径，向后兼容。
+      const blockEnds = effectiveLex.blockDelimiters?.end;
+      if (blockEnds && blockEnds.length > 0 && blockEnds.includes(word)) {
+        push(TokenKind.BLOCK_END, word, start);
+        continue;
+      }
+
       // 使用缓存的有效词法表检查布尔/null 关键字
       // 不再硬编码英文关键字，统一从词法表获取
       if (lower === effectiveLex.keywords[SemanticTokenKind.TRUE].toLowerCase()) {

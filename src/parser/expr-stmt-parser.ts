@@ -131,6 +131,34 @@ export function parseBlock(
 }
 
 /**
+ * ADR 0028：解析**显式块**（explicit block）——`COLON` 之后语句立即开始、不靠缩进，以显式
+ * 块结束词（BLOCK_END，如「毕」）收尾。语句间靠 DOT 分隔（各 stmt 自行消费句末 DOT），
+ * 允许语句间 NEWLINE。产式对齐 ANTLR：`stmt (NEWLINE* stmt)* NEWLINE* BLOCK_END`。
+ *
+ * 调用前提：调用方已消费 COLON，且已确认其后**不是** NEWLINE+INDENT（那走缩进块 parseBlock）。
+ * 独立于 parseBlock（不复用其 fallback 分支），终止条件只认 BLOCK_END，空块报错（对齐 stmt+）。
+ */
+export function parseExplicitBlock(
+  ctx: ParserContext,
+  error: (msg: string) => never
+): Block {
+  const statements: Statement[] = [];
+  ctx.consumeNewlines();
+  while (!ctx.at(TokenKind.BLOCK_END) && !ctx.at(TokenKind.EOF)) {
+    statements.push(parseStatement(ctx, error));
+    ctx.consumeNewlines();
+  }
+  if (!ctx.at(TokenKind.BLOCK_END)) error("Expected explicit block end word (e.g. '毕')");
+  if (statements.length === 0) error('Expected at least one statement in explicit block');
+  ctx.next(); // consume BLOCK_END
+  const b = Node.Block(statements);
+  const firstStmt = statements[0]!;
+  const lastStmt = statements[statements.length - 1]!;
+  assignSpan(b, spanFromSources(firstStmt, lastStmt));
+  return b;
+}
+
+/**
  * 期望语句以句号结束
  * @param ctx Parser 上下文
  * @param error 错误报告函数
