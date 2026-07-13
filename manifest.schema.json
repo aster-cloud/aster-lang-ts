@@ -46,13 +46,13 @@
         "allow": {
           "type": "array",
           "items": {
-            "enum": ["Http", "Sql", "Time", "Files", "Secrets", "AiModel", "Cpu"]
+            "enum": ["Http", "Network", "Sql", "Time", "Files", "Secrets", "Crypto", "Process", "AiModel", "Cpu", "Payment", "Inventory"]
           }
         },
         "deny": {
           "type": "array",
           "items": {
-            "enum": ["Http", "Sql", "Time", "Files", "Secrets", "AiModel", "Cpu"]
+            "enum": ["Http", "Network", "Sql", "Time", "Files", "Secrets", "Crypto", "Process", "AiModel", "Cpu", "Payment", "Inventory"]
           }
         }
       }

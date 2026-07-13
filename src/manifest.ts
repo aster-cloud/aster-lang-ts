@@ -24,8 +24,23 @@ export interface CapabilityConfig {
 
 /**
  * 系统能力类型枚举
+ *
+ * 与 config/semantic.ts 的 CapabilityKind enum + shared/capabilities.json 单源对齐
+ * （displayName 表面名）。NETWORK/CRYPTO/PROCESS 为后加的 capability taxonomy。
  */
-export type CapabilityKind = 'Http' | 'Sql' | 'Time' | 'Files' | 'Secrets' | 'AiModel' | 'Cpu';
+export type CapabilityKind =
+  | 'Http'
+  | 'Network'
+  | 'Sql'
+  | 'Time'
+  | 'Files'
+  | 'Secrets'
+  | 'Crypto'
+  | 'Process'
+  | 'AiModel'
+  | 'Cpu'
+  | 'Payment'
+  | 'Inventory';
 
 /**
  * Aster包清单

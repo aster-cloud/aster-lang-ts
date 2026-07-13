@@ -302,7 +302,9 @@ test('manifest-parser 测试套件', async (t) => {
   });
 
   await t.test('非法capability应返回M008错误', () => {
-    const invalidCapabilities = ['Network', 'Database', 'Invalid'];
+    // Network/Crypto/Process 已是合法 capability（capability taxonomy 扩展 +
+    // shared/capabilities.json 单源）；此处仅保留真正非法的值。
+    const invalidCapabilities = ['Database', 'Storage', 'Invalid'];
 
     for (const cap of invalidCapabilities) {
       const manifest: Manifest = {
@@ -325,7 +327,7 @@ test('manifest-parser 测试套件', async (t) => {
   await t.test('应接受所有合法的capability值', () => {
     const manifest: Manifest = {
       capabilities: {
-        allow: ['Http', 'Sql', 'Time', 'Files', 'Secrets', 'AiModel', 'Cpu'],
+        allow: ['Http', 'Network', 'Sql', 'Time', 'Files', 'Secrets', 'Crypto', 'Process', 'AiModel', 'Cpu', 'Payment', 'Inventory'],
       },
     };
 
