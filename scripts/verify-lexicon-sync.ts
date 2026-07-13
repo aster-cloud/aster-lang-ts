@@ -18,6 +18,7 @@ import { SemanticTokenKind, SEMANTIC_TOKEN_CATEGORIES } from '../src/config/toke
 import { EN_US } from '../src/config/lexicons/en-US.js';
 import { ZH_CN } from '../src/config/lexicons/zh-CN.js';
 import { DE_DE } from '../src/config/lexicons/de-DE.js';
+import { HI_IN } from '../src/config/lexicons/hi-IN.js';
 import type { Lexicon } from '../src/config/lexicons/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -69,6 +70,7 @@ const TS_LEXICONS: Record<string, Lexicon> = {
   'en-US': EN_US,
   'zh-CN': ZH_CN,
   'de-DE': DE_DE,
+  'hi-IN': HI_IN,
 };
 
 function main(): void {
@@ -191,6 +193,42 @@ function main(): void {
 
     if (kwErrors === 0) {
       console.log(`  [OK] ${localeId}: ${Object.keys(javaLex.keywords).length} 个关键词值一致`);
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // 3b. first-party lexicon 完整性（每个语言包必须覆盖全部非可选 tokenKind）
+  //
+  // 背景：OPTIONAL_KINDS（迁移期新引入 keyword，如 APPLY）在 LexiconRegistry 里
+  // 缺失只告警不跳过包。但这会让"某语言包漏了新 keyword"静默通过——本检查确保
+  // 每个 first-party 语言包对**非可选** tokenKind 全覆盖，迁移期后收紧 OPTIONAL 集。
+  // ──────────────────────────────────────────────
+
+  console.log('\n─── 3b. first-party lexicon 完整性 ───');
+
+  // 迁移期可选 token（与 Java LexiconRegistry.OPTIONAL_KINDS 对齐；各包补齐后移除）。
+  const OPTIONAL_KINDS = new Set<string>(['IMPORT_VERSION', 'THEN', 'APPLY']);
+  const requiredKinds = [...javaTokens].filter(t => !OPTIONAL_KINDS.has(t));
+
+  for (const localeId of Object.keys(TS_LEXICONS)) {
+    const javaLex = json.lexicons[localeId];
+    if (!javaLex) {
+      console.error(`  [ERROR] first-party lexicon "${localeId}" 未出现在 Java exportLexicons 输出`);
+      errors++;
+      continue;
+    }
+    const missing = requiredKinds.filter(k => !(k in javaLex.keywords));
+    if (missing.length > 0) {
+      console.error(`  [ERROR] ${localeId} 缺少必需 tokenKind: ${missing.join(', ')}`);
+      errors += missing.length;
+    } else {
+      const optionalMissing = [...OPTIONAL_KINDS].filter(k => javaTokens.has(k) && !(k in javaLex.keywords));
+      if (optionalMissing.length > 0) {
+        console.warn(`  [WARN] ${localeId} 缺可选 tokenKind（迁移期允许）: ${optionalMissing.join(', ')}`);
+        warnings += optionalMissing.length;
+      } else {
+        console.log(`  [OK] ${localeId}: 覆盖全部 ${requiredKinds.length} 必需 + 可选 tokenKind`);
+      }
     }
   }
 
