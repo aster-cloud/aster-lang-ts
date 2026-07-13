@@ -1,5 +1,5 @@
 import type { Core } from '../types.js';
-import { CapabilityKind } from '../config/semantic.js';
+import { CapabilityKind, isCpuClassCapability, isIoClassCapability } from '../config/semantic.js';
 import { DefaultCoreVisitor, createVisitorContext } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { ModuleContext } from './context.js';
@@ -123,19 +123,11 @@ export function checkCapabilityInferredEffects(func: Core.Func, diagnostics: Dia
   const hasIO = func.effects.some(eff => String(eff).toLowerCase() === 'io');
   const hasCPU = func.effects.some(eff => String(eff).toLowerCase() === 'cpu');
 
-  // CPU-class capabilities：本地计算密集型，需要 @cpu 不需要 @io
-  // - CPU：显式 cpu 调用
-  // - CRYPTO：哈希/签名/加密 —— 即使包含密钥操作，也常常是 CPU 密集，
-  //          若涉及远程 KMS 应通过显式 @io + Network/Secrets capability 标注，
-  //          这里按 CPU 处理避免对纯本地密码学误报。
-  const CPU_CLASS: ReadonlySet<CapabilityKind> = new Set([
-    CapabilityKind.CPU,
-    CapabilityKind.CRYPTO,
-  ]);
-
+  // capability 的 effect 分类走单源 CAPABILITY_EFFECT_CLASS（shared/capabilities.json）。
+  // io-class 需 @io；cpu-class（CPU/CRYPTO，本地计算密集）需 @cpu 或 @io。
   const ioCaps: CapabilityKind[] = [];
   for (const cap of observed.keys()) {
-    if (!CPU_CLASS.has(cap)) {
+    if (isIoClassCapability(cap)) {
       ioCaps.push(cap);
     }
   }
@@ -153,8 +145,8 @@ export function checkCapabilityInferredEffects(func: Core.Func, diagnostics: Dia
     });
   }
 
-  // CPU 类（含 Crypto）需要 @cpu 或 @io（@io 隐含可计算）
-  const cpuClassObserved = Array.from(observed.keys()).filter(cap => CPU_CLASS.has(cap));
+  // cpu 类（含 Crypto）需要 @cpu 或 @io（@io 隐含可计算）
+  const cpuClassObserved = Array.from(observed.keys()).filter(cap => isCpuClassCapability(cap));
   if (cpuClassObserved.length > 0 && !(hasCPU || hasIO)) {
     const cpuCalls = cpuClassObserved
       .flatMap(cap => observed.get(cap) ?? [])
