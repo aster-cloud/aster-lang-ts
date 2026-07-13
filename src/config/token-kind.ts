@@ -345,7 +345,7 @@ export function isSemanticTokenKind(value: string): value is SemanticTokenKind {
 export const SEMANTIC_TOKEN_CATEGORIES: Record<string, SemanticTokenKind[]> = {
   module: [SemanticTokenKind.MODULE_DECL, SemanticTokenKind.IMPORT, SemanticTokenKind.IMPORT_ALIAS, SemanticTokenKind.IMPORT_VERSION],
   type: [SemanticTokenKind.TYPE_DEF, SemanticTokenKind.TYPE_WITH, SemanticTokenKind.TYPE_HAS, SemanticTokenKind.TYPE_ONE_OF],
-  function: [SemanticTokenKind.FUNC_TO, SemanticTokenKind.FUNC_GIVEN, SemanticTokenKind.FUNC_PRODUCE, SemanticTokenKind.FUNC_PERFORMS],
+  function: [SemanticTokenKind.FUNC_TO, SemanticTokenKind.FUNC_GIVEN, SemanticTokenKind.FUNC_PRODUCE, SemanticTokenKind.FUNC_PERFORMS, SemanticTokenKind.APPLY],
   control: [
     SemanticTokenKind.IF,
     SemanticTokenKind.OTHERWISE,
