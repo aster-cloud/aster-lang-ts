@@ -20,7 +20,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { CapabilityKind, CAPABILITY_PREFIXES } from '../../../src/config/semantic.js';
+import {
+  CapabilityKind,
+  CAPABILITY_PREFIXES,
+  CAPABILITY_EFFECT_CLASS,
+} from '../../../src/config/semantic.js';
 
 const REPO_ROOT = process.cwd();
 const JSON_PATH = resolve(REPO_ROOT, 'shared', 'capabilities.json');
@@ -28,6 +32,7 @@ const JSON_PATH = resolve(REPO_ROOT, 'shared', 'capabilities.json');
 interface CapSpec {
   enumName: string;
   displayName: string;
+  class: 'io' | 'cpu';
   prefixes: string[];
 }
 
@@ -35,7 +40,7 @@ const table = JSON.parse(readFileSync(JSON_PATH, 'utf8')) as { capabilities: Cap
 const specs = table.capabilities;
 
 describe('capability 单源一致性：shared/capabilities.json ↔ TS 各副本', () => {
-  it('json 自身合法：enumName/displayName/前缀唯一，CPU 无前缀', () => {
+  it('json 自身合法：enumName/displayName/前缀唯一，CPU 无前缀，class 合法', () => {
     const names = specs.map(s => s.enumName);
     const displays = specs.map(s => s.displayName);
     assert.equal(new Set(names).size, names.length, 'enumName 应唯一');
@@ -44,6 +49,28 @@ describe('capability 单源一致性：shared/capabilities.json ↔ TS 各副本
     assert.equal(new Set(allPrefixes).size, allPrefixes.length, '前缀不应跨 capability 重复');
     const cpu = specs.find(s => s.enumName === 'CPU');
     assert.deepEqual(cpu?.prefixes, [], 'CPU 不应有调用前缀');
+    for (const s of specs) {
+      assert.ok(s.class === 'io' || s.class === 'cpu', `${s.enumName} class 非法: ${s.class}`);
+    }
+  });
+
+  it('effect class 分类双引擎一致：json class ↔ TS CAPABILITY_EFFECT_CLASS，CPU 集={CPU,CRYPTO}', () => {
+    // CAPABILITY_EFFECT_CLASS 的键是 enum 值（displayName，如 'Http'），故用 s.displayName 查。
+    for (const s of specs) {
+      const tsClass = CAPABILITY_EFFECT_CLASS[s.displayName as CapabilityKind];
+      assert.equal(tsClass, s.class, `${s.enumName} class: TS=${tsClass} json=${s.class}`);
+    }
+    // 钉死 cpu-class 集合（enumName）= {CPU, CRYPTO}（本地计算密集），防未来 drift。
+    const jsonCpuSet = new Set(specs.filter(s => s.class === 'cpu').map(s => s.enumName));
+    assert.deepEqual([...jsonCpuSet].sort(), ['CPU', 'CRYPTO'], 'json cpu-class 集合应为 {CPU, CRYPTO}');
+    // TS 侧 cpu-class 用 displayName 键映射回 enumName 比对。
+    const displayToEnum = new Map(specs.map(s => [s.displayName, s.enumName]));
+    const tsCpuSet = new Set(
+      Object.entries(CAPABILITY_EFFECT_CLASS)
+        .filter(([, cls]) => cls === 'cpu')
+        .map(([display]) => displayToEnum.get(display)),
+    );
+    assert.deepEqual([...tsCpuSet].sort(), ['CPU', 'CRYPTO'], 'TS cpu-class 集合应为 {CPU, CRYPTO}');
   });
 
   it('semantic.ts CapabilityKind enum 与 json 完全一致（名称 + displayName）', () => {

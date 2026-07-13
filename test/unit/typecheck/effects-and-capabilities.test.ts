@@ -56,6 +56,38 @@ Rule fetchUser, produce Text. It performs io:
     assert.equal(diagnostics.some(d => d.code === ErrorCode.EFF_MISSING_IO), false, '声明 IO 后不应报告缺失');
   });
 
+  // A3: Crypto 是 cpu-class（本地密码学 CPU 密集），缺声明报 MISSING_CPU 非 MISSING_IO（与 Java 对齐）。
+  // 能力推断走调用前缀（Hash./Crypto./Kms. 等），故用直接前缀调用（非别名）。
+  it('Crypto（Hash）无 effect 声明应报 CAPABILITY_INFER_MISSING_CPU 而非 IO', () => {
+    const diagnostics = runTypecheck(`
+Module test.typecheck.crypto_missing_cpu.
+
+Rule digest, produce Text:
+  Return Hash.sha256("data").
+`);
+    assert.equal(
+      diagnostics.some(d => d.code === ErrorCode.CAPABILITY_INFER_MISSING_CPU), true,
+      'Crypto 缺声明应报 MISSING_CPU',
+    );
+    assert.equal(
+      diagnostics.some(d => d.code === ErrorCode.CAPABILITY_INFER_MISSING_IO), false,
+      'Crypto 不应报 MISSING_IO（cpu-class）',
+    );
+  });
+
+  it('Crypto 声明 cpu 后不应报告缺失', () => {
+    const diagnostics = runTypecheck(`
+Module test.typecheck.crypto_with_cpu.
+
+Rule digest, produce Text. It performs cpu:
+  Return Hash.sha256("data").
+`);
+    assert.equal(
+      diagnostics.some(d => d.code === ErrorCode.CAPABILITY_INFER_MISSING_CPU), false,
+      'Crypto + @cpu 不应报缺失（cpu-class 需 @cpu 或 @io）',
+    );
+  });
+
   it('未使用任何 IO 调用却声明 io 应该触发冗余警告', () => {
     const diagnostics = runTypecheck(`
 Module test.typecheck.superfluous_io.

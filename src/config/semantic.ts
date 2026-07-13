@@ -197,6 +197,40 @@ export function getAllCapabilityPrefixes(): string[] {
   return Object.values(CAPABILITY_PREFIXES).flat();
 }
 
+/**
+ * Capability 的 effect 分类（io / cpu），是 capability taxonomy 的一部分。
+ *
+ * 单源 shared/capabilities.json 的 `class` 字段，由 capability-parity 测试守门。
+ * CPU/CRYPTO 是 cpu-class（本地密码学 CPU 密集，需 @cpu 或 @io），其余皆 io。
+ * effects.ts / workflow.ts 的分类必须走此表，不得内建局部 CPU_CLASS（否则 drift）。
+ */
+export type CapabilityEffectClass = 'io' | 'cpu';
+
+export const CAPABILITY_EFFECT_CLASS: Record<CapabilityKind, CapabilityEffectClass> = {
+  [CapabilityKind.HTTP]: 'io',
+  [CapabilityKind.NETWORK]: 'io',
+  [CapabilityKind.SQL]: 'io',
+  [CapabilityKind.TIME]: 'io',
+  [CapabilityKind.FILES]: 'io',
+  [CapabilityKind.SECRETS]: 'io',
+  [CapabilityKind.CRYPTO]: 'cpu',
+  [CapabilityKind.PROCESS]: 'io',
+  [CapabilityKind.AI_MODEL]: 'io',
+  [CapabilityKind.CPU]: 'cpu',
+  [CapabilityKind.PAYMENT]: 'io',
+  [CapabilityKind.INVENTORY]: 'io',
+};
+
+/** capability 是否 cpu-class（本地计算密集，需 @cpu 不强制 @io）。 */
+export function isCpuClassCapability(cap: CapabilityKind): boolean {
+  return CAPABILITY_EFFECT_CLASS[cap] === 'cpu';
+}
+
+/** capability 是否 io-class（外部交互，需 @io）。 */
+export function isIoClassCapability(cap: CapabilityKind): boolean {
+  return CAPABILITY_EFFECT_CLASS[cap] === 'io';
+}
+
 // ============================================================
 // Keyword 配置
 // ============================================================
