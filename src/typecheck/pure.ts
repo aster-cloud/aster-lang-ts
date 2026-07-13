@@ -91,7 +91,7 @@ export function checkEntryRuleUniqueness(decls: readonly Core.Declaration[]): Ty
   // （逗号拼接），而非仅报前两条；诊断锚点取首个 @entry 规则的 origin。
   const ruleNames = entryFuncs
     .map(func => func.name)
-    .filter((name): name is string => name != null);
+    .filter((name): name is string => typeof name === 'string');
   const diagnostic: TypecheckDiagnostic = {
     severity: 'error',
     code: ErrorCode.MULTIPLE_ENTRY_RULES,
