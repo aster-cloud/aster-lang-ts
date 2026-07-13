@@ -184,6 +184,19 @@ jobs:
           path: aster-lang-locales
           token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
 
+      # aster-lang-hi 语言包（hi-IN SPI）：core 的 testRuntimeOnly(asterLibs.hi) +
+      # langPacks(asterLibs.hi)（lexicon-hi 合并后新增）令 core 的 testRuntimeClasspath
+      # 解析 aster-lang-hi:<catalog 版本>。该版本未发布到 GH Packages（免发版迁移），
+      # 故须源码 checkout + publishToMavenLocal（镜像 aster-lang-core 自身 CI），否则
+      # 401。缺这步会让 parity gate 在 core test classpath 解析阶段就红。
+      - name: Checkout aster-lang-hi
+        if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
+        uses: actions/checkout@v6
+        with:
+          repository: aster-cloud/aster-lang-hi
+          path: aster-lang-hi
+          token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
+
       # aster-lang-runtime + aster-lang-truffle are only needed by the
       # Phase C evaluator step (CoreIrEvalCli lives in truffle).
       - name: Checkout aster-lang-runtime
@@ -247,6 +260,12 @@ jobs:
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
         run: |
           cd aster-lang-locales && ./gradlew publishToMavenLocal -x test
+
+      # hi 语言包（core testRuntimeOnly/langPacks 依赖，见上方 checkout 注释）。
+      - name: Publish aster-lang-hi to Maven Local
+        if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
+        working-directory: aster-lang-hi
+        run: ./gradlew publishToMavenLocal -x test
 
       - name: Publish aster-lang-runtime to Maven Local
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
