@@ -267,6 +267,20 @@ jobs:
         working-directory: aster-lang-hi
         run: ./gradlew publishToMavenLocal -x test
 
+      # 值级词法同步守门（此前只 core/hi/locales 自身 CI 调，ts 自身 CI 不调=盲区：
+      # 改 ts 侧 @generated lexicon 值时 ts 自身 CI 不守，靠 core 变更兜底）。此 parity
+      # job 已 checkout+publish core/locales/hi 源码 + build 了 ts → 复用同套发布链跑
+      # exportLexicons + verify-lexicon-sync，补齐 ts 侧对 Java↔TS 词法值同步的守门。
+      - name: Verify lexicon sync (Java exportLexicons ↔ TS)
+        if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # self(ts) checkout 在 aster-lang-ts/ 子目录，siblings 平铺在 job root。
+          (cd aster-lang-core && ./gradlew exportLexicons -x test)
+          node aster-lang-ts/dist/scripts/verify-lexicon-sync.js \
+            aster-lang-core/build/generated/lexicons/lexicons.json
+
       - name: Publish aster-lang-runtime to Maven Local
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
         working-directory: aster-lang-runtime
