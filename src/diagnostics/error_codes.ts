@@ -6,7 +6,7 @@ export type ErrorCategory = 'type' | 'effect' | 'capability' | 'scope' | 'pii' |
 export type ErrorSeverity = 'error' | 'warning' | 'info';
 
 export const enum ErrorCode {
-  MULTIPLE_ENTRY_RULES = "MULTIPLE_ENTRY_RULES",
+  MULTIPLE_ENTRY_RULES = "E102",
   TYPE_MISMATCH = "E001",
   TYPE_MISMATCH_ASSIGN = "E002",
   RETURN_TYPE_MISMATCH = "E003",
@@ -43,7 +43,8 @@ export const enum ErrorCode {
   PII_ARG_VIOLATION = "E073",
   DUPLICATE_IMPORT_ALIAS = "E100",
   UNDEFINED_VARIABLE = "E101",
-  DUPLICATE_SYMBOL = "E102",
+  IMPORT_SYMBOL_CONFLICT = "E103",
+  DUPLICATE_SYMBOL = "E104",
   EFF_MISSING_IO = "E200",
   EFF_MISSING_CPU = "E201",
   EFF_SUPERFLUOUS_IO_CPU_ONLY = "E202",
@@ -86,7 +87,7 @@ export interface ErrorMetadata {
 }
 
 export const ERROR_MESSAGES: Record<ErrorCode, string> = {
-  [ErrorCode.MULTIPLE_ENTRY_RULES]: "Multiple @entry rules found in module: {first} and {second}",
+  [ErrorCode.MULTIPLE_ENTRY_RULES]: "Multiple @entry rules in module: {rules}",
   [ErrorCode.TYPE_MISMATCH]: "Type mismatch: expected {expected}, got {actual}",
   [ErrorCode.TYPE_MISMATCH_ASSIGN]: "Type mismatch assigning to '{name}': {expected} vs {actual}",
   [ErrorCode.RETURN_TYPE_MISMATCH]: "Return type mismatch: expected {expected}, got {actual}",
@@ -123,6 +124,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.PII_ARG_VIOLATION]: "PII argument type mismatch: expected {expected}, got {actual}",
   [ErrorCode.DUPLICATE_IMPORT_ALIAS]: "Duplicate import alias '{alias}'.",
   [ErrorCode.UNDEFINED_VARIABLE]: "Undefined variable: {name}",
+  [ErrorCode.IMPORT_SYMBOL_CONFLICT]: "Import symbol conflict: {symbol}",
   [ErrorCode.DUPLICATE_SYMBOL]: "Symbol '{name}' is already defined in this scope.",
   [ErrorCode.EFF_MISSING_IO]: "Function '{func}' may perform I/O but is missing @io effect.",
   [ErrorCode.EFF_MISSING_CPU]: "Function '{func}' may perform CPU-bound work but is missing @cpu (or @io) effect.",
@@ -158,7 +160,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
 };
 
 export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
-  [ErrorCode.MULTIPLE_ENTRY_RULES]: { code: ErrorCode.MULTIPLE_ENTRY_RULES, category: 'type', severity: 'error', message: "Multiple @entry rules found in module: {first} and {second}", help: "Keep at most one Rule annotated with @entry in a module." },
+  [ErrorCode.MULTIPLE_ENTRY_RULES]: { code: ErrorCode.MULTIPLE_ENTRY_RULES, category: 'scope', severity: 'error', message: "Multiple @entry rules in module: {rules}", help: "Keep at most one Rule annotated with @entry in a module." },
   [ErrorCode.TYPE_MISMATCH]: { code: ErrorCode.TYPE_MISMATCH, category: 'type', severity: 'error', message: "Type mismatch: expected {expected}, got {actual}", help: "Check that the type annotation matches the inferred expression type." },
   [ErrorCode.TYPE_MISMATCH_ASSIGN]: { code: ErrorCode.TYPE_MISMATCH_ASSIGN, category: 'type', severity: 'error', message: "Type mismatch assigning to '{name}': {expected} vs {actual}", help: "Ensure the variable's previous binding type matches the current assignment." },
   [ErrorCode.RETURN_TYPE_MISMATCH]: { code: ErrorCode.RETURN_TYPE_MISMATCH, category: 'type', severity: 'error', message: "Return type mismatch: expected {expected}, got {actual}", help: "Check that the return statement matches the declared return type." },
@@ -197,6 +199,7 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
   [ErrorCode.PII_ARG_VIOLATION]: { code: ErrorCode.PII_ARG_VIOLATION, category: 'pii', severity: 'error', message: "PII argument type mismatch: expected {expected}, got {actual}", help: "Check the function signature to ensure PII levels and categories match." },
   [ErrorCode.DUPLICATE_IMPORT_ALIAS]: { code: ErrorCode.DUPLICATE_IMPORT_ALIAS, category: 'scope', severity: 'warning', message: "Duplicate import alias '{alias}'.", help: "Use unique aliases for different imports to avoid shadowing." },
   [ErrorCode.UNDEFINED_VARIABLE]: { code: ErrorCode.UNDEFINED_VARIABLE, category: 'scope', severity: 'error', message: "Undefined variable: {name}", help: "Declare and initialize the variable before use." },
+  [ErrorCode.IMPORT_SYMBOL_CONFLICT]: { code: ErrorCode.IMPORT_SYMBOL_CONFLICT, category: 'scope', severity: 'warning', message: "Import symbol conflict: {symbol}", help: "Adjust the import alias or the local top-level declaration name to avoid the import symbol conflict." },
   [ErrorCode.DUPLICATE_SYMBOL]: { code: ErrorCode.DUPLICATE_SYMBOL, category: 'scope', severity: 'error', message: "Symbol '{name}' is already defined in this scope.", help: "Choose a different name or check for unintended duplicate declarations." },
   [ErrorCode.EFF_MISSING_IO]: { code: ErrorCode.EFF_MISSING_IO, category: 'effect', severity: 'error', message: "Function '{func}' may perform I/O but is missing @io effect.", help: "Declare @io effect for functions that perform I/O." },
   [ErrorCode.EFF_MISSING_CPU]: { code: ErrorCode.EFF_MISSING_CPU, category: 'effect', severity: 'error', message: "Function '{func}' may perform CPU-bound work but is missing @cpu (or @io) effect.", help: "Declare @cpu or @io effect for CPU-intensive functions." },
