@@ -187,7 +187,8 @@ export function validateManifest(manifest: Manifest): Diagnostic[] {
 
   // 验证capabilities（如果存在）
   if (manifest.capabilities) {
-    const validCapabilities: CapabilityKind[] = ['Http', 'Sql', 'Time', 'Files', 'Secrets', 'AiModel', 'Cpu'];
+    // 与 shared/capabilities.json 单源 / semantic.ts CapabilityKind 对齐。
+    const validCapabilities: CapabilityKind[] = ['Http', 'Network', 'Sql', 'Time', 'Files', 'Secrets', 'Crypto', 'Process', 'AiModel', 'Cpu', 'Payment', 'Inventory'];
 
     if (manifest.capabilities.allow) {
       for (const cap of manifest.capabilities.allow) {
@@ -271,7 +272,7 @@ function mapAjvErrorToDiagnostic(error: ErrorObject, fieldPath: string, sourceDa
     case 'enum':
       if (fieldPath.includes('/capabilities')) {
         return DiagnosticBuilder.error(DiagnosticCode.M008_InvalidCapability)
-          .withMessage(`无效的能力声明：${fieldValue}（有效值为：Http、Sql、Time、Files、Secrets、AiModel、Cpu）`)
+          .withMessage(`无效的能力声明：${fieldValue}（有效值为：Http、Network、Sql、Time、Files、Secrets、Crypto、Process、AiModel、Cpu、Payment、Inventory）`)
           .withPosition(pos)
           .build();
       }
