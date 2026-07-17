@@ -87,16 +87,20 @@ export function checkEntryRuleUniqueness(decls: readonly Core.Declaration[]): Ty
   );
   if (entryFuncs.length <= 1) return [];
 
-  const first = entryFuncs[0]!;
-  const second = entryFuncs[1]!;
+  // 与 Java TypeChecker.checkEntryRuleUniqueness 对齐：穷尽列出全部冲突规则名
+  // （逗号拼接），而非仅报前两条；诊断锚点取首个 @entry 规则的 origin。
+  const ruleNames = entryFuncs
+    .map(func => func.name)
+    .filter((name): name is string => typeof name === 'string');
   const diagnostic: TypecheckDiagnostic = {
     severity: 'error',
     code: ErrorCode.MULTIPLE_ENTRY_RULES,
-    message: `Multiple @entry rules found in module: ${first.name} and ${second.name}`,
+    message: `Multiple @entry rules in module: ${ruleNames.join(', ')}`,
     help: 'Keep at most one Rule annotated with @entry in a module.',
-    data: { first: first.name, second: second.name },
+    data: { rules: ruleNames.join(', ') },
   };
-  if (second.origin) diagnostic.origin = second.origin;
+  const anchor = entryFuncs[0]!.origin;
+  if (anchor) diagnostic.origin = anchor;
   return [diagnostic];
 }
 

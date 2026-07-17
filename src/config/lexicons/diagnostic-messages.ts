@@ -20,6 +20,9 @@ const ZH_CN_MESSAGES: Readonly<Partial<Record<string, string>>> = {
   E070: '禁止将 PII 数据赋给较低等级目标: {source} -> {target}',
   E072: 'PII 等级 {level} 数据未脱敏即输出到 {sinkKind}',
   E073: 'PII 参数类型不匹配: 期望 {expected}, 实际 {actual}',
+  E102: '模块中存在多个 @entry Rule: {rules}',
+  E103: '导入符号冲突: {symbol}',
+  E104: '符号 \'{name}\' 在当前作用域中已定义。',
   E205: '函数 \'{func}\' 缺少 @io 效果声明，推断要求 IO。',
   E206: '函数 \'{func}\' 缺少 @cpu 效果声明，推断要求 CPU（或 @io）。',
   E207: '函数 \'{func}\' 声明了 @io，但推断未发现 IO 副作用。',
@@ -70,7 +73,9 @@ const ZH_CN_HELP: Readonly<Partial<Record<string, string>>> = {
   E073: '检查函数签名，确保 PII 等级与类别一致。',
   E100: '为不同的导入使用唯一别名，避免覆盖。',
   E101: '在使用变量前先声明并初始化。',
-  E102: '选择不同的名称或检查是否存在意外的重复声明。',
+  E102: '每个模块最多保留一个 @entry Rule。',
+  E103: '调整 import alias 或本地顶层声明名称，避免导入符号冲突。',
+  E104: '选择不同的名称或检查是否存在意外的重复声明。',
   E200: '为具有 IO 行为的函数声明 @io 效果。',
   E201: '为 CPU 密集型函数声明 @cpu 或 @io 效果。',
   E202: '若函数仅执行 CPU 工作，可移除多余的 @io 声明。',
@@ -103,11 +108,12 @@ const ZH_CN_HELP: Readonly<Partial<Record<string, string>>> = {
   W106: '检查 timeout 值是否过大或过小。',
 };
 
-const MESSAGES_BY_LEXICON: Record<string, Readonly<Partial<Record<string, string>>>> = {
+// 导出供 error-codes-parity 测试校验 overlay 的 code-key 不残留旧语义/孤儿码。
+export const MESSAGES_BY_LEXICON: Record<string, Readonly<Partial<Record<string, string>>>> = {
   'zh-CN': ZH_CN_MESSAGES,
 };
 
-const HELP_BY_LEXICON: Record<string, Readonly<Partial<Record<string, string>>>> = {
+export const HELP_BY_LEXICON: Record<string, Readonly<Partial<Record<string, string>>>> = {
   'zh-CN': ZH_CN_HELP,
 };
 
