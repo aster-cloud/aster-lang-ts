@@ -1,5 +1,5 @@
 import type { Core, Span } from '../types.js';
-import { CapabilityKind } from '../config/semantic.js';
+import { isCpuClassCapability, isIoClassCapability } from '../config/semantic.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { TypeSystem } from './type_system.js';
 import type { TypecheckWalkerContext } from './context.js';
@@ -193,8 +193,8 @@ function workflowEffectType(
   workflow: Core.Workflow,
   cachedEffects?: Map<Core.Step, Set<'io' | 'cpu'>>
 ): Core.Type {
-  let hasIOCap = workflow.effectCaps.some(cap => cap !== CapabilityKind.CPU);
-  let hasCpuCap = workflow.effectCaps.some(cap => cap === CapabilityKind.CPU);
+  let hasIOCap = workflow.effectCaps.some(cap => isIoClassCapability(cap));
+  let hasCpuCap = workflow.effectCaps.some(cap => isCpuClassCapability(cap));
 
   if (!hasIOCap) {
     for (const step of workflow.steps) {
@@ -296,5 +296,5 @@ function validateWorkflowMetadata(workflow: Core.Workflow, diagnostics: Diagnost
 
 function stepHasSideEffects(step: Core.Step, effects: Set<'io' | 'cpu'>): boolean {
   if (effects.has('io')) return true;
-  return step.effectCaps.some(cap => cap !== CapabilityKind.CPU);
+  return step.effectCaps.some(cap => isIoClassCapability(cap));
 }
