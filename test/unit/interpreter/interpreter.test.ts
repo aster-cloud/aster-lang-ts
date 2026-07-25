@@ -600,4 +600,41 @@ describe('Core IR 解释器', () => {
       assert.equal(result.value, null);
     });
   });
+
+  describe('裸枚举变体求值（return Gold）', () => {
+    // 回归守卫：`return <枚举变体>` 此前抛 `Undefined variable`（resolveName 不认枚举变体，
+    // 与 Java 引擎分歧）。修复后求值成枚举值，键名/顺序与 aster-lang-truffle AsterEnumValue
+    // 序列化逐字节对齐（{__type:"?", _enum, value, variant, args:[]}），双引擎 eval parity 全等。
+    const enumDecl: Core.Enum = { kind: 'Enum', name: 'Tier', variants: ['Gold', 'Silver'] };
+
+    it('裸变体引用求值成枚举值（对齐 Java 序列化形状）', () => {
+      const mod = mkModule([enumDecl, mkFunc('f', [], [mkReturn(mkName('Gold'))])]);
+      const result = evaluate(mod, 'f', {});
+      assert.ok(result.success);
+      assert.deepEqual(result.value, {
+        __type: '?',
+        _enum: 'Tier',
+        value: 'Gold',
+        variant: 'Gold',
+        args: [],
+      });
+    });
+
+    it('键顺序与 Java 一致（JSON.stringify 全等——eval parity 按此比对）', () => {
+      const mod = mkModule([enumDecl, mkFunc('f', [], [mkReturn(mkName('Silver'))])]);
+      const result = evaluate(mod, 'f', {});
+      assert.ok(result.success);
+      assert.equal(
+        JSON.stringify(result.value),
+        '{"__type":"?","_enum":"Tier","value":"Silver","variant":"Silver","args":[]}',
+      );
+    });
+
+    it('非枚举变体的未定义大写名仍抛 Undefined variable（不误吞）', () => {
+      const mod = mkModule([enumDecl, mkFunc('f', [], [mkReturn(mkName('Bronze'))])]);
+      const result = evaluate(mod, 'f', {});
+      assert.ok(!result.success);
+      assert.match(result.error ?? '', /Undefined variable 'Bronze'/);
+    });
+  });
 });
