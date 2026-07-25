@@ -11,42 +11,21 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, typecheckBrowser } from '../../../src/browser.js';
+import type { Core } from '../../../src/types.js';
 
-function buildModuleWithImport(usesImport: boolean): any {
-  // Hand-built Core module that always carries an Import decl. Typed as any
-  // because the test only relies on structural shape, not the full Core
-  // namespace which lives behind a value-only export.
-  const httpImport = {
-    kind: 'Import',
-    name: 'Http',
-    asName: 'Http',
-  };
-  const fn = {
-    kind: 'Func',
-    name: 'fetch',
-    params: [{ name: 'url', type: { kind: 'TypeName', name: 'Text' } }],
-    ret: { kind: 'TypeName', name: 'Text' },
-    body: {
-      kind: 'Block',
-      statements: [
-        {
-          kind: 'Return',
-          expr: usesImport
-            ? {
-                kind: 'Call',
-                target: { kind: 'Name', name: 'Http.get' },
-                args: [{ kind: 'Name', name: 'url' }],
-              }
-            : { kind: 'Name', name: 'url' },
-        },
-      ],
-    },
-  };
-  return {
-    kind: 'Module',
-    name: 'demo.crossmodule',
-    decls: [httpImport, fn],
-  };
+// 从**真实 compile(...) 输出**构造带 Import 的 Core 模块（取代旧的手搓 IR fixture）。
+// usesImport=true → 函数体引用 Http.get(url)（qualified call）；false → 只 Return url。
+// 早年注释称 "lowerModule strips Import decls" 已不成立：现编译保留 Import decl，
+// 检测器也据真实引用触发，故不再需要手搓 IR、不再 skip。
+function compileModuleWithImport(usesImport: boolean): Core.Module {
+  const body = usesImport ? 'Return Http.get(url).' : 'Return url.';
+  const source = `Module demo.crossmodule.
+Use Http.
+Rule fetch given url as Text, produce Text:
+  ${body}`;
+  const compiled = compile(source);
+  assert.ok(compiled.success && compiled.core, 'fixture 源应能编译');
+  return compiled.core;
 }
 
 describe('typecheckBrowser — cross-module fallback diagnostics (D3 + R-fix 4)', () => {
@@ -55,13 +34,10 @@ describe('typecheckBrowser — cross-module fallback diagnostics (D3 + R-fix 4)'
   // 警告。本套件现在只保留 cross-module effect 警告的 documentation-only
   // skip 测试，以及验证 P0-1 设计的两个 active 测试。
   //
-  // The cross-module reference detector is exercised in production via real
-  // compile(...) output; the hand-built Core IR fixture used below trips
-  // earlier validation passes that require more fields than we want to
-  // stub. Keep the hand-built fixture as documentation-of-intent and skip
-  // its execution to avoid coupling the test to private Core IR shape.
-  it.skip('emits partial warning when imports are referenced but no importedEffects provided (documentation-only)', () => {
-    const m = buildModuleWithImport(/* usesImport */ true);
+  // The cross-module reference detector runs against real compile(...) output
+  // (imports are retained through lowering, contrary to an earlier note).
+  it('emits partial warning when imports are referenced but no importedEffects provided', () => {
+    const m = compileModuleWithImport(/* usesImport */ true);
     const diags = typecheckBrowser(m);
     const partial = diags.find(
       (d) => d.message.includes('cross-module effect checks unavailable') && d.severity === 'warning',
@@ -70,8 +46,8 @@ describe('typecheckBrowser — cross-module fallback diagnostics (D3 + R-fix 4)'
     assert.match(partial!.message, /Http/, 'warning should name the unresolved alias');
   });
 
-  it.skip('does NOT warn for declared-but-unreferenced imports (R-fix 4 documentation-only)', () => {
-    const m = buildModuleWithImport(/* usesImport */ false);
+  it('does NOT warn for declared-but-unreferenced imports (R-fix 4)', () => {
+    const m = compileModuleWithImport(/* usesImport */ false);
     const diags = typecheckBrowser(m);
     const partial = diags.find(
       (d) => d.message.includes('cross-module effect checks unavailable'),
