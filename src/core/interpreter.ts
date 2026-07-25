@@ -299,6 +299,9 @@ class Interpreter {
   private readonly funcs: Map<string, CoreTypes.Func>;
   /** 模块中所有数据声明（按名称索引） */
   private readonly dataDecls: Map<string, CoreTypes.Data>;
+  /** 枚举变体名 → 所属枚举名（如 Gold → Tier）。用于把裸变体引用 `return Gold`
+   *  求值成枚举值——与 aster-lang-truffle 的 AsterEnumValue 序列化逐字节对齐。 */
+  private readonly enumVariantToEnum: Map<string, string>;
   /** 执行步数计数器（防无限循环） */
   private steps = 0;
   /** 步数上限（默认 MAX_STEPS，可由受信调用方上调） */
@@ -310,6 +313,7 @@ class Interpreter {
     this.maxSteps = maxSteps > 0 ? maxSteps : MAX_STEPS;
     this.funcs = new Map();
     this.dataDecls = new Map();
+    this.enumVariantToEnum = new Map();
 
     for (const decl of module.decls) {
       switch (decl.kind) {
@@ -318,6 +322,12 @@ class Interpreter {
           break;
         case 'Data':
           this.dataDecls.set(decl.name, decl);
+          break;
+        case 'Enum':
+          // 记下每个变体所属的枚举，供 resolveName 求值裸变体引用。
+          for (const variant of decl.variants) {
+            this.enumVariantToEnum.set(variant, decl.name);
+          }
           break;
       }
     }
@@ -600,6 +610,14 @@ class Interpreter {
     if (name === 'true') return true;
     if (name === 'false') return false;
     if (name === 'null') return null;
+
+    // 裸枚举变体引用（如 `return Gold`）：lowering 降成 Name('Gold')，此处求值成枚举值。
+    // ★键名与顺序逐字节对齐 aster-lang-truffle 的 AsterEnumValue 序列化
+    //   （{__type:"?", _enum, value, variant, args:[]}）——eval parity 按 JSON.stringify 全等比对。
+    const enumName = this.enumVariantToEnum.get(name);
+    if (enumName !== undefined) {
+      return { __type: '?', _enum: enumName, value: name, variant: name, args: [] };
+    }
 
     throw new InterpreterError(`Undefined variable '${name}'`);
   }
