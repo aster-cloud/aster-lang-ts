@@ -23,6 +23,12 @@ concurrency:
   group: release-${{ github.repository }}-${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
   cancel-in-progress: false
 
+# 最小权限：默认 contents: read 覆盖所有 job。ci job 仅 checkout + build + test，read 足够。
+# create-tag 用 CROSS_REPO_TOKEN（PAT）推 tag，publish 有各自 job 级块（contents: write +
+# id-token: write）会覆盖顶层，保持不变。
+permissions:
+  contents: read
+
 jobs:
   # dispatch 路径：仅创建 tag（用 PAT），让既有 tag-push ci+publish 复用。
   create-tag:
