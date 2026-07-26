@@ -84,7 +84,9 @@ async function main() {
       pass++;
     } else {
       fail++;
-      const safe = result.err.replace(/\|/g, '\\|');
+      // markdown 表格单元转义：管道符用 HTML 实体（不用反斜杠转义，避免「反斜杠未转义」
+      // CodeQL incomplete-sanitization）+ 行结束折空格（CR/LF/CRLF 均覆盖）。
+      const safe = result.err.replace(/\|/g, '&#124;').replace(/\r\n?|\n/g, ' ');
       console.log(`| ${sample.path} | ❌ | ${safe} |`);
       failures.push({ path: sample.path, err: result.err });
     }
