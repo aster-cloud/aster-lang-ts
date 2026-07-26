@@ -12,6 +12,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# 最小权限：本仓 CI 仅 checkout + build + test + 上传 artifact，无任何写仓库/发布副作用。
+# 跨仓 checkout 用 CROSS_REPO_TOKEN（PAT），不依赖 GITHUB_TOKEN 的写权限。
+# 顶层设 contents: read 覆盖所有 job（parity-tier1 已有同值 job 级块，保持不变）。
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
