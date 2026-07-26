@@ -133,7 +133,14 @@ export function canonicalizeDecimal(raw: string): string {
   let fracPart = parts[1] ?? '';
   intPart = intPart.replace(/^0+(?=\d)/, ''); // 去前导零，但保留单个 0
   if (intPart === '') intPart = '0';
-  fracPart = fracPart.replace(/0+$/, ''); // 去尾零
+  // 去小数尾零：原 `/0+$/` 属多项式回溯（对形如 "0…0X" 的串会在每个起点重复
+  // 贪婪匹配再回退，退化 O(n²)）。canonicalizeDecimal 为导出函数，输入不受词法层
+  // 长度约束，故改用线性扫描——从末尾回退连续 '0'，语义完全一致。
+  let fracEnd = fracPart.length;
+  while (fracEnd > 0 && fracPart.charCodeAt(fracEnd - 1) === 0x30) {
+    fracEnd--;
+  }
+  fracPart = fracPart.slice(0, fracEnd); // 去尾零
   const out = fracPart === '' ? intPart : `${intPart}.${fracPart}`;
   return out === '-0' || out === '' ? '0' : out;
 }
