@@ -57,15 +57,8 @@ function generateDocs(errorCodes: ErrorCodes): string {
 
     for (const [key, entry] of categoryEntries) {
       const severity = getSeverityIcon(entry.severity);
-      // 转义特殊字符：管道符、花括号、尖括号（VitePress会将{var}识别为Vue模板，<T>识别为HTML标签）
-      const message = entry.message
-        .replace(/\|/g, '\\|')
-        .replace(/\{/g, '&#123;').replace(/\}/g, '&#125;')
-        .replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const help = entry.help
-        .replace(/\|/g, '\\|')
-        .replace(/\{/g, '&#123;').replace(/\}/g, '&#125;')
-        .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const message = escapeTableCell(entry.message);
+      const help = escapeTableCell(entry.help);
       markdown += `| **${entry.code}** \`${key}\` | ${severity} | ${message} | ${help} |\n`;
     }
 
@@ -118,6 +111,24 @@ function getCategoryDisplayName(category: string): string {
     semantic: '语义',
   };
   return names[category] || category;
+}
+
+/**
+ * 转义 markdown 表格单元：管道符（列分隔）、花括号/尖括号（VitePress 把 {var} 当 Vue 模板、
+ * <T> 当 HTML 标签），并把换行/回车折成空格（换行会破坏整行表格结构）——完整覆盖会打断
+ * 表格渲染的字符（CodeQL incomplete-sanitization）。单处实现供 message/help 复用。
+ */
+function escapeTableCell(text: string): string {
+  // ★先折行结束（避免破坏表格行），再全部走 HTML 实体编码——不用反斜杠转义，
+  // 从根上避免「反斜杠未转义」（CodeQL incomplete-sanitization）：管道符/花括号/尖括号
+  // 均编码为实体，输入里的字面反斜杠原样保留也不会与转义符组合破坏渲染。
+  return text
+    .replace(/\r\n?|\n/g, ' ')
+    .replace(/\|/g, '&#124;')
+    .replace(/\{/g, '&#123;')
+    .replace(/\}/g, '&#125;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function getSeverityIcon(severity: string): string {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { lex } from '../dist/src/frontend/lexer.js';
 import { parse } from '../dist/src/parser.js';
 
@@ -187,7 +187,8 @@ function fallbackTransform(src) {
 function readGitHead(filePath) {
   const rel = path.relative(process.cwd(), filePath).replace(/\\/g, '/');
   try {
-    return execSync(`git show HEAD:${rel}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    // execFileSync（无 shell）：路径含 shell 元字符也不会注入（CodeQL js/shell-command-injection）。
+    return execFileSync('git', ['show', `HEAD:${rel}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   } catch {
     return null;
   }
