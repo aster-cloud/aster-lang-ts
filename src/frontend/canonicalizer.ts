@@ -168,30 +168,72 @@ export interface CanonicalizerOptions {
 // 默认正则表达式（英语）
 const LINE_COMMENT_RE = /^\s*(?:\/\/|#)/;
 const SPACE_RUN_RE = /[ \t]+/g;
-const PUNCT_NORMAL_RE = /\s+([.,:])/g;
-const PUNCT_FINAL_RE = /\s+([.,:!;?])/g;
-const TRAILING_SPACE_RE = /\s+$/g;
 
-// 中文标点模式
-const ZH_PUNCT_NORMAL_RE = /\s+([。，：、])/g;
-const ZH_PUNCT_FINAL_RE = /\s+([。，：、！；？])/g;
+// 标点字符集合（按语言/是否句末区分）。
+// 这些集合用于「删除紧邻标点之前的空白」的线性扫描，取代原先
+// `/\s+([标点])/g` 形式的正则——后者存在多项式回溯（polynomial ReDoS）风险：
+// 对长空白串（其后并非标点）会在每个起点重复贪婪匹配再回退，退化为 O(n²)。
+// 线性扫描逐字符处理，语义完全一致（删除标点前的整段空白），且无回溯。
+const PUNCT_NORMAL_CHARS = '.,:';
+const PUNCT_FINAL_CHARS = '.,:!;?';
+
+// 中文标点集合
+const ZH_PUNCT_NORMAL_CHARS = '。，：、';
+const ZH_PUNCT_FINAL_CHARS = '。，：、！；？';
+
+// 单字符空白判定（在单个字符上求值，无回溯）。语义与正则 `\s` 等价。
+const WHITESPACE_CHAR_RE = /\s/;
+
+// 行分隔符：正则元字符 `.`（无 s 标志）无法匹配的字符。换行 \n/\r 在
+// canonicalize 阶段已被归一并按 \n 切分，此处只可能残留 U+2028/U+2029。
+// 用于在 normalizeLine 中复刻原 `/^(\s*)(.*)$/` 遇此类字符整体失配的边界语义。
+const LINE_SEPARATOR_RE = /[\n\r\u2028\u2029]/;
 
 /**
- * 获取标点符号正则表达式。
+ * 获取标点字符集合。
  *
  * @param lexicon - 可选的词法表
  * @param isFinal - 是否为最终标点（包含更多标点符号）
- * @returns 标点符号正则表达式
+ * @returns 标点字符集合字符串，用于线性扫描判定
  */
-function getPunctuationRegex(lexicon?: Lexicon, isFinal?: boolean): RegExp {
+function getPunctuationChars(lexicon?: Lexicon, isFinal?: boolean): string {
   const effectiveLexicon = getEffectiveLexicon(lexicon);
 
-  // 根据 whitespaceMode 选择标点模式
+  // 根据 whitespaceMode 选择标点集合
   if (effectiveLexicon.canonicalization.whitespaceMode === 'chinese') {
-    return isFinal ? ZH_PUNCT_FINAL_RE : ZH_PUNCT_NORMAL_RE;
+    return isFinal ? ZH_PUNCT_FINAL_CHARS : ZH_PUNCT_NORMAL_CHARS;
   }
 
-  return isFinal ? PUNCT_FINAL_RE : PUNCT_NORMAL_RE;
+  return isFinal ? PUNCT_FINAL_CHARS : PUNCT_NORMAL_CHARS;
+}
+
+/**
+ * 删除每个标点字符之前紧邻的整段空白（线性扫描，无正则回溯）。
+ *
+ * 语义等价于 `text.replace(/\s+([标点])/g, '$1')`：对每个属于 `punctChars`
+ * 的字符，移除其前面直接相连的、已输出的空白字符序列（贪婪，对应正则 `\s+`）。
+ * 无前导空白时不改变（对应正则不匹配）。逐字符一趟扫描，复杂度 O(n)。
+ *
+ * @param text - 待处理文本（调用方保证不含换行，按行处理）
+ * @param punctChars - 标点字符集合
+ * @returns 处理后的文本
+ */
+function stripSpaceBeforePunct(text: string, punctChars: string): string {
+  // 用数组累加器（push/pop），末尾拼接一次——真 O(n)。
+  // 早期实现用 `out = out.slice(0, end) + ch` 在标点处重建扁平字符串，对标点密集输入退化为
+  // O(n²)（消除了正则回溯 ReDoS，却换来 string-op 二次方，CodeQL 不会重新标记 = 假信心）。
+  const out: string[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    // 命中标点：弹出已输出的尾部空白（对应正则 `\s+` 的贪婪吞噬），O(1) 摊还。
+    if (punctChars.includes(ch)) {
+      while (out.length > 0 && WHITESPACE_CHAR_RE.test(out[out.length - 1]!)) {
+        out.pop();
+      }
+    }
+    out.push(ch);
+  }
+  return out.join('');
 }
 
 /**
@@ -324,8 +366,8 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   const quotes = effectiveLexicon.punctuation.stringQuotes;
   const articleRe = getArticleRegex(lexicon);
   const multiWordKeywords = getMultiWordKeywordList(lexicon);
-  const punctNormalRe = getPunctuationRegex(lexicon, false);
-  const punctFinalRe = getPunctuationRegex(lexicon, true);
+  const punctNormalChars = getPunctuationChars(lexicon, false);
+  const punctFinalChars = getPunctuationChars(lexicon, true);
 
   // Normalize newlines to \n
   let s = input.replace(/\r\n?/g, '\n');
@@ -402,7 +444,7 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   // Fold multiple spaces (but not newlines); keep indentation (2-space rule) for leading spaces only
   s = s
     .split('\n')
-    .map(line => normalizeLine(line, punctNormalRe, false, quotes))
+    .map(line => normalizeLine(line, punctNormalChars, false, quotes))
     .join('\n');
 
   // Keep original casing to preserve TypeIdents. We only normalize multi-word keywords by hinting
@@ -469,7 +511,7 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   // Final whitespace normalization to ensure idempotency after article/macro passes
   marked = marked
     .split('\n')
-    .map(line => normalizeLine(line, punctFinalRe, true, quotes))
+    .map(line => normalizeLine(line, punctFinalChars, true, quotes))
     .join('\n');
 
   return marked;
@@ -634,7 +676,7 @@ function segmentString(text: string, quotes: { open: string; close: string }): S
 
 function normalizeLine(
   line: string,
-  punctuationPattern: RegExp,
+  punctChars: string,
   trimTrailing: boolean,
   quotes: { open: string; close: string },
 ): string {
@@ -642,24 +684,30 @@ function normalizeLine(
     return line;
   }
 
-  const match = line.match(/^(\s*)(.*)$/);
-  if (!match) {
+  // 拆出前导空白（缩进）与其余内容。原实现 `/^(\s*)(.*)$/` 存在多项式回溯风险
+  // （`\s*` 与 `.*` 在空白上重叠，遇行分隔符时 `$` 失败会触发回退）。
+  // 调用方保证 line 不含 \n/\r（canonicalize 已归一并按 \n 切分），故：
+  //   1) 用锚定的 `/^\s*/`（仅一段贪婪、无后继拒绝元素，线性无回溯）取最长前导空白；
+  //   2) 若剩余部分含 `.` 无法匹配的行分隔符（U+2028/U+2029，`\s` 能匹配但 `.` 不能），
+  //      原正则会整体失配并返回原行——此处显式保留该边界语义。
+  const indentMatch = /^\s*/.exec(line);
+  const indent = indentMatch ? indentMatch[0] : '';
+  const rest = line.slice(indent.length);
+  if (LINE_SEPARATOR_RE.test(rest)) {
+    // 对应原 `/^(\s*)(.*)$/` 失配（match 为 null）→ 返回原行不变。
     return line;
   }
-
-  const indent = match[1] ?? '';
-  const rest = match[2] ?? '';
   if (rest === '') {
     return indent;
   }
 
-  const normalizedRest = normalizeRest(rest, punctuationPattern, trimTrailing, quotes);
+  const normalizedRest = normalizeRest(rest, punctChars, trimTrailing, quotes);
   return indent + normalizedRest;
 }
 
 function normalizeRest(
   rest: string,
-  punctuationPattern: RegExp,
+  punctChars: string,
   trimTrailing: boolean,
   quotes: { open: string; close: string },
 ): string {
@@ -675,10 +723,13 @@ function normalizeRest(
       }
 
       let normalized = segment.text.replace(SPACE_RUN_RE, ' ');
-      normalized = normalized.replace(punctuationPattern, '$1');
+      // 删除标点前空白（线性扫描替代 `/\s+([标点])/g`，消除多项式回溯）
+      normalized = stripSpaceBeforePunct(normalized, punctChars);
 
       if (trimTrailing && index === segments.length - 1) {
-        normalized = normalized.replace(TRAILING_SPACE_RE, '');
+        // 去除末尾空白：trimEnd() 的空白集合与正则 `\s`（WhiteSpace ∪ LineTerminator）
+        // 按 ECMAScript 规范完全一致，等价于原 `/\s+$/g` 且线性无回溯。
+        normalized = normalized.trimEnd();
       }
 
       return normalized;
