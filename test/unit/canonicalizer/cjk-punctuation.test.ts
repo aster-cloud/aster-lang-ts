@@ -129,3 +129,36 @@ describe('CJK 标点软边界归一化', () => {
     });
   });
 });
+
+describe('全角转半角（issue #85：区间完整性 + 字符串保护）', () => {
+  // Java 侧 fullWidthToHalfWidthImpl 覆盖整个 FF01–FF5E + U+3000，且走 segmentString
+  // 只对字符串外生效。TS 此前只覆盖「字母数字 + 11 个硬编码符号」且**裸调用**，
+  // 于是既漏转、又在扩大区间后有腐蚀字面量的风险。两处必须同时正确。
+
+  it('全角句点 ． → .（此前漏转）', () => {
+    assert.equal(canonicalize('模块 应用．', ZH_CN), '模块 应用.');
+  });
+
+  it('全角下划线 ＿ → _（此前漏转）', () => {
+    assert.ok(canonicalize('规则 ｆｏｏ＿ｂａｒ 产出：', ZH_CN).includes('foo_bar'));
+  });
+
+  it('全角百分号 ％ → %（此前漏转）', () => {
+    assert.ok(canonicalize('规则 f 产出：\n  返回 ｘ ％ ２。', ZH_CN).includes('x % 2'));
+  });
+
+  it('全角空格 U+3000 → 半角空格（此前漏转）', () => {
+    assert.equal(canonicalize('规则\u3000f 产出：', ZH_CN), '规则 f 产出:');
+  });
+
+  it('★字符串字面量内的全角字符 100% 保留（扩区间后最大的风险点）', () => {
+    const out = canonicalize('规则 f 产出：\n  返回 「全角：％＋１」。', ZH_CN);
+    assert.ok(out.includes('「全角：％＋１」'),
+      `字面量内容不得被改写，实际：${JSON.stringify(out)}`);
+  });
+
+  it('幂等：再次 canonicalize 结果不变', () => {
+    const once = canonicalize('规则 f 产出：\n  返回 ｘ ％ ２。', ZH_CN);
+    assert.equal(canonicalize(once, ZH_CN), once);
+  });
+});
