@@ -52,15 +52,27 @@ export const BASE_NAMING_RULES: readonly TypeInferenceRule[] = [
   // 明确文本
   { pattern: /(?:Message|Dosage)$/i, type: 'Text', priority: 11 },
   // ID/标识符（所有语言通用）
-  { pattern: /(?:Id|ID|Identifier)$/i, type: 'Text', priority: 10 },
+  // ★不能用 /i：那样 "Valid" / "isValid" 的结尾 "id" 也会命中，且优先级 10 高于
+  //   Bool 后缀规则（8），使一切 *Valid 字段被推成 Text。要求 Id 前是小写字母
+  //   （camelCase，如 userId/orderId）。与 Java `(?<=[a-z])(?:Id|ID|Identifier)$` 对齐。
+  { pattern: /(?<=[a-z])(?:Id|ID|Identifier)$/, type: 'Text', priority: 10 },
   { pattern: /(?:Code|Key|Token|Uuid|Guid|Vin)$/i, type: 'Text', priority: 8 },
   // 金额/价格
   { pattern: /(?:Amount|Price|Cost|Fee|Total|Balance|Salary|Income|Payment|Percentage|Ratio)$/i, type: 'Float', priority: 10 },
   { pattern: /(?:Rate|Interest)$/i, type: 'Float', priority: 9 },
   // 计数/数量
-  { pattern: /(?:Count|Number|Qty|Quantity|Age|Score|Level|Rank|Index|Size|Length|Width|Height)$/i, type: 'Int', priority: 10 },
+  // ★Age 单独成条：要么是整个字段名（age/Age），要么是 camelCase 的独立词段
+  //   （userAge/personAge，即 Age 前是小写字母且 A 大写）。裸 /Age$/i 会把
+  //   usage / language / package / storage / dosage / voltage / mileage 这类
+  //   「以 -age 结尾的普通单词」误判为 Int。与 Java TypeInference.NAMING_RULES 逐条对齐。
+  { pattern: /(?:Count|Number|Qty|Quantity|Score|Level|Rank|Index|Size|Length|Width|Height)$/i, type: 'Int', priority: 10 },
+  { pattern: /^[Aa]ge$|(?<=[a-z])Age$/, type: 'Int', priority: 10 },
   // 时间单位
-  { pattern: /(?:Years?|Months?|Weeks?|Days?|Hours?|Minutes?|Seconds?)$/i, type: 'Int', priority: 9 },
+  // ★时间单位支持**中间位置**匹配（daysRemaining）以及末尾匹配（termMonths）——
+  //   即单位词后必须是驼峰边界（大写字母）或词尾。与 Java 侧
+  //   `(?:Years?|…|Seconds?)(?:[A-Z]|$)` 逐字对齐；此前 TS 仅锚定 $，
+  //   使 daysRemaining 类字段在两引擎推断不同（长期被 Age$ 的共享误判所掩盖）。
+  { pattern: /(?:[Yy][Ee][Aa][Rr][Ss]?|[Mm][Oo][Nn][Tt][Hh][Ss]?|[Ww][Ee][Ee][Kk][Ss]?|[Dd][Aa][Yy][Ss]?|[Hh][Oo][Uu][Rr][Ss]?|[Mm][Ii][Nn][Uu][Tt][Ee][Ss]?|[Ss][Ee][Cc][Oo][Nn][Dd][Ss]?)(?:[A-Z]|$)/, type: 'Int', priority: 9 },
 ];
 
 

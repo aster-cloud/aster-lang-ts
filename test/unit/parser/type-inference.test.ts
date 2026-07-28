@@ -329,4 +329,67 @@ describe('类型推断引擎', () => {
       assert.strictEqual(getTypeName(type), 'Float');
     });
   });
+
+  /**
+   * 双引擎 parity 回归（aster-lang-core issue #80 / #82 / #83）。
+   *
+   * 下表与 aster-lang-core `TypeInferenceTest.shouldMatchTsEngineInference`
+   * **逐字对应**：同一字段名在两引擎必须推断出同一类型。改动任一侧规则前先跑两处。
+   */
+  describe('双引擎 parity 回归', () => {
+    const CASES: ReadonlyArray<readonly [string, string]> = [
+      // #80：-age 结尾的普通单词曾被 Age$ 规则误判为 Int
+      ['usage', 'Text'],
+      ['language', 'Text'],
+      ['package', 'Text'],
+      ['storage', 'Text'],
+      ['voltage', 'Text'],
+      ['mileage', 'Text'],
+      ['coverage', 'Text'],
+      // #80：Message/Dosage 需为 Text（dosage 还同时踩 -age 陷阱）
+      ['errorMessage', 'Text'],
+      ['message', 'Text'],
+      ['dosage', 'Text'],
+      // Age 作为完整词或 camelCase 词段仍应是 Int
+      ['age', 'Int'],
+      ['userAge', 'Int'],
+      ['personAge', 'Int'],
+      // #82：布尔前缀缺驼峰边界，把这些误判为 Bool
+      ['canceledAt', 'DateTime'],
+      ['validatedAt', 'DateTime'],
+      ['wasteAmount', 'Float'],
+      ['isbnCode', 'Text'],
+      // 真正的布尔前缀必须仍然有效
+      ['isValid', 'Bool'],
+      ['hasErrors', 'Bool'],
+      ['canSubmit', 'Bool'],
+      ['is', 'Bool'],
+      // #83：Success/Passed/Verified 后缀
+      ['loginVerified', 'Bool'],
+      ['taskPassed', 'Bool'],
+      ['paymentSuccess', 'Bool'],
+      // *Valid 不得被 Id$ 规则吞掉（此前 /(?:Id)$/i 让 "Val-id" 命中 → Text）
+      ['approvedValid', 'Bool'],
+      ['expiredValid', 'Bool'],
+      // camelCase 的真 Id 仍是 Text
+      ['userId', 'Text'],
+      ['orderIdentifier', 'Text'],
+      // snake_case 也必须走词边界（corpus hipaa-validation-demo 用 requires_consent，
+      // 该字段被赋 true/false，若推成 Text 会让整份合规样本编译失败）
+      ['requires_consent', 'Bool'],
+      ['is_active', 'Bool'],
+      ['has_consent', 'Bool'],
+      ['validated_at', 'DateTime'],
+      // 时间单位支持中间位置匹配
+      ['daysRemaining', 'Int'],
+      ['termMonths', 'Int'],
+      ['days', 'Int'],
+    ];
+
+    for (const [fieldName, expected] of CASES) {
+      it(`${fieldName} → ${expected}`, () => {
+        assert.strictEqual(getTypeName(inferFieldType(fieldName, [], enUS)), expected);
+      });
+    }
+  });
 });
