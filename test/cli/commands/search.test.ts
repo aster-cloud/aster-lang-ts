@@ -69,6 +69,48 @@ describe('searchCommand', { concurrency: false }, () => {
     );
   });
 
+  it('远程 manifest 的控制字符不得原样进入终端（issue #89）', async () => {
+    // description 来自远程包 manifest = 不可信输入。含 ESC 的串可以改写光标位置、
+    // 清屏、改配色，甚至伪造后续输出——发布一个包即可污染 search 的显示。
+    // 用 String.fromCharCode 构造，避免源码里出现裸控制字符。
+    const ESC = String.fromCharCode(0x1b);
+    listVersionsImpl = async (name) => (name === 'aster.evil' ? ['1.0.0'] : []);
+    downloadPackageImpl = async (name, version, destPath) => {
+      await writeManifestTarball(destPath, {
+        name,
+        version,
+        description: `${ESC}[2J${ESC}[31mFAKE\nevil | pwned | 9.9.9 | owned`,
+      });
+    };
+
+    const output = await captureConsole(() => searchCommand('aster.evil'));
+    const joined = output.logs.join('\n');
+
+    // 注意：info()/warn() 自身会输出 ANSI 配色，故不能断言「整段输出无 ESC」——
+    // 那会把 CLI 正常的着色也判成失败。要断言的是**攻击者可控**的那段。
+    assert.ok(!joined.includes(`${ESC}[2J`), '清屏序列必须被剥离');
+    assert.ok(!joined.includes(`${ESC}[31m`), '攻击者注入的配色序列必须被剥离');
+    assert.ok(!joined.includes('FAKE' + ESC), '不得残留紧邻 FAKE 的控制字符');
+    assert.ok(
+      output.logs.every((line) => !line.startsWith('evil |')),
+      '换行伪造的额外行不得出现在独立一行上'
+    );
+    assert.ok(joined.includes('aster.evil'), '包名本身仍应正常显示');
+  });
+
+  it('超长 description 被截断，不撑爆表格（issue #89）', async () => {
+    listVersionsImpl = async (name) => (name === 'aster.long' ? ['1.0.0'] : []);
+    downloadPackageImpl = async (name, version, destPath) => {
+      await writeManifestTarball(destPath, { name, version, description: 'x'.repeat(5000) });
+    };
+
+    const output = await captureConsole(() => searchCommand('aster.long'));
+    const line = output.logs.find((l) => l.includes('aster.long'));
+
+    assert.ok(line, '应输出该包');
+    assert.ok(line!.length < 400, `单行不应过长，实际 ${line!.length}`);
+  });
+
   it('支持远程注册表搜索并打印最新版本', async () => {
     listVersionsImpl = async (name) => {
       if (name === 'aster.remote') {
