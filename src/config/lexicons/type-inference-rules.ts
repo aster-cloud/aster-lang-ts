@@ -16,7 +16,14 @@ import { loadTypeInferenceRules } from './overlay-loader.js';
 
 /** 内联 fallback：英文类型推断规则 */
 const EN_US_RULES: readonly TypeInferenceRule[] = [
-  { pattern: /^(?:is|has|can|should|was|will|did|does|allow|enable|disable|active|valid|require)/i, type: 'Bool', priority: 11 },
+  // ★词边界：前缀必须是**完整的词**，后接驼峰大写、下划线（snake_case）或词尾。
+  //   否则 canceledAt / wasteAmount / isbnCode / storage 会因「can」「was」「is」
+  //   的裸前缀被误判为 Bool。
+  //   `(?:s|es|d|ed)?` 允许常见词形变化，覆盖 snake_case 的 requires_consent /
+  //   validated_at 等真实语料写法（corpus hipaa-validation-demo 即用 requires_consent）。
+  //   lookahead 内的 [A-Z_] 必须区分大小写，故整条不能加 /i；前缀的大小写变体
+  //   显式展开为 [iI][sS] 形式（等价于 Java 侧的内联 (?-i:…)）。
+  { pattern: /^(?:[iI][sS]|[hH][aA][sS]|[cC][aA][nN]|[sS][hH][oO][uU][lL][dD]|[wW][aA][sS]|[wW][iI][lL][lL]|[dD][iI][dD]|[dD][oO][eE][sS]|[aA][lL][lL][oO][wW]|[eE][nN][aA][bB][lL][eE]|[dD][iI][sS][aA][bB][lL][eE]|[aA][cC][tT][iI][vV][eE]|[vV][aA][lL][iI][dD]|[rR][eE][qQ][uU][iI][rR][eE])(?:[sS]|[eE][sS]|[dD]|[eE][dD])?(?:[A-Z_]|$)/, type: 'Bool', priority: 11 },
   { pattern: /(?:Flag|Enabled|Disabled|Active|Valid|Approved|Rejected|Completed|Confirmed|Sufficient|Success|Passed|Verified)$/i, type: 'Bool', priority: 8 },
   { pattern: /(?:Date|Time|At|Timestamp|Created|Updated|Modified|Expired|Birthday|Anniversary)$/i, type: 'DateTime', priority: 10 },
   { pattern: /(?:Type|Status|Category|Kind|Mode)$/i, type: 'Text', priority: 8 },
