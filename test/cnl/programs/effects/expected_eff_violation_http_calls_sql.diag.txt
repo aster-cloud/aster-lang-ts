@@ -1,3 +1,4 @@
 ERROR: Function 'fetch_data' uses Sql capability but header declares [Http].
 INFO: Function 'fetch_data' declares Http capability but it is not used.
 WARN: 函数 'fetch_data' 声明了 @io，但推断未发现 IO 副作用。
+WARN: 函数 'fetch_data' 调用的 builtin 'Sql.query' 效果未知，不按 pure 处理。

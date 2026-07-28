@@ -159,6 +159,66 @@ describe('effect_inference 推断', () => {
     assert.ok(findDiagnostic(diagnostics, ErrorCode.EFF_INFER_MISSING_IO, 'fetchData'));
   });
 
+  // ── 未知 builtin 效果告警（issue #90）───────────────────────────────
+  // 此前：既非本地函数、无导入效果签名、不匹配任何前缀的 builtin → localEffects 为空
+  // → 被**静默推断为 pure**。一个真做网络请求但名为 Webhook.post 的 builtin 因此
+  // 不会触发 EFF_INFER_MISSING_IO，下游按推断效果集做的能力门禁也看不见它。
+  // 现改为显式 warning：pure 必须是断言，而不是"没匹配上前缀"的默认值。
+
+  it('#90: 未知 builtin 不再被静默当作 pure，应报 E212 warning', () => {
+    const f = makeFunc({
+      name: 'callsWebhook',
+      body: makeBlock([makeReturn(makeCall('Webhook.post'))]),
+    });
+    const diagnostics = runInference([f]);
+    assert.ok(
+      findDiagnostic(diagnostics, ErrorCode.EFF_INFER_UNKNOWN_BUILTIN, 'callsWebhook'),
+      '未知 builtin 必须产生 E212 警告',
+    );
+    const diag = diagnostics.find(d => d.code === ErrorCode.EFF_INFER_UNKNOWN_BUILTIN);
+    assert.equal(diag?.severity, 'warning', 'E212 是 warning 而非 error');
+    assert.equal((diag?.data as Record<string, unknown>).builtin, 'Webhook.post');
+  });
+
+  it('#90 反向守卫：已知纯 stdlib（Text./List./Map.）不得告警', () => {
+    for (const builtin of ['Text.concat', 'List.map', 'Map.get', 'Decimal.add']) {
+      const f = makeFunc({
+        name: 'pureCall',
+        body: makeBlock([makeReturn(makeCall(builtin))]),
+      });
+      const diagnostics = runInference([f]);
+      assert.ok(
+        !findDiagnostic(diagnostics, ErrorCode.EFF_INFER_UNKNOWN_BUILTIN, 'pureCall'),
+        `${builtin} 属已知纯 stdlib，不应告警`,
+      );
+    }
+  });
+
+  it('#90 反向守卫：已知 IO 前缀走原路径，不额外报 E212', () => {
+    const f = makeFunc({
+      name: 'fetchKnown',
+      body: makeBlock([makeReturn(makeCall('Http.get'))]),
+    });
+    const diagnostics = runInference([f]);
+    assert.ok(findDiagnostic(diagnostics, ErrorCode.EFF_INFER_MISSING_IO, 'fetchKnown'));
+    assert.ok(
+      !findDiagnostic(diagnostics, ErrorCode.EFF_INFER_UNKNOWN_BUILTIN, 'fetchKnown'),
+      '匹配到已知前缀就不算未知',
+    );
+  });
+
+  it('#90 反向守卫：裸名调用（无命名空间）不告警，避免与未定义函数诊断重复', () => {
+    const f = makeFunc({
+      name: 'callsBare',
+      body: makeBlock([makeReturn(makeCall('someHelper'))]),
+    });
+    const diagnostics = runInference([f]);
+    assert.ok(
+      !findDiagnostic(diagnostics, ErrorCode.EFF_INFER_UNKNOWN_BUILTIN, 'callsBare'),
+      '裸名多为语言内建或未定义函数，后者已有专门诊断',
+    );
+  });
+
   it('内置 CPU 调用缺失声明应报错', () => {
     const compute = makeFunc({
       name: 'heavyCompute',

@@ -1,3 +1,4 @@
 WARN: Function 'helperWithCPU' declares @cpu but no obvious CPU-bound work found.
 WARN: Function 'wrapperWithCPU' declares @cpu but no obvious CPU-bound work found.
 WARN: 函数 'helperWithCPU' 声明了 @cpu，但推断未发现 CPU 副作用。
+WARN: 函数 'helperWithCPU' 调用的 builtin 'Cpu.hash' 效果未知，不按 pure 处理。

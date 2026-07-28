@@ -23,6 +23,22 @@ export interface ModuleContext {
   funcSignatures: Map<string, FunctionSignature>;
   importedEffects: Map<string, EffectSignature>;
   moduleSearchPaths: readonly string[];
+  /**
+   * effect 推断用的 IO / CPU 名称前缀（issue #88）。
+   *
+   * <p>**由调用方注入，而非由 effects.ts 自行 import**。原因是浏览器边界：
+   * `browser.ts` 直接 `import { checkEffects } from './effects.js'`，而读配置的
+   * `typecheck/utils.ts` 静态引用了 `node:module` / `node:path`——effects.ts 一旦
+   * import 它，Node 内置模块就会被拉进浏览器 bundle 闭包（`pure.ts` 头注释 R15 记载
+   * 过这条约束：**即使包在 try/catch 里**，打包器仍会看到该引用）。
+   *
+   * 注入让两侧各取所需：Node 入口传 `getIOPrefixesCompat()` 的配置值，浏览器入口
+   * 留空、由 effects.ts 回落到 `pure.ts` 的内置默认值。effects.ts 因此保持
+   * browser-safe，同时用户自定义 effect 配置在 Node 侧真正生效。
+   *
+   * 省略时等价于内置默认值。
+   */
+  effectPrefixes?: { readonly io: readonly string[]; readonly cpu: readonly string[] };
 }
 
 export interface TypecheckWalkerContext {

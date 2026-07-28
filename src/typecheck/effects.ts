@@ -21,6 +21,9 @@ import {
  */
 export function collectEffects(ctx: ModuleContext, block: Core.Block): Set<'io' | 'cpu'> {
   const effects = new Set<'io' | 'cpu'>();
+  // 未注入时回落 pure.ts 的内置默认值（浏览器路径 / 未接配置的调用方）。
+  const ioPrefixes = ctx.effectPrefixes?.io ?? IO_PREFIXES;
+  const cpuPrefixes = ctx.effectPrefixes?.cpu ?? CPU_PREFIXES;
   class EffectsVisitor extends DefaultCoreVisitor {
     override visitStatement(statement: Core.Statement, context: import('../core/visitor.js').VisitorContext): void {
       if (statement.kind === 'workflow') {
@@ -39,8 +42,10 @@ export function collectEffects(ctx: ModuleContext, block: Core.Block): Set<'io' 
       if (expression.kind === 'Call' && expression.target.kind === 'Name') {
         const rawName = expression.target.name;
         const resolvedName = resolveAlias(rawName, ctx.imports);
-        if (IO_PREFIXES.some(prefix => resolvedName.startsWith(prefix))) effects.add('io');
-        if (CPU_PREFIXES.some(prefix => resolvedName.startsWith(prefix))) effects.add('cpu');
+        // 前缀由 ctx 注入（issue #88）：Node 入口传配置值、浏览器入口留空回落内置默认。
+        // 不在此 import 配置模块——那会把 node:module/node:path 拉进浏览器 bundle。
+        if (ioPrefixes.some(prefix => resolvedName.startsWith(prefix))) effects.add('io');
+        if (cpuPrefixes.some(prefix => resolvedName.startsWith(prefix))) effects.add('cpu');
       }
       super.visitExpression(expression, context);
     }

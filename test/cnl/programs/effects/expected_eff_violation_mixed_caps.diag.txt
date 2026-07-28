@@ -1,2 +1,4 @@
 ERROR: Function 'mixed' uses Secrets capability but header declares [Http, Files].
 INFO: Function 'mixed' declares Files capability but it is not used.
+WARN: 函数 'mixed' 调用的 builtin 'Secrets.get' 效果未知，不按 pure 处理。
+WARN: 函数 'mixed' 调用的 builtin 'File.write' 效果未知，不按 pure 处理。

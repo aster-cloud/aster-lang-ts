@@ -1,1 +1,3 @@
 WARN: 函数 'fetch_with_declared_io' 声明了 @io，但推断未发现 IO 副作用。
+WARN: 函数 'fetch_with_custom_client' 调用的 builtin 'MyHttpClient.get' 效果未知，不按 pure 处理。
+WARN: 函数 'fetch_with_declared_io' 调用的 builtin 'MyHttpClient.get' 效果未知，不按 pure 处理。

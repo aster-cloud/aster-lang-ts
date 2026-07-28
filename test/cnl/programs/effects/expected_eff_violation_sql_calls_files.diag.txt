@@ -1,1 +1,2 @@
 ERROR: Function 'db_init' uses Files capability but header declares [Sql].
+WARN: 函数 'db_init' 调用的 builtin 'Files.read' 效果未知，不按 pure 处理。

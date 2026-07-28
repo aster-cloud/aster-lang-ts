@@ -95,13 +95,15 @@ const DEFAULT_CONFIG: EffectInferenceConfig = {
       files: [],
       // 密钥相关：UUID 生成（随机性）
       secrets: ['UUID.randomUUID'],
-      // 时间相关：暂无默认前缀
-      time: [],
+      // 时间相关：与 shared/capabilities.json 的 TIME capability 前缀对齐。
+      // 此前留空，导致 capabilities.json 声明 Time./Clock. 为 io-class 能力、
+      // 而 effect 推断完全看不到它们——两个"单源"互相矛盾（issue #90 暴露）。
+      time: ['Time.', 'Clock.'],
     },
     // CPU 相关：当前为空（完全依赖调用链传播）
     cpu: [],
-    // AI 相关：暂无默认前缀
-    ai: [],
+    // AI 相关：与 shared/capabilities.json 的 AI_MODEL capability 前缀对齐（同上）。
+    ai: ['Ai.'],
   },
 };
 
