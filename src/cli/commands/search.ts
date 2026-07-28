@@ -173,10 +173,29 @@ async function readManifestFromTarball(tarballPath: string): Promise<PackageMani
   }
 }
 
+/**
+ * 终端输出消毒（issue #89）。
+ *
+ * `name` / `version` / `description` 均来自**远程包 manifest**，属不可信输入，
+ * 此前被原样 `console.log` 到终端。含 ESC 的字符串可以改写光标位置、清屏、改配色，
+ * 甚至在部分终端里伪造后续输出——攻击者只需发布一个包就能污染 `search` 的显示。
+ *
+ * 处理：剥掉 C0/C1 控制字符（含 ESC \x1B）与换行，并限长，防止单条结果撑爆表格。
+ * 剥离而非转义：这些字符对"描述"这个语义没有任何合法用途。
+ */
+function sanitizeForTerminal(value: string, maxLength = 200): string {
+  const stripped = value.replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ').trim();
+  return stripped.length > maxLength ? `${stripped.slice(0, maxLength - 1)}…` : stripped;
+}
+
 function printResults(results: SearchResult[]): void {
   info('来源 | 包名 | 最新版本 | 描述');
   for (const item of results) {
-    console.log(`${item.source === 'local' ? '本地' : '远程'} | ${item.name} | ${item.version} | ${item.description}`);
+    const source = item.source === 'local' ? '本地' : '远程';
+    console.log(
+      `${source} | ${sanitizeForTerminal(item.name, 80)} | ` +
+      `${sanitizeForTerminal(item.version, 40)} | ${sanitizeForTerminal(item.description)}`,
+    );
   }
 }
 

@@ -7,7 +7,7 @@ import { PackageCache } from './package-cache.js';
 import { parseManifest } from './manifest-parser.js';
 import { maxSatisfying } from './version-utils.js';
 import { DependencyGraph } from './dependency-graph.js';
-import { updateLockfileEntry } from './lockfile.js';
+import { updateLockfileEntry, parseLockfile } from './lockfile.js';
 import type { ModuleCache } from '../lsp/module_cache.js';
 import {
   type Diagnostic,
@@ -105,6 +105,31 @@ export class PackageInstaller {
           .withPosition(dummyPosition())
           .build()
       ];
+    }
+
+    // 6b. ★对照 lockfile 中已固定的 integrity 校验（issue #87）。
+    //
+    // 此前 integrity 只被**写入** lockfile、从不被**读取比对**——`grep integrity src/`
+    // 全是 writer，零 reader。重装的唯一闸门是 cache.isCached()（TTL），
+    // validateCache() 也只查 manifest 的 name/version，不碰哈希。
+    // 于是它只是一条 TOFU 记录：首次装什么就信什么，之后 tarball 被掉包也无人发现。
+    // 这里把它变成真正的门：**已固定 integrity 且不匹配 → 拒绝解压**。
+    // 无固定值时（首次安装）才写入新哈希，保持首装体验不变。
+    const existingLock = parseLockfile(this.lockfilePath);
+    if (!(existingLock instanceof Error)) {
+      const pinned = existingLock.packages[packageName];
+      if (pinned && pinned.version === matchedVersion && pinned.integrity
+          && pinned.integrity !== integrity) {
+        return [
+          DiagnosticBuilder.error(DiagnosticCode.C001_CacheCorrupted)
+            .withMessage(
+              `完整性校验失败：${packageName}@${matchedVersion} 的哈希与 lockfile 不符。` +
+              `期望 ${pinned.integrity}，实际 ${integrity}。` +
+              `tarball 可能已被篡改或 registry 内容发生变化；如属预期请手动更新 lockfile。`)
+            .withPosition(dummyPosition())
+            .build()
+        ];
+      }
     }
 
     // 7. 添加到缓存（解压）
