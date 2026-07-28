@@ -1,3 +1,4 @@
 ERROR: Function 'bad_func' uses Secrets capability but header declares [Http].
 ERROR: Function 'bad_func' uses Sql capability but header declares [Http].
 ERROR: Function 'bad_func' uses Time capability but header declares [Http].
+WARN: 函数 'bad_func' 调用的 builtin 'Secrets.get' 效果未知，不按 pure 处理。

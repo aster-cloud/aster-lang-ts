@@ -3,6 +3,7 @@ import { Effect } from '../types.js';
 import { getIOPrefixes, getCPUPrefixes } from '../config/effect_config.js';
 import { DefaultCoreVisitor, createVisitorContext } from '../core/visitor.js';
 import { resolveAlias } from '../typecheck/utils.js';
+import { originToSpan } from '../typecheck/pure.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { EffectSignature } from './effect_signature.js';
 import type { ModuleCache, CacheEffectOptions } from '../lsp/module_cache.js';
@@ -16,6 +17,37 @@ export interface EffectConstraint {
 interface FunctionAnalysis {
   constraints: EffectConstraint[];
   localEffects: Set<Effect>;
+  /**
+   * 调用了、但**无法判定效果**的 builtin（issue #90）。
+   *
+   * 既非本地函数、又无导入效果签名、且不匹配任何已知前缀（capability 前缀表 +
+   * effect 配置）、也不属于已知纯 stdlib 命名空间。此前这类调用 localEffects 为空，
+   * 于是被**静默推断为 pure**——一个叫 `Webhook.post` 的真实网络调用不会触发
+   * EFF_INFER_MISSING_IO，下游按推断效果集做的能力门禁也就看不见它。
+   *
+   * 前缀匹配本质上不可能完备，所以这里不改判为"不纯"（那会把 Interop./Action./
+   * 测试夹具等大量合法调用一并误报），而是**把未知显式暴露出来**：pure 是一个
+   * 断言，不该由"没匹配上任何前缀"默认得出。
+   */
+  unknownBuiltins: Map<string, Origin | undefined>;
+}
+
+/**
+ * 已知**纯** stdlib 命名空间——调用它们不产生效果，无需告警。
+ *
+ * 与 aster-lang-test `scripts/tag-eval-exempt.mjs` 的 STDLIB_NAMESPACES 同源
+ * （那里用它判定"两引擎都支持的 stdlib 静态方法"）。此处额外含基础标量命名空间。
+ */
+const PURE_STDLIB_NAMESPACES: ReadonlySet<string> = new Set([
+  'Text', 'List', 'Map', 'Maybe', 'Option', 'Result', 'Date', 'Decimal',
+  'Int', 'Float', 'Bool', 'Json',
+]);
+
+/** 判断一个 builtin 名是否属于已知纯 stdlib（如 `Text.concat`）。 */
+function isKnownPureBuiltin(name: string): boolean {
+  const dot = name.indexOf('.');
+  if (dot <= 0) return false;
+  return PURE_STDLIB_NAMESPACES.has(name.slice(0, dot));
 }
 
 type EffectAtom = Effect | 'Workflow';
@@ -65,6 +97,8 @@ export function inferEffects(core: Core.Module, options?: EffectInferenceOptions
   const requiredEffects: EffectSetMap = new Map();
   const effectParams = new Map<string, Set<string>>();
   const bindings: EffectBindingTable = new Map();
+  // issue #90：效果未知的 builtin，按函数聚合，最后统一告警。
+  const unknownBuiltinsByFunc = new Map<string, Map<string, Origin | undefined>>();
 
   // 第一遍：收集局部效果和约束
   for (const func of funcIndex.values()) {
@@ -77,6 +111,9 @@ export function inferEffects(core: Core.Module, options?: EffectInferenceOptions
       options?.importedEffects
     );
     constraints.push(...analysis.constraints);
+    if (analysis.unknownBuiltins.size > 0) {
+      unknownBuiltinsByFunc.set(func.name, analysis.unknownBuiltins);
+    }
 
     const paramSet = new Set<string>(func.effectParams ?? []);
     effectParams.set(func.name, paramSet);
@@ -128,6 +165,26 @@ export function inferEffects(core: Core.Module, options?: EffectInferenceOptions
     effectParams
   );
 
+  // issue #90：把"效果未知"从静默 pure 变成显式 warning。
+  // 不升级为 error，也不改判为不纯——前缀匹配天然不完备，那样会把 Interop./Action./
+  // 测试夹具等大量合法调用一并误报。这里只保证：pure 是一个**断言**，而不是
+  // "没匹配上任何前缀"的默认值。
+  for (const [funcName, unknowns] of unknownBuiltinsByFunc) {
+    const fn = funcIndex.get(funcName);
+    for (const [builtin, origin] of unknowns) {
+      const span = originToSpan(origin) ?? fn?.span;
+      const diag: TypecheckDiagnostic = {
+        severity: 'warning',
+        message: `函数 '${funcName}' 调用的 builtin '${builtin}' 效果未知，不按 pure 处理。`,
+        code: ErrorCode.EFF_INFER_UNKNOWN_BUILTIN,
+        help: '通过 ASTER_EFFECT_CONFIG 前缀声明、提供导入效果签名，或改用已知 stdlib 命名空间。',
+        ...(span ? { span } : {}),
+        data: { func: funcName, builtin },
+      };
+      diagnostics.push(diag);
+    }
+  }
+
   if (options?.moduleName) {
     const signatures = buildEffectSignatureMap(
       options.moduleName,
@@ -162,6 +219,7 @@ function analyzeFunction(
 ): FunctionAnalysis {
   const constraints: EffectConstraint[] = [];
   const localEffects = new Set<Effect>();
+  const unknownBuiltins = new Map<string, Origin | undefined>();
 
   // 使用统一的 Core 访客遍历函数体，收集调用与内建效果
   class EffectCollector extends DefaultCoreVisitor {
@@ -198,7 +256,15 @@ function analyzeFunction(
               localEffects.add(effect);
             }
           } else if (!isLocal) {
-            recordBuiltinEffect(resolvedName, localEffects, ioPrefixes, cpuPrefixes);
+            const matched = recordBuiltinEffect(resolvedName, localEffects, ioPrefixes, cpuPrefixes);
+            // 未匹配任何已知前缀、且不是已知纯 stdlib → 效果未知（issue #90）。
+            // 只记带命名空间的调用（含 '.'）：裸名多为语言内建或未定义函数，
+            // 后者已有 undefined-function 诊断，重复告警只会制造噪声。
+            if (!matched && !isKnownPureBuiltin(resolvedName) && resolvedName.includes('.')
+                && !unknownBuiltins.has(resolvedName)) {
+              const call = e as Core.Call;
+              unknownBuiltins.set(resolvedName, call.origin as Origin | undefined);
+            }
           }
 
           if (isLocal) {
@@ -221,21 +287,24 @@ function analyzeFunction(
 
   if (func.body) new EffectCollector().visitBlock(func.body, createVisitorContext());
 
-  return { constraints, localEffects };
+  return { constraints, localEffects, unknownBuiltins };
 }
 
 function extractFunctionName(expr: Core.Expression): string | null {
   return expr.kind === 'Name' ? expr.name : null;
 }
 
+/** @returns 是否匹配到了任一已知前缀（false = 效果未知，见 unknownBuiltins）。 */
 function recordBuiltinEffect(
   name: string,
   effects: Set<Effect>,
   ioPrefixes: readonly string[],
   cpuPrefixes: readonly string[]
-): void {
-  if (ioPrefixes.some(prefix => name.startsWith(prefix))) effects.add(Effect.IO);
-  if (cpuPrefixes.some(prefix => name.startsWith(prefix))) effects.add(Effect.CPU);
+): boolean {
+  let matched = false;
+  if (ioPrefixes.some(prefix => name.startsWith(prefix))) { effects.add(Effect.IO); matched = true; }
+  if (cpuPrefixes.some(prefix => name.startsWith(prefix))) { effects.add(Effect.CPU); matched = true; }
+  return matched;
 }
 
 function propagateEffects(

@@ -1,2 +1,4 @@
 ERROR: Function 'call_partial_match' may perform I/O but is missing @io effect.
 ERROR: 函数 'call_partial_match' 缺少 @io 效果声明，推断要求 IO。
+WARN: 函数 'call_unmapped_alias' 调用的 builtin 'X.get' 效果未知，不按 pure 处理。
+WARN: 函数 'call_nonexistent_prefix' 调用的 builtin 'UnknownModule.method' 效果未知，不按 pure 处理。

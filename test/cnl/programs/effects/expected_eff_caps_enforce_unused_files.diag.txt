@@ -1,2 +1,3 @@
 INFO: Function 'onlyFiles' declares Time capability but it is not used.
 WARN: 函数 'onlyFiles' 声明了 @io，但推断未发现 IO 副作用。
+WARN: 函数 'onlyFiles' 调用的 builtin 'Files.read' 效果未知，不按 pure 处理。

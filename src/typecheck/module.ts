@@ -27,6 +27,8 @@ import {
   isUnknown,
   buildFieldTypeMap,
   checkEntryRuleUniqueness,
+  getCPUPrefixesCompat,
+  getIOPrefixesCompat,
   normalizeModuleSearchPaths,
   normalizeType,
   typesEqual,
@@ -66,6 +68,11 @@ export function typecheckModule(m: Core.Module, options?: TypecheckOptions): Typ
       funcSignatures: new Map(),
       importedEffects: new Map(),
       moduleSearchPaths,
+      // issue #88：Node 路径注入**配置驱动**的 effect 前缀。effects.ts 自己不 import
+      // 配置模块（会把 node:module/node:path 拉进浏览器 bundle），改由这里注入；
+      // browser.ts 不注入，effects.ts 回落 pure.ts 内置默认值。
+      // module.ts 本就 import utils.js，故此处不新增任何浏览器侧暴露面。
+      effectPrefixes: { io: getIOPrefixesCompat(), cpu: getCPUPrefixesCompat() },
     };
     const importDecls: Core.Import[] = [];
     const fieldTypes = buildFieldTypeMap(m.decls);

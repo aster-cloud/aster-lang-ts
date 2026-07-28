@@ -115,7 +115,10 @@ describe('effect_config', () => {
     assert.deepStrictEqual(config.patterns.io.sql, DEFAULT_SQL_PREFIXES);
     assert.deepStrictEqual(config.patterns.io.files, []);
     assert.deepStrictEqual(config.patterns.io.secrets, DEFAULT_SECRETS_PREFIXES);
-    assert.deepStrictEqual(config.patterns.io.time, []);
+    // Time./Clock. 与 shared/capabilities.json 的 TIME capability 前缀对齐（issue #90）：
+    // 此前留空，导致 capabilities.json 声明它们为 io-class 能力、而 effect 推断完全看不到——
+    // 两个「单源」互相矛盾。
+    assert.deepStrictEqual(config.patterns.io.time, ['Time.', 'Clock.']);
     assert.deepStrictEqual(config.patterns.cpu, []);
   });
 
@@ -154,11 +157,13 @@ describe('effect_config', () => {
       assert.deepStrictEqual(config.patterns.io.sql, DEFAULT_SQL_PREFIXES);
       assert.deepStrictEqual(config.patterns.io.files, []);
       assert.deepStrictEqual(config.patterns.io.secrets, DEFAULT_SECRETS_PREFIXES);
-      assert.deepStrictEqual(config.patterns.io.time, []);
+      assert.deepStrictEqual(config.patterns.io.time, ['Time.', 'Clock.']);
       assert.deepStrictEqual(config.patterns.cpu, ['CpuCustom.']);
 
       const prefixes = mod.getIOPrefixes();
-      assert.deepStrictEqual(prefixes, ['CustomHttp.', ...DEFAULT_SQL_PREFIXES, ...DEFAULT_SECRETS_PREFIXES]);
+      // 扁平化前缀现含 TIME capability 前缀（issue #90：与 capabilities.json 对齐）
+      assert.deepStrictEqual(prefixes,
+        ['CustomHttp.', ...DEFAULT_SQL_PREFIXES, ...DEFAULT_SECRETS_PREFIXES, 'Time.', 'Clock.']);
     } finally {
       temp.cleanup();
     }
