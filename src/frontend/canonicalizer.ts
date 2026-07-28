@@ -410,9 +410,10 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
     s = applyTransformers(s, effectiveLexicon.canonicalization.preTranslationTransformers);
   }
 
-  // 全角转半角（如果配置启用）
+  // 全角转半角（如果配置启用）。传入引号对以保护字符串字面量——
+  // 与 Java 侧 fullWidthToHalfWidth 走 segmentString 的行为一致。
   if (effectiveLexicon.canonicalization.fullWidthToHalf) {
-    s = fullWidthToHalfWidth(s);
+    s = fullWidthToHalfWidth(s, effectiveLexicon.punctuation.stringQuotes);
   }
 
   // CJK 标点软边界归一化：将中文标点替换为英文等价，使后续 token 边界
@@ -568,34 +569,35 @@ function normalizeCJKPunctuation(
 }
 
 /**
- * 全角字符转半角（数字和运算符）。
+ * 全角字符转半角：**整个** FF01–FF5E 区间统一减 0xFEE0，外加全角空格 U+3000 → ' '。
+ *
+ * 与 Java `Canonicalizer.fullWidthToHalfWidthImpl` 逐字符等价。此前 TS 只覆盖
+ * 「字母数字 + 11 个硬编码符号」，于是 `．`(FF0E) / `＿`(FF3F) / `％`(FF05) /
+ * `　`(U+3000) 等在 Java 侧被归一、TS 侧原样保留——同一份中文源码在两引擎产生
+ * 不同 token 序列（issue #85）。
+ *
+ * ★同时必须走 segmentString 保护字符串字面量。Java 侧 `fullWidthToHalfWidth` 本就
+ * 只对 `inString=false` 的段生效，而 TS 此前是**裸调用**：区间一旦扩大，字符串里的
+ * 全角文本就会被一并改写（`「全角：％＋１」` → `「全角：％+1」`），那是比原 bug
+ * 更糟的数据损坏。故「扩区间」与「加保护」必须在同一次改动里落地，不能拆开。
  *
  * @param str - 输入字符串
+ * @param quotes - 字符串字面量引号对，用于区分字面量内外
  * @returns 转换后的字符串
  */
-function fullWidthToHalfWidth(str: string): string {
-  return str.replace(/[\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A]/g, ch => {
-    // 全角数字 0-9：0xFF10-0xFF19 → 0x30-0x39
-    // 全角大写字母 A-Z：0xFF21-0xFF3A → 0x41-0x5A
-    // 全角小写字母 a-z：0xFF41-0xFF5A → 0x61-0x7A
-    return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
-  }).replace(/[\uFF0B\uFF0D\uFF0A\uFF0F\uFF1D\uFF1C\uFF1E\uFF08\uFF09\uFF3B\uFF3D]/g, ch => {
-    // 全角运算符和括号
-    const map: Record<string, string> = {
-      '\uFF0B': '+', // ＋
-      '\uFF0D': '-', // －
-      '\uFF0A': '*', // ＊
-      '\uFF0F': '/', // ／
-      '\uFF1D': '=', // ＝
-      '\uFF1C': '<', // ＜
-      '\uFF1E': '>', // ＞
-      '\uFF08': '(', // （全角左圆括号
-      '\uFF09': ')', // ）全角右圆括号
-      '\uFF3B': '[', // ［全角左方括号
-      '\uFF3D': ']', // ］全角右方括号
-    };
-    return map[ch] ?? ch;
-  });
+function fullWidthToHalfWidth(
+  str: string,
+  quotes: { open: string; close: string },
+): string {
+  return segmentString(str, quotes)
+    .map(segment =>
+      segment.inString
+        // 字符串字面量是用户数据而非语法，保持原样
+        ? segment.text
+        : segment.text.replace(/[\u3000\uFF01-\uFF5E]/g, ch =>
+            ch === '\u3000' ? ' ' : String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)),
+    )
+    .join('');
 }
 
 /**
