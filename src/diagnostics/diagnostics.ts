@@ -16,6 +16,9 @@ export enum DiagnosticCode {
   L003_InvalidIndentation = 'L003',
   L004_InconsistentDedent = 'L004',
   L005_DecimalTooManyDigits = 'L005',
+  L006_IntLiteralOutOfRange = 'L006',
+  L007_LongLiteralOutOfRange = 'L007',
+  L008_FloatLiteralNotFinite = 'L008',
 
   // Lowering errors (L101-L199)
   L101_UnknownDeclKind = 'L101',
@@ -278,6 +281,32 @@ export const Diagnostics = {
   decimalTooManyDigits: (digits: number, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L005_DecimalTooManyDigits)
       .withMessage(`Decimal literal has ${digits} significant digits; the v1 maximum is 38 (ADR 0025). Split or round the value.`)
+      .withPosition(pos),
+
+  // 整数/长整型字面量范围（与 Decimal 同理由）：TS 用 BigInt/parseInt 会静默接受甚至
+  // 丢精度，Java 的 Integer.parseInt/Long.parseLong 直接抛 NumberFormatException
+  // → 同一份源码在两引擎一个能跑一个崩。按 Decimal 的既定约定「两侧硬拒」保 parity。
+  intLiteralOutOfRange: (raw: string, pos: Position): DiagnosticBuilder =>
+    DiagnosticBuilder.error(DiagnosticCode.L006_IntLiteralOutOfRange)
+      .withMessage(
+        `Integer literal ${raw} is out of range for Int (-2147483648..2147483647). ` +
+        `Add the 'L' suffix for a 64-bit Long, or use a Decimal literal.`)
+      .withPosition(pos),
+
+  longLiteralOutOfRange: (raw: string, pos: Position): DiagnosticBuilder =>
+    DiagnosticBuilder.error(DiagnosticCode.L007_LongLiteralOutOfRange)
+      .withMessage(
+        `Long literal ${raw} is out of range for Long ` +
+        `(-9223372036854775808..9223372036854775807). Use a Decimal literal instead.`)
+      .withPosition(pos),
+
+  // 浮点字面量溢出：两引擎都会静默变成 Infinity（IEEE 754），使超限数值被当作
+  // 合法值继续参与运算。硬拒，避免"看起来算出来了"的错误结果。
+  floatLiteralNotFinite: (raw: string, pos: Position): DiagnosticBuilder =>
+    DiagnosticBuilder.error(DiagnosticCode.L008_FloatLiteralNotFinite)
+      .withMessage(
+        `Float literal ${raw} overflows to Infinity and is not a finite Float. ` +
+        `Use a Decimal literal for values beyond the double range.`)
       .withPosition(pos),
 
   unexpectedCharacter: (char: string, pos: Position): DiagnosticBuilder =>

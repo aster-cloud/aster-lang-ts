@@ -28,6 +28,19 @@ import { SemanticTokenKind } from '../config/token-kind.js';
 import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/index.js';
 
 /**
+ * 整数字面量范围上下界（与 JVM 的 int / long 一致）。
+ *
+ * 双引擎 parity：Java 侧 `Integer.parseInt` / `Long.parseLong` 对超限输入直接抛
+ * `NumberFormatException`，而 TS 的 `parseInt` / `BigInt` 会静默接受（前者还会丢精度）。
+ * 沿用 Decimal 有效位上限（ADR 0025）确立的约定——**两侧一律硬拒**，而不是把 Java
+ * 放宽成 BigInteger，以保证同一份源码在两引擎行为一致。
+ */
+const INT_MIN = -2147483648n;
+const INT_MAX = 2147483647n;
+const LONG_MIN = -9223372036854775808n;
+const LONG_MAX = 9223372036854775807n;
+
+/**
  * 获取有效的词法表（提供的或注册表默认）。
  *
  * @param lexicon - 可选的词法表
@@ -609,18 +622,35 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
         continue;
       }
       if (hasFraction) {
-        push(TokenKind.FLOAT, parseFloat(num), start);
+        const f = parseFloat(num);
+        // 溢出成 Infinity 的字面量硬拒：两引擎都会静默变 Infinity，让超限值
+        // 继续参与运算并产出"看似算出来了"的结果。
+        if (!Number.isFinite(f)) {
+          Diagnostics.floatLiteralNotFinite(num, start).throw();
+        }
+        push(TokenKind.FLOAT, f, start);
         continue;
       }
       // Look for long suffix 'L' or 'l'
       if (peek().toLowerCase() === 'l') {
         next();
         // 使用 BigInt 避免精度损失，然后转换为 string
-        const val = BigInt(num).toString();
-        push(TokenKind.LONG, val, start);
+        const big = BigInt(num);
+        // 超 Int64 硬拒：Java 侧 Long.parseLong 会抛 NumberFormatException，
+        // TS 若继续接受则同一源码在两引擎行为分歧（issue #86）。
+        if (big > LONG_MAX || big < LONG_MIN) {
+          Diagnostics.longLiteralOutOfRange(num, start).throw();
+        }
+        push(TokenKind.LONG, big.toString(), start);
         continue;
       }
-      push(TokenKind.INT, parseInt(num, 10), start);
+      // 超 Int32 硬拒：Java 侧 Integer.parseInt 抛异常，而 TS 的 parseInt 不但接受，
+      // 20 位以上还会**静默丢精度**（99999999999999999999 → 1e20）（issue #83）。
+      const asBig = BigInt(num);
+      if (asBig > INT_MAX || asBig < INT_MIN) {
+        Diagnostics.intLiteralOutOfRange(num, start).throw();
+      }
+      push(TokenKind.INT, Number(asBig), start);
       continue;
     }
 

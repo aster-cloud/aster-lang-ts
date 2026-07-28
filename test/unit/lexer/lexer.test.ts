@@ -180,4 +180,46 @@ Return 1.
       assert.equal(stringToken!.value, 'quote: " newline: \\n');
     });
   });
+
+  describe('数值字面量范围（双引擎 parity：issue #83 / #86 / core #81 #85）', () => {
+    // Java 侧 Integer.parseInt / Long.parseLong 对超限输入抛 NumberFormatException，
+    // 而 TS 的 parseInt / BigInt 会静默接受（parseInt 在 20 位以上还会丢精度）——
+    // 同一份源码一个引擎崩、一个引擎跑。沿用 Decimal 位数上限（ADR 0025）的既定
+    // 约定：两侧一律硬拒。
+
+    it('Int 边界值 2147483647 → 接受', () => {
+      const toks = significant(tokenize('Rule f produce:\n  Return 2147483647.\n'));
+      assert.ok(toks.some(t => t.kind === TokenKind.INT && t.value === 2147483647));
+    });
+
+    it('超 Int32 的 3000000000 → 拒绝', () => {
+      assert.throws(() => tokenize('Rule f produce:\n  Return 3000000000.\n'),
+        /out of range for Int/);
+    });
+
+    it('20 位整数（TS 曾静默丢精度）→ 拒绝', () => {
+      assert.throws(() => tokenize('Rule f produce:\n  Return 99999999999999999999.\n'),
+        /out of range for Int/);
+    });
+
+    it('Long 边界值 9223372036854775807L → 接受', () => {
+      const toks = significant(tokenize('Rule f produce:\n  Return 9223372036854775807L.\n'));
+      assert.ok(toks.some(t => t.kind === TokenKind.LONG && t.value === '9223372036854775807'));
+    });
+
+    it('超 Int64 的 L 字面量 → 拒绝', () => {
+      assert.throws(() => tokenize('Rule f produce:\n  Return 99999999999999999999L.\n'),
+        /out of range for Long/);
+    });
+
+    it('溢出成 Infinity 的浮点字面量 → 拒绝', () => {
+      assert.throws(() => tokenize(`Rule f produce:\n  Return ${'9'.repeat(400)}.0.\n`),
+        /Infinity/);
+    });
+
+    it('正常浮点仍可解析', () => {
+      const toks = significant(tokenize('Rule f produce:\n  Return 1.5.\n'));
+      assert.ok(toks.some(t => t.kind === TokenKind.FLOAT && t.value === 1.5));
+    });
+  });
 });
