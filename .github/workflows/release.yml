@@ -152,7 +152,7 @@ jobs:
         continue-on-error: true
         run: |
           gh workflow run auto-upgrade.yml \
-            --repo aster-cloud/aster-cloud \
+            --repo wontlost-ltd/aster-cloud \
             --field version=${{ github.ref_name }}
         env:
           GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
