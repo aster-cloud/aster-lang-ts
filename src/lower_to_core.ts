@@ -484,6 +484,29 @@ function lowerCaseBody(
   return lowerBlock(body);
 }
 
+/**
+ * 取一个模式引入的绑定名集合 —— 与 Java `CoreLowering.patternBindings` 同构。
+ *
+ * <p>`PatternName` 绑定自身名字；`PatternCtor` 绑定 `names` 并递归 `args`；
+ * `PatternNull` / `PatternInt` 不引入绑定。
+ */
+function patternBindings(p: Pattern | undefined): Set<string> {
+  const out = new Set<string>();
+  if (!p) return out;
+  if (p.kind === 'PatternName') {
+    if (p.name) out.add(p.name);
+    return out;
+  }
+  if (p.kind === 'PatternCtor') {
+    for (const n of p.names ?? []) out.add(n);
+    for (const arg of p.args ?? []) {
+      for (const n of patternBindings(arg)) out.add(n);
+    }
+    return out;
+  }
+  return out;
+}
+
 function lowerExpr(e: Expression): import('./types.js').Core.Expression {
   switch (e.kind) {
     case 'Name':
@@ -561,6 +584,23 @@ function lowerExpr(e: Expression): import('./types.js').Core.Expression {
         }
 
         override visitStatement(s: Statement, ctx: void): void {
+          if (s.kind === 'Match') {
+            // ★Match 的模式会**绑定**新名字，这些名字在该 case 体内不是自由变量。
+            //   此前只递归不绑定，于是 `When bound, Return bound.` 里的 bound
+            //   被当成捕获（Java 侧 CoreLowering:820-832 有 patternBindings，
+            //   两侧因此分叉：Java [] vs TS ["bound"]）。
+            this.visitExpression(s.expr, ctx);
+            for (const c of s.cases) {
+              scopes.push(patternBindings(c.pattern));
+              try {
+                if (c.body.kind === 'Return') this.visitExpression(c.body.expr, ctx);
+                else this.visitBlock(c.body, ctx);
+              } finally {
+                scopes.pop();
+              }
+            }
+            return;
+          }
           super.visitStatement(s, ctx);
           // ★先递归再绑定：`Let x be x + 1` 里右侧的 x 指的是**外层**的 x，
           //   先绑定会把它误判成已绑定而漏掉这次捕获。

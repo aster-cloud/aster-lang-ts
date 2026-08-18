@@ -19,6 +19,24 @@ import { compile } from '../../src/browser.js';
  */
 
 /** 取编译产物中第一个 Lambda 的 captures。 */
+/** 取整段源码里全部 Lambda 的 captures（按遍历序，外层在前）。 */
+function capturesOf2(src: string): string[][] {
+  const c = compile(src);
+  assert.ok(c.core, `compile 失败: ${JSON.stringify((c as { parseErrors?: unknown }).parseErrors ?? [])}`);
+  const found: string[][] = [];
+  const walk = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    const node = n as { kind?: string; captures?: string[] };
+    if (node.kind === 'Lambda' && Array.isArray(node.captures)) found.push(node.captures);
+    for (const v of Object.values(n as Record<string, unknown>)) {
+      if (Array.isArray(v)) v.forEach(walk); else walk(v);
+    }
+  };
+  walk(c.core);
+  assert.ok(found.length > 0, '源码里应至少有一个 Lambda');
+  return found;
+}
+
 function capturesOf(body: string): string[] {
   const src =
     `Module probe.\n\nRule r given outer, produce:\n` +
@@ -96,14 +114,67 @@ describe('lambda 捕获：表达式变体覆盖完整性', () => {
       `Let 局部 localA 不得计入 captures（Java 侧为 [outer]），实际=${JSON.stringify(found[0])}`);
   });
 
+  it('Match 模式绑定的名字不得计入 captures', () => {
+    // ★复评发现（2026-08-18）：Java 的 CoreLowering:820-832 有 patternBindings，
+    //   TS 的 CaptureVisitor 此前只递归 Match 的 case 体、**不绑定模式引入的名字**，
+    //   于是 `When bound, Return bound.` 里的 bound 被误记成捕获：
+    //     Java → []        TS（修前）→ ["bound"]
+    //   上一轮声称「六个样例逐条一致」，而那六个样例恰好都不含 Match。
+    const captures = capturesOf2(
+      `Module probe.\n\nRule r given outer, produce:\n` +
+      `  Let f be function with x, produce:\n` +
+      `    Match x:\n` +
+      `      When bound, Return bound.\n` +
+      `  Return f(outer).\n`);
+    assert.deepEqual(captures[0], [],
+      `Match 绑定的 bound 不得计入 captures（Java 侧为 []），实际=${JSON.stringify(captures[0])}`);
+  });
+
+  it('Match case 体内引用的外部变量仍须捕获', () => {
+    // ★反向断言：绑定模式名 ≠ 把整个 case 体屏蔽掉。
+    //   否则「Match 分支一律不收集」也能让上面那条通过，那是假修复。
+    const captures = capturesOf2(
+      `Module probe.\n\nRule r given outer, produce:\n` +
+      `  Let f be function with x, produce:\n` +
+      `    Match x:\n` +
+      `      When bound, Return If bound then outer else bound.\n` +
+      `  Return f(outer).\n`);
+    assert.deepEqual(captures[0], ['outer'],
+      `case 体里的 outer 必须捕获、bound 不得（Java 侧为 [outer]），实际=${JSON.stringify(captures[0])}`);
+  });
+
+  it('块级作用域：块内 Let 出块即失效，块外同名引用须视为自由变量', () => {
+    // ★复评发现：visitBlock 的 push/pop 此前零覆盖 —— 删掉它 8 条用例全绿。
+    //
+    // ★这条用例的构造要点（第一版没做对）：若只断言「块内 Let 的 tmp 不入 captures」，
+    //   删掉 push/pop 后 tmp 落进外层作用域集，**仍然算已绑定**，断言照样通过 —— 无鉴别力。
+    //   必须让块内声明**逃逸后被引用**：块结束时 tmp 出栈，块外的 `Return tmp`
+    //   就成了自由变量、必须捕获。删掉 push/pop 则 tmp 仍在栈上 → 不捕获 → 用例红。
+    //   Java 侧实测同为 [outer, tmp]。
+    const captures = capturesOf2(
+      `Module probe.\n\nRule r given outer, produce:\n` +
+      `  Let f be function with x, produce:\n` +
+      `    If x:\n` +
+      `      Let tmp be outer.\n` +
+      `      Return tmp.\n` +
+      `    Return tmp.\n` +
+      `  Return f(outer).\n`);
+    assert.deepEqual([...captures[0]!].sort(), ['outer', 'tmp'],
+      `块外引用的 tmp 必须视为自由变量（Java 侧为 [outer, tmp]），实际=${JSON.stringify(captures[0])}`);
+  });
+
   it('嵌套 lambda 的名字与形参不得污染外层 captures', () => {
     // 内层 lambda 由 Let 绑定（名字 g），且有自己的形参 y。
     // 两者都不是外层的自由变量，都不得进外层 captures。
+    //
+    // ★内层体必须**真的引用 y**（复评发现）：原写法内层体是 `Return outer.`，
+    //   y 从未被引用，那条「y 不得污染外层」的断言恒真 —— 实测「内层形参不入栈」
+    //   这个变异下 8 条用例仍全绿。与 core#106 上一轮修掉的空断言同型。
     const src =
       `Module probe.\n\nRule r given outer, produce:\n` +
       `  Let f be function with x, produce:\n` +
       `    Let g be function with y, produce:\n` +
-      `      Return outer.\n` +
+      `      Return If y then outer else outer.\n` +
       `    Return [g(x)].\n` +
       `  Return f(outer).\n`;
     const c = compile(src);
