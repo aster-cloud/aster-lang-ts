@@ -69,6 +69,87 @@ describe('lambda 捕获：表达式变体覆盖完整性', () => {
     assert.ok(capturesOf('If outer then 1 else 0').includes('outer'));
   });
 
+  it('lambda 体内 Let 声明的局部变量不得计入 captures', () => {
+    // ★对抗性审查发现（2026-08-18）：此前 CaptureVisitor **没有作用域栈**，
+    //   只排除当前 lambda 的形参，于是 Let 局部被当成捕获（over-capture）。
+    //   同一段源码 Java 得 [outer]、TS 得 [outer, localA] —— 依然是双引擎分歧，
+    //   只是从「少算」变成了「多算」。
+    const src =
+      `Module probe.\n\nRule r given outer, produce:\n` +
+      `  Let f be function with x, produce:\n` +
+      `    Let localA be 1.\n` +
+      `    Return If x then outer else localA.\n` +
+      `  Return f(outer).\n`;
+    const c = compile(src);
+    assert.ok(c.core, 'compile 失败');
+    const found: string[][] = [];
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      const node = n as { kind?: string; captures?: string[] };
+      if (node.kind === 'Lambda' && Array.isArray(node.captures)) found.push(node.captures);
+      for (const v of Object.values(n as Record<string, unknown>)) {
+        if (Array.isArray(v)) v.forEach(walk); else walk(v);
+      }
+    };
+    walk(c.core);
+    assert.deepEqual(found[0], ['outer'],
+      `Let 局部 localA 不得计入 captures（Java 侧为 [outer]），实际=${JSON.stringify(found[0])}`);
+  });
+
+  it('嵌套 lambda 的名字与形参不得污染外层 captures', () => {
+    // 内层 lambda 由 Let 绑定（名字 g），且有自己的形参 y。
+    // 两者都不是外层的自由变量，都不得进外层 captures。
+    const src =
+      `Module probe.\n\nRule r given outer, produce:\n` +
+      `  Let f be function with x, produce:\n` +
+      `    Let g be function with y, produce:\n` +
+      `      Return outer.\n` +
+      `    Return [g(x)].\n` +
+      `  Return f(outer).\n`;
+    const c = compile(src);
+    assert.ok(c.core, 'compile 失败');
+    const found: string[][] = [];
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      const node = n as { kind?: string; captures?: string[] };
+      if (node.kind === 'Lambda' && Array.isArray(node.captures)) found.push(node.captures);
+      for (const v of Object.values(n as Record<string, unknown>)) {
+        if (Array.isArray(v)) v.forEach(walk); else walk(v);
+      }
+    };
+    walk(c.core);
+    // Java 侧实测为 [[outer], [outer]]
+    assert.deepEqual(found[0], ['outer'],
+      `外层不得捕获 g/y，实际=${JSON.stringify(found[0])}`);
+    assert.deepEqual(found[1], ['outer'],
+      `内层应捕获 outer，实际=${JSON.stringify(found[1])}`);
+  });
+
+  it('Let 右侧引用同名外层变量时仍应捕获（先递归后绑定）', () => {
+    // `Let outer be outer` 的右侧指的是**外层**的 outer——
+    // 若实现先绑定再递归，会把它误判成已绑定而漏掉这次捕获。
+    const src =
+      `Module probe.\n\nRule r given outer, produce:\n` +
+      `  Let f be function with x, produce:\n` +
+      `    Let outer be outer.\n` +
+      `    Return outer.\n` +
+      `  Return f(outer).\n`;
+    const c = compile(src);
+    assert.ok(c.core, 'compile 失败');
+    const found: string[][] = [];
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      const node = n as { kind?: string; captures?: string[] };
+      if (node.kind === 'Lambda' && Array.isArray(node.captures)) found.push(node.captures);
+      for (const v of Object.values(n as Record<string, unknown>)) {
+        if (Array.isArray(v)) v.forEach(walk); else walk(v);
+      }
+    };
+    walk(c.core);
+    assert.ok(found[0]!.includes('outer'),
+      `Let 右侧的外层 outer 必须被捕获，实际=${JSON.stringify(found[0])}`);
+  });
+
   it('lambda 自身形参不得计入 captures（反向断言）', () => {
     // ★同等重要的一半：否则「把所有 Name 无条件塞进 captures」也能让上面全绿——
     //   那是假修复，且会给 Truffle 多造出无用槽位。
