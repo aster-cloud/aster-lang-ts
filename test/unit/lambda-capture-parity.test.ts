@@ -143,6 +143,41 @@ describe('lambda 捕获：表达式变体覆盖完整性', () => {
       `case 体里的 outer 必须捕获、bound 不得（Java 侧为 [outer]），实际=${JSON.stringify(captures[0])}`);
   });
 
+  it('Match 的被匹配表达式（scrutinee）位也须收集捕获', () => {
+    // ★终审发现（变异 E）：Match 分支我自己重写了递归逻辑，若漏掉
+    //   `this.visitExpression(s.expr, ctx)`，scrutinee 位的自由变量就收不到 ——
+    //   实测该变异**既逃过 11 条单测、也逃过 124 条 golden**，
+    //   而它造成真分歧：Java [outer] vs TS []。
+    //   两个 case 都不引用 outer，使 scrutinee 成为 outer 的唯一来源。
+    const captures = capturesOf2(
+      `Module probe.\n\nRule r given outer, produce:\n` +
+      `  Let f be function with x, produce:\n` +
+      `    Match outer:\n` +
+      `      When 1, Return x.\n` +
+      `      When rest, Return x.\n` +
+      `  Return f(outer).\n`);
+    assert.ok(captures[0]!.includes('outer'),
+      `scrutinee 位的 outer 必须捕获（Java 侧为 [outer]），实际=${JSON.stringify(captures[0])}`);
+  });
+
+  it('Match 各 case 的模式绑定不得泄漏到后续 case', () => {
+    // ★终审发现（变异 H）：每个 case 用独立作用域（push/pop）。
+    //   若不弹栈，前一个 case 绑定的 bound 会泄漏到后一个 case，
+    //   使后者的 `Return bound` 被误判成已绑定而漏掉捕获。
+    //   实测该变异同样逃过全部单测与 golden，造成 Java [bound] vs TS [] 的真分歧。
+    //   第二个 case 的 bound 是**自由变量**（它自己绑的是 other）。
+    const captures = capturesOf2(
+      `Module probe.\n\nRule r given bound, produce:\n` +
+      `  Let f be function with x, produce:\n` +
+      `    Match x:\n` +
+      `      When bound, Return bound.\n` +
+      `      When other, Return bound.\n` +
+      `  Return f(bound).\n`);
+    assert.ok(captures[0]!.includes('bound'),
+      `第二个 case 里的 bound 是自由变量、必须捕获（Java 侧为 [bound]），`
+      + `实际=${JSON.stringify(captures[0])}`);
+  });
+
   it('块级作用域：块内 Let 出块即失效，块外同名引用须视为自由变量', () => {
     // ★复评发现：visitBlock 的 push/pop 此前零覆盖 —— 删掉它 8 条用例全绿。
     //
