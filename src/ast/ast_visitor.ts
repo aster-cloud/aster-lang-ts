@@ -233,6 +233,25 @@ export class DefaultAstVisitor<Ctx> implements AstVisitor<Ctx, void> {
         this.visitExpression(e.thenE, ctx);
         this.visitExpression(e.elseE, ctx);
         return;
+      case 'ListLit':
+        // ADR 0024 C0：列表字面量的元素是子表达式，必须递归。漏掉它会让
+        // `Return [outer, x]` 里的 outer 收不进 CaptureVisitor 的 captures——
+        // 而 captures 不是元数据：Truffle Loader 用它构造 FrameDescriptor，
+        // 缺一个名字 = 该变量在被调帧里根本没有槽位。Java 侧 CoreLowering.visitExpr
+        // 一直处理 ListLiteral，此处漏掉即构成双引擎 IR 分歧（2026-08-17 审计实测）。
+        for (const el of e.elements) this.visitExpression(el, ctx);
+        return;
+      case 'Decimal':
+        // 叶子节点，无子表达式；显式列出以便下面的穷尽性检查成立。
+        return;
+      default: {
+        // ★穷尽性守卫：新增 Expression 变体却忘了在此处理时，`never` 赋值会
+        //   **编译期**报错。此前 ListLit / Decimal 就是这样静默漏掉的——
+        //   没有 default 分支，漏掉的变体只是悄悄 return，不递归子表达式，
+        //   于是捕获变量被丢弃而两侧都不报错。
+        const _exhaustive: never = e;
+        return _exhaustive;
+      }
     }
   }
 }
