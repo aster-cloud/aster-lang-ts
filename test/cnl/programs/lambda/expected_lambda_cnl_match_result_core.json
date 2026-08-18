@@ -111,10 +111,7 @@
                   }
                 ]
               },
-              "captures": [
-                "value",
-                "err"
-              ]
+              "captures": []
             }
           },
           {
