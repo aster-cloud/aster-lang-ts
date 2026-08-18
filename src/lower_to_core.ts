@@ -484,6 +484,29 @@ function lowerCaseBody(
   return lowerBlock(body);
 }
 
+/**
+ * 取一个模式引入的绑定名集合 —— 与 Java `CoreLowering.patternBindings` 同构。
+ *
+ * <p>`PatternName` 绑定自身名字；`PatternCtor` 绑定 `names` 并递归 `args`；
+ * `PatternNull` / `PatternInt` 不引入绑定。
+ */
+function patternBindings(p: Pattern | undefined): Set<string> {
+  const out = new Set<string>();
+  if (!p) return out;
+  if (p.kind === 'PatternName') {
+    if (p.name) out.add(p.name);
+    return out;
+  }
+  if (p.kind === 'PatternCtor') {
+    for (const n of p.names ?? []) out.add(n);
+    for (const arg of p.args ?? []) {
+      for (const n of patternBindings(arg)) out.add(n);
+    }
+    return out;
+  }
+  return out;
+}
+
 function lowerExpr(e: Expression): import('./types.js').Core.Expression {
   switch (e.kind) {
     case 'Name':
@@ -529,15 +552,79 @@ function lowerExpr(e: Expression): import('./types.js').Core.Expression {
       // ADR 0024 C0：列表字面量 → Core IR ListLit（元素递归 lower）。
       return withOrigin(Core.ListLit(e.elements.map(lowerExpr)), e);
     case 'Lambda': {
-      // 使用统一 AST 访客进行捕获变量收集
-      const paramNames = new Set(e.params.map(p => p.name));
+      // 捕获变量收集：只收**自由变量**（引用了、但在 lambda 内部没被绑定的名字）。
+      //
+      // ★此前这里没有作用域栈，只排除当前 lambda 自己的形参，于是把
+      //   lambda 体内 `Let` 声明的局部、以及嵌套 lambda 的名字/形参
+      //   一并当成了捕获（over-capture）。Java 侧 CoreLowering.collectCaptures
+      //   有完整的 ArrayDeque<Set<String>> scopes + Stmt.Let 入栈，
+      //   两侧对同一段源码产出不同的 captures：
+      //
+      //     Let f be function with x, produce:
+      //       Let localA be 1.
+      //       Return If x then outer else localA.
+      //
+      //     Java → [outer]            TS（修前）→ [outer, localA]
+      //
+      //   captures 不是元数据：Truffle 的 Loader 按它建 FrameDescriptor 并按位置
+      //   传实参，多算一个名字就多一个槽位、且 NameNodeEnv 解析不到时会返回
+      //   **名字本身的字符串**——与本轮修掉的 under-capture 是同一套故障机制。
+      const scopes: Set<string>[] = [new Set(e.params.map(p => p.name))];
       const names = new Set<string>();
+      const isBound = (n: string): boolean => scopes.some(s => s.has(n));
       class CaptureVisitor extends DefaultAstVisitor<void> {
-        override visitExpression(ex: Expression): void {
-          if (ex.kind === 'Name' && !paramNames.has(ex.name) && !ex.name.includes('.')) {
+        override visitBlock(b: Block, ctx: void): void {
+          // 块级作用域：进块压栈、出块弹栈（与 Java 的 traverseBlock 同构）。
+          scopes.push(new Set());
+          try {
+            super.visitBlock(b, ctx);
+          } finally {
+            scopes.pop();
+          }
+        }
+
+        override visitStatement(s: Statement, ctx: void): void {
+          if (s.kind === 'Match') {
+            // ★Match 的模式会**绑定**新名字，这些名字在该 case 体内不是自由变量。
+            //   此前只递归不绑定，于是 `When bound, Return bound.` 里的 bound
+            //   被当成捕获（Java 侧 CoreLowering:820-832 有 patternBindings，
+            //   两侧因此分叉：Java [] vs TS ["bound"]）。
+            this.visitExpression(s.expr, ctx);
+            for (const c of s.cases) {
+              scopes.push(patternBindings(c.pattern));
+              try {
+                if (c.body.kind === 'Return') this.visitExpression(c.body.expr, ctx);
+                else this.visitBlock(c.body, ctx);
+              } finally {
+                scopes.pop();
+              }
+            }
+            return;
+          }
+          super.visitStatement(s, ctx);
+          // ★先递归再绑定：`Let x be x + 1` 里右侧的 x 指的是**外层**的 x，
+          //   先绑定会把它误判成已绑定而漏掉这次捕获。
+          if (s.kind === 'Let') {
+            scopes[scopes.length - 1]!.add(s.name);
+          }
+        }
+
+        override visitExpression(ex: Expression, ctx: void): void {
+          if (ex.kind === 'Lambda') {
+            // 嵌套 lambda：内层形参在内层作用域内有效；内层引用的外部变量
+            // 必须**穿透**记到外层 captures（外层不捕获，内层就拿不到）。
+            scopes.push(new Set(ex.params.map(p => p.name)));
+            try {
+              this.visitBlock(ex.body, ctx);
+            } finally {
+              scopes.pop();
+            }
+            return;
+          }
+          if (ex.kind === 'Name' && !isBound(ex.name) && !ex.name.includes('.')) {
             names.add(ex.name);
           }
-          super.visitExpression(ex, undefined as unknown as void);
+          super.visitExpression(ex, ctx);
         }
       }
       new CaptureVisitor().visitBlock(e.body, undefined as unknown as void);
