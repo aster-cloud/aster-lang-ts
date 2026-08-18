@@ -37,6 +37,17 @@ jobs:
           repository: aster-cloud/aster-lang-platform
           path: aster-lang-platform
           token: ${{ secrets.CROSS_REPO_TOKEN }}
+
+      # ★错误码单源门禁（2026-08-17 审计）：error-codes-parity 里的
+      #   「ts 源 json 与 Java 仓副本 byte-identical」断言此前**从未在 CI 执行**——
+      #   它 try/catch 到文件缺失就 return，而这里从不 checkout core。
+      #   Java 侧 ErrorCodeParityTest 的注释却写着「byte-identical 由 ts 侧断言保证」，
+      #   这条传递链唯一的接头就是那个死断言。现 checkout core 让它真正跑起来。
+      - uses: actions/checkout@v6
+        with:
+          repository: aster-cloud/aster-lang-core
+          path: aster-lang-core
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
       - uses: actions/setup-python@v6
         with: { python-version: '3.12' }
       - name: Release-plan drift gate

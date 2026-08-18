@@ -162,18 +162,51 @@ describe('error_codes 单源一致性：ts ERROR_METADATA ↔ shared/error_codes
   });
 
   it('ts 源 json 与 Java 仓 resources 副本 byte-identical（跨仓同源）', () => {
-    // 依赖 aster-lang-ts 与 aster-lang-core 并列 checkout；若 Java 仓不在旁则跳过
-    // （CI 单仓场景不误报，跨仓 checkout 时强制两份 json 逐字节一致）。
-    const javaCopy = resolve(
-      REPO_ROOT,
-      '..',
-      'aster-lang-core/src/test/resources/diagnostics/error_codes.json',
-    );
-    let javaBytes: Buffer;
-    try {
-      javaBytes = readFileSync(javaCopy);
-    } catch {
-      // Java 仓未并列 checkout：跳过跨仓校验（Java 侧 ErrorCodeParityTest 仍会独立守门）。
+    // ★2026-08-17 审计：本断言此前在 CI 中**永不执行**。
+    //
+    //   原实现是 `try { readFileSync(javaCopy) } catch { return; }`——Java 仓不在旁
+    //   就静默 return 视为通过。而 ci.yml 的 test job **只 checkout platform、
+    //   不 checkout core**，故 readFileSync 恒抛 → 断言恒被跳过。
+    //
+    //   更糟的是 Java 侧 ErrorCodeParityTest 的注释明确写着「两份 json 的
+    //   byte-identical **由 ts 侧断言保证**——传递性上确保 ts ↔ Java 码表一致」。
+    //   这条传递链**唯一的接头就是这个从不执行的断言**。
+    //   今天两份表恰好一致是纪律，不是门禁——「跳过与通过不可区分的门禁不是门禁」。
+    //
+    //   现改为 fail-closed：CI 中兄弟仓必须存在，缺失即失败（配套 ci.yml 已加
+    //   checkout core）；本地未并列 checkout 全生态时才允许跳过。
+    // 两种布局都要支持：
+    //   本地开发 → 兄弟目录 ../aster-lang-core
+    //   CI       → 工作区子目录 ./aster-lang-core（Actions 不允许 checkout 到工作区之外）
+    const RELATIVE = 'src/test/resources/diagnostics/error_codes.json';
+    const candidates = [
+      resolve(REPO_ROOT, '..', 'aster-lang-core', RELATIVE),
+      resolve(REPO_ROOT, 'aster-lang-core', RELATIVE),
+    ];
+    const inCi =
+      process.env.CI === 'true' ||
+      process.env.GITHUB_ACTIONS === 'true' ||
+      process.env.ASTER_ERROR_CODES_PARITY_REQUIRED === 'true';
+
+    let javaBytes: Buffer | undefined;
+    for (const candidate of candidates) {
+      try {
+        javaBytes = readFileSync(candidate);
+        break;
+      } catch {
+        // 试下一个候选路径
+      }
+    }
+    if (!javaBytes) {
+      if (inCi) {
+        assert.fail(
+          `CI 中必须 checkout aster-lang-core 才能校验错误码单源一致性，但以下路径均未找到：\n` +
+            candidates.map(c => `  - ${c}`).join('\n') +
+            `\n请检查 ci.yml 的 checkout 步骤——静默跳过会让这条跨仓门禁形同虚设` +
+            `（2026-08-17 审计发现它此前从未执行）。`,
+        );
+      }
+      // 本地未并列 checkout 兄弟仓：跳过跨仓校验。
       return;
     }
     const tsBytes = readFileSync(JSON_PATH);
