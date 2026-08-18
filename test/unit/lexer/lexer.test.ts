@@ -223,3 +223,73 @@ Return 1.
     });
   });
 });
+
+/**
+ * 字符串转义解码（2026-08-17 审计）。
+ *
+ * 此前 lexer 对转义**完全不解码**——丢掉反斜杠、原样收下一个字符。
+ * 而 Java 侧 StringEscapes 做标准解码，于是两边都「成功」、都不报错，
+ * 但**运行期字符串值不同**：
+ *     "a\nb"      TS → "anb"       Java → "a"+LF+"b"
+ *     "aAb"  TS → "au0041b"   Java → "aAb"
+ * 同一段 CNL 在两个引擎产出不同决策 —— 最危险的一类分歧（静默、无痕、结果不同）。
+ */
+describe('字符串转义解码（双引擎 parity）', () => {
+  function stringValueOf(src: string): unknown {
+    const tokens = significant(lex(canonicalize(src)));
+    const strTok = tokens.find(t => t.kind === TokenKind.STRING);
+    return strTok?.value;
+  }
+
+  test('\\n 必须解码为真正的换行，而非字母 n', () => {
+    assert.equal(
+      stringValueOf('Module m.\nRule r, produce:\n  Return "a\\nb".\n'),
+      'a\nb',
+      '此前产出 "anb"（丢反斜杠取字面 n），与 Java 的真换行不同'
+    );
+  });
+
+  test('\\uXXXX 必须解码为对应码点', () => {
+    assert.equal(
+      stringValueOf('Module m.\nRule r, produce:\n  Return "a\\u0041b".\n'),
+      'aAb',
+      '此前产出 "au0041b"'
+    );
+  });
+
+  test('常见转义与 Java StringEscapes 逐条一致', () => {
+    const cases: ReadonlyArray<readonly [string, string]> = [
+      ['\\t', '\t'],
+      ['\\r', '\r'],
+      ['\\b', '\b'],
+      ['\\f', '\f'],
+      ['\\0', '\0'],
+      ['\\\\', '\\'],
+      ['\\"', '"'],
+      ['\\/', '/'],
+    ];
+    for (const [escaped, expected] of cases) {
+      assert.equal(
+        stringValueOf(`Module m.\nRule r, produce:\n  Return "${escaped}".\n`),
+        expected,
+        `转义 ${escaped} 解码结果须与 Java 一致`
+      );
+    }
+  });
+
+  test('未知转义必须报错，不得静默按字面量处理', () => {
+    assert.throws(
+      () => stringValueOf('Module m.\nRule r, produce:\n  Return "a\\zb".\n'),
+      /Unexpected character/,
+      '此前静默产出 "azb"；Java 侧抛异常，两侧须一致'
+    );
+  });
+
+  test('不完整的 \\u 转义必须报错', () => {
+    assert.throws(
+      () => stringValueOf('Module m.\nRule r, produce:\n  Return "a\\u00".\n'),
+      /Unexpected character/,
+      '\\u 后必须恰好 4 位十六进制'
+    );
+  });
+});

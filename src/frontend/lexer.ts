@@ -243,6 +243,53 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
     return ch;
   };
 
+  /**
+   * 读取一个转义序列（已知当前字符是反斜杠），返回它代表的**实际字符**。
+   *
+   * ★2026-08-17 审计：此前两条字符串扫描路径（ASCII 引号 / 本地化引号）各自写着
+   *   `next(); val += next();` —— 丢掉反斜杠、原样收下一个字符，**完全不解码**。
+   *   而 Java 侧 StringEscapes 做标准解码，于是：
+   *       "a\nb"      TS → "anb"       Java → "a"+LF+"b"
+   *       "a\u0041b"  TS → "au0041b"   Java → "aAb"
+   *   两边都「成功」、都不报错，但**运行期字符串值不同** → 同一段 CNL 在两个引擎
+   *   产出不同决策。这是最危险的一类分歧（静默、无痕、结果不同）。
+   *
+   * 现按 Java 的 StringEscapes 逐条对齐，并抽成单一实现供两条路径共用——
+   * 两份拷贝必然漂移，这正是本轮审计反复发现的模式。
+   */
+  const readEscape = (): string => {
+    const escPos = { line, col };
+    next(); // 消费反斜杠
+    if (i >= input.length) Diagnostics.unterminatedString(escPos).throw();
+    const esc = next();
+    switch (esc) {
+      case '"': return '"';
+      case "'": return "'";
+      case '\\': return '\\';
+      case '/': return '/';
+      case 'n': return '\n';
+      case 'r': return '\r';
+      case 't': return '\t';
+      case 'b': return '\b';
+      case 'f': return '\f';
+      case '0': return '\0';
+      case 'u': {
+        // \uXXXX：必须恰好 4 位十六进制，与 Java 侧一致
+        const hex = input.slice(i, i + 4);
+        if (hex.length < 4 || !/^[0-9a-fA-F]{4}$/.test(hex)) {
+          Diagnostics.unexpectedCharacter(`\\u${hex}`, escPos).throw();
+        }
+        for (let k = 0; k < 4; k++) next();
+        return String.fromCharCode(parseInt(hex, 16));
+      }
+      default:
+        // Java 侧对未知转义抛异常；TS 此前静默吞掉反斜杠。
+        // 保持两侧一致：未知转义是错误，而非「按字面量处理」。
+        Diagnostics.unexpectedCharacter(`\\${esc}`, escPos).throw();
+        return '';
+    }
+  };
+
   const INDENT_STACK = [0];
 
   const findPrevSignificantToken = (): Token | undefined => {
@@ -520,8 +567,7 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
       let val = '';
       while (i < input.length && peek() !== quotes.close) {
         if (peek() === '\\') {
-          next();
-          val += next();
+          val += readEscape();
         } else {
           val += next();
         }
@@ -539,8 +585,7 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
       let val = '';
       while (i < input.length && peek() !== '"') {
         if (peek() === '\\') {
-          next();
-          val += next();
+          val += readEscape();
         } else {
           val += next();
         }
