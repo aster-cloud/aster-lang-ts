@@ -73,6 +73,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # ★错误码单源门禁（error-codes-parity）需要 aster-lang-core 并列存在。
+      #
+      #   2026-08-19 发版列车 layer 4 实测：本 workflow 此前不 checkout core，
+      #   于是那条断言按 fail-closed 设计报错并中断发布：
+      #     「CI 中必须 checkout aster-lang-core 才能校验错误码单源一致性」
+      #
+      #   ★该 fail-closed 是**有意加的**（本轮审计 aster-lang-ts#105）：此前它写
+      #     `try { ... } catch { return; }`，而 CI 从不 checkout core，
+      #     于是这条跨仓 byte-identical 断言**恒被跳过** —— 「跳过与通过不可区分
+      #     的门禁不是门禁」。故正确修法是补上兄弟仓，而非放宽守卫。
+      #
+      #   ci.yml 早已 checkout core（14 处引用），本文件此前遗漏。
+      - name: Checkout aster-lang-core (错误码单源门禁需要)
+        uses: actions/checkout@v6
+        with:
+          repository: aster-cloud/aster-lang-core
+          path: aster-lang-core
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+
       - name: Install pnpm
         uses: pnpm/action-setup@v6
 
