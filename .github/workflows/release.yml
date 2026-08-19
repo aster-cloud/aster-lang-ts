@@ -129,6 +129,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # ★与 ci job 同因：publish job 也会跑 `pnpm test`（prepublish 链路），
+      #   故同样需要 aster-lang-core 并列存在，否则错误码单源门禁按
+      #   fail-closed 设计中断发布。
+      #   （上一版只修了 ci job，实测 publish job 仍以同一断言失败。）
+      - name: Checkout aster-lang-core (错误码单源门禁需要)
+        uses: actions/checkout@v6
+        with:
+          repository: aster-cloud/aster-lang-core
+          path: aster-lang-core
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+
       - name: Install pnpm
         uses: pnpm/action-setup@v6
 
