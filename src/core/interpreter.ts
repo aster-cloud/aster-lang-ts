@@ -771,6 +771,46 @@ class Interpreter {
       case 'Text.equals': { const [x, y] = a(); return text(x) === text(y); }
       case 'Text.split': { const [x, y] = a(); return text(x).split(text(y)); }
       case 'Text.trim': return text(a()[0]).trim();
+      // ★以下三个此前只有 JVM 引擎有，TS 侧缺失（文档 stdlib 表格已列出它们，
+      //   用户在浏览器演练场照抄会撞 "Undefined function"）。
+      //   语义对齐 truffle Builtins.java：越界**抛错**而非像 JS 那样静默钳制，
+      //   否则同一段源码在两套引擎上会给出不同结果，违反等价性契约。
+      case 'Text.substring': {
+        const args = a();
+        const s = text(args[0]);
+        const start = Number(args[1]);
+        if (start < 0) throw new InterpreterError(`Text.substring: index out of range: ${start}`);
+        if (args.length >= 3) {
+          const end = Number(args[2]);
+          if (end < 0) throw new InterpreterError(`Text.substring: index out of range: ${end}`);
+          // Java String.substring(start,end) 对 start>end 或 end>length 抛异常。
+          if (start > end || end > s.length) {
+            throw new InterpreterError(`Text.substring: index out of range: begin ${start}, end ${end}, length ${s.length}`);
+          }
+          return s.substring(start, end);
+        }
+        if (start > s.length) {
+          throw new InterpreterError(`Text.substring: index out of range: begin ${start}, length ${s.length}`);
+        }
+        return s.substring(start);
+      }
+      case 'Text.replace': {
+        const [x, target, replacement] = a();
+        // Java String.replace 替换**全部**出现处且按字面量（非正则）。
+        // JS 的 String.replace(string, …) 只替换第一处，故用 replaceAll。
+        return text(x).split(text(target)).join(text(replacement));
+      }
+      case 'List.slice': {
+        const args = a();
+        const l = reqList('List.slice', args[0]);
+        const start = Number(args[1]);
+        const end = args.length >= 3 ? Number(args[2]) : l.length;
+        // 镜像 Java List.subList 的越界语义。
+        if (start < 0 || end > l.length || start > end) {
+          throw new InterpreterError(`List.slice: index out of range: begin ${start}, end ${end}, size ${l.length}`);
+        }
+        return l.slice(start, end);
+      }
       // List.* (非 lambda 部分；List.map/filter/reduce 依赖 lambda，TS 暂不支持)
       case 'List.empty': return [];
       case 'List.length': { const [l] = a(); return Array.isArray(l) ? l.length : 0; }
@@ -829,6 +869,24 @@ class Interpreter {
       case 'Maybe.isNone': case 'Option.isNone': { const [x] = a(); return (x as { __type?: string } | null)?.__type !== 'Some'; }
       case 'Result.isOk': { const [r] = a(); return (r as { __type?: string } | null)?.__type === 'Ok'; }
       case 'Result.isErr': { const [r] = a(); return (r as { __type?: string } | null)?.__type === 'Err'; }
+      // ★unwrap 系列此前也只有 JVM 有（truffle Builtins.java:783/792 与 Maybe 对应项）。
+      //   语义：取出变体内的值；变体不匹配则**抛错**（与 unwrapOr/withDefault 的
+      //   "给默认值"不同）。文档 stdlib 明确写了 "raises on None"，故不能退化成返回 null。
+      case 'Maybe.unwrap': case 'Option.unwrap': {
+        const o = a()[0] as { __type?: string; value?: unknown } | null;
+        if (o && o.__type === 'Some') return o.value;
+        throw new InterpreterError(`Maybe.unwrap: called on None`);
+      }
+      case 'Result.unwrap': {
+        const r = a()[0] as { __type?: string; value?: unknown } | null;
+        if (r && r.__type === 'Ok') return r.value;
+        throw new InterpreterError(`Result.unwrap: called on Err`);
+      }
+      case 'Result.unwrapErr': {
+        const r = a()[0] as { __type?: string; value?: unknown } | null;
+        if (r && r.__type === 'Err') return r.value;
+        throw new InterpreterError(`Result.unwrapErr: called on Ok`);
+      }
       // === 高阶（lambda）List 操作 ===
       // List.map(list, fn) — fn 接收 (item)，返回新列表。
       case 'List.map': {
