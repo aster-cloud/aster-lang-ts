@@ -32,7 +32,7 @@ jobs:
 
       # 防漂移 gate（ADR 0023 阶段6）：本仓 npm 版本须符合 release-plan.json。
       # ts 无 platform 依赖，为 gate 单独 checkout platform。
-      - uses: actions/checkout@v6
+      - uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
         with:
           repository: aster-cloud/aster-lang-platform
           path: aster-lang-platform
@@ -43,7 +43,7 @@ jobs:
       #   它 try/catch 到文件缺失就 return，而这里从不 checkout core。
       #   Java 侧 ErrorCodeParityTest 的注释却写着「byte-identical 由 ts 侧断言保证」，
       #   这条传递链唯一的接头就是那个死断言。现 checkout core 让它真正跑起来。
-      - uses: actions/checkout@v6
+      - uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
         with:
           repository: aster-cloud/aster-lang-core
           path: aster-lang-core
@@ -165,7 +165,7 @@ jobs:
 
       - name: Checkout aster-lang-test
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
-        uses: actions/checkout@v6
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
         with:
           repository: aster-cloud/aster-lang-test
           path: aster-lang-test
@@ -176,7 +176,7 @@ jobs:
       # 解析 cloud.aster-lang:aster-lang-platform 失败。
       - name: Checkout aster-lang-platform
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
-        uses: actions/checkout@v6
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
         with:
           repository: aster-cloud/aster-lang-platform
           path: aster-lang-platform
@@ -184,7 +184,7 @@ jobs:
 
       - name: Checkout aster-lang-core
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
-        uses: actions/checkout@v6
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
         with:
           repository: aster-cloud/aster-lang-core
           path: aster-lang-core
@@ -195,7 +195,7 @@ jobs:
       # （与 aster-lang-core / aster-lang-test ci.yml 一致）。
       - name: Checkout aster-lang-locales
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
-        uses: actions/checkout@v6
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
         with:
           repository: aster-cloud/aster-lang-locales
           path: aster-lang-locales
@@ -208,7 +208,7 @@ jobs:
       # 401。缺这步会让 parity gate 在 core test classpath 解析阶段就红。
       - name: Checkout aster-lang-hi
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
-        uses: actions/checkout@v6
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
         with:
           repository: aster-cloud/aster-lang-hi
           path: aster-lang-hi
@@ -218,14 +218,14 @@ jobs:
       # Phase C evaluator step (CoreIrEvalCli lives in truffle).
       - name: Checkout aster-lang-runtime
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
-        uses: actions/checkout@v6
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
         with:
           repository: aster-cloud/aster-lang-runtime
           path: aster-lang-runtime
           token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
       - name: Checkout aster-lang-truffle
         if: steps.changed.outputs.parity == 'true' || github.event_name == 'push'
-        uses: actions/checkout@v6
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
         with:
           repository: aster-cloud/aster-lang-truffle
           path: aster-lang-truffle

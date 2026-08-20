@@ -86,7 +86,7 @@ jobs:
       #
       #   ci.yml 早已 checkout core（14 处引用），本文件此前遗漏。
       - name: Checkout aster-lang-core (错误码单源门禁需要)
-        uses: actions/checkout@v6
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
         with:
           repository: aster-cloud/aster-lang-core
           path: aster-lang-core
@@ -134,7 +134,7 @@ jobs:
       #   fail-closed 设计中断发布。
       #   （上一版只修了 ci job，实测 publish job 仍以同一断言失败。）
       - name: Checkout aster-lang-core (错误码单源门禁需要)
-        uses: actions/checkout@v6
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
         with:
           repository: aster-cloud/aster-lang-core
           path: aster-lang-core
