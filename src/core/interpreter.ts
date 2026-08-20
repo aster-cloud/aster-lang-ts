@@ -869,6 +869,24 @@ class Interpreter {
       case 'Maybe.isNone': case 'Option.isNone': { const [x] = a(); return (x as { __type?: string } | null)?.__type !== 'Some'; }
       case 'Result.isOk': { const [r] = a(); return (r as { __type?: string } | null)?.__type === 'Ok'; }
       case 'Result.isErr': { const [r] = a(); return (r as { __type?: string } | null)?.__type === 'Err'; }
+      // ★unwrap 系列此前也只有 JVM 有（truffle Builtins.java:783/792 与 Maybe 对应项）。
+      //   语义：取出变体内的值；变体不匹配则**抛错**（与 unwrapOr/withDefault 的
+      //   "给默认值"不同）。文档 stdlib 明确写了 "raises on None"，故不能退化成返回 null。
+      case 'Maybe.unwrap': case 'Option.unwrap': {
+        const o = a()[0] as { __type?: string; value?: unknown } | null;
+        if (o && o.__type === 'Some') return o.value;
+        throw new InterpreterError(`Maybe.unwrap: called on None`);
+      }
+      case 'Result.unwrap': {
+        const r = a()[0] as { __type?: string; value?: unknown } | null;
+        if (r && r.__type === 'Ok') return r.value;
+        throw new InterpreterError(`Result.unwrap: called on Err`);
+      }
+      case 'Result.unwrapErr': {
+        const r = a()[0] as { __type?: string; value?: unknown } | null;
+        if (r && r.__type === 'Err') return r.value;
+        throw new InterpreterError(`Result.unwrapErr: called on Ok`);
+      }
       // === 高阶（lambda）List 操作 ===
       // List.map(list, fn) — fn 接收 (item)，返回新列表。
       case 'List.map': {

@@ -59,3 +59,22 @@ describe('Text.substring / Text.replace / List.slice 双引擎对等补齐', () 
   it('List.slice end 越界抛错（不静默钳制）', () =>
     assert.match(runErr(L('List.slice(List.range(1, 4), 1, 99)')), /out of range/i));
 });
+
+// Maybe.unwrap / Result.unwrap / Result.unwrapErr —— 同样是此前只有 JVM 有的一批
+// （truffle Builtins.java:783/792 与 Maybe 对应项）。文档 stdlib 写明 "raises on None"，
+// 故变体不匹配时必须**抛错**，不能退化成返回 null / undefined——后者会让
+// "取不到值"静默流进下游，比报错危险得多。
+describe('unwrap 系列双引擎对等补齐', () => {
+  const V = (expr: string): string => `Rule main given seed as Int, produce Int:\n  Return ${expr}.`;
+
+  it('Maybe.unwrap(Some v) 取出值', () => assert.equal(run(V('Maybe.unwrap(Some(7))')), 7));
+  it('Result.unwrap(Ok v) 取出值', () => assert.equal(run(V('Result.unwrap(Ok(5))')), 5));
+  it('Result.unwrapErr(Err e) 取出错误值', () => assert.equal(run(V('Result.unwrapErr(Err(9))')), 9));
+
+  it('Maybe.unwrap(None) 抛错而非返回 null', () =>
+    assert.match(runErr(V('Maybe.unwrap(None)')), /called on None/i));
+  it('Result.unwrap(Err) 抛错而非返回 null', () =>
+    assert.match(runErr(V('Result.unwrap(Err(9))')), /called on Err/i));
+  it('Result.unwrapErr(Ok) 抛错而非返回 null', () =>
+    assert.match(runErr(V('Result.unwrapErr(Ok(1))')), /called on Ok/i));
+});
