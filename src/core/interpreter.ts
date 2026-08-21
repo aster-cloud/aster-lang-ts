@@ -47,7 +47,22 @@ function decimalRoundingMode(mode: unknown): Decimal.Rounding {
 
 /** scale 参数校验：必须是 0..18 的整数（v1 上限 scale 18，与 ADR 0025 一致）。 */
 function decimalScale(scale: unknown): number {
-  const n = typeof scale === 'number' ? scale : Number(scale);
+  let n: number;
+  if (typeof scale === 'number') {
+    n = scale;
+  } else if (typeof scale === 'string') {
+    // ★字符串 scale 先过严格数字正则，与 truffle 同一条（ADR 0035 / truffle#74）。
+    //   裸 Number() 会把 "0x10" 读成 16 —— 而 Java 侧拒绝，两引擎就此分叉。
+    //   文档签名是 scale: Int，字符串 scale 本就未文档化；对合规引擎，
+    //   「精度参数写成十六进制还被静默接受」属于该响亮失败的一类。
+    const t = scale.trim();
+    if (!/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(t)) {
+      throw new InterpreterError(`Decimal: scale must be an integer in [0, 18], got ${JSON.stringify(scale)}.`);
+    }
+    n = Number(t);
+  } else {
+    n = Number(scale);
+  }
   if (!Number.isInteger(n) || n < 0 || n > 18) {
     throw new InterpreterError(`Decimal: scale must be an integer in [0, 18], got ${JSON.stringify(scale)}.`);
   }
@@ -188,20 +203,34 @@ function asGuestMap(v: unknown): GuestMap {
   return m;
 }
 
+/** 结构比较的深度上限，与 truffle Builtins.VALUE_EQUALS_MAX_DEPTH **同值**。 */
+const VALUE_EQUALS_MAX_DEPTH = 100;
+
 /**
  * 值相等（value equality），与 JVM `equals` 契约对齐——**不是** JS 引用相等。
  * - Decimal↔Decimal 用 `.equals`（`1.5m === 1.5m` 引用不等但值相等）。
  * - 数组 / 普通对象（构造体）做结构比较。
  * 供 List.distinct / List.contains 使用，修复 Decimal / 结构体去重的 parity 破缺。
+ *
+ * ★深度上限必须是**固定值**，不能跟随运行时栈（ADR 0035）。
+ *   此前 TS 侧无任何上限：环形结构会抛 `RangeError: Maximum call stack size exceeded`
+ *   —— 那是**栈深相关**的，同一段规则在不同机器 / 不同 JIT 预热状态下可能一次抛、
+ *   一次不抛，与「两引擎逐字节一致 + 可回放」这条第一约束冲突。
+ *   Java 侧早已是固定 100 并抛域内错误；这里对齐，连错误分类也一并对齐
+ *   （域内 InterpreterError，而非宿主 RangeError）。
  */
-function valueEquals(x: unknown, y: unknown): boolean {
+function valueEquals(x: unknown, y: unknown, depth = 0): boolean {
+  if (depth > VALUE_EQUALS_MAX_DEPTH) {
+    throw new InterpreterError(
+      `valueEquals: comparison depth exceeded ${VALUE_EQUALS_MAX_DEPTH} levels (cyclic structure?)`);
+  }
   if (x === y) return true;
   const xd = x instanceof Decimal;
   const yd = y instanceof Decimal;
   if (xd || yd) return xd && yd && (x as Decimal).equals(y as Decimal);
   if (Array.isArray(x) && Array.isArray(y)) {
     if (x.length !== y.length) return false;
-    for (let i = 0; i < x.length; i++) if (!valueEquals(x[i], y[i])) return false;
+    for (let i = 0; i < x.length; i++) if (!valueEquals(x[i], y[i], depth + 1)) return false;
     return true;
   }
   if (
@@ -214,7 +243,7 @@ function valueEquals(x: unknown, y: unknown): boolean {
     if (kx.length !== ky.length) return false;
     for (const k of kx) {
       if (!Object.prototype.hasOwnProperty.call(y, k)) return false;
-      if (!valueEquals((x as Record<string, unknown>)[k], (y as Record<string, unknown>)[k])) return false;
+      if (!valueEquals((x as Record<string, unknown>)[k], (y as Record<string, unknown>)[k], depth + 1)) return false;
     }
     return true;
   }
