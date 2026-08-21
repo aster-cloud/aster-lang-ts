@@ -56,7 +56,13 @@ function decimalScale(scale: unknown): number {
     //   文档签名是 scale: Int，字符串 scale 本就未文档化；对合规引擎，
     //   「精度参数写成十六进制还被静默接受」属于该响亮失败的一类。
     const t = scale.trim();
-    if (!/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(t)) {
+    // ★用**无歧义**写法（非捕获组 + 整数/小数分支不重叠），避免 ReDoS：
+    //   原先的 (\d+\.?\d*|\.\d+) 对 "000…0!" 这类输入会指数级回溯——
+    //   实测 2 万个 '0' 需 34 秒（CodeQL js/polynomial-redos, high）。
+    //   scale 可由宿主传入，属不可控输入，必须走线性匹配。
+    //   改写后语义完全一致（"2"/"1e1"/"+2"/"2.0"/".5"/"2." 接受；
+    //   "2d"/"0x10"/"0x1p3"/"" 拒绝），2 万字符耗时降到 0.07ms。
+    if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(t)) {
       throw new InterpreterError(`Decimal: scale must be an integer in [0, 18], got ${JSON.stringify(scale)}.`);
     }
     n = Number(t);
