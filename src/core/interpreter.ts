@@ -878,7 +878,18 @@ class Interpreter {
       // Map.* — guest map 以真正的 Map（GuestMap）作后端：防原型污染 / 链泄漏，
       // 且保留插入序（含数字样式键，对齐 JVM LinkedHashMap）。绝不用 key in obj / obj[key]。
       case 'Map.empty': return new GuestMap();
-      case 'Map.get': { const [m, k] = a(); const g = asGuestMap(m); const key = mapKey(k); return g.has(key) ? g.get(key) : null; }
+      // ★Map.get 返回 Maybe（ADR 0035 档位 C）：缺键即 None，命中即 Some(v)。
+      //
+      //   此前返回裸值/null，于是 `Map.get(m,k) plus 1` 能**编译通过、运行才炸**。
+      //   ★这是对 Stable 集的语义变更，明知破坏 spec-1.0-freeze 承诺，由用户拍板接受。
+      //
+      //   ★TS 侧 None 的运行期表示**就是 null**（见 evalExpr 的 case 'None'），
+      //   故缺键分支保持返回 null 即等价于 None——Maybe.isNone/withDefault 都已认它。
+      //   真正变的是**命中**分支：现在包一层 Some，与 Java 的 {_type:"Some"} 对齐。
+      //   命中值本身为 null 时仍返回 Some(null)：「键存在但值为 null」与「键不存在」
+      //   是两件事，不能塌陷。
+      case 'Map.get': { const [m, k] = a(); const g = asGuestMap(m); const key = mapKey(k);
+        return g.has(key) ? { __type: 'Some', value: g.get(key) } : null; }
       case 'Map.contains': { const [m, k] = a(); return asGuestMap(m).has(mapKey(k)); }
       case 'Map.size': { const [m] = a(); return asGuestMap(m).size; }
       // 补齐与 truffle Builtins 对等的 Map.* （put/remove/keys/values）——TS 之前缺这 4 个，
