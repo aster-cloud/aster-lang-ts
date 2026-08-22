@@ -1081,7 +1081,11 @@ class Interpreter {
         const groups = new GuestMap();
         for (const item of l) {
           this.tick();
-          const key = text(this.applyCallable(keyFn, [item]));
+          // ★键走 mapKey 而非裸 text（truffle#74 第 1 项的补漏）：groupBy 自己建
+          //   GuestMap，绕过了 Map.* 共用的归一化点，于是「keyFn 返回真 null」与
+          //   「返回字符串 "null"」**塌陷到同一个桶**（实测期望 2 组、实得 1 组）。
+          //   与 Map.put 一样，null 分组键应响亮失败而非静默合并。
+          const key = mapKey(this.applyCallable(keyFn, [item]));
           const arr = groups.get(key) as unknown[] | undefined;
           if (arr) arr.push(item);
           else groups.set(key, [item]);
@@ -1260,10 +1264,23 @@ class Interpreter {
       case '<=':
         this.assertNumbers(op, left, right);
         return (left as number) <= (right as number);
+      // ★结构相等，而非引用相等（本轮审计发现的双引擎分叉）。
+      //
+      //   此前 TS 用 `left === right`：两个字段完全相同的结构体 / 内容相同的列表
+      //   判为 **false**；而 Java 侧 eq 的回退路径是 Objects.equals（Java Map/List
+      //   的 equals 是结构性的）→ 判为 **true**。同一条规则在两套引擎上给出
+      //   **不同决策**，这是本项目最严重的一类缺陷。
+      //
+      //   而且 TS 内部也不自洽：同一对值用 List.contains（走 valueEquals）判为相等、
+      //   用 `is equal to` 判为不等。
+      //
+      //   统一到 valueEquals：Aster 集合不可变、值语义，「内容相同即相等」才是
+      //   规则作者的直觉预期；valueEquals 已带深度上限，环形结构不会栈溢出。
+      //   标量/文本行为不变（valueEquals 首行就是 x === y 短路）。
       case '==':
-        return left === right;
+        return valueEquals(left, right);
       case '!=':
-        return left !== right;
+        return !valueEquals(left, right);
 
       default:
         throw new InterpreterError(`Unknown operator '${op}'`);
