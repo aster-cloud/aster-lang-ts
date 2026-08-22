@@ -1081,7 +1081,11 @@ class Interpreter {
         const groups = new GuestMap();
         for (const item of l) {
           this.tick();
-          const key = text(this.applyCallable(keyFn, [item]));
+          // ★键走 mapKey 而非裸 text（truffle#74 第 1 项的补漏）：groupBy 自己建
+          //   GuestMap，绕过了 Map.* 共用的归一化点，于是「keyFn 返回真 null」与
+          //   「返回字符串 "null"」**塌陷到同一个桶**（实测期望 2 组、实得 1 组）。
+          //   与 Map.put 一样，null 分组键应响亮失败而非静默合并。
+          const key = mapKey(this.applyCallable(keyFn, [item]));
           const arr = groups.get(key) as unknown[] | undefined;
           if (arr) arr.push(item);
           else groups.set(key, [item]);

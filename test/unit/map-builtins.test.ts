@@ -48,3 +48,39 @@ describe('Map null 键显式拒绝', () => {
   it('字符串 "null" 仍是合法键', () =>
     assert.equal(run(R('Map.size(Map.put(Map.empty(), "null", 1))')), 1));
 });
+
+// List.groupBy 自己建 GuestMap，**绕过**了 Map.* 共用的 mapKey 归一化点。
+// 补漏前：keyFn 返回真 null 与返回字符串 "null" 会塌陷到同一个桶
+// （实测期望 2 组、实得 1 组，两个元素并进一个 bucket）——
+// 与 Map.put 的 null 键塌陷是**同一个 bug 的第二个入口**。
+describe('List.groupBy 的分组键同样走 mapKey', () => {
+  it('null 分组键被拒，而不是与字符串 "null" 静默合并', () => {
+    const c = compile(`Module probe.
+Rule keyOf given x as Text, produce Text:
+  Let m be Map.put(Map.empty(), "x", "null").
+  Return Map.get(m, x).
+
+Rule main given xs as List, produce Int:
+  Return Map.size(List.groupBy(xs, keyOf)).
+`);
+    assert.ok(c.core);
+    // 'x' → 字符串 "null"；'zzz' 缺键 → 真 null
+    const ev = evaluate(c.core!, 'main', { xs: ['x', 'zzz'] });
+    assert.equal(ev.success, false, '★null 分组键必须被拒，而不是静默并桶');
+    assert.match(String(ev.error), /Map key must not be null/);
+  });
+
+  it('正常分组键不受影响', () => {
+    const c = compile(`Module probe.
+Rule keyOf given x as Text, produce Text:
+  Return x.
+
+Rule main given xs as List, produce Int:
+  Return Map.size(List.groupBy(xs, keyOf)).
+`);
+    assert.ok(c.core);
+    const ev = evaluate(c.core!, 'main', { xs: ['a', 'b', 'a'] });
+    assert.equal(ev.success, true, `正常键应照常分组: ${ev.error ?? ''}`);
+    assert.equal(ev.value, 2, 'a/b 两组');
+  });
+});
