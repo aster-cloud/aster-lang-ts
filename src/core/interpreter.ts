@@ -869,11 +869,20 @@ class Interpreter {
       }
       // List.* (非 lambda 部分；List.map/filter/reduce 依赖 lambda，TS 暂不支持)
       case 'List.empty': return [];
-      case 'List.length': { const [l] = a(); return Array.isArray(l) ? l.length : 0; }
-      case 'List.isEmpty': { const [l] = a(); return Array.isArray(l) ? l.length === 0 : true; }
-      case 'List.get': { const [l, i] = a(); return Array.isArray(l) ? (l as unknown[])[Number(i)] : null; }
-      case 'List.contains': { const [l, x] = a(); return Array.isArray(l) ? (l as unknown[]).some((y) => valueEquals(y, x)) : false; }
-      case 'List.append': { const [l, x] = a(); return Array.isArray(l) ? [...(l as unknown[]), x] : [x]; }
+      // ★非列表输入必须**响亮失败**，不能静默给答案（与 truffle 对齐）。
+      //
+      //   此前这五个对非列表输入分别静默返回 0 / true / null / false / [x]，
+      //   而 Java 侧一律 throw BuiltinException —— 既是**双引擎分叉**，
+      //   也是**静默错答案**：实测 List.length(Some([1,2,3])) 返回 0，
+      //   即「命中的非空列表被报成空」，调用方拿不到任何提示。
+      //
+      //   这类静默错答案对合规决策引擎最危险：规则跑通了、结果是错的。
+      //   reqList 本就存在（List.slice 已在用），这里补齐其余五个。
+      case 'List.length': { const [l] = a(); return reqList('List.length', l).length; }
+      case 'List.isEmpty': { const [l] = a(); return reqList('List.isEmpty', l).length === 0; }
+      case 'List.get': { const [l, i] = a(); return reqList('List.get', l)[Number(i)]; }
+      case 'List.contains': { const [l, x] = a(); return reqList('List.contains', l).some((y) => valueEquals(y, x)); }
+      case 'List.append': { const [l, x] = a(); return [...reqList('List.append', l), x]; }
       case 'List.concat': { const [l1, l2] = a(); return [...(Array.isArray(l1) ? l1 : []), ...(Array.isArray(l2) ? l2 : [])]; }
       // Map.* — guest map 以真正的 Map（GuestMap）作后端：防原型污染 / 链泄漏，
       // 且保留插入序（含数字样式键，对齐 JVM LinkedHashMap）。绝不用 key in obj / obj[key]。
