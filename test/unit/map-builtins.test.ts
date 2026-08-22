@@ -20,3 +20,31 @@ describe('Map.* 双引擎对等补齐', () => {
   it('Map.keys length', () => assert.equal(run(R('List.length(Map.keys(Map.put(Map.empty(), "a", 1)))')), 1));
   it('Map.remove', () => assert.equal(run(R('Map.size(Map.remove(Map.put(Map.empty(), "a", 1), "a"))')), 0));
 });
+
+// null 键必须被**显式拒绝**，而不是塌陷成字符串 "null"（ADR 0035 档位 A / truffle#74 第 1 项）。
+//
+// 此前四处 Map builtin 各写 String(k)，而 String(null) === "null"：
+// Map.put(m, null, a) 与 Map.put(m, "null", b) 落到同一槽位、后者静默覆盖前者、
+// size 仍为 1 —— **两个不同的逻辑键被悄悄合并**。对合规决策引擎，
+// 静默丢数据比抛错危险得多。Java 侧同步拒绝，维持双引擎一致。
+describe('Map null 键显式拒绝', () => {
+  const expectRejected = (expr: string, what: string) => {
+    const c = compile(`Module probe.\nRule main given seed as Int, produce Int:\n  Return ${expr}.\n`);
+    assert.ok(c.core, 'compile 应成功——拒绝发生在运行期');
+    const ev = evaluate(c.core!, 'main', { seed: 0 });
+    assert.equal(ev.success, false, `${what} 的 null 键必须被拒`);
+    assert.match(String(ev.error), /Map key must not be null/);
+  };
+
+  // 四个带键的 builtin 共用 mapKey，逐个钉住——避免将来某个绕过归一化。
+  it('Map.put 拒绝 null 键', () => expectRejected('Map.size(Map.put(Map.empty(), null, 1))', 'Map.put'));
+  it('Map.get 拒绝 null 键', () => expectRejected('Map.get(Map.empty(), null)', 'Map.get'));
+  it('Map.remove 拒绝 null 键', () => expectRejected('Map.size(Map.remove(Map.empty(), null))', 'Map.remove'));
+  it('Map.contains 拒绝 null 键', () =>
+    expectRejected('If Map.contains(Map.empty(), null) then 1 else 0', 'Map.contains'));
+
+  // ★反向保险：字符串 "null" 本身是合法键，不得被误伤。
+  //   若实现写成「把 null 与 "null" 一起拒」，就从「静默合并」变成「误杀合法键」。
+  it('字符串 "null" 仍是合法键', () =>
+    assert.equal(run(R('Map.size(Map.put(Map.empty(), "null", 1))')), 1));
+});

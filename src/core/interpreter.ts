@@ -213,6 +213,27 @@ function asGuestMap(v: unknown): GuestMap {
 const VALUE_EQUALS_MAX_DEPTH = 100;
 
 /**
+ * Map 键归一：与 truffle `Builtins.mapKey` 同一职责的单点。
+ *
+ * ★null 键显式拒绝（ADR 0035 档位 A / truffle#74 第 1 项）。
+ * 此前四处 Map builtin 各写 `String(k)`，而 `String(null) === "null"` ——
+ * `Map.put(m, null, a)` 与 `Map.put(m, "null", b)` 会**塌陷到同一个槽位**，
+ * 后者静默覆盖前者、size 仍为 1。这不是「null 泄漏」，而是**两个不同的
+ * 逻辑键被悄悄合并**，属静默丢数据：调用方拿不到任何提示。
+ *
+ * 对合规决策引擎，静默丢数据比抛错危险得多，故这里响亮失败。
+ * Java 侧同步拒绝（含 guest `isNull()` 形态），维持双引擎一致。
+ */
+function mapKey(k: unknown): string {
+  if (k === null || k === undefined) {
+    throw new InterpreterError(
+      'Map key must not be null: null and the string "null" would collapse to the same key, '
+        + 'silently overwriting each other. Use a non-null key, or Maybe/Option to express absence.');
+  }
+  return String(k);
+}
+
+/**
  * 值相等（value equality），与 JVM `equals` 契约对齐——**不是** JS 引用相等。
  * - Decimal↔Decimal 用 `.equals`（`1.5m === 1.5m` 引用不等但值相等）。
  * - 数组 / 普通对象（构造体）做结构比较。
@@ -857,13 +878,13 @@ class Interpreter {
       // Map.* — guest map 以真正的 Map（GuestMap）作后端：防原型污染 / 链泄漏，
       // 且保留插入序（含数字样式键，对齐 JVM LinkedHashMap）。绝不用 key in obj / obj[key]。
       case 'Map.empty': return new GuestMap();
-      case 'Map.get': { const [m, k] = a(); const g = asGuestMap(m); const key = String(k); return g.has(key) ? g.get(key) : null; }
-      case 'Map.contains': { const [m, k] = a(); return asGuestMap(m).has(String(k)); }
+      case 'Map.get': { const [m, k] = a(); const g = asGuestMap(m); const key = mapKey(k); return g.has(key) ? g.get(key) : null; }
+      case 'Map.contains': { const [m, k] = a(); return asGuestMap(m).has(mapKey(k)); }
       case 'Map.size': { const [m] = a(); return asGuestMap(m).size; }
       // 补齐与 truffle Builtins 对等的 Map.* （put/remove/keys/values）——TS 之前缺这 4 个，
       // List.groupBy(...) 的 Map.values 链需要。put/remove 不可变（返回新 GuestMap）。
-      case 'Map.put': { const [m, k, v] = a(); const g = new GuestMap(asGuestMap(m)); g.set(String(k), v); return g; }
-      case 'Map.remove': { const [m, k] = a(); const g = new GuestMap(asGuestMap(m)); g.delete(String(k)); return g; }
+      case 'Map.put': { const [m, k, v] = a(); const g = new GuestMap(asGuestMap(m)); g.set(mapKey(k), v); return g; }
+      case 'Map.remove': { const [m, k] = a(); const g = new GuestMap(asGuestMap(m)); g.delete(mapKey(k)); return g; }
       // Date.* 合规原语（Stable v1）：epoch-day Int 内部表示，纯整数 proleptic Gregorian
       // （与 truffle 逐位一致，不用 JS Date）。禁 today()——"今天"作输入字段 evaluation_date。
       case 'Date.fromISO': return dateFromISO(a()[0]);
