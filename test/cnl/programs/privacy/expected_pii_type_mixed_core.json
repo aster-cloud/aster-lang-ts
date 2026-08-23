@@ -30,17 +30,11 @@
           {
             "kind": "Return",
             "expr": {
-              "kind": "Call",
-              "target": {
+              "kind": "Ok",
+              "expr": {
                 "kind": "Name",
-                "name": "Ok"
-              },
-              "args": [
-                {
-                  "kind": "Name",
-                  "name": "email"
-                }
-              ]
+                "name": "email"
+              }
             }
           }
         ]
@@ -67,17 +61,11 @@
           {
             "kind": "Return",
             "expr": {
-              "kind": "Call",
-              "target": {
-                "kind": "Name",
-                "name": "Some"
-              },
-              "args": [
-                {
-                  "kind": "String",
-                  "value": "+1-555-0100"
-                }
-              ]
+              "kind": "Some",
+              "expr": {
+                "kind": "String",
+                "value": "+1-555-0100"
+              }
             }
           }
         ]
