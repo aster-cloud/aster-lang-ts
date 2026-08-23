@@ -182,11 +182,75 @@ class Closure {
  * runner / 浏览器输出）仍产出有序的普通对象。
  */
 class GuestMap extends Map<string, unknown> {
+  /**
+   * 兼容形态：给 `JSON.stringify` 一个普通对象。注意（audit #126）：JS 规范强制
+   * 普通对象把**整数样式键**升序排在最前，所以含数字样式键时这里**无法**保留插入序
+   * （`put "2"; put "1"` → `{"1":…,"2":…}`）。凡是需要与 JVM `LinkedHashMap`
+   * 逐字节一致的序列化（dual-engine runner 等），请改用 {@link serializeGuestValue}，
+   * 它手写 JSON 对象语法、按插入序输出。
+   */
   toJSON(): Record<string, unknown> {
     const o: Record<string, unknown> = {};
     for (const [k, v] of this) o[k] = v;
     return o;
   }
+
+  /**
+   * 宿主便利视图（audit #126）：GuestMap 是真正的 `Map`，`Object.keys(m)` 为 `[]`、
+   * 展开 `{...m}` 为空——宿主代码若按普通对象读取会静默拿到空对象。此方法返回
+   * **null 原型**的普通对象快照（无原型链可泄漏/污染）。键序遵循 JS 自有属性规范
+   * （整数样式键升序在前），如需插入序请直接迭代 Map 或用 {@link serializeGuestValue}。
+   */
+  toObject(): Record<string, unknown> {
+    const o: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+    for (const [k, v] of this) o[k] = v;
+    return o;
+  }
+}
+
+/** serializeGuestValue 的循环/深度保护上限（防御性；正常 guest 值不会到）。 */
+const SERIALIZE_MAX_DEPTH = 64;
+
+/**
+ * 按**插入序**把 guest 运行时值序列化为 JSON 文本（audit #126）。
+ *
+ * `JSON.stringify` 无法为整数样式键保留插入序（对象自有属性规范强制数字键升序），
+ * 但 JSON 语法本身允许任意键序——手写发射即可与 JVM 引擎（Jackson 序列化
+ * `LinkedHashMap`，插入序）逐字节一致。dual-engine runner 的 value 字段用它，
+ * 保证 map 输出一旦进入 eval golden，两引擎字节可比。
+ *
+ * 递归覆盖：GuestMap（插入序对象语法）、数组、struct 普通对象（自有可枚举键，
+ * 跳过 undefined 值，与 JSON.stringify 语义一致）；其余（string/number/boolean/null、
+ * 带 toJSON 的值如 Decimal）委托 JSON.stringify。顶层 undefined 序列化为 "null"。
+ */
+export function serializeGuestValue(v: unknown, depth = 0): string {
+  if (depth > SERIALIZE_MAX_DEPTH) {
+    throw new InterpreterError('serializeGuestValue: value nesting exceeds max depth (cycle?)');
+  }
+  if (v instanceof GuestMap) {
+    const parts: string[] = [];
+    for (const [k, val] of v) {
+      parts.push(`${JSON.stringify(k)}:${serializeGuestValue(val, depth + 1)}`);
+    }
+    return `{${parts.join(',')}}`;
+  }
+  if (Array.isArray(v)) {
+    return `[${v.map((x) => serializeGuestValue(x, depth + 1)).join(',')}]`;
+  }
+  if (v !== null && typeof v === 'object'
+      && typeof (v as { toJSON?: unknown }).toJSON !== 'function'
+      && !(v instanceof Map)) {
+    // struct（普通对象）：字段序 = 自有键序；字段值可能嵌套 GuestMap，须递归。
+    const o = v as Record<string, unknown>;
+    const parts: string[] = [];
+    for (const k of Object.keys(o)) {
+      if (o[k] === undefined) continue; // 与 JSON.stringify 一致：丢弃 undefined 字段
+      parts.push(`${JSON.stringify(k)}:${serializeGuestValue(o[k], depth + 1)}`);
+    }
+    return `{${parts.join(',')}}`;
+  }
+  const s = JSON.stringify(v);
+  return s === undefined ? 'null' : s;
 }
 
 /**
