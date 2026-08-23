@@ -525,8 +525,34 @@ function lowerExpr(e: Expression): import('./types.js').Core.Expression {
       return withOrigin(Core.String(e.value), e);
     case 'Null':
       return withOrigin(Core.Null(), e);
-    case 'Call':
+    case 'Call': {
+      // ★内置变体的调用形式归一（aster-lang-ts#124）：`Some(x)` / `Ok(x)` / `Err(x)` /
+      // `None()` 与关键字形式 `some of x` 必须降到**完全相同**的 Core IR 节点。
+      //
+      // 此前只有关键字形式产出 Expr.Some，调用形式一路保留成 Call{Name 'Some'}，
+      // 靠解释器在**求值期**特判兜底。单跑 TS 没问题，但把这样的 IR 交给 JVM 引擎
+      // 就炸——truffle 期望独立的 Some 节点（CoreModel.Some），只认 Call 的话报
+      // `Unknown call target: Some`。即：两引擎各自都"能跑"，唯独跨引擎喂 IR 不通。
+      //
+      // Java 侧在 **parse 期**就归一（AstBuilder 对 Ok/Err/Some/None 调用形式特判），
+      // 故其 IR 里始终是独立节点。这里补上同一步，让两引擎的 Core IR 真正一致。
+      //
+      // 用户声明同名记录类型的情形不必在此防御：parser 已先行拒绝对已声明类型的
+      // 位置式构造（"Cannot construct 'X' with positional arguments"），
+      // 故走到这里的 Call 目标不可能是已声明的记录类型。
+      if (e.target.kind === 'Name') {
+        const ctor = e.target.name;
+        if (e.args.length === 1) {
+          if (ctor === 'Some') return withOrigin(Core.Some(lowerExpr(e.args[0]!)), e);
+          if (ctor === 'Ok') return withOrigin(Core.Ok(lowerExpr(e.args[0]!)), e);
+          if (ctor === 'Err') return withOrigin(Core.Err(lowerExpr(e.args[0]!)), e);
+        }
+        if (ctor === 'None' && e.args.length === 0) {
+          return withOrigin(Core.None(), e);
+        }
+      }
       return withOrigin(Core.Call(lowerExpr(e.target), e.args.map(lowerExpr)), e);
+    }
     case 'Construct':
       return withOrigin(
         Core.Construct(
