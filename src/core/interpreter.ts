@@ -309,6 +309,12 @@ const NOT_STDLIB = Symbol('not-stdlib');
  *
  * <p>不含 `Some`/`Ok`/`Err` 等构造器——它们在 `evalExpr` 里作为独立表达式类型处理，
  * 根本不经过 `evalStdlibCall`。
+ *
+ * <p>★也**不含本引擎未实现**的 builtin（`IO.*`、`PII.unwrap`、`Text.redact` 等
+ * 仅 JVM 侧有的）。校验位于分派最顶部、先于任何 case 匹配，若把它们列进来，
+ * 参数个数不符时会抢先报 arity 错，把「本引擎没有这个函数」说成「你参数写错了」——
+ * 用户按提示改对参数个数后仍是 `Undefined function`。故本表只覆盖
+ * `evalStdlibCall` 真正实现的名字，让不存在的函数如实报「不存在」。
  */
 const BUILTIN_ARITY: Readonly<Record<string, readonly [number, number]>> = {
   'Date.addDays': [2, 2],
@@ -319,10 +325,6 @@ const BUILTIN_ARITY: Readonly<Record<string, readonly [number, number]>> = {
   'Date.year': [1, 1],
   'Decimal.divide': [4, 4],
   'Decimal.round': [3, 3],
-  'IO.print': [1, 1],
-  'IO.readFile': [1, 1],
-  'IO.readLine': [0, 0],
-  'IO.writeFile': [2, 2],
   'List.append': [2, 2],
   'List.combinations': [2, 2],
   'List.concat': [2, 2],
@@ -365,7 +367,6 @@ const BUILTIN_ARITY: Readonly<Record<string, readonly [number, number]>> = {
   'Option.map': [2, 2],
   'Option.unwrap': [1, 1],
   'Option.unwrapOr': [2, 2],
-  'PII.unwrap': [1, 1],
   'Result.isErr': [1, 1],
   'Result.isOk': [1, 1],
   'Result.mapErr': [2, 2],
@@ -378,7 +379,6 @@ const BUILTIN_ARITY: Readonly<Record<string, readonly [number, number]>> = {
   'Text.equals': [2, 2],
   'Text.indexOf': [2, 2],
   'Text.length': [1, 1],
-  'Text.redact': [1, 1],
   'Text.replace': [3, 3],
   'Text.split': [2, 2],
   'Text.startsWith': [2, 2],
@@ -891,9 +891,21 @@ class Interpreter {
     argExprs: readonly CoreTypes.Expression[],
     env: Map<string, unknown>,
   ): unknown {
-    // 参数个数校验（aster-lang-ts#123）：必须在**求值任何实参之前**做，
-    // 与 truffle 的 checkArity 同一时机——否则 `Text.toUpper(boom())` 这类
-    // 写法会先跑出实参的副作用/异常，两引擎的报错顺序就对不齐了。
+    // 参数个数校验（aster-lang-ts#123）。
+    //
+    // ★**与 truffle 存在已知时序差，不要写成"同时机"**：truffle 的
+    // `CallNode.doCall` 先 `Exec.exec` 求值全部实参，再调 BuiltinDef，
+    // `checkArity` 位于 def 体内首行（Builtins.java:1164）——即 JVM 是
+    // **先求值实参、后校验 arity**；这里则相反。
+    //
+    // 后果：对「arity 错 + 实参本身会抛错」的规则，两引擎报不同的错。例如
+    // `Text.concat("a","b",List.sum(1))`：本引擎报 arity 错，JVM 报 List.sum 的类型错。
+    // 二者都拒绝该程序，但错误信息不同。
+    //
+    // 之所以仍放在前面：本 issue 要消灭的是**静默错答案**（漏参返回 "UNDEFINED"
+    // 这类"看起来合理的值"），提前校验能确保任何 arity 错都响亮失败、且不跑实参副作用。
+    // 时序对齐是另一个议题（要么 JVM 提前、要么 TS 延后），已单开 issue 跟进——
+    // 不在此处偷偷改变任一引擎的求值顺序。
     const arity = BUILTIN_ARITY[name];
     if (arity !== undefined) {
       const [min, max] = arity;
