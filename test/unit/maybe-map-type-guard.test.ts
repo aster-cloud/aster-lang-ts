@@ -9,10 +9,25 @@ import { compile, evaluate, EN_US, initializeAllBundledLexicons } from '../../sr
 // 而同一段规则在 JVM 上直接抛错（Builtins.java 的 operationExpectedType）。
 // 既是双引擎分叉，也是静默错答案，与 #123 的 arity 缺口同一模式。
 //
-// ★核查范围说明：issue #128 原本怀疑 Result.mapOk/mapErr/tapError 有同类缺口，
-// 逐个实测后**证伪**——那三个本来就 throw。Maybe.withDefault/unwrapOr/isSome
-// 对非 Maybe 输入返回默认值，但 **truffle 侧行为完全相同**（同样不抛），
-// 故不属分叉、本次不动。真正需要修的只有 Maybe.map 这一个。
+// ★核查范围（**订正版**）：交叉审查用 46 条表达式在两个引擎上机器对比后，
+// 推翻了我原先"只有 Maybe.map 一处"的结论。实测结果：
+//
+//   函数                          TS          Truffle    判定
+//   Maybe.map / Option.map        静默 None    抛错       真分叉 → 本 PR 修
+//   Maybe.isNone / Option.isNone  isNone(42)=true  =false 真分叉 → 见 #131
+//   Map.get/size/keys/put         静默兜底空 Map  抛错     真分叉 → 见 #132
+//   Maybe.withDefault / unwrapOr  返回默认     返回默认    一致，不动
+//   Maybe.isSome / Option.isSome  返回 false   返回 false 一致，不动
+//   Result.mapOk/mapErr/tapError  抛错         抛错       一致，不动
+//   Result.unwrap / unwrapErr     抛错         抛错       一致，不动
+//   List.sum/map/filter/length/sort 抛错       抛错       一致，不动
+//
+// ★我原表把 isSome/isNone 合并成一行"返回 false"——isSome 确实两边都 false，
+// isNone 却不是（TS 写 `!== 'Some'`、JVM 写 `.equals("None")`）。
+// **合并成一行正是判断错的成因**；且我当时根本没查 Map.*。
+//
+// 本 PR 仍只修 Maybe.map（isNone 属行为变更需评估 spec 冻结，Map.* 影响面更大），
+// 另两条已各自开 issue，不让"已核查"的错误完成信号把它们掩埋。
 
 initializeAllBundledLexicons();
 
