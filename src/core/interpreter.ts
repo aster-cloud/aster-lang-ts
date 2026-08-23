@@ -1234,11 +1234,31 @@ class Interpreter {
       }
       // === 高阶 Maybe / Result 操作 ===
       // Maybe.map(opt, fn)：Some(v)→Some(fn(v))，None 原样返回。
+      //
+      // ★首参必须是 Maybe（aster-lang-ts#128）：此前对任意非 Maybe 输入都静默返回
+      // None，于是 `Maybe.withDefault(Maybe.map(42, f), 0)` 得到 0——一个**看起来
+      // 完全合理**的决策值，而同一段规则在 JVM 上直接抛错（Builtins.java 的
+      // `operationExpectedType("Maybe.map", "Maybe (Some or None)", …)`）。
+      // 既是双引擎分叉，也是静默错答案，与 #123 的 arity 缺口同一模式。
+      //
+      // 注意 None 的两种运行期表示都要认：TS 里 `None` 字面量求值为 `null`
+      // （evalExpr 的 case 'None'），而 Maybe.map 自身返回 `{__type:'None'}`。
+      // 二者都是合法的 None，只有**其它**类型才算类型错误。
       case 'Maybe.map': case 'Option.map': {
         const o = this.evalExpr(argExprs[0]!, env) as { __type?: string; value?: unknown } | null;
         if (o && o.__type === 'Some') {
           const fn = callableArg(1);
           return { __type: 'Some', value: this.applyCallable(fn, [o.value]) };
+        }
+        if (o !== null && o?.__type !== 'None') {
+          // 消息格式与 truffle 的 operationExpectedType 对齐：
+          //   truffle: `Maybe.map: expected Maybe (Some or None), got Number`
+          //   本引擎:  `Maybe.map: expected Maybe (Some or None), got number`
+          // 仅**类型名大小写**不同（truffle 的 typeName 返回 "Number"，此处用
+          // `typeof` 得 "number"）。这是本仓既有的全局差异而非本次引入——
+          // 例如 `List.sum(42)` 两侧同样是 "Number" vs "number"。故沿用本文件
+          // 既有写法保持局部一致，不在此处单点特例化。
+          throw new InterpreterError(`${name}: expected Maybe (Some or None), got ${typeof o}`);
         }
         return { __type: 'None' };
       }
