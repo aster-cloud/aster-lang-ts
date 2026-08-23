@@ -292,6 +292,102 @@ const MAX_RANGE_SIZE = 1_000_000;
 /** evalStdlibCall 的哨兵返回值：表示"不是已知 stdlib 调用"。用 Symbol 避免与任何合法返回值冲突。 */
 const NOT_STDLIB = Symbol('not-stdlib');
 
+/**
+ * stdlib builtin 的参数个数表：`名称 → [最少, 最多]`。
+ *
+ * <p>★为什么必须有（aster-lang-ts#123）：此前 TS 侧**完全不校验参数个数**，
+ * 漏参会让 JS 的 `undefined` 一路渗进业务结果，给出**静默错答案**而非报错——
+ * `Text.toUpper()` 返回字符串 `"UNDEFINED"`（`String(undefined).toUpperCase()`）、
+ * `Text.length()` 返回 `9`（`"undefined".length`）、`Text.concat("a")` 返回
+ * `"aundefined"`。compile 与 evaluate 全部 success。
+ * 而 truffle 侧有 92 处 `checkArity` 一律抛错——同一段规则两引擎结果不同，
+ * 直接违反「两引擎逐字节一致 + 可回放」这条第一约束。
+ *
+ * <p>本表由 `Builtins.java` 的 `checkArity(name, args, …)` 调用**机械提取**，
+ * 保证与 JVM 侧同源；`Text.substring`/`List.slice` 这类可选尾参在 truffle 里就是
+ * `checkArity(name, args, min, max)`，故用区间表示。
+ *
+ * <p>不含 `Some`/`Ok`/`Err` 等构造器——它们在 `evalExpr` 里作为独立表达式类型处理，
+ * 根本不经过 `evalStdlibCall`。
+ */
+const BUILTIN_ARITY: Readonly<Record<string, readonly [number, number]>> = {
+  'Date.addDays': [2, 2],
+  'Date.day': [1, 1],
+  'Date.daysBetween': [2, 2],
+  'Date.fromISO': [1, 1],
+  'Date.month': [1, 1],
+  'Date.year': [1, 1],
+  'Decimal.divide': [4, 4],
+  'Decimal.round': [3, 3],
+  'IO.print': [1, 1],
+  'IO.readFile': [1, 1],
+  'IO.readLine': [0, 0],
+  'IO.writeFile': [2, 2],
+  'List.append': [2, 2],
+  'List.combinations': [2, 2],
+  'List.concat': [2, 2],
+  'List.contains': [2, 2],
+  'List.count': [2, 2],
+  'List.distinct': [1, 1],
+  'List.empty': [0, 0],
+  'List.filter': [2, 2],
+  'List.get': [2, 2],
+  'List.groupBy': [2, 2],
+  'List.isEmpty': [1, 1],
+  'List.length': [1, 1],
+  'List.map': [2, 2],
+  'List.max': [1, 1],
+  'List.maxBy': [2, 2],
+  'List.min': [1, 1],
+  'List.minBy': [2, 2],
+  'List.range': [2, 2],
+  'List.reduce': [3, 3],
+  'List.slice': [2, 3],
+  'List.sort': [1, 1],
+  'List.sortBy': [2, 2],
+  'List.sum': [1, 1],
+  'Map.contains': [2, 2],
+  'Map.empty': [0, 0],
+  'Map.get': [2, 2],
+  'Map.keys': [1, 1],
+  'Map.put': [3, 3],
+  'Map.remove': [2, 2],
+  'Map.size': [1, 1],
+  'Map.values': [1, 1],
+  'Maybe.isNone': [1, 1],
+  'Maybe.isSome': [1, 1],
+  'Maybe.map': [2, 2],
+  'Maybe.unwrap': [1, 1],
+  'Maybe.unwrapOr': [2, 2],
+  'Maybe.withDefault': [2, 2],
+  'Option.isNone': [1, 1],
+  'Option.isSome': [1, 1],
+  'Option.map': [2, 2],
+  'Option.unwrap': [1, 1],
+  'Option.unwrapOr': [2, 2],
+  'PII.unwrap': [1, 1],
+  'Result.isErr': [1, 1],
+  'Result.isOk': [1, 1],
+  'Result.mapErr': [2, 2],
+  'Result.mapOk': [2, 2],
+  'Result.tapError': [2, 2],
+  'Result.unwrap': [1, 1],
+  'Result.unwrapErr': [1, 1],
+  'Text.concat': [2, 2],
+  'Text.contains': [2, 2],
+  'Text.equals': [2, 2],
+  'Text.indexOf': [2, 2],
+  'Text.length': [1, 1],
+  'Text.redact': [1, 1],
+  'Text.replace': [3, 3],
+  'Text.split': [2, 2],
+  'Text.startsWith': [2, 2],
+  'Text.substring': [2, 3],
+  'Text.toLower': [1, 1],
+  'Text.toUpper': [1, 1],
+  'Text.trim': [1, 1],
+};
+
 // ── Date.* 合规原语支撑：纯整数 proleptic Gregorian 历法（与 truffle 逐位一致）。 ──
 // 铁律：内部日期 = epoch-day Int（自 1970-01-01 的天数）。**不用 JS Date**（避时区/DST/
 // year 0..99 陷阱）。年份范围 0001-9999。禁 today()（确定性——"今天"必须作输入字段）。
@@ -795,6 +891,18 @@ class Interpreter {
     argExprs: readonly CoreTypes.Expression[],
     env: Map<string, unknown>,
   ): unknown {
+    // 参数个数校验（aster-lang-ts#123）：必须在**求值任何实参之前**做，
+    // 与 truffle 的 checkArity 同一时机——否则 `Text.toUpper(boom())` 这类
+    // 写法会先跑出实参的副作用/异常，两引擎的报错顺序就对不齐了。
+    const arity = BUILTIN_ARITY[name];
+    if (arity !== undefined) {
+      const [min, max] = arity;
+      const got = argExprs.length;
+      if (got < min || got > max) {
+        const want = min === max ? `${min}` : `${min}-${max}`;
+        throw new InterpreterError(`${name}: expected ${want} args, got ${got} args`);
+      }
+    }
     const text = (v: unknown): string => String(v);
     const a = (): unknown[] => argExprs.map((e) => this.evalExpr(e, env));
     // 解析"可调用"参数：若是引用模块函数的裸 Name（非局部变量），返回函数名字符串
