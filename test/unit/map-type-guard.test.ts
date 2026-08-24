@@ -13,7 +13,13 @@ import { compile, evaluate, EN_US, initializeAllBundledLexicons } from '../../sr
 // 照常输出决策、在 JVM 上拒绝执行——同一条规则跨引擎决策翻转。
 //
 // ★核查方法（吸取 #128 的教训）：不读源码下结论，而是把同一份 IR 分别喂给
-// 两个引擎逐个实测。七个 Map.* 在 truffle 上**全部抛错**，无一例外。
+// 两个引擎逐个实测。对标量 / 列表 / 普通对象误用，七个 Map.* 在 truffle 上全部抛错。
+//
+// ★但**不要说"无一例外"**——交叉审查实测出一类残留分叉（#134）：
+// `None` 首参在 truffle 上**不抛**（`Map.size(None)` 返回 1），因为 JVM 的 None 是
+// `LinkedHashMap{_type:"None"}`，本身就是 java.util.Map，`_type` 被当成一个键数进去。
+// 本引擎的 None 是裸 null，被守卫拒掉。方向仍是「TS 更严、JVM 更松」。
+// 下面 `残留分叉` 那条用例锁住现状，防止它无声消失。
 
 initializeAllBundledLexicons();
 
@@ -99,6 +105,21 @@ describe('Map.* 首参类型守卫', () => {
       run('Maybe.withDefault(Map.get(Map.put(Map.empty(), "a", 7), "a"), 0)'),
       { ok: true, value: 7 },
     );
+  });
+
+  // ★残留分叉锁（#134）：None 首参本引擎拒、truffle 放行（返回 1）。
+  // 这条**不是**在断言"正确行为"，而是钉住当前的不一致，使得将来任一侧改动时
+  // 必须显式面对它，而不是让分叉在某次重构里无声消失或反向扩大。
+  it('残留分叉：None 首参本引擎拒绝（truffle 侧返回 1，见 #134）', () => {
+    const r = run('Map.size(None)');
+    assert.equal(r.ok, false, 'None 在本引擎应被守卫拒绝');
+    assert.equal(r.error, 'Map.size: expected Map, got object');
+  });
+
+  // ★两边共有的旧缺陷（非本 PR 引入）：Some(1) 被当成有 2 个键的 Map 来数
+  // （`_type` 与 `value`）。两引擎一致，故不属分叉，但同样记录在 #134。
+  it('已知缺陷：Some(1) 被 Map.size 当成 2 个键（两引擎一致）', () => {
+    assert.deepEqual(run('Map.size(Some(1))'), { ok: true, value: 2 });
   });
 
   // List.groupBy 内部构造 GuestMap，其结果会喂给 Map.size/keys/values。

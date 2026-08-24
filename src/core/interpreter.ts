@@ -198,8 +198,17 @@ function asGuestMap(op: string, v: unknown): GuestMap {
   if (v instanceof GuestMap) return v;
   // ★首参必须是 Map（aster-lang-ts#132）：此前对**任意**值静默兜底成空 Map，
   // 于是 `Map.size(42)`→0、`Map.get(42,"k")`→None、`Map.keys(42)`→[]，
-  // 全都是**看起来完全合理**的值；而 truffle 侧七个 Map.* 一律抛
+  // 全都是**看起来完全合理**的值；而 truffle 侧对这些标量/列表首参一律抛
   // `操作 Map.X 期望类型 Map`（两引擎实跑同一份 IR 逐个比对确认）。
+  //
+  // ★**残留分叉，勿称已闭合**（交叉审查实测，见 #134）：`None` 首参两边**仍不一致**。
+  // truffle 的 None 是 `LinkedHashMap{_type:"None"}`，它**本身就是 java.util.Map**，
+  // 于是 `Map.size(None)` 在 JVM 上返回 **1**（数了 `_type` 这个键）而非抛错；
+  // 本引擎的 None 是裸 `null`，被本守卫拒掉。最现实的触发路径是嵌套字段缺失：
+  //   Maybe.withDefault(Map.get(Maybe.withDefault(Map.get(m,"addr"), None), "city"), 0)
+  // 本引擎抛错、JVM 得 0。方向仍是「TS 更严、JVM 更松」。
+  // 同理 `Map.size(Some(1))` 两边都返回 2——那是**两边共有**的旧缺陷（把 Maybe 当 Map 数键），
+  // 非本次引入。根治要在 truffle 侧拒绝 `_type` 为 Maybe/Result 形状的 map，属独立行为变更。
   //
   // 危害高于 #128：`Map.get` 是策略规则读字段的主路径，
   // `Maybe.withDefault(Map.get(applicant,"creditScore"), 0)` 在本引擎静默走兜底值
