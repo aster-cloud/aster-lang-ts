@@ -62,6 +62,42 @@ describe('canonicalizer', () => {
       assert.strictEqual(canonicalize('Return a.'), 'Return a.');
     });
 
+    // aster-lang-core#120：裸 `not equal to`（不带 `is`）是合法比较运算符，
+    // 但 follow-set 漏了 `not`，导致左操作数被当冠词删掉：
+    //   `Return a not equal to b.` → `Return not equal to b.`
+    // 本引擎表现为编译失败；Java 侧更糟——编译通过且**恒返回 true**（`5 != 5` 得 true）。
+    //
+    // ★三个冠词逐一断言：正则用 `(a|an|the)` 交替，只测 `a` 会漏掉
+    // `an`/`the` 各自的词边界情况。
+    it('冠词作操作数后跟裸 not equal to 不应被吞（#120）', () => {
+      for (const art of ['a', 'an', 'the']) {
+        assert.strictEqual(
+          canonicalize(`Return ${art} not equal to b.`),
+          `Return ${art} not equal to b.`,
+          `${art} 被当冠词吞掉了`,
+        );
+      }
+    });
+
+    // 对照：`is not equal to` 本就正常（被已在列的 `is` 保护）。
+    // 锁住它，防止有人"简化"时把 `is` 从 follow-set 里去掉。
+    it('冠词作操作数后跟 is not equal to 保持正常', () => {
+      assert.strictEqual(
+        canonicalize('Return a is not equal to b.'),
+        'Return a is not equal to b.',
+      );
+    });
+
+    // ★反向护栏：加 `not` 不能让**真冠词**逃过移除。
+    // `the not-yet-valid` 这类名词短语在 CNL 里不存在，但若将来出现，
+    // 这条会提醒改动者重新评估 follow-set 的边界。
+    it('真冠词后跟名词仍被移除（加 not 未放宽范围）', () => {
+      assert.strictEqual(
+        canonicalize('define the function to return a value'),
+        'define function to return value',
+      );
+    });
+
     it('行末孤立标识符（无句末点）不应被吞——\\n 锚点与 EOF', () => {
       // 多行：a/the/an 在行末后跟 \n
       assert.strictEqual(canonicalize('Let a be 1\nReturn a'), 'Let a be 1\nReturn a');
