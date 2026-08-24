@@ -226,6 +226,10 @@ function asGuestMap(op: string, v: unknown): GuestMap {
   // 存在条目里、不是属性，只用 `v.__type` 读会**读不到**而放行（实测 `Map.size` 返回 2）。
   // truffle 侧用的是 `m.get("_type")`（映射查找），天然覆盖这种形态；
   // 本引擎若只查属性就会与之分叉。
+  // 已知取舍（两引擎一致，非分叉）：判定只看标签**值**是否恰为 Some/None/Ok/Err。
+  // 故业务 map 若恰好有个键叫 `_type`/`__type` 且值正是这四个词之一，会被误拒；
+  // 值为其它内容（如 "premium"）则正常放行。truffle 的 isVariantShaped 规则相同，
+  // 二者一致故不构成分叉。真要区分需要引入不可伪造的类型标记，属独立议题。
   const tagOf = (key: '__type' | '_type'): unknown =>
     v instanceof Map ? v.get(key) : (v as Record<string, unknown>)[key];
   const variant = tagOf('__type') ?? tagOf('_type');
