@@ -194,16 +194,38 @@ class GuestMap extends Map<string, unknown> {
  * 防御性地兼容历史普通对象 / 原生 Map 形态；对 null / 非对象返回空 map。
  * 仅遍历自有可枚举键（不触碰原型链）。
  */
-function asGuestMap(v: unknown): GuestMap {
+function asGuestMap(op: string, v: unknown): GuestMap {
   if (v instanceof GuestMap) return v;
+  // ★首参必须是 Map（aster-lang-ts#132）：此前对**任意**值静默兜底成空 Map，
+  // 于是 `Map.size(42)`→0、`Map.get(42,"k")`→None、`Map.keys(42)`→[]，
+  // 全都是**看起来完全合理**的值；而 truffle 侧对这些标量/列表首参一律抛
+  // `操作 Map.X 期望类型 Map`（两引擎实跑同一份 IR 逐个比对确认）。
+  //
+  // ★**残留分叉，勿称已闭合**（交叉审查实测，见 #134）：`None` 首参两边**仍不一致**。
+  // truffle 的 None 是 `LinkedHashMap{_type:"None"}`，它**本身就是 java.util.Map**，
+  // 于是 `Map.size(None)` 在 JVM 上返回 **1**（数了 `_type` 这个键）而非抛错；
+  // 本引擎的 None 是裸 `null`，被本守卫拒掉。最现实的触发路径是嵌套字段缺失：
+  //   Maybe.withDefault(Map.get(Maybe.withDefault(Map.get(m,"addr"), None), "city"), 0)
+  // 本引擎抛错、JVM 得 0。方向仍是「TS 更严、JVM 更松」。
+  // 同理 `Map.size(Some(1))` 两边都返回 2——那是**两边共有**的旧缺陷（把 Maybe 当 Map 数键），
+  // 非本次引入。根治要在 truffle 侧拒绝 `_type` 为 Maybe/Result 形状的 map，属独立行为变更。
+  //
+  // 危害高于 #128：`Map.get` 是策略规则读字段的主路径，
+  // `Maybe.withDefault(Map.get(applicant,"creditScore"), 0)` 在本引擎静默走兜底值
+  // 照常出决策、在 JVM 上拒绝执行——同一条规则跨引擎决策翻转。
+  //
+  // 放行范围与 truffle 的 asMap 对齐：接受 guest map 与宿主传入的
+  // 普通对象 / JS Map（宿主 context 里的 map 就是这两种形态）；
+  // 数组不算 Map（truffle 侧 java.util.List 既非 AsterMapValue 也非 Map，同样抛错）。
+  if (v === null || v === undefined || typeof v !== 'object' || Array.isArray(v)) {
+    throw new InterpreterError(`${op}: expected Map, got ${Array.isArray(v) ? 'List' : typeof v}`);
+  }
   const m = new GuestMap();
-  if (v && typeof v === 'object') {
-    if (v instanceof Map) {
-      for (const [k, val] of v) m.set(String(k), val);
-    } else {
-      for (const k of Object.keys(v as object)) {
-        m.set(k, (v as Record<string, unknown>)[k]);
-      }
+  if (v instanceof Map) {
+    for (const [k, val] of v) m.set(String(k), val);
+  } else {
+    for (const k of Object.keys(v as object)) {
+      m.set(k, (v as Record<string, unknown>)[k]);
     }
   }
   return m;
@@ -1017,14 +1039,14 @@ class Interpreter {
       //   真正变的是**命中**分支：现在包一层 Some，与 Java 的 {_type:"Some"} 对齐。
       //   命中值本身为 null 时仍返回 Some(null)：「键存在但值为 null」与「键不存在」
       //   是两件事，不能塌陷。
-      case 'Map.get': { const [m, k] = a(); const g = asGuestMap(m); const key = mapKey(k);
+      case 'Map.get': { const [m, k] = a(); const g = asGuestMap('Map.get', m); const key = mapKey(k);
         return g.has(key) ? { __type: 'Some', value: g.get(key) } : null; }
-      case 'Map.contains': { const [m, k] = a(); return asGuestMap(m).has(mapKey(k)); }
-      case 'Map.size': { const [m] = a(); return asGuestMap(m).size; }
+      case 'Map.contains': { const [m, k] = a(); return asGuestMap('Map.contains', m).has(mapKey(k)); }
+      case 'Map.size': { const [m] = a(); return asGuestMap('Map.size', m).size; }
       // 补齐与 truffle Builtins 对等的 Map.* （put/remove/keys/values）——TS 之前缺这 4 个，
       // List.groupBy(...) 的 Map.values 链需要。put/remove 不可变（返回新 GuestMap）。
-      case 'Map.put': { const [m, k, v] = a(); const g = new GuestMap(asGuestMap(m)); g.set(mapKey(k), v); return g; }
-      case 'Map.remove': { const [m, k] = a(); const g = new GuestMap(asGuestMap(m)); g.delete(mapKey(k)); return g; }
+      case 'Map.put': { const [m, k, v] = a(); const g = new GuestMap(asGuestMap('Map.put', m)); g.set(mapKey(k), v); return g; }
+      case 'Map.remove': { const [m, k] = a(); const g = new GuestMap(asGuestMap('Map.remove', m)); g.delete(mapKey(k)); return g; }
       // Date.* 合规原语（Stable v1）：epoch-day Int 内部表示，纯整数 proleptic Gregorian
       // （与 truffle 逐位一致，不用 JS Date）。禁 today()——"今天"作输入字段 evaluation_date。
       case 'Date.fromISO': return dateFromISO(a()[0]);
@@ -1053,8 +1075,8 @@ class Interpreter {
           .dividedBy(divisor)
           .toDecimalPlaces(decimalScale(scale), decimalRoundingMode(mode));
       }
-      case 'Map.keys': { const [m] = a(); return [...asGuestMap(m).keys()]; }
-      case 'Map.values': { const [m] = a(); return [...asGuestMap(m).values()]; }
+      case 'Map.keys': { const [m] = a(); return [...asGuestMap('Map.keys', m).keys()]; }
+      case 'Map.values': { const [m] = a(); return [...asGuestMap('Map.values', m).values()]; }
       // Maybe/Option/Result（非 lambda 部分）。Some/Ok/Err/None 形如 { __type, value }。
       case 'Maybe.withDefault': case 'Option.unwrapOr': case 'Maybe.unwrapOr': {
         const [x, d] = a();
