@@ -220,8 +220,15 @@ function asGuestMap(op: string, v: unknown): GuestMap {
     throw new InterpreterError(`${op}: expected Map, got ${Array.isArray(v) ? 'List' : typeof v}`);
   }
   // Maybe/Result 变体（含跨引擎 payload 里的 JVM 形 `_type`）一律拒绝。
-  const variant = (v as { __type?: unknown; _type?: unknown }).__type
-    ?? (v as { _type?: unknown })._type;
+  //
+  // ★必须同时查**属性**与 **Map 条目**两处：`Some(1)` 这类值是带 `__type` 属性的
+  // 普通对象，而宿主可能传进一个 `new Map([['_type','Some'],...])`——后者的 `_type`
+  // 存在条目里、不是属性，只用 `v.__type` 读会**读不到**而放行（实测 `Map.size` 返回 2）。
+  // truffle 侧用的是 `m.get("_type")`（映射查找），天然覆盖这种形态；
+  // 本引擎若只查属性就会与之分叉。
+  const tagOf = (key: '__type' | '_type'): unknown =>
+    v instanceof Map ? v.get(key) : (v as Record<string, unknown>)[key];
+  const variant = tagOf('__type') ?? tagOf('_type');
   if (variant === 'Some' || variant === 'None' || variant === 'Ok' || variant === 'Err') {
     throw new InterpreterError(`${op}: expected Map, got ${String(variant)}`);
   }

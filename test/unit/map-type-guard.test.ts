@@ -129,6 +129,29 @@ describe('Map.* 首参类型守卫', () => {
     }
   });
 
+  // ★宿主可能传进一个 `new Map([['_type','Some'],...])`——标签存在**条目**里、
+  // 不是属性。只用 `v.__type` 读会读不到而放行（实测修复前 Map.size 返回 2）。
+  // truffle 侧用 `m.get("_type")`（映射查找）天然覆盖，本引擎必须同时查两处才不分叉。
+  it('JS Map 把变体标签放在条目里同样被拒绝', () => {
+    const c = compile('Module p.\n\nRule f given m, produce Int:\n  Return Map.size(m).\n', {
+      lexicon: EN_US,
+    });
+    assert.ok(c.success && c.core, 'compile 失败');
+    for (const tag of ['_type', '__type'] as const) {
+      const out = evaluate(c.core, 'f', {
+        m: new Map<string, unknown>([[tag, 'Some'], ['value', 1]]),
+      }) as { success: boolean; value?: unknown; error?: string };
+      assert.equal(out.success, false, `Map 条目里的 ${tag} 应被拒，实际 ${JSON.stringify(out.value)}`);
+      assert.equal(out.error, 'Map.size: expected Map, got Some');
+    }
+    // 正常 JS Map 不受影响
+    const ok = evaluate(c.core, 'f', { m: new Map([['a', 1]]) }) as {
+      success: boolean;
+      value?: unknown;
+    };
+    assert.deepEqual({ ok: ok.success, value: ok.value }, { ok: true, value: 1 });
+  });
+
   // 跨引擎 payload 可能带 JVM 形的单下划线 `_type`，同样要拦。
   it('JVM 形 _type 变体同样被拒绝', () => {
     const c = compile('Module p.\n\nRule f given m, produce Int:\n  Return Map.size(m).\n', {
