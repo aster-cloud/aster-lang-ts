@@ -1100,7 +1100,21 @@ class Interpreter {
         return o && o.__type === 'Some' ? o.value : d;
       }
       case 'Maybe.isSome': case 'Option.isSome': { const [x] = a(); return (x as { __type?: string } | null)?.__type === 'Some'; }
-      case 'Maybe.isNone': case 'Option.isNone': { const [x] = a(); return (x as { __type?: string } | null)?.__type !== 'Some'; }
+      // isNone 语义是「**是** None」，不是「不是 Some」（aster-lang-ts#131）。
+      //
+      // 旧写法 `?.__type !== 'Some'` 会把任意非 Maybe 输入也判成 None：
+      //   Maybe.isNone(42) → true，而 JVM 侧（`"None".equals(m.get("_type"))`）→ false
+      // 36 格矩阵（6 个谓词 × 6 种输入）实测：仅 isNone/Option.isNone 的
+      // Ok/Err/Int/Text 四格分叉（共 8 格），isSome/isOk/isErr 全对齐。
+      // JVM 那侧是对的——isNone 不该对 `Ok(1)`、`42` 返回 true。
+      //
+      // ★两种 None 表示都要认：`None` 字面量求值为裸 `null`（evalExpr 的 case 'None'），
+      // 而 Maybe.map 等返回 `{__type:'None'}`。只认后者会让 `Maybe.isNone(None)` 变 false。
+      case 'Maybe.isNone': case 'Option.isNone': {
+        const [x] = a();
+        if (x === null || x === undefined) return true;
+        return (x as { __type?: string })?.__type === 'None';
+      }
       case 'Result.isOk': { const [r] = a(); return (r as { __type?: string } | null)?.__type === 'Ok'; }
       case 'Result.isErr': { const [r] = a(); return (r as { __type?: string } | null)?.__type === 'Err'; }
       // ★unwrap 系列此前也只有 JVM 有（truffle Builtins.java:783/792 与 Maybe 对应项）。
