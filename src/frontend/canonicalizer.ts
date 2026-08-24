@@ -261,7 +261,12 @@ function getArticleRegex(lexicon?: Lexicon): RegExp | null {
   //   (?!\s+(as|be|plus|…)\b) 后跟声明/连接关键字或单词运算符 → 标识符（如 `a as Int`、`Let a be 1`、`a plus b`）
   //   (?!\s+\x00)             后跟多词关键字 marker（如 `equals to`、`divided by`）→ 标识符
   //   (?![ \t]*\n)            行内空白后即换行 → 行末标识符（如 `Return a\n`）；只认 [ \t] 不认 \s
-  const followWords = 'as|be|in|of|and|or|plus|minus|times|multiplied|divided|modulo|equals|is|at|greater|less|more|than|to';
+  //
+  // ★`not` 必须在列（aster-lang-core#120）：裸 `not equal to`（不带 `is`）是合法比较
+  // 运算符，漏掉它会让 `a not equal to b` 的左操作数被当冠词删掉、变成 `not equal to b`。
+  // 本引擎表现为编译失败 `Expected '.'`；Java 侧更糟——编译通过且恒返回 true。
+  // 注：`a is not equal to b` 本就正常，因为 `is` 已在列。
+  const followWords = 'as|be|in|of|and|or|not|plus|minus|times|multiplied|divided|modulo|equals|is|at|greater|less|more|than|to';
   const pattern = `\\b(${articles.join('|')})\\b(?=\\s)(?!\\s+(?:${followWords})\\b)(?!\\s+\\x00)(?![ \\t]*\\n)`;
   return new RegExp(pattern, 'gi');
 }
