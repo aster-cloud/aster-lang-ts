@@ -107,19 +107,40 @@ describe('Map.* 首参类型守卫', () => {
     );
   });
 
-  // ★残留分叉锁（#134）：None 首参本引擎拒、truffle 放行（返回 1）。
-  // 这条**不是**在断言"正确行为"，而是钉住当前的不一致，使得将来任一侧改动时
-  // 必须显式面对它，而不是让分叉在某次重构里无声消失或反向扩大。
-  it('残留分叉：None 首参本引擎拒绝（truffle 侧返回 1，见 #134）', () => {
-    const r = run('Map.size(None)');
-    assert.equal(r.ok, false, 'None 在本引擎应被守卫拒绝');
-    assert.equal(r.error, 'Map.size: expected Map, got object');
+  // ★Maybe/Result 变体不是 Map（#134 已在两引擎同步收紧）。
+  // 这些变体的运行期表示本身就是"带 _type 的对象/Map"，不拦就会被当成普通 Map
+  // 数键——`Map.size(Some(1))`→2、`Map.size(None)`→1（JVM），全是静默错答案。
+  //
+  // 二维矩阵实测（6 个 Map.* × 6 种输入 = 36 格）：修复前 None 那 6 格两引擎分叉、
+  // Some/Ok/Err 那 18 格两引擎"一致地错"；修复后 36 格逐格一致。
+  it('Maybe/Result 变体被 Map.* 拒绝（Some/None/Ok/Err）', () => {
+    // 注：`None` 在本引擎的运行期表示是裸 `null`（不是带 __type 的对象），
+    // 故它被更前面的 null 分支拦下、报 `got object` 而非 `got None`。
+    // 两条路径都拒绝，只是消息里的类型名不同——这里如实断言各自的实际消息。
+    for (const [arg, want] of [
+      ['Some(1)', 'Some'],
+      ['Ok(1)', 'Ok'],
+      ['Err(1)', 'Err'],
+      ['None', 'object'],
+    ] as const) {
+      const r = run(`Map.size(${arg})`);
+      assert.equal(r.ok, false, `${arg} 应被拒绝，实际返回 ${JSON.stringify(r.value)}`);
+      assert.equal(r.error, `Map.size: expected Map, got ${want}`);
+    }
   });
 
-  // ★两边共有的旧缺陷（非本 PR 引入）：Some(1) 被当成有 2 个键的 Map 来数
-  // （`_type` 与 `value`）。两引擎一致，故不属分叉，但同样记录在 #134。
-  it('已知缺陷：Some(1) 被 Map.size 当成 2 个键（两引擎一致）', () => {
-    assert.deepEqual(run('Map.size(Some(1))'), { ok: true, value: 2 });
+  // 跨引擎 payload 可能带 JVM 形的单下划线 `_type`，同样要拦。
+  it('JVM 形 _type 变体同样被拒绝', () => {
+    const c = compile('Module p.\n\nRule f given m, produce Int:\n  Return Map.size(m).\n', {
+      lexicon: EN_US,
+    });
+    assert.ok(c.success && c.core, 'compile 失败');
+    const out = evaluate(c.core, 'f', { m: { _type: 'None' } }) as {
+      success: boolean;
+      error?: string;
+    };
+    assert.equal(out.success, false);
+    assert.equal(out.error, 'Map.size: expected Map, got None');
   });
 
   // List.groupBy 内部构造 GuestMap，其结果会喂给 Map.size/keys/values。
