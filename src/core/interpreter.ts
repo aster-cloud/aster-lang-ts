@@ -201,14 +201,13 @@ function asGuestMap(op: string, v: unknown): GuestMap {
   // 全都是**看起来完全合理**的值；而 truffle 侧对这些标量/列表首参一律抛
   // `操作 Map.X 期望类型 Map`（两引擎实跑同一份 IR 逐个比对确认）。
   //
-  // ★**残留分叉，勿称已闭合**（交叉审查实测，见 #134）：`None` 首参两边**仍不一致**。
-  // truffle 的 None 是 `LinkedHashMap{_type:"None"}`，它**本身就是 java.util.Map**，
-  // 于是 `Map.size(None)` 在 JVM 上返回 **1**（数了 `_type` 这个键）而非抛错；
-  // 本引擎的 None 是裸 `null`，被本守卫拒掉。最现实的触发路径是嵌套字段缺失：
-  //   Maybe.withDefault(Map.get(Maybe.withDefault(Map.get(m,"addr"), None), "city"), 0)
-  // 本引擎抛错、JVM 得 0。方向仍是「TS 更严、JVM 更松」。
-  // 同理 `Map.size(Some(1))` 两边都返回 2——那是**两边共有**的旧缺陷（把 Maybe 当 Map 数键），
-  // 非本次引入。根治要在 truffle 侧拒绝 `_type` 为 Maybe/Result 形状的 map，属独立行为变更。
+  // ★Maybe/Result 变体不是 Map（#134，两引擎同步收紧）：
+  // `Some`/`Ok`/`Err` 的运行期表示是带 `__type` 的对象，`None` 在 JVM 上是
+  // `LinkedHashMap{_type:"None"}`——都会被"是不是对象"这类判断收下，
+  // 把 `_type`/`value` 当成键来数。实测二维矩阵（6 个 Map.* × 6 种输入）：
+  //   Map.size(Some(1)) → 2、Map.size(None) → 1（JVM）、Map.keys(Ok(1)) → 2 …
+  // 全是**静默错答案**：不报错，给出一个看起来完全合理的数字。
+  // 其中 None 那 6 格此前还与 JVM 分叉（本引擎拒、JVM 放行），现已同步拒绝。
   //
   // 危害高于 #128：`Map.get` 是策略规则读字段的主路径，
   // `Maybe.withDefault(Map.get(applicant,"creditScore"), 0)` 在本引擎静默走兜底值
@@ -219,6 +218,23 @@ function asGuestMap(op: string, v: unknown): GuestMap {
   // 数组不算 Map（truffle 侧 java.util.List 既非 AsterMapValue 也非 Map，同样抛错）。
   if (v === null || v === undefined || typeof v !== 'object' || Array.isArray(v)) {
     throw new InterpreterError(`${op}: expected Map, got ${Array.isArray(v) ? 'List' : typeof v}`);
+  }
+  // Maybe/Result 变体（含跨引擎 payload 里的 JVM 形 `_type`）一律拒绝。
+  //
+  // ★必须同时查**属性**与 **Map 条目**两处：`Some(1)` 这类值是带 `__type` 属性的
+  // 普通对象，而宿主可能传进一个 `new Map([['_type','Some'],...])`——后者的 `_type`
+  // 存在条目里、不是属性，只用 `v.__type` 读会**读不到**而放行（实测 `Map.size` 返回 2）。
+  // truffle 侧用的是 `m.get("_type")`（映射查找），天然覆盖这种形态；
+  // 本引擎若只查属性就会与之分叉。
+  // 已知取舍（两引擎一致，非分叉）：判定只看标签**值**是否恰为 Some/None/Ok/Err。
+  // 故业务 map 若恰好有个键叫 `_type`/`__type` 且值正是这四个词之一，会被误拒；
+  // 值为其它内容（如 "premium"）则正常放行。truffle 的 isVariantShaped 规则相同，
+  // 二者一致故不构成分叉。真要区分需要引入不可伪造的类型标记，属独立议题。
+  const tagOf = (key: '__type' | '_type'): unknown =>
+    v instanceof Map ? v.get(key) : (v as Record<string, unknown>)[key];
+  const variant = tagOf('__type') ?? tagOf('_type');
+  if (variant === 'Some' || variant === 'None' || variant === 'Ok' || variant === 'Err') {
+    throw new InterpreterError(`${op}: expected Map, got ${String(variant)}`);
   }
   const m = new GuestMap();
   if (v instanceof Map) {
