@@ -55,7 +55,7 @@ export { TokenKind, KW } from './frontend/tokens.js';
 export { Node } from './ast/ast.js';
 
 // Core IR interpreter (evaluate policies in the browser)
-export { evaluate } from './core/interpreter.js';
+export { evaluate, serializeGuestValue } from './core/interpreter.js';
 export type { EvalResult } from './core/interpreter.js';
 
 // Input value generation (for policy execution)

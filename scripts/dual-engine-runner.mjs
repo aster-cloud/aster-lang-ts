@@ -22,7 +22,7 @@
  *   echo '{"source":"...","entry":"add","input":[1,2]}' | node scripts/dual-engine-runner.mjs
  */
 import { compile } from '../dist/src/browser.js';
-import { evaluate } from '../dist/src/core/interpreter.js';
+import { evaluate, serializeGuestValue } from '../dist/src/core/interpreter.js';
 
 async function readStdin() {
   return new Promise((resolve, reject) => {
@@ -93,11 +93,14 @@ async function main() {
   }
 
   const result = evaluate(compileResult.core, entry, context);
-  process.stdout.write(JSON.stringify({
-    success: result.success,
-    value: result.value,
-    error: result.error,
-  }) + '\n');
+  // audit #126: value 字段用 serializeGuestValue 手工嵌入 —— JSON.stringify 会把
+  // guest map 的整数样式键重排（对象自有属性规范），与 JVM 引擎（Jackson 序列化
+  // LinkedHashMap，插入序）字节不一致；手写对象语法可按插入序输出（合法 JSON）。
+  // 键缺省语义与旧 JSON.stringify 一致：undefined 字段整个省略。
+  const fields = [`"success":${JSON.stringify(result.success)}`];
+  if (result.value !== undefined) fields.push(`"value":${serializeGuestValue(result.value)}`);
+  if (result.error !== undefined) fields.push(`"error":${JSON.stringify(result.error)}`);
+  process.stdout.write(`{${fields.join(',')}}` + '\n');
 }
 
 main().catch((err) => {

@@ -23,5 +23,5 @@ export {
   isValidCoreIRJson,
 } from './core_ir_json.js';
 export type { CoreIREnvelope } from './core_ir_json.js';
-export { evaluate } from './interpreter.js';
+export { evaluate, serializeGuestValue } from './interpreter.js';
 export type { EvalResult } from './interpreter.js';
