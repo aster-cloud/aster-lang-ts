@@ -227,6 +227,12 @@ export function serializeGuestValue(v: unknown, depth = 0): string {
   if (depth > SERIALIZE_MAX_DEPTH) {
     throw new InterpreterError('serializeGuestValue: value nesting exceeds max depth (cycle?)');
   }
+  // ★BigInt（Long 的运行时表示）必须在委托 JSON.stringify 之前拦下——
+  //   JSON.stringify(1n) 直接抛错。输出为无引号十进制字面量，与 JVM 侧
+  //   Jackson 序列化 `long` 的形态一致（9223372036854775807，非 "…" 字符串）。
+  if (typeof v === 'bigint') {
+    return v.toString();
+  }
   if (v instanceof GuestMap) {
     const parts: string[] = [];
     for (const [k, val] of v) {
@@ -792,8 +798,17 @@ class Interpreter {
       case 'String':
         return expr.value;
       case 'Long':
-        // Long 值存储为 string，尝试转为 number
-        return Number(expr.value);
+        // ★Long 运行时表示 = BigInt（issue #142）。此前是 `Number(expr.value)`，
+        //   把词法层专门用 BigInt 保住的精度又丢了回去：
+        //     9223372036854775807L → 9223372036854776000（差 193，静默错答案）
+        //   而 JVM 侧 CoreModel.LongE 是精确 `long` → 同一源码两引擎结果不同。
+        //   改用 BigInt 后与 JVM 逐位一致。
+        //
+        //   ★BigInt 的三个坑（已实测，见 evalBinaryOp / serializeGuestValue）：
+        //     · JSON.stringify(1n) 抛 "Do not know how to serialize a BigInt"
+        //     · 1n + 1 抛 "Cannot mix BigInt and other types"
+        //     · 1n === 1 为 false（== 才为 true）
+        return BigInt(expr.value);
       case 'Null':
         return null;
       case 'None':
@@ -1491,6 +1506,55 @@ class Interpreter {
         case '>=': return l.comparedTo(r) >= 0;
         default:
           throw new InterpreterError(`Decimal: unsupported operator '${op}'`);
+      }
+    }
+
+    // ★BigInt（Long）分派——必须在下面的原生算术之前。
+    //   JS 不允许 BigInt 与 number 混算（`1n + 1` 抛错），故：
+    //     · 两侧都是 BigInt      → 用 BigInt 运算，精确 64 位，与 JVM long 一致
+    //     · 一侧 BigInt 一侧 Int → 把整数值 number 提升为 BigInt（精确，无损）
+    //     · 一侧 BigInt 一侧非整数 Double → 响亮失败，不静默降级
+    //   与 Decimal 分派同构（见上），理由相同：静默错答案比响亮失败危险得多。
+    if (typeof left === 'bigint' || typeof right === 'bigint') {
+      const toBig = (v: unknown, side: string): bigint => {
+        if (typeof v === 'bigint') return v;
+        if (typeof v === 'number') {
+          if (!Number.isInteger(v)) {
+            throw new InterpreterError(
+              `Cannot combine Long and non-integer Double (${side}). Long arithmetic is exact 64-bit.`);
+          }
+          if (!Number.isSafeInteger(v)) {
+            // >2^53 的 number 本身已不精确，提升过去只会把错误带进精确域
+            throw new InterpreterError(
+              `Cannot combine Long and unsafe integer ${v} (${side}); value already lost precision as a JS number.`);
+          }
+          return BigInt(v);
+        }
+        throw new InterpreterError(`Long ${op}: expected Long/Int operand, got ${typeof v}`);
+      };
+      const lb = toBig(left, 'left'), rb = toBig(right, 'right');
+      switch (op) {
+        case '+': return lb + rb;
+        case '-': return lb - rb;
+        case '*': return lb * rb;
+        case '/':
+          if (rb === 0n) throw new InterpreterError('Division by zero');
+          // Long 除法与 JVM 一致：向零截断的整数除法
+          return lb / rb;
+        case '//':
+          if (rb === 0n) throw new InterpreterError('Division by zero');
+          return lb / rb;
+        case '%':
+          if (rb === 0n) throw new InterpreterError('Division by zero');
+          return lb % rb;
+        case '==': return lb === rb;
+        case '!=': return lb !== rb;
+        case '<': return lb < rb;
+        case '<=': return lb <= rb;
+        case '>': return lb > rb;
+        case '>=': return lb >= rb;
+        default:
+          throw new InterpreterError(`Long: unsupported operator '${op}'`);
       }
     }
 
