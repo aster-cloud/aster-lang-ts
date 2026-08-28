@@ -368,10 +368,33 @@ function valueEquals(x: unknown, y: unknown, depth = 0): boolean {
     for (let i = 0; i < x.length; i++) if (!valueEquals(x[i], y[i], depth + 1)) return false;
     return true;
   }
+  // ★Map 结构相等（issue #143）。此前这里把 Map **排除**在结构比较之外
+  //   （下面的条件带 `&& !(x instanceof Map)`），GuestMap 落回引用相等：
+  //     Map.put(Map.empty(),"a",1) == Map.put(Map.empty(),"a",1)  → false
+  //   而同样内容的列表 [1,2] == [1,2] → true——**TS 自身就不自洽**；
+  //   truffle 侧 valueEquals 对映射逐键递归 → 内容相同的 map JVM 判 true，
+  //   同一规则跨引擎决策翻转，且不报错。
+  //
+  //   镜像 truffle Builtins.valueEquals 的语义：先比 size，再逐键递归；
+  //   一侧是 Map 另一侧不是 → false（载体不同即不等）。
+  //   GuestMap extends Map，故 `instanceof Map` 同时覆盖两者。
+  const xm = x instanceof Map;
+  const ym = y instanceof Map;
+  if (xm && ym) {
+    const mx = x as Map<string, unknown>;
+    const my = y as Map<string, unknown>;
+    if (mx.size !== my.size) return false;
+    for (const [k, v] of mx) {
+      if (!my.has(k)) return false;
+      if (!valueEquals(v, my.get(k), depth + 1)) return false;
+    }
+    return true;
+  }
+  if (xm || ym) return false;
+
   if (
     x && y && typeof x === 'object' && typeof y === 'object'
     && !Array.isArray(x) && !Array.isArray(y)
-    && !(x instanceof Map) && !(y instanceof Map)
   ) {
     const kx = Object.keys(x as object);
     const ky = Object.keys(y as object);
