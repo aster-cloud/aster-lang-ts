@@ -309,6 +309,37 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           }
         }
 
+        // ★用户定义函数的参数个数校验（issue #146）。
+        //
+        //   此前全管线零校验，与 builtin 的严查形成双标：BUILTIN_ARITY 用整页注释论证
+        //   「漏参渗出 undefined 是最危险的静默错答案」，而同一解释器对用户函数
+        //   **多传静默丢弃、少传补 null**，typechecker 也不查。
+        //   实测 `Rule g given a as Int … Return g(1, 2, 3).` → 诊断为空、求值 success。
+        //
+        //   ★放在 typechecker 而不是解释器：两个引擎的运行期都是 Math.min 静默截断
+        //   （truffle AsterRootNode.bindArgumentsToFrame 同样如此）。只改一侧运行期会
+        //   立刻制造跨引擎分歧；而 typechecker 是双引擎共用的前置关卡，在这里拦下
+        //   既能在编译期给出准确诊断，又不改变任何一侧的运行时语义。
+        //   运行期收紧需要两引擎同步，属独立工作。
+        //
+        //   只查**本模块内声明**的函数：内置与跨模块导入各有自己的校验路径，
+        //   在此瞎猜签名会误报。
+        if (expression.target.kind === 'Name' && !expression.target.name.includes('.')) {
+          const callee = expression.target.name;
+          const sig = module.funcSignatures.get(callee);
+          if (sig && sig.params.length !== expression.args.length) {
+            diagnostics.error(
+              ErrorCode.CALL_ARITY_MISMATCH,
+              originToSpan(expression.origin) ?? originToSpan(expression.target.origin),
+              {
+                func: callee,
+                expected: sig.params.length,
+                actual: expression.args.length,
+              },
+            );
+          }
+        }
+
         if (expression.target.kind === 'Name' && expression.target.name.includes('.')) {
           let hasInt = false;
           let hasLong = false;
