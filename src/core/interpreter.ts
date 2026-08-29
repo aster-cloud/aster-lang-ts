@@ -75,6 +75,53 @@ function decimalScale(scale: unknown): number {
   return n;
 }
 
+/**
+ * 严格整型换算——与 truffle `Builtins.toInt` 等价（issue #144）。
+ *
+ * ★为什么不能用裸 `Number()`：`Number("x")` 得 `NaN` 后**所有防线同时失效**——
+ * `NaN < MIN || NaN > MAX` 两侧都是 false 于是放行；`size > MAX_RANGE_SIZE` 同理，
+ * 然后循环零次返回 `[]`。非法输入不报错，反而产出「看起来正常」的决策值。
+ *
+ * 实测（修复前）：
+ *
+ *     Date.daysBetween("x","b")            → success:true, value:NaN
+ *     Date.addDays("x",5) greater than 0   → success:true, value:false
+ *     List.length(List.range("a",5))       → success:true, value:0
+ *
+ * 而 truffle 同输入抛 `NumberFormatException`——**同一条规则两引擎一个静默出错答案、
+ * 一个响亮失败**。对合规引擎，静默的那个远更危险。
+ *
+ * 语义逐条对齐 truffle `toInt`：
+ * - number  → 截断取整（对齐 Java `Number.intValue()`），但拒绝 NaN/Infinity；
+ * - bigint  → 精确转换，超出安全整数范围拒绝（Long 已是 BigInt 表示，见 issue #142）；
+ * - string  → 严格整数解析（对齐 `Integer.parseInt`：不接受小数、十六进制、空串）；
+ * - 其他    → 抛错。
+ */
+function toInt(v: unknown, ctx: string): number {
+  const bad = (): never => {
+    throw new InterpreterError(`${ctx}: expected Int, got ${JSON.stringify(v) ?? String(v)}`);
+  };
+  if (typeof v === 'number') {
+    if (!Number.isFinite(v)) return bad();
+    return Math.trunc(v);
+  }
+  if (typeof v === 'bigint') {
+    if (v > BigInt(Number.MAX_SAFE_INTEGER) || v < BigInt(Number.MIN_SAFE_INTEGER)) return bad();
+    return Number(v);
+  }
+  if (typeof v === 'string') {
+    // ★只接受**整数**字面量，与 Integer.parseInt 一致：
+    //   "5" 收；"5.0"/"0x10"/""/" "/"5x" 拒。前后空白由 trim 容忍（parseInt 亦然）。
+    //   正则无歧义分支，线性匹配（避免 decimalScale 注释里记录过的 ReDoS）。
+    const t = v.trim();
+    if (!/^[+-]?\d+$/.test(t)) return bad();
+    const n = Number(t);
+    if (!Number.isSafeInteger(n)) return bad();
+    return n;
+  }
+  return bad();
+}
+
 /** 把任意操作数转成 Decimal（Int/Long 精确提升；Double 禁；已是 Decimal 原样）。 */
 function toDecimalArg(v: unknown, ctx: string): Decimal {
   if (v instanceof Decimal) return v;
@@ -1094,10 +1141,10 @@ class Interpreter {
       case 'Text.substring': {
         const args = a();
         const s = text(args[0]);
-        const start = Number(args[1]);
+        const start = toInt(args[1], 'Text.substring');
         if (start < 0) throw new InterpreterError(`Text.substring: index out of range: ${start}`);
         if (args.length >= 3) {
-          const end = Number(args[2]);
+          const end = toInt(args[2], 'Text.substring');
           if (end < 0) throw new InterpreterError(`Text.substring: index out of range: ${end}`);
           // Java String.substring(start,end) 对 start>end 或 end>length 抛异常。
           if (start > end || end > s.length) {
@@ -1119,8 +1166,8 @@ class Interpreter {
       case 'List.slice': {
         const args = a();
         const l = reqList('List.slice', args[0]);
-        const start = Number(args[1]);
-        const end = args.length >= 3 ? Number(args[2]) : l.length;
+        const start = toInt(args[1], 'List.slice');
+        const end = args.length >= 3 ? toInt(args[2], 'List.slice') : l.length;
         // 镜像 Java List.subList 的越界语义。
         if (start < 0 || end > l.length || start > end) {
           throw new InterpreterError(`List.slice: index out of range: begin ${start}, end ${end}, size ${l.length}`);
@@ -1140,7 +1187,7 @@ class Interpreter {
       //   reqList 本就存在（List.slice 已在用），这里补齐其余五个。
       case 'List.length': { const [l] = a(); return reqList('List.length', l).length; }
       case 'List.isEmpty': { const [l] = a(); return reqList('List.isEmpty', l).length === 0; }
-      case 'List.get': { const [l, i] = a(); return reqList('List.get', l)[Number(i)]; }
+      case 'List.get': { const [l, i] = a(); return reqList('List.get', l)[toInt(i, 'List.get')]; }
       case 'List.contains': { const [l, x] = a(); return reqList('List.contains', l).some((y) => valueEquals(y, x)); }
       case 'List.append': { const [l, x] = a(); return [...reqList('List.append', l), x]; }
       case 'List.concat': { const [l1, l2] = a(); return [...(Array.isArray(l1) ? l1 : []), ...(Array.isArray(l2) ? l2 : [])]; }
@@ -1168,10 +1215,10 @@ class Interpreter {
       // Date.* 合规原语（Stable v1）：epoch-day Int 内部表示，纯整数 proleptic Gregorian
       // （与 truffle 逐位一致，不用 JS Date）。禁 today()——"今天"作输入字段 evaluation_date。
       case 'Date.fromISO': return dateFromISO(a()[0]);
-      case 'Date.daysBetween': { const [d1, d2] = a(); return Number(d2) - Number(d1); }
+      case 'Date.daysBetween': { const [d1, d2] = a(); return toInt(d2, 'Date.daysBetween') - toInt(d1, 'Date.daysBetween'); }
       case 'Date.addDays': {
         const [d, n] = a();
-        const r = Number(d) + Number(n);
+        const r = toInt(d, 'Date.addDays') + toInt(n, 'Date.addDays');
         if (r < DATE_MIN_EPOCH || r > DATE_MAX_EPOCH) throw new InterpreterError(`Date.OutOfRange: epoch-day ${r}`);
         return r;
       }
@@ -1294,9 +1341,11 @@ class Interpreter {
       }
       case 'List.range': {
         const [s, e] = a();
-        const start = Number(s);
-        const end = Number(e);
+        const start = toInt(s, 'List.range');
+        const end = toInt(e, 'List.range');
         // 红队 P0-B：先按长度判上限，超限即抛（不先生成，防 DoS）。
+        // ★start/end 走 toInt 后不可能是 NaN——此前裸 Number() 下 NaN 会让
+        //   `size > MAX_RANGE_SIZE` 为 false 直接放行，循环零次静默返回 []。
         const size = end - start;
         if (size > MAX_RANGE_SIZE) {
           throw new InterpreterError(`List.range: 长度过大（${size} > ${MAX_RANGE_SIZE}），拒绝以防内存耗尽 DoS`);
