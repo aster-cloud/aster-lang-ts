@@ -251,7 +251,6 @@ function renderJava(entries: Array<{ name: string } & ErrorSpec>): string {
     `${header}`,
     'package aster.core.typecheck;',
     '',
-    'import java.util.Locale;',
     '',
     '/**',
     ' * 错误码与消息模板的枚举定义，由共享 JSON 自动生成，确保 Java 与 TypeScript 行为一致。',
@@ -294,11 +293,42 @@ function renderJava(entries: Array<{ name: string } & ErrorSpec>): string {
     '    return help;',
     '  }',
     '',
+    '  /** 命名占位符 `{name}` —— 与 shared/error_codes.json 逐字一致。 */',
+    '  private static final java.util.regex.Pattern PLACEHOLDER =',
+    '      java.util.regex.Pattern.compile("\\\\{(\\\\w+)}");',
+    '',
     '  /**',
-    '   * 使用占位符顺序填充消息模板，调用方需确保参数顺序正确。',
+    '   * 用**命名参数**渲染消息模板。',
+    '   *',
+    '   * <p>★这是全仓唯一的消息渲染实现（aster-lang-core#137）。此前存在两条互相矛盾的',
+    '   * 路径：DiagnosticBuilder 走命名参数 `{name}`，而本类的 format(Object...) 走',
+    '   * String.format 的 `%s`；生成器又把 json 的 `{name}` 一律改写成 `%s`，',
+    '   * 于是走 DiagnosticBuilder 的 23 个码全部渲染出**字面的 `%s`**',
+    '   * （实测 E101「Undefined variable: %s」连是哪个变量都不告诉用户）。',
+    '   *',
+    '   * <p>现在模板与 json 逐字一致，两个消费者共用本方法。',
+    '   * 缺失的 key 保留原占位符（便于发现漏传，而不是渲染成 null）。',
     '   */',
-    '  public String format(Object... args) {',
-    '    return String.format(Locale.ROOT, messageTemplate, args);',
+    '  public String render(java.util.Map<String, Object> params) {',
+    '    java.util.Map<String, Object> p = params == null ? java.util.Map.of() : params;',
+    '    var matcher = PLACEHOLDER.matcher(messageTemplate);',
+    '    var out = new StringBuilder();',
+    '    while (matcher.find()) {',
+    '      Object value = p.get(matcher.group(1));',
+    '      String replacement;',
+    '      if (value == null) {',
+    '        replacement = "{" + matcher.group(1) + "}";',
+    '      } else if (value instanceof java.util.List<?> list) {',
+    '        replacement = String.join(", ", list.stream().map(String::valueOf).toList());',
+    '      } else if (value instanceof Object[] array) {',
+    '        replacement = String.join(", ", java.util.Arrays.stream(array).map(String::valueOf).toList());',
+    '      } else {',
+    '        replacement = String.valueOf(value);',
+    '      }',
+    '      matcher.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(replacement));',
+    '    }',
+    '    matcher.appendTail(out);',
+    '    return out.toString();',
     '  }',
     '',
     '  public enum Category {',
@@ -325,9 +355,22 @@ function escapeForDoubleQuotes(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
+/**
+ * Java 侧消息模板 —— 与 json **逐字一致**，保留 `{name}` 命名占位符。
+ *
+ * ★此前这里把 `{...}` 全替换成 `%s`（aster-lang-core#137）。但 Java 侧的主渲染路径
+ * `DiagnosticBuilder.formatMessage` 用的是命名参数正则 `\{(\w+)}`——它对 `%s`
+ * 不做任何处理，于是参数被放进 `Diagnostic.data` 却从不进入 message，
+ * 用户看到的是**字面的 `%s`**：
+ *
+ *     MSG[E003] = "Return type mismatch: expected %s, got %s"
+ *     MSG[E101] = "Undefined variable: %s"        ← 连是哪个变量都不告诉用户
+ *
+ * 实测受影响 23 个已 emit 的码。保留 `{name}` 后两端与 json 逐字对齐，
+ * ErrorCodeParityTest 的 message 比对也随之可以放开。
+ */
 function toJavaTemplate(message: string): string {
-  const escaped = escapeForDoubleQuotes(message);
-  return escaped.replace(/\{[^}]+\}/g, "%s");
+  return escapeForDoubleQuotes(message);
 }
 
 function toJavaCategory(category: ErrorCategoryLiteral): string {
