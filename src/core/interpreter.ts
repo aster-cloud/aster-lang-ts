@@ -1187,7 +1187,21 @@ class Interpreter {
       //   reqList 本就存在（List.slice 已在用），这里补齐其余五个。
       case 'List.length': { const [l] = a(); return reqList('List.length', l).length; }
       case 'List.isEmpty': { const [l] = a(); return reqList('List.isEmpty', l).length === 0; }
-      case 'List.get': { const [l, i] = a(); return reqList('List.get', l)[toInt(i, 'List.get')]; }
+      case 'List.get': {
+        // ★越界必须抛错，不得静默返回 undefined（issue aster-dev#32）。
+        //   JS 的 `arr[99]` 是 undefined，而 truffle Builtins.List.get 有显式
+        //   边界检查并抛 BuiltinException——同一段源码两引擎一个静默产
+        //   undefined、一个响亮失败，且文档声称「越界报错且双引擎一致」。
+        //   undefined 随后会一路流进裁决结果，是最危险的一类静默错答案。
+        //   消息对齐 truffle ErrorMessages.collectionIndexOutOfBounds 的英文形式。
+        const [l, i] = a();
+        const list = reqList('List.get', l);
+        const idx = toInt(i, 'List.get');
+        if (idx < 0 || idx >= list.length) {
+          throw new InterpreterError(`List.get: index out of bounds: ${idx} (size=${list.length})`);
+        }
+        return list[idx];
+      }
       case 'List.contains': { const [l, x] = a(); return reqList('List.contains', l).some((y) => valueEquals(y, x)); }
       case 'List.append': { const [l, x] = a(); return [...reqList('List.append', l), x]; }
       case 'List.concat': { const [l1, l2] = a(); return [...(Array.isArray(l1) ? l1 : []), ...(Array.isArray(l2) ? l2 : [])]; }
