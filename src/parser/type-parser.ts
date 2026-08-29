@@ -372,6 +372,30 @@ export function parseType(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Type {
+  // ★类型递归的深度护栏（issue #145）。
+  //
+  //   MAX_RECURSION_DEPTH 的设计目标就是「病态输入不许打爆原生栈」，但它此前
+  //   **只接在 parseExpr 上**；而 parseType → parseTypePrimary → parseType 的
+  //   类型递归完全无护栏。实测 `'maybe '.repeat(5000) + 'Int'`（约 30KB）触发
+  //   原生 RangeError，被 decl-parser 的 catch-all 转成 span 恒为 1:1 的**假诊断**
+  //   （用户看到「Maximum call stack size exceeded」，既不知道是哪一行、
+  //   也不知道真正的原因是嵌套过深）。对照 400 层括号则正确报
+  //   「nesting too deep (exceeds limit of 300)」——同一份护栏，只是没接上。
+  //
+  //   接在 parseType 入口即可覆盖全部递归分支（maybe / option of / list of /
+  //   map of / result of 等都经由它回环）。
+  ctx.enterRecursion();
+  try {
+    return parseTypeInner(ctx, error);
+  } finally {
+    ctx.exitRecursion();
+  }
+}
+
+function parseTypeInner(
+  ctx: ParserContext,
+  error: (msg: string) => never
+): Type {
   let annotation: PiiAnnotation | null = null;
   if (ctx.at(TokenKind.AT)) {
     const atTok = ctx.next();
