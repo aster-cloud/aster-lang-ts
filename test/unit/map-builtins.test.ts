@@ -53,8 +53,23 @@ describe('Map null 键显式拒绝', () => {
 // 补漏前：keyFn 返回真 null 与返回字符串 "null" 会塌陷到同一个桶
 // （实测期望 2 组、实得 1 组，两个元素并进一个 bucket）——
 // 与 Map.put 的 null 键塌陷是**同一个 bug 的第二个入口**。
+//
+// ★同一个塌陷还有第三个入口：**变体键**。`String(obj)` 恒为 "[object Object]"，
+// 于是 `Some("null")` 与 `None` 并桶。见下方用例（aster-lang-ts#137）。
 describe('List.groupBy 的分组键同样走 mapKey', () => {
-  it('null 分组键被拒，而不是与字符串 "null" 静默合并', () => {
+  // ★Map.get 返回 Maybe（ADR 0035 档位 C）后，缺键得 `None` 而非裸 null，
+  //   故这里**不再**触发 null 键守卫。真正要锁的是：`Some("null")` 与 `None`
+  //   必须落进**两个**桶。
+  //
+  //   aster-lang-ts#137 统一 None 表示后实测暴露：TS 的 `String(obj)` 对任何
+  //   对象都得 `"[object Object]"`，两个变体键塌陷成 1 桶；truffle 的
+  //   `String.valueOf(map)` 渲染内容，得 2 桶——双引擎分叉且 TS 侧静默丢数据。
+  //
+  //   期望值取自 truffle 实测（同一份 IR、同一入参）：
+  //     Map.size(...) → 2
+  //     Map.keys(...) → [{__type=Some, value=null}, {__type=None}]
+  //   TS 侧现已逐字节一致。
+  it('★变体分组键按内容归一：Some("null") 与 None 不得并桶', () => {
     const c = compile(`Module probe.
 Rule keyOf given x as Text, produce Text:
   Let m be Map.put(Map.empty(), "x", "null").
@@ -64,9 +79,41 @@ Rule main given xs as List, produce Int:
   Return Map.size(List.groupBy(xs, keyOf)).
 `);
     assert.ok(c.core);
-    // 'x' → 字符串 "null"；'zzz' 缺键 → 真 null
+    // 'x' → Some("null")；'zzz' 缺键 → None
     const ev = evaluate(c.core!, 'main', { xs: ['x', 'zzz'] });
-    assert.equal(ev.success, false, '★null 分组键必须被拒，而不是静默并桶');
+    assert.equal(ev.success, true, String(ev.error ?? ''));
+    assert.equal(ev.value, 2, '★两个不同的变体键必须分成两桶（truffle 实测为 2）');
+  });
+
+  // 反向护栏：键**字符串**也必须与 truffle 逐字节一致，否则只是"桶数碰巧相同"，
+  // 跨引擎 Map.get 仍会查不到。分隔符 `, ` 与 truffle String.valueOf(Map) 对齐。
+  it('★变体键的字符串形式与 truffle 逐字节一致', () => {
+    const c = compile(`Module probe.
+Rule keyOf given x as Text, produce Text:
+  Let m be Map.put(Map.empty(), "x", "null").
+  Return Map.get(m, x).
+
+Rule main given xs as List, produce List:
+  Return Map.keys(List.groupBy(xs, keyOf)).
+`);
+    assert.ok(c.core);
+    const ev = evaluate(c.core!, 'main', { xs: ['x', 'zzz'] });
+    assert.equal(ev.success, true, String(ev.error ?? ''));
+    assert.deepEqual(ev.value, ['{__type=Some, value=null}', '{__type=None}']);
+  });
+
+  // null 键守卫本身不得被本次改动削弱：真 null 仍要响亮失败。
+  it('真 null 分组键仍被拒', () => {
+    const c = compile(`Module probe.
+Rule keyOf given x as Text, produce Text:
+  Return null.
+
+Rule main given xs as List, produce Int:
+  Return Map.size(List.groupBy(xs, keyOf)).
+`);
+    assert.ok(c.core);
+    const ev = evaluate(c.core!, 'main', { xs: ['a', 'b'] });
+    assert.equal(ev.success, false, '★真 null 键必须被拒');
     assert.match(String(ev.error), /Map key must not be null/);
   });
 
