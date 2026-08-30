@@ -81,7 +81,10 @@ describe('Map.* 首参类型守卫', () => {
 
   it('文本 / null / 数组等其它类型同样被拒', () => {
     assert.equal(run('Map.size("abc")').error, 'Map.size: expected Map, got string');
-    assert.equal(run('Map.size(None)').error, 'Map.size: expected Map, got object');
+    // None 的运行期表示是 `{__type:'None'}`（aster-lang-ts#137），故类型名报 `None`
+    // ——与 truffle 的 typeName()（读 __type 标签）一致。此前是裸 null，被更前面的
+    // null 分支拦下报 `got object`，那正是被修掉的分叉。
+    assert.equal(run('Map.size(None)').error, 'Map.size: expected Map, got None');
     // 数组不是 Map：truffle 侧 java.util.List 既非 AsterMapValue 也非 Map，同样抛错。
     // 此前 `Map.size(List.range(0,2))` 会返回 2——把列表当成 Map 用。
     assert.equal(
@@ -114,14 +117,14 @@ describe('Map.* 首参类型守卫', () => {
   // 二维矩阵实测（6 个 Map.* × 6 种输入 = 36 格）：修复前 None 那 6 格两引擎分叉、
   // Some/Ok/Err 那 18 格两引擎"一致地错"；修复后 36 格逐格一致。
   it('Maybe/Result 变体被 Map.* 拒绝（Some/None/Ok/Err）', () => {
-    // 注：`None` 在本引擎的运行期表示是裸 `null`（不是带 __type 的对象），
-    // 故它被更前面的 null 分支拦下、报 `got object` 而非 `got None`。
-    // 两条路径都拒绝，只是消息里的类型名不同——这里如实断言各自的实际消息。
+    // ★四个变体现在走**同一条**路径：都是带 `__type` 的对象，类型名即标签值
+    // （aster-lang-ts#137 起 None 也是 `{__type:'None'}`）。与 truffle 的
+    // typeName()（`m.get("__type")` 命中即返回标签）逐格一致。
     for (const [arg, want] of [
       ['Some(1)', 'Some'],
       ['Ok(1)', 'Ok'],
       ['Err(1)', 'Err'],
-      ['None', 'object'],
+      ['None', 'None'],
     ] as const) {
       const r = run(`Map.size(${arg})`);
       assert.equal(r.ok, false, `${arg} 应被拒绝，实际返回 ${JSON.stringify(r.value)}`);

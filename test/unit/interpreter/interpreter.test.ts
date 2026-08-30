@@ -591,13 +591,18 @@ describe('Core IR 解释器', () => {
       assert.deepEqual(result.value, { __type: 'Ok', value: 42 });
     });
 
-    it('None 返回 null', () => {
+    // ★None 的运行期表示是 `{__type:'None'}`，与 truffle 的 maybeNone() 一致
+    // （aster-lang-ts#137）。此前断言的是裸 `null`——那正是被修掉的分叉：
+    // 同一份 IR，TS 产出 `null`、Truffle 产出 `{__type:"None"}`，宿主拿到的
+    // JSON 不同，等价性按值比较判为不等。
+    it('None 返回 {__type:"None"}（与 truffle 一致）', () => {
       const mod = mkModule([
         mkFunc('f', [], [mkReturn({ kind: 'None' })]),
       ]);
       const result = evaluate(mod, 'f', {});
       assert.ok(result.success);
-      assert.equal(result.value, null);
+      assert.deepEqual(result.value, { __type: 'None' });
+      assert.notEqual(result.value, null, 'None 不得再退化为裸 null');
     });
   });
 

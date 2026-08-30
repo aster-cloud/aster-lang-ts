@@ -385,7 +385,41 @@ function mapKey(k: unknown): string {
       'Map key must not be null: null and the string "null" would collapse to the same key, '
         + 'silently overwriting each other. Use a non-null key, or Maybe/Option to express absence.');
   }
+  // ★变体（Some/None/Ok/Err）作键时必须按**内容**归一，不能用 `String(obj)`
+  //   ——JS 里它恒为 `"[object Object]"`，于是 `Some("null")` 与 `None`
+  //   塌陷到同一个槽位（`List.groupBy` 上实测两桶并成一桶）。这正是本函数
+  //   开头的 null 守卫要消灭的那类**静默丢数据**，只是发生在变体上。
+  //
+  //   truffle 侧 `String.valueOf(map)` 天然渲染内容（`{__type=None}` /
+  //   `{__type=Some, value=null}`），两键本就不同——故此前 TS 得 1 桶、
+  //   Java 得 2 桶，是双引擎分叉（aster-lang-ts#137 统一 None 表示后暴露）。
+  if (isVariantValue(k)) {
+    const v = k as { __type: string; value?: unknown };
+    return 'value' in v ? `{__type=${v.__type}, value=${mapKeyPart(v.value)}}` : `{__type=${v.__type}}`;
+  }
   return String(k);
+}
+
+/**
+ * 变体载荷的字符串化：载荷本身可能又是变体，递归走同一条归一。
+ *
+ * ★已知缺口（两引擎**一致地**存在，非本次引入，故不在此修）：
+ *   载荷为真 null 时渲染成 `null`，与载荷为字符串 `"null"` 撞键——
+ *   `Map.put(m, Some(null), 1)` 与 `Map.put(m, Some("null"), 2)` 塌陷成同一槽位。
+ *   实测两引擎同为 1 桶（truffle 走 `String.valueOf`，同样得 `value=null`），
+ *   故不是分叉，而是 mapKey 开头那条 null 守卫**没有下沉到载荷层**。
+ *   修它需先与 truffle 商定载荷 null 的规范渲染并同步改两侧，属独立议题。
+ */
+function mapKeyPart(v: unknown): string {
+  if (v === null || v === undefined) return 'null';
+  return isVariantValue(v) ? mapKey(v) : String(v);
+}
+
+/** 是否为 Maybe/Result 变体（带 `__type` 标签且标签值属四者之一）。 */
+function isVariantValue(v: unknown): boolean {
+  if (v === null || typeof v !== 'object') return false;
+  const t = (v as { __type?: unknown }).__type;
+  return t === 'Some' || t === 'None' || t === 'Ok' || t === 'Err';
 }
 
 /**
@@ -881,8 +915,12 @@ class Interpreter {
         return BigInt(expr.value);
       case 'Null':
         return null;
+      // ★None 的运行期表示是 `{__type:'None'}`，与 truffle 的 `maybeNone()` 对齐
+      // （aster-lang-ts#137）。此前返回裸 `null`：同一份 IR 两引擎产出不同 JSON，
+      // 宿主一边拿到 `null`、一边拿到 `{"__type":"None"}`，等价性按值比较判为不等；
+      // 且 `null` 无法与「真的没有值」区分——None 是**有值的变体**，只是不含载荷。
       case 'None':
-        return null;
+        return { __type: 'None' };
       case 'Name':
         return this.resolveName(expr.name, env);
       case 'Call':
@@ -977,7 +1015,8 @@ class Interpreter {
         return { __type: ctor, value: this.evalExpr(call.args[0]!, env) };
       }
       if (ctor === 'None' && call.args.length === 0) {
-        return null;
+        // 与 evalExpr 的 case 'None' 同一表示（aster-lang-ts#137）。
+        return { __type: 'None' };
       }
     }
 
@@ -1213,13 +1252,13 @@ class Interpreter {
       //   此前返回裸值/null，于是 `Map.get(m,k) plus 1` 能**编译通过、运行才炸**。
       //   ★这是对 Stable 集的语义变更，明知破坏 spec-1.0-freeze 承诺，由用户拍板接受。
       //
-      //   ★TS 侧 None 的运行期表示**就是 null**（见 evalExpr 的 case 'None'），
-      //   故缺键分支保持返回 null 即等价于 None——Maybe.isNone/withDefault 都已认它。
-      //   真正变的是**命中**分支：现在包一层 Some，与 Java 的 {_type:"Some"} 对齐。
+      //   ★None 的运行期表示是 `{__type:'None'}`（见 evalExpr 的 case 'None'，
+      //   aster-lang-ts#137 起与 truffle 的 maybeNone() 对齐）；缺键分支返回它。
+      //   命中分支包一层 Some，与 Java 的 {__type:"Some"} 对齐。
       //   命中值本身为 null 时仍返回 Some(null)：「键存在但值为 null」与「键不存在」
       //   是两件事，不能塌陷。
       case 'Map.get': { const [m, k] = a(); const g = asGuestMap('Map.get', m); const key = mapKey(k);
-        return g.has(key) ? { __type: 'Some', value: g.get(key) } : null; }
+        return g.has(key) ? { __type: 'Some', value: g.get(key) } : { __type: 'None' }; }
       case 'Map.contains': { const [m, k] = a(); return asGuestMap('Map.contains', m).has(mapKey(k)); }
       case 'Map.size': { const [m] = a(); return asGuestMap('Map.size', m).size; }
       // 补齐与 truffle Builtins 对等的 Map.* （put/remove/keys/values）——TS 之前缺这 4 个，
@@ -1271,11 +1310,12 @@ class Interpreter {
       // Ok/Err/Int/Text 四格分叉（共 8 格），isSome/isOk/isErr 全对齐。
       // JVM 那侧是对的——isNone 不该对 `Ok(1)`、`42` 返回 true。
       //
-      // ★两种 None 表示都要认：`None` 字面量求值为裸 `null`（evalExpr 的 case 'None'），
-      // 而 Maybe.map 等返回 `{__type:'None'}`。只认后者会让 `Maybe.isNone(None)` 变 false。
+      // ★None 只有一种运行期表示 `{__type:'None'}`（aster-lang-ts#137 起统一）。
+      // 此前 `None` 字面量求值为裸 `null`，故这里额外把 `null`/`undefined` 判为 None；
+      // 现已不需要——truffle 侧 `"None".equals(m.get("__type"))` 对 null 返回 false，
+      // 继续放行会让 `Maybe.isNone(null)` 两引擎分叉（TS true / JVM false）。
       case 'Maybe.isNone': case 'Option.isNone': {
         const [x] = a();
-        if (x === null || x === undefined) return true;
         return (x as { __type?: string })?.__type === 'None';
       }
       case 'Result.isOk': { const [r] = a(); return (r as { __type?: string } | null)?.__type === 'Ok'; }
@@ -1458,9 +1498,10 @@ class Interpreter {
       // `operationExpectedType("Maybe.map", "Maybe (Some or None)", …)`）。
       // 既是双引擎分叉，也是静默错答案，与 #123 的 arity 缺口同一模式。
       //
-      // 注意 TS 侧 None 有**两种**运行期表示，都要认：`None` 字面量求值为 `null`
-      // （evalExpr 的 case 'None'），而 Maybe.map 自身返回 `{__type:'None'}`。
-      // 只认后者会误伤 `Maybe.map(None, f)`。
+      // ★None 只有一种运行期表示 `{__type:'None'}`（aster-lang-ts#137 起统一）。
+      // 此前 `None` 字面量求值为裸 `null`，故这里额外放行 `null`；现已不需要——
+      // 且 truffle 的 `Maybe.map` 要求带标签的 map、对裸 null 直接报错，
+      // 继续放行 `null` 本身就是新的分叉。
       //
       // ★不在放行之列（有意为之）：`undefined`、以及 JVM 形的 `{_type:'None'}`
       // （单下划线——truffle 用 `_type`，TS 全仓用 `__type`）。后者若从跨引擎
@@ -1473,7 +1514,7 @@ class Interpreter {
           const fn = callableArg(1);
           return { __type: 'Some', value: this.applyCallable(fn, [o.value]) };
         }
-        if (o !== null && o?.__type !== 'None') {
+        if (o?.__type !== 'None') {
           // 消息**主体**与 truffle 的 operationExpectedType 对齐
           // （`Maybe.map: expected Maybe (Some or None), got X`），但**类型名词汇表
           // 两侧不同**，不止大小写：本引擎用 JS `typeof`（7 值域），truffle 用
