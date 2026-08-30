@@ -28,6 +28,9 @@ import type {
 } from '../types.js';
 import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import { LexiconRegistry, initializeAllBundledLexicons } from '../config/lexicons/index.js';
+import { vocabularyRegistry } from '../config/lexicons/identifiers/registry.js';
+import { buildCanonicalizeOptions } from './canonicalize-options.js';
+import type { DomainVocabulary } from '../config/lexicons/identifiers/types.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { attachDiagnosticMessages } from '../config/lexicons/diagnostic-messages.js';
 import { buildIdIndex, exprTypeText } from './utils.js';
@@ -122,6 +125,11 @@ const documentLexicons = new Map<string, Lexicon>();
 /** 当前全局 locale 对应的 lexicon（含诊断消息 overlay） */
 let currentLexicon: Lexicon | undefined;
 
+/* 租户身份与领域，由 initialize 的 initializationOptions 提供（issue #161）。
+ * 缺省时 canonicalize 走「仅内置词汇」的老行为，与改动前完全一致。 */
+let currentTenantId: string | undefined;
+let currentDomain: string | undefined;
+
 function getLexiconForDoc(uri: string): Lexicon | undefined {
   return documentLexicons.get(uri) ?? currentLexicon;
 }
@@ -132,7 +140,7 @@ function getOrParse(doc: TextDocument): CachedDoc {
   if (prev && prev.version === doc.version) return prev;
   const text = doc.getText();
   const lexicon = getLexiconForDoc(doc.uri);
-  const can = canonicalize(text, lexicon);
+  const can = canonicalize(text, buildCanonicalizeOptions(lexicon, currentTenantId, currentDomain));
   const tokens = lex(can);
   let ast: AstModule | null;
   let parseDiagnostics: readonly Diagnostic[] = [];
@@ -178,6 +186,45 @@ connection.onInitialize(async (params: InitializeParams) => {
     (capabilities.workspace as any).didChangeWatchedFiles &&
     (capabilities.workspace as any).didChangeWatchedFiles.dynamicRegistration
   );
+
+  /* ★租户领域词汇：由客户端在 initialize 时推送（issue #161）。
+   *
+   *   背景：`vocabularyRegistry.registerCustom(tenantId, vocab)` 是**租户级**的
+   *   （索引键含 tenantId），而 LSP 进程本身无从得知自己在为哪个租户服务
+   *   —— WebSocket 网关的 upgrade 只校验 Origin + 共享 token，不传租户身份。
+   *   于是用户在 UI 里配好的领域词汇，在编辑器里既补全不出来、也不参与诊断。
+   *
+   *   采用**客户端推送**而非服务端回拉：
+   *     · 回拉需要给 LSP 进程一份能访问 /api/v1/domain-vocabularies 的凭据，
+   *       而本进程当前完全无凭据（网关只做 spawn），引入凭据是更大的攻击面；
+   *     · 客户端本就持有这些词汇（它自己也要用来做浏览器内编译），推送零额外权限。
+   *
+   *   代价：词汇表很大时会撑大握手报文。故此处**只在有值时注册**，
+   *   且失败不阻断 initialize —— 词汇缺失应表现为「补全少了几项」，
+   *   而不是「LSP 起不来」。
+   */
+  const initOpts = params.initializationOptions as
+    | { tenantId?: string; domainVocabularies?: unknown[] }
+    | undefined;
+  if (initOpts?.tenantId && Array.isArray(initOpts.domainVocabularies)) {
+    currentTenantId = initOpts.tenantId;
+    for (const vocab of initOpts.domainVocabularies) {
+      try {
+        vocabularyRegistry.registerCustom(initOpts.tenantId, vocab as DomainVocabulary);
+      } catch (err) {
+        /* 单个词汇表校验失败不应拖垮整个会话：registerCustom 对不合法词汇会抛错
+         * （validateVocabulary）。记录后继续处理下一个。 */
+        connection.console.warn(
+          `[lsp] 跳过无效领域词汇: ${(err as Error)?.message ?? String(err)}`,
+        );
+      }
+    }
+    /* domain 取第一个成功注册的词汇表 id —— canonicalizer 的 getWithCustom
+     * 按 (tenantId, domain, locale) 三元组查，一次解析只能指向一个 domain。
+     * 多领域并存需要按文档区分，属后续增强（本轮先支持最常见的单领域场景）。 */
+    const first = initOpts.domainVocabularies[0] as DomainVocabulary | undefined;
+    if (first?.id) currentDomain = first.id;
+  }
 
   // Initialize diagnostics module configuration
   setDiagnosticConfig({
