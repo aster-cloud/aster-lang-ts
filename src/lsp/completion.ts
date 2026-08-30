@@ -201,10 +201,28 @@ export function registerCompletionHandlers(
   getLexiconForDoc?: (uri: string) => Lexicon | undefined,
 ): void {
   // 代码补全：提供关键字和类型补全
-  connection.onCompletion((): CompletionItem[] => {
-    // 获取所有关键字
-    const keywords = Object.values(KW);
-    const completions: CompletionItem[] = keywords.map(keyword => ({
+  connection.onCompletion((params): CompletionItem[] => {
+    // ★关键词必须取自**该文档的 lexicon**，而不是硬编码的英文 KW。
+    //
+    //   此前是 `Object.values(KW)` —— KW 是 config/semantic.ts 里写死的英文
+    //   规范拼写（module / use / define …）。于是写 zh-CN 的用户敲出补全，
+    //   拿到的是 `module, use, as`，而他实际要写的是 `模块, 引用, 作为`：
+    //   **补全给的每一个词都是错的**，选中即产生解析错误。
+    //   诊断/跳转/代码操作三条路径都已正确接收 getLexiconForDoc，唯独补全漏了。
+    //
+    //   别名（ADR 0022）一并纳入：识别侧本就多对一接受别名
+    //   （见 types.ts 的 buildKeywordIndex / getMultiWordKeywords），
+    //   补全若只给规范拼写，用户就发现不了自己可以写更自然的别名。
+    //   ★当前四个内置 lexicon 的 aliases 均为空，故这段暂时是**无操作**——
+    //   但接线必须现在做好，否则将来某个 lexicon 一加别名，补全又会静默落后。
+    const lexicon = getLexiconForDoc?.(params.textDocument.uri);
+    const keywords = lexicon
+      ? [
+          ...Object.values(lexicon.keywords),
+          ...(lexicon.aliases ? Object.values(lexicon.aliases).flat() : []),
+        ]
+      : Object.values(KW); // 无 lexicon 上下文时回退英文规范拼写
+    const completions: CompletionItem[] = [...new Set(keywords)].map(keyword => ({
       label: keyword,
       kind: CompletionItemKind.Keyword,
       data: keyword,
