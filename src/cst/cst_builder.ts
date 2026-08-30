@@ -89,18 +89,3 @@ export function buildCstLossless(text: string): CstModule {
     inlineComments,
   } as CstModule;
 }
-
-// function collectInlineComments(text: string): InlineComment[] {
-//   const out: InlineComment[] = [];
-//   const lines = text.split(/\r?\n/);
-//   for (let i = 0; i < lines.length; i++) {
-//     const line = lines[i]!;
-//     const m = line.match(/^(.*?)(\s*(\/\/|#).*)$/);
-//     if (m && m[2]) {
-//       const code = (m[1] || '').trim();
-//       const comment = m[2].trim();
-//       out.push({ line: i + 1, text: comment, standalone: code.length === 0 });
-//     }
-//   }
-//   return out;
-// }
