@@ -400,7 +400,16 @@ function mapKey(k: unknown): string {
   return String(k);
 }
 
-/** 变体载荷的字符串化：载荷本身可能又是变体，递归走同一条归一。 */
+/**
+ * 变体载荷的字符串化：载荷本身可能又是变体，递归走同一条归一。
+ *
+ * ★已知缺口（两引擎**一致地**存在，非本次引入，故不在此修）：
+ *   载荷为真 null 时渲染成 `null`，与载荷为字符串 `"null"` 撞键——
+ *   `Map.put(m, Some(null), 1)` 与 `Map.put(m, Some("null"), 2)` 塌陷成同一槽位。
+ *   实测两引擎同为 1 桶（truffle 走 `String.valueOf`，同样得 `value=null`），
+ *   故不是分叉，而是 mapKey 开头那条 null 守卫**没有下沉到载荷层**。
+ *   修它需先与 truffle 商定载荷 null 的规范渲染并同步改两侧，属独立议题。
+ */
 function mapKeyPart(v: unknown): string {
   if (v === null || v === undefined) return 'null';
   return isVariantValue(v) ? mapKey(v) : String(v);
