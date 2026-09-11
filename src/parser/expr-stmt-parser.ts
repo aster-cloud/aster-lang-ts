@@ -242,6 +242,11 @@ function parseInlineIf(
   const thenRet = Node.Return(thenExpr);
   assignSpan(thenRet, spanFromTokens(thenRetTok, lastConsumedToken(ctx)));
   const thenBlock = Node.Block([thenRet as unknown as Statement]);
+  // ★Node.Block 以 createEmptySpan()（line 0, col 0）初始化。inline-if 的块是
+  //   **合成**出来的（源码里没有独立的块结构），若不补 span 就会带着 line: 0
+  //   进入 Core IR —— 0 不是合法的 1-based 行号，会让 ADR 0032 的 trace 锚点
+  //   在 inline-if 上指向"第 0 行"。从块内语句推导其范围。
+  assignSpan(thenBlock, spanFromSources(thenRet));
 
   // else 分支：可选。`else if ...`（嵌套）或 `else return X.`（末尾带句点）。
   skipInlineElseLayout(ctx);
@@ -255,6 +260,7 @@ function parseInlineIf(
       const nestedCond = parseExpr(ctx, error);
       const nested = parseInlineIf(ctx, error, nestedCond);
       elseBlock = Node.Block([nested as unknown as Statement]);
+      assignSpan(elseBlock, spanFromSources(nested));
     } else {
       // else return X.（末尾 return，带句点）。
       if (!ctx.isKeyword(KW.RETURN)) error("Expected 'return' or 'if' after 'else'");
@@ -265,12 +271,18 @@ function parseInlineIf(
       const elseRet = Node.Return(elseExpr);
       assignSpan(elseRet, spanFromTokens(elseRetTok, lastConsumedToken(ctx)));
       elseBlock = Node.Block([elseRet as unknown as Statement]);
+      assignSpan(elseBlock, spanFromSources(elseRet));
     }
   } else {
     // 无 else：then 分支的 return 必须带句点收尾。
     expectPeriodEnd(ctx, error);
   }
-  return Node.If(cond, thenBlock, elseBlock);
+  const ifNode = Node.If(cond, thenBlock, elseBlock);
+  // If 节点自身同样是合成的：范围 = 条件表达式 ∪ then 块 ∪ else 块。
+  assignSpan(ifNode, elseBlock
+    ? spanFromSources(cond, thenBlock, elseBlock)
+    : spanFromSources(cond, thenBlock));
+  return ifNode;
 }
 
 export function parseStatement(
