@@ -506,8 +506,24 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   for (const [marker, keyword] of keywordMarkers) {
     marked = marked.replace(marker, keyword);
   }
-  // Do not collapse newlines globally.
-  marked = marked.replace(/^\s+$/gm, '');
+  // 清空「只含空白的行」，但**不得改变行数**。
+  //
+  // ★原写法 `/^\s+$/gm` 与紧邻的注释「Do not collapse newlines globally」自相矛盾：
+  //   `\s` **包含 `\n`**，所以连续空行会被当成**一整块**匹配掉，折叠成一个空串。
+  //   实测 'A.\n\n\n\n\nB.\n'（7 行）→ 'A.\n\nB.\n'（4 行）。
+  //
+  //   而注释先于本步被置空（见上方 LINE_COMMENT_RE 那一步），于是任何 ≥2 行的
+  //   注释块/空行块都会让其后**所有**行号整体上移。实测语料 test_claims.aster
+  //   经本函数由 115 行降到 91 行，首个 declaration 从第 27 行跑到第 3 行。
+  //
+  // ★为什么这不只是「排版问题」：Core IR 的 origin.*.line 指的是 canonical 文本
+  //   行号，ADR 0032（把执行 trace 锚到源码位置）与 ADR 0037（OriginMap/MappingIR）
+  //   都依赖它与用户原文行号一一对应。行号一偏，「点 trace 跳源码」会**静默**
+  //   跳到错误的行——不报错、不崩溃，只是指错地方。
+  //   Java 侧 canonicalizer 把注释置空但保留行数（115 → 115），故 Java 一直是对的。
+  //
+  // `[^\S\n]` = 空白字符但排除换行，因此逐行生效、行数不变。
+  marked = marked.replace(/^[^\S\n]+$/gm, '');
 
   // 标识符翻译（如果提供了领域词汇表）
   if (identifierIndex) {
