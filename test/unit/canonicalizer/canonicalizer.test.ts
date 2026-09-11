@@ -14,7 +14,12 @@ describe('canonicalizer', () => {
       const input = ['first line', '# comment', '  // inline comment', 'second line'].join('\n');
       const result = canonicalize(input);
 
-      assert.strictEqual(result, 'first line\n\nsecond line');
+      // ★行数必须保持：输入 4 行，注释被置空但各自占一行 → 输出仍 4 行。
+      //   原断言写的是 'first line\n\nsecond line'（3 行），把两行注释折叠成
+      //   一个空行——与本用例名「保留空行占位」相悖，实为锁死了当时的折叠缺陷。
+      //   行号错位会让 ADR 0032 的 trace 锚点静默指错行，见 line-preservation.test.ts。
+      assert.strictEqual(result, 'first line\n\n\nsecond line');
+      assert.strictEqual(result.split('\n').length, input.split('\n').length);
       assert.strictEqual(result.includes('comment'), false);
     });
   });
@@ -237,7 +242,9 @@ describe('canonicalizer', () => {
       const input = ['# outer comment', '  // inner comment', 'Return value.'].join('\n');
       const result = canonicalize(input);
 
-      assert.strictEqual(result, ['','Return value.'].join('\n'));
+      // ★两行注释 → 两个空行占位（原断言只留一个，即折叠）。
+      assert.strictEqual(result, ['', '', 'Return value.'].join('\n'));
+      assert.strictEqual(result.split('\n').length, input.split('\n').length);
       assert.strictEqual(result.includes('comment'), false);
     });
 
@@ -294,9 +301,13 @@ describe('canonicalizer', () => {
       const result = canonicalize(input);
       const lines = result.split('\n');
 
-      assert.strictEqual(lines.length, 3);
+      // ★「清理空白字符」≠「删除行」：3 个空白/空行应各自变成空串仍占一行。
+      //   原断言 lines.length === 3 把 5 行压成 3 行，锁死了折叠缺陷。
+      assert.strictEqual(lines.length, input.split('\n').length);
       assert.strictEqual(lines[1], '');
-      assert.strictEqual(result, ['LineA', '', 'LineB'].join('\n'));
+      assert.strictEqual(lines[2], '');
+      assert.strictEqual(lines[3], '');
+      assert.strictEqual(result, ['LineA', '', '', '', 'LineB'].join('\n'));
     });
   });
 
