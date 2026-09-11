@@ -15,7 +15,7 @@ import { parseModuleHeader, parseImport } from './import-parser.js';
 import { parseType, parseEffectList, separateEffectsAndCaps } from './type-parser.js';
 import { parseBlock, parseExplicitBlock, parseParamList } from './expr-stmt-parser.js';
 import { parseFieldList, parseVariantList } from './field-variant-parser.js';
-import { assignSpan, spanFromSources, lastConsumedToken, spanFromTokens } from './span-utils.js';
+import { assignSpan, spanFromSources, lastConsumedToken, lastNonLayoutToken, spanFromTokens } from './span-utils.js';
 import type { Span } from '../types.js';
 
 /**
@@ -178,7 +178,9 @@ export function parseDataDecl(
 
   // 期望句点结束
   expectDot();
-  const endTok = ctx.tokens[ctx.index - 1] || ctx.peek();
+  // ★用 lastNonLayoutToken：直接取 ctx.tokens[ctx.index-1] 会把尾随的
+  //   NEWLINE/DEDENT 算进 span，使声明范围延伸到下一个声明的起始行（span 重叠）。
+  const endTok = lastNonLayoutToken(ctx);
 
   // 创建 Data 节点并注册类型
   const dataDecl = Node.Data(typeName, fields);
@@ -223,7 +225,9 @@ export function parseEnumDecl(
 
   // 期望句点结束
   expectDot();
-  const endTok = ctx.tokens[ctx.index - 1] || ctx.peek();
+  // ★用 lastNonLayoutToken：直接取 ctx.tokens[ctx.index-1] 会把尾随的
+  //   NEWLINE/DEDENT 算进 span，使声明范围延伸到下一个声明的起始行（span 重叠）。
+  const endTok = lastNonLayoutToken(ctx);
 
   // 创建 Enum 节点并附加变体 spans
   const en = Node.Enum(typeName, variants);
@@ -508,7 +512,9 @@ export function parseFuncDecl(
     }
   }
 
-  const endTok = ctx.tokens[ctx.index - 1] || ctx.peek();
+  // ★用 lastNonLayoutToken：直接取 ctx.tokens[ctx.index-1] 会把尾随的
+  //   NEWLINE/DEDENT 算进 span，使声明范围延伸到下一个声明的起始行（span 重叠）。
+  const endTok = lastNonLayoutToken(ctx);
 
   // 合并函数体内收集的效果
   if (Array.isArray(ctx.collectedEffects) && ctx.collectedEffects.length > 0) {
