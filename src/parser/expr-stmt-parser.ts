@@ -25,7 +25,6 @@ import { inferFieldType, refineInferredType } from './type-inference.js';
 import {
   assignSpan,
   cloneSpan,
-  lastConsumedToken,
   lastNonLayoutToken,
   spanFromSources,
   spanFromTokens,
