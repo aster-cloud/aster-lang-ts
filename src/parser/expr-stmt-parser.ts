@@ -26,6 +26,7 @@ import {
   assignSpan,
   cloneSpan,
   lastConsumedToken,
+  lastNonLayoutToken,
   spanFromSources,
   spanFromTokens,
 } from './span-utils.js';
@@ -240,7 +241,7 @@ function parseInlineIf(
   ctx.nextWord();
   const thenExpr = parseExpr(ctx, error);
   const thenRet = Node.Return(thenExpr);
-  assignSpan(thenRet, spanFromTokens(thenRetTok, lastConsumedToken(ctx)));
+  assignSpan(thenRet, spanFromTokens(thenRetTok, lastNonLayoutToken(ctx)));
   const thenBlock = Node.Block([thenRet as unknown as Statement]);
   // ★Node.Block 以 createEmptySpan()（line 0, col 0）初始化。inline-if 的块是
   //   **合成**出来的（源码里没有独立的块结构），若不补 span 就会带着 line: 0
@@ -269,7 +270,7 @@ function parseInlineIf(
       const elseExpr = parseExpr(ctx, error);
       expectPeriodEnd(ctx, error);
       const elseRet = Node.Return(elseExpr);
-      assignSpan(elseRet, spanFromTokens(elseRetTok, lastConsumedToken(ctx)));
+      assignSpan(elseRet, spanFromTokens(elseRetTok, lastNonLayoutToken(ctx)));
       elseBlock = Node.Block([elseRet as unknown as Statement]);
       assignSpan(elseBlock, spanFromSources(elseRet));
     }
@@ -314,7 +315,7 @@ export function parseStatement(
       expectNewline(ctx, error);
       const body = parseBlock(ctx, error);
       const lambda = Node.Lambda(params, retType, body);
-      const lambdaEnd = lastConsumedToken(ctx);
+      const lambdaEnd = lastNonLayoutToken(ctx);
       assignSpan(lambda, spanFromTokens(functionTok, lambdaEnd));
       const nd = Node.Let(name, lambda);
       assignSpan(nd, spanFromTokens(letTok, lambdaEnd));
@@ -324,7 +325,7 @@ export function parseStatement(
     const expr = parseExpr(ctx, error);
     expectPeriodEnd(ctx, error);
     const nd = Node.Let(name, expr);
-    const endTok = lastConsumedToken(ctx);
+    const endTok = lastNonLayoutToken(ctx);
     assignSpan(nd, spanFromTokens(letTok, endTok));
     if (nameTok) (nd as any).nameSpan = spanFromToken(nameTok);
     return nd;
@@ -337,7 +338,7 @@ export function parseStatement(
     const expr = parseExpr(ctx, error);
     expectPeriodEnd(ctx, error);
     const nd = Node.Set(name, expr);
-    const endTok = lastConsumedToken(ctx);
+    const endTok = lastNonLayoutToken(ctx);
     assignSpan(nd, spanFromTokens(setTok, endTok));
     return nd;
   }
@@ -358,7 +359,7 @@ export function parseStatement(
       }
     }
     const nd = Node.Return(expr);
-    const endTok = lastConsumedToken(ctx);
+    const endTok = lastNonLayoutToken(ctx);
     assignSpan(nd, spanFromTokens(retTok, endTok));
     return nd;
   }
@@ -368,7 +369,7 @@ export function parseStatement(
     const args = parseArgList(ctx, error);
     if (args.length !== 1) error('await(expr) takes exactly one argument');
     const target = assignTokenSpan(Node.Name('await'), awaitTok);
-    const callSpanEnd = lastConsumedToken(ctx);
+    const callSpanEnd = lastNonLayoutToken(ctx);
     const aw = Node.Call(target, args);
     assignSpan(aw, spanFromTokens(awaitTok, callSpanEnd));
     expectPeriodEnd(ctx, error);
@@ -382,7 +383,7 @@ export function parseStatement(
     // 块式分隔符之前探测 then——then 前可有换行+缩进（文档里 `if ... \n then ...`）。
     if (peekInlineThen(ctx)) {
       const nd = parseInlineIf(ctx, error, cond);
-      assignSpan(nd, spanFromTokens(ifTok, lastConsumedToken(ctx)));
+      assignSpan(nd, spanFromTokens(ifTok, lastNonLayoutToken(ctx)));
       return nd;
     }
     // 可选逗号或冒号分隔（兼容 Java ANTLR 语法 If condition:）
@@ -400,7 +401,7 @@ export function parseStatement(
       elseBlock = parseBlock(ctx, error);
     }
     const nd = Node.If(cond, thenBlock, elseBlock);
-    const endTok = lastConsumedToken(ctx);
+    const endTok = lastNonLayoutToken(ctx);
     assignSpan(nd, spanFromTokens(ifTok, endTok));
     return nd;
   }
@@ -413,7 +414,7 @@ export function parseStatement(
     expectNewline(ctx, error);
     const cases = parseCases(ctx, error);
     const nd = Node.Match(expr, cases);
-    const endTok = lastConsumedToken(ctx);
+    const endTok = lastNonLayoutToken(ctx);
     assignSpan(nd, spanFromTokens(mTok, endTok));
     return nd;
   }
@@ -456,7 +457,7 @@ export function parseStatement(
     const expr = parseExpr(ctx, error);
     expectPeriodEnd(ctx, error);
     const nd = Node.Start(name, expr);
-    const endTok = lastConsumedToken(ctx);
+    const endTok = lastNonLayoutToken(ctx);
     assignSpan(nd, spanFromTokens(startTok, endTok));
     return nd as Statement;
   }
@@ -476,7 +477,7 @@ export function parseStatement(
     }
     expectPeriodEnd(ctx, error);
     const nd = Node.Wait(names);
-    const endTok = lastConsumedToken(ctx);
+    const endTok = lastNonLayoutToken(ctx);
     assignSpan(nd, spanFromTokens(waitStart, endTok));
     return nd as Statement;
   }
@@ -517,7 +518,7 @@ function parseWorkflow(
   ctx.consumeNewlines();
   expectPeriodEnd(ctx, error);
   const workflow = Node.Workflow(steps, retry, timeout);
-  const endTok = lastConsumedToken(ctx);
+  const endTok = lastNonLayoutToken(ctx);
   assignSpan(workflow, spanFromTokens(workflowTok, endTok));
   return workflow;
 }
@@ -568,7 +569,7 @@ function parseStep(
     ctx.consumeNewlines();
   }
   const step = Node.Step(name, body, compensate, dependencies);
-  const endTok = lastConsumedToken(ctx);
+  const endTok = lastNonLayoutToken(ctx);
   assignSpan(step, spanFromTokens(stepTok, endTok));
   return step;
 }
@@ -666,7 +667,7 @@ function parseCases(
       ctx.next();
       const body = parseCaseBody(ctx, error);
       const caseNode = Node.Case(pat, body);
-      const endTok = lastConsumedToken(ctx);
+      const endTok = lastNonLayoutToken(ctx);
       assignSpan(caseNode, spanFromTokens(whenTok, endTok));
       cases.push(caseNode);
       while (ctx.at(TokenKind.NEWLINE)) ctx.next();
@@ -694,7 +695,7 @@ function parseCaseBody(
     const e = parseExpr(ctx, error);
     expectPeriodEnd(ctx, error);
     const nd = Node.Return(e);
-    const endTok = lastConsumedToken(ctx);
+    const endTok = lastNonLayoutToken(ctx);
     assignSpan(nd, spanFromTokens(retTok, endTok));
     return nd;
   }
@@ -756,7 +757,7 @@ function parseIfExpr(
     cond,
     thenE,
     elseE,
-    span: spanFromTokens(startTok, lastConsumedToken(ctx)),
+    span: spanFromTokens(startTok, lastNonLayoutToken(ctx)),
   };
   return node as unknown as Expression;
 }
@@ -1314,7 +1315,7 @@ function parsePrimary(
     expectNewline(ctx, error);
     const body = parseBlock(ctx, error);
     const lambda = Node.Lambda(params, retType, body);
-    const lambdaEnd = lastConsumedToken(ctx);
+    const lambdaEnd = lastNonLayoutToken(ctx);
     const lambdaStart = optionalATok ?? functionTok;
     assignSpan(lambda, spanFromTokens(lambdaStart, lambdaEnd));
     return lambda;
@@ -1464,7 +1465,7 @@ function parsePrimary(
     if (args.length !== 1) error('await(expr) takes exactly one argument');
     const target = assignTokenSpan(Node.Name('await'), awaitTok);
     const call = Node.Call(target, args);
-    const endTok = lastConsumedToken(ctx);
+    const endTok = lastNonLayoutToken(ctx);
     assignSpan(call, spanFromSources(awaitTok, endTok));
     return call;
   }
@@ -1541,7 +1542,7 @@ function parsePrimary(
         hasMore = false;
       }
       const constructNode = Node.Construct(typeName, fields);
-      const endTok = lastConsumedToken(ctx);
+      const endTok = lastNonLayoutToken(ctx);
       assignSpan(constructNode, spanFromSources(typeTok, withTok, endTok));
       return constructNode;
     }
@@ -1583,7 +1584,7 @@ function parsePrimary(
       }
       const args = parseArgList(ctx, error);
       const call = Node.Call(target, args);
-      const endTok = lastConsumedToken(ctx);
+      const endTok = lastNonLayoutToken(ctx);
       assignSpan(call, spanFromSources(target, endTok));
       return call;
     }
@@ -1625,7 +1626,7 @@ function parsePrimary(
       }
       const args = parseArgList(ctx, error);
       const call = Node.Call(target, args);
-      const endTok = lastConsumedToken(ctx);
+      const endTok = lastNonLayoutToken(ctx);
       assignSpan(call, spanFromSources(target, endTok));
       return call;
     }
