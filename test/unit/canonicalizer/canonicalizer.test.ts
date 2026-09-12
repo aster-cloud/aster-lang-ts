@@ -518,4 +518,37 @@ describe('canonicalizer', () => {
       );
     });
   });
+
+  describe('标点归一化与 `!=` 运算符', () => {
+    it('`!=` 前的空格不得被吃掉（它是运算符，不是句末感叹号）', () => {
+      // ★PUNCT_FINAL_CHARS 含 `!`，于是 `x != y` 被当成「空白 + 标点」改写成
+      //   `x!= y` —— 行缩短一个字符，其后所有 token 的 origin.col 左移，
+      //   使 ADR 0032 的 trace 锚点与 ADR 0037 的 OriginMap 指向错误的字符。
+      // ★Java 侧有**同一个**缺陷、缩短量一致，因此跨引擎 parity gate 一直是绿的。
+      //   一致 ≠ 正确：这类成对缺陷只能与源码文本这一外部基准核对才能发现。
+      const line = '  Return x != y.';
+      const src = ['Module m.', '', 'Rule f given x, y, produce:', line, ''].join('\n');
+
+      const out = canonicalize(src).split('\n')[3];
+
+      assert.strictEqual(out, line, `\`!=\` 前的空格被吃掉了：原 [${line}] 规 [${out}]`);
+    });
+
+    it('真正的句末标点仍被归一化（本修复未放宽该行为）', () => {
+      // 反向守卫。★必须用 `;` `?` `!`——这三个只由 final 标点集处理；
+      //   `.` `,` `:` 在更早的 normal 集就已归一化，用它们断言会得到
+      //   一个即使整条规则被删也照样绿的假门禁（Java 侧已实测过这一点）。
+      for (const [input, expected] of [
+        ['  Return x ;', '  Return x;'],
+        ['  Return x ?', '  Return x?'],
+        ['  Return x !', '  Return x!'],
+      ] as const) {
+        const src = ['Module m.', '', 'Rule f given x, produce:', input, ''].join('\n');
+
+        const out = canonicalize(src).split('\n')[3];
+
+        assert.strictEqual(out, expected, `标点前空格应被归一化：原 [${input}] 实际 [${out}]`);
+      }
+    });
+  });
 });
