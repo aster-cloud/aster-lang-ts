@@ -225,8 +225,17 @@ function stripSpaceBeforePunct(text: string, punctChars: string): string {
   const out: string[] = [];
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
+    // ★`!` 后跟 `=` 时不算标点——那是**不等号运算符** `!=`，不是句末感叹号。
+    //   否则 `x != y` 会被改写成 `x!= y`，行缩短一个字符，使其后所有 token 的
+    //   origin.col 左移、偏离用户原文（ADR 0032 的 trace 锚点与 ADR 0037 的
+    //   OriginMap 都按列定位）。Java 侧同此（Canonicalizer 的 PUNCT_FINAL_RE
+    //   用 `!(?!=)` 表达同一规则）。
+    //   ★两引擎此前**同时**有这个缺陷、缩短量一致，故跨引擎 parity 一直是绿的
+    //     ——一致 ≠ 正确，需与源码文本这一外部基准核对才能发现。
+    //   实证：语料中裸 `!`（不在字符串字面量内）只以 `!=` 形态出现。
+    const isNotEqualOperator = ch === '!' && text[i + 1] === '=';
     // 命中标点：弹出已输出的尾部空白（对应正则 `\s+` 的贪婪吞噬），O(1) 摊还。
-    if (punctChars.includes(ch)) {
+    if (!isNotEqualOperator && punctChars.includes(ch)) {
       while (out.length > 0 && WHITESPACE_CHAR_RE.test(out[out.length - 1]!)) {
         out.pop();
       }
