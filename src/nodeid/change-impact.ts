@@ -26,6 +26,42 @@ import type { NodeIdentity } from './node-id-map.js';
  * 猜错会把两个不同的节点当成同一个，比「识别为新节点」更危险。
  */
 
+
+/**
+ * 一次**显式声明**的重命名：`Rule approve` → `Rule assess`。
+ *
+ * <p>★为什么必须显式声明、不能自动推断：直觉上可以「按 contentHash 配对」，
+ * 但 **contentHash 不唯一**。两条函数体相同的规则，其 `body` / `statements[0]`
+ * / `ret` 等各级节点的 hash 全部相同：
+ *
+ * ```
+ *   Rule alpha, produce:    Rule beta, produce:
+ *     Return 1.               Return 1.
+ *   → $.decls{alpha}.body 与 $.decls{beta}.body 的 contentHash **完全相同**
+ * ```
+ *
+ * 于是把 `alpha` 改名为 `gamma` 后，`beta.body` 的 hash 在新版里能匹配到
+ * **两个**候选，无法判定谁是谁——自动配对会把两条规则的身份互换，且**不报错**。
+ *
+ * <p>★把两个不同的节点当成同一个，比「识别为新节点」危险得多：前者给出
+ * **错误**的溯源答案，后者只是丢失历史关联。立场是**宁可少认，不可错认**。
+ */
+export interface Rename {
+  readonly oldName: string;
+  readonly newName: string;
+}
+
+/** 构造并校验一条重命名声明。空名 / 新旧同名都是调用方的错误，直接暴露。 */
+export function rename(oldName: string, newName: string): Rename {
+  if (!oldName?.trim() || !newName?.trim()) {
+    throw new Error('rename 的新旧名字都不能为空');
+  }
+  if (oldName === newName) {
+    throw new Error(`rename 的新旧名字相同：${oldName}`);
+  }
+  return { oldName, newName };
+}
+
 export type ChangeKind =
   /** nodeId 两侧都在，contentHash 不同 → 同一个节点，内容变了。 */
   | 'MODIFIED'
@@ -55,7 +91,11 @@ export interface Change {
 export function diffNodeIds(
   before: ReadonlyMap<string, NodeIdentity>,
   after: ReadonlyMap<string, NodeIdentity>,
+  renames: readonly Rename[] = [],
 ): readonly Change[] {
+  if (renames.length > 0) {
+    before = applyRenames(before, renames);
+  }
   const all = new Set<string>([...before.keys(), ...after.keys()]);
   const changes: Change[] = [];
 
@@ -71,6 +111,59 @@ export function diffNodeIds(
     }
   }
   return changes;
+}
+
+/**
+ * 把旧版的 nodeId 按声明的重命名做**路径段替换**，使整棵子树一次性迁移。
+ *
+ * <p>★只替换完整的 `{name}` 路径段，不做子串替换——朴素的字符串 replace 会让
+ * `approve` 误伤 `approveAll`。
+ *
+ * <p>★同一个 oldName 不允许被声明成多个不同的新名字：那是自相矛盾的输入，
+ * 静默取其一会给出无声错误的溯源结果。
+ */
+function applyRenames(
+  before: ReadonlyMap<string, NodeIdentity>,
+  renames: readonly Rename[],
+): ReadonlyMap<string, NodeIdentity> {
+  const mapping = new Map<string, string>();
+  for (const r of renames) {
+    const prev = mapping.get(r.oldName);
+    if (prev !== undefined && prev !== r.newName) {
+      throw new Error(`同一个名字被声明重命名到多个目标：${r.oldName} → ${prev} / ${r.newName}`);
+    }
+    mapping.set(r.oldName, r.newName);
+  }
+
+  const out = new Map<string, NodeIdentity>();
+  for (const [id, v] of before) {
+    const renamed = renamePathSegments(id, mapping);
+    out.set(renamed, renamed === id ? v : { ...v, nodeId: renamed });
+  }
+  return out;
+}
+
+/** 逐个 `{name}` 段做整段匹配替换。 */
+function renamePathSegments(path: string, mapping: ReadonlyMap<string, string>): string {
+  let out = '';
+  let i = 0;
+  while (i < path.length) {
+    const c = path[i]!;
+    if (c !== '{') {
+      out += c;
+      i++;
+      continue;
+    }
+    const close = path.indexOf('}', i);
+    if (close < 0) { // 不成对的 '{'：原样输出，不猜
+      out += path.slice(i);
+      break;
+    }
+    const name = path.slice(i + 1, close);
+    out += `{${mapping.get(name) ?? name}}`;
+    i = close + 1;
+  }
+  return out;
 }
 
 /**
