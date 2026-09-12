@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+import { CORPUS_ROOT } from '@aster-cloud/aster-lang-test';
 
 import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../src/frontend/lexer.js';
@@ -18,7 +20,10 @@ import { verifyMapping } from '../../../src/mapping/mapping-ir.js';
  * `origin` 就是答案。本测试用全语料闭环证明这一点。
  */
 
-const CORPUS = '/Users/rpang/IdeaProjects/aster-lang-test/corpus/tier1-equivalence/policies';
+// ★必须走 CORPUS_ROOT（包导出的路径），不能写绝对路径——CI 的 checkout
+//   目录与本机不同，硬编码路径会让 readdirSync 抛错或返回空，测试在 0.4ms
+//   内「通过」而实际一个样本都没跑（本 PR 的 CI 就是这样红的）。
+const CORPUS = path.join(CORPUS_ROOT, 'tier1-equivalence/policies');
 
 const irOf = (src: string) =>
   JSON.parse(JSON.stringify(lowerModule(parse(lex(canonicalize(src))).ast as AstModule)));
@@ -143,7 +148,13 @@ describe('确定性候选生成器', () => {
       }
     }
 
-    assert.ok(generated > 1000, `应在全语料上生成大量候选，实际 ${generated}`);
+    // ★阈值按「每个样本至少产出若干候选」来定，不写死绝对数字：
+    //   node_modules 里的语料是**已发布版本**（213 个样本），工作树是 223 —— 两者
+    //   会随发版节奏漂移。写死 1000 这类数字会在语料增删时无故变红/变绿。
+    const samples = readdirSync(CORPUS).filter(x => x.endsWith('.aster')).length;
+    assert.ok(samples > 100, `语料样本数异常（${samples}）—— 路径可能指错了。`);
+    assert.ok(generated > samples * 2,
+      `应在全语料上生成大量候选：${samples} 个样本只产出 ${generated} 条。`);
     assert.strictEqual(skipped, 0, '全语料上不应有跳过（若有，说明 origin 有缺口）。');
     assert.strictEqual(rejected, 0,
       `机械生成的候选不应被证伪（${rejected} 条 REJECTED）——说明切片位置错了。`
