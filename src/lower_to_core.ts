@@ -385,10 +385,18 @@ function lowerStmt(s: Statement): import('./types.js').Core.Statement {
     case 'Block':
       return withOrigin(Core.Scope((s as Block).statements.map(lowerStmt)), s);
     case 'Call':
-      // Expression statement: Call used for side effects
-      // Lower to: Let _ be <call>
+      // 裸表达式语句（`File.write("...").`）：求值并丢弃结果，降为 `Let _ be <call>`。
+      //
+      // ★内层 Call 也必须挂 origin。原实现只给外层 Let 包了 withOrigin，内层
+      //   `Core.Call(...)` 直接构造 → 该表达式**没有位置信息**。
+      //   后果：ADR 0032 的 trace 锚点与 ADR 0037 的 OriginMap 都按位置定位，
+      //   一个无 origin 的节点在「点击源码 ↔ 高亮 IR」里**不可达**——不报错，
+      //   只是这段代码从双向导航里静默消失。
+      //   （实测 eff_valid_all_caps.aster：真正的 Let 有 expr.origin，
+      //     合成的 Let "_" 没有，与 Java 侧跨引擎分叉。）
       return withOrigin(
-        Core.Let('_', Core.Call(lowerExpr((s as any).target), (s as any).args.map(lowerExpr))),
+        Core.Let('_', withOrigin(
+          Core.Call(lowerExpr((s as any).target), (s as any).args.map(lowerExpr)), s)),
         s
       );
     default: {
@@ -507,6 +515,74 @@ function patternBindings(p: Pattern | undefined): Set<string> {
   return out;
 }
 
+/**
+ * UFCS 拆分：把 `recv.method(args)` 的调用目标拆成「接收者 + 方法名」。
+ *
+ * <p>与 Java `AstBuilder.applyCallSuffix` 的行为**逐字对齐**（已实测三种形态）：
+ *
+ * ```
+ *   value.sum(1)    → 接收者 value，方法 sum        （首段是 IDENT → UFCS）
+ *   a.b.c(1)        → 接收者 a，    方法 b.c        （接收者只取**首段**）
+ *   _x.f(1)         → 接收者 _x，   方法 f          （下划线开头也是 IDENT）
+ *   Text.concat(1)  → 不拆分（TYPE_IDENT = 类型/模块限定名）
+ *   Map.get(1)      → 不拆分（同上）
+ *   数据.求和(1)     → 不拆分（CJK 归 TYPE_IDENT，见下）
+ * ```
+ *
+ * <p>返回 `null` 表示不做 UFCS 转换（调用方按普通 Call 处理）。
+ *
+ * <p>★判定依据**不是**「首字母是否大写」，而是 lexer 的 IDENT / TYPE_IDENT 之分。
+ * 权威规则在 `AsterCustomLexer.isUppercaseStart`（core）：
+ *
+ * ```
+ *   ASCII 小写 a-z 或下划线 _  → IDENT      → 走 UFCS
+ *   其余（大写、CJK、…）        → TYPE_IDENT → 不拆分
+ * ```
+ *
+ * 我最初按「首字母 === 大写形式」近似，**实测是错的**：中文 `数据.求和` 在该
+ * 近似下会被当作小写（`'数' === '数'.toUpperCase()` 为 true 才排除，实际
+ * toUpperCase 对无大小写字符返回自身，故判断反复无常），而 Java 明确把 CJK
+ * 归为 TYPE_IDENT、不做 UFCS。此处改用与 core 逐字一致的字符区间判断。
+ *
+ * <p>★规则本身隐式且不易预期，但它是 Java 侧既有语义并有测试钉住
+ * （`AstBuilderTest.testMethodCallTransformsReceiver`）；此处职责是对齐，
+ * 不是重新设计。若要改语义，应走 ADR。
+ */
+function splitUfcsReceiver(
+  target: import('./types.js').Core.Expression
+): { receiver: import('./types.js').Core.Expression; method: import('./types.js').Core.Expression } | null {
+  if (!target || (target as { kind?: string }).kind !== 'Name') return null;
+  const full = (target as unknown as { name?: unknown }).name;
+  if (typeof full !== 'string') return null;
+
+  const dot = full.indexOf('.');
+  if (dot <= 0 || dot === full.length - 1) return null; // 无点，或点在首/末位
+
+  const head = full.slice(0, dot);
+  const first = head[0];
+  if (first === undefined) return null;
+  // 与 core 的 `AsterCustomLexer.isUppercaseStart` 逐字一致：
+  // 只有 ASCII 小写或下划线开头（= lexer 的 IDENT）才走 UFCS。
+  const isIdentStart = (first >= 'a' && first <= 'z') || first === '_';
+  if (!isIdentStart) return null;
+
+  // ★接收者与方法名都必须挂 origin。它们是从**同一个** Name 节点拆出来的，
+  //   源码位置沿用该节点的 span。若不挂，这两个节点在 ADR 0032 的 trace 锚点
+  //   与 ADR 0037 的 OriginMap 里**不可达**——不报错，只是从双向导航里静默消失
+  //   （与 `Let "_"` 内层 Call 缺 origin 是同一类问题）。
+  //   注：Java 侧给接收者/方法名的是各自更精确的子 span；此处沿用整体 span，
+  //   跨引擎在 `file+line` 口径下一致（同一行），strict 口径下的列差属既有
+  //   col 口径问题，不在本次范围。
+  const receiver = Core.Name(head);
+  const method = Core.Name(full.slice(dot + 1));
+  const span = (target as { origin?: unknown }).origin;
+  if (span !== undefined) {
+    (receiver as { origin?: unknown }).origin = span;
+    (method as { origin?: unknown }).origin = span;
+  }
+  return { receiver, method };
+}
+
 function lowerExpr(e: Expression): import('./types.js').Core.Expression {
   switch (e.kind) {
     case 'Name':
@@ -551,7 +627,30 @@ function lowerExpr(e: Expression): import('./types.js').Core.Expression {
           return withOrigin(Core.None(), e);
         }
       }
-      return withOrigin(Core.Call(lowerExpr(e.target), e.args.map(lowerExpr)), e);
+      // ★UFCS（接收者转参数）：`value.sum(1, 2)` → `sum(value, 1, 2)`。
+      //
+      //   这是 Java 引擎有意设计的调用约定（`AstBuilder.applyCallSuffix`，并由
+      //   `AstBuilderTest.testMethodCallTransformsReceiver` 钉住），此前 TS 侧缺失，
+      //   导致同一段源码在两个引擎上**实际传参个数不同**——不是表示差异，是行为差异：
+      //
+      //     io.verify(user, pass)
+      //       Java → Call(Name "verify",    [io, user, pass])   3 参
+      //       TS   → Call(Name "io.verify", [user, pass])       2 参   ← 分叉
+      //
+      //   触发条件与 Java 完全一致：限定名的**首段首字母小写**时才做转换。
+      //   首字母大写（`Text.concat`、`Http.get`、`Map.get`）是**类型/模块限定名**，
+      //   保持整体作为调用目标，不拆分。
+      //
+      //   ★该规则本身（「首字母大小写决定调用约定」）是隐式的、用户不易预期的，
+      //     但它是既有语义且有测试支撑；此处的职责是**与 Java 对齐**，
+      //     而不是单方面改变语义。若要重新设计，应走 ADR。
+      const target = lowerExpr(e.target);
+      const loweredArgs = e.args.map(lowerExpr);
+      const ufcs = splitUfcsReceiver(target);
+      if (ufcs) {
+        return withOrigin(Core.Call(ufcs.method, [ufcs.receiver, ...loweredArgs]), e);
+      }
+      return withOrigin(Core.Call(target, loweredArgs), e);
     }
     case 'Construct':
       return withOrigin(
