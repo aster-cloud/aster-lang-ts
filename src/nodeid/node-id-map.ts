@@ -154,7 +154,13 @@ function stripIdentityIrrelevant(node: unknown): unknown {
 function segmentOf(element: unknown, index: number): string {
   if (element !== null && typeof element === 'object' && !Array.isArray(element)) {
     const el = element as Record<string, unknown>;
-    if (typeof el.name === 'string') return `{${el.name}}`;
+    // ★`_` 不是名字，是**占位符**：裸表达式语句一律降为 `Let "_" be expr`
+    //   （求值并丢弃结果）。若拿它当路径段，同一函数体里的多条裸表达式语句
+    //   会全部塌成 `statements{_}` —— nodeId 撞车，Map 只保留最后一条，
+    //   其余节点的身份**静默消失**。
+    //   实测（tier1 全语料）：1 个样本、4 个节点因此丢失身份。
+    //   占位名退回下标，回到「按位置区分」——这正是无名节点的正确处理方式。
+    if (typeof el.name === 'string' && el.name !== '_') return `{${el.name}}`;
     // Import 没有 name，用 path 充当名字：它同样是「重排后仍指同一个导入」的标识。
     if (typeof el.path === 'string') return `{${el.path}}`;
   }
