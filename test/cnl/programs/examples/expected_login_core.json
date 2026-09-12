@@ -84,9 +84,13 @@
               "kind": "Call",
               "target": {
                 "kind": "Name",
-                "name": "io.verify"
+                "name": "verify"
               },
               "args": [
+                {
+                  "kind": "Name",
+                  "name": "io"
+                },
                 {
                   "kind": "Name",
                   "name": "user"
