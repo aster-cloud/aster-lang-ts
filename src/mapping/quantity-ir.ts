@@ -1,0 +1,190 @@
+import type { TextSpan } from './mapping-ir.js';
+
+/**
+ * QuantityIR —— 从人类文档里**机械抽取**数量实体（ADR 0037 §2/§10.5）。
+ *
+ * <h2>为什么 Quantity 和 Entity 要分开</h2>
+ *
+ * ADR §2 把它们并列为 `Document/Section/Span/Entity/Quantity`，但实测两者的
+ * 可抽取性**完全不同**：
+ *
+ * ```
+ *   Quantity（金额/百分比/时长/日期）  有稳定的**形态特征**  → 机械抽取，零 AI
+ *   Entity  （角色/主体/义务）        **没有**形态特征      → 需要识别，LLM 的位置
+ * ```
+ *
+ * 实测一份典型付款政策：
+ *
+ * ```
+ *   金额 $10,000 / $50,000 / $25    4 例   ← 正则可抽，100%
+ *   百分比 1.5%                      1 例   ← 同上
+ *   时长 24 小时                     1 例   ← 同上
+ *   日期 2026-01-01 / 2026-12-31     2 例   ← 同上
+ *   角色「财务经理」「部门主管」        2 例   ← **无任何可靠形态特征**
+ * ```
+ *
+ * 本模块**只做 Quantity**。Entity 的接口在 {@link EntityCandidate} 声明，
+ * 但**不提供实现**——按 ADR §3/§10，那是 LLM 提出候选、由人复核的部分，
+ * 不该由本模块假装能机械得出。
+ *
+ * <h2>★与 MappingIR 的关系：本模块只负责「找到」，不负责「判定」</h2>
+ *
+ * 抽取出的 Quantity 是**候选映射的左半边**（文本片段 + 位置）。它是否真的对应
+ * 某个 IR 节点，仍由 `MappingIR.verifyMapping` 判定。本模块**不做任何语义断言**。
+ */
+
+/** 数量的类别。刻意小而封闭——每多一种就多一份误抽风险。 */
+export type QuantityKind =
+  /** 货币金额（带货币符号）。 */
+  | 'MONEY'
+  /** 百分比。 */
+  | 'PERCENT'
+  /** 时长（含单位）。 */
+  | 'DURATION'
+  /** ISO 8601 日期。 */
+  | 'DATE';
+
+export interface Quantity {
+  readonly kind: QuantityKind;
+  readonly span: TextSpan;
+  /** 原文片段，**逐字节**取自文档（与 SourceIR 同规则：不改内容）。 */
+  readonly text: string;
+  /**
+   * 规范化后的数值，**十进制字符串**。
+   *
+   * <p>★不用 `number`：金额/时长可能超出 JS 安全整数，过一次 number 就丢精度
+   * （本仓实测踩过 `9007199254740993` → `…992`）。与 `MappingIR` 的比较口径一致。
+   *
+   * <p>`DATE` 的 `value` 是 ISO 日期串本身（`2026-01-01`），不转成时间戳——
+   * 时间戳依赖时区，不是原文里的信息。
+   */
+  readonly value: string;
+  /** 货币符号 / 时长单位；`PERCENT`、`DATE` 为 `undefined`。 */
+  readonly unit?: string;
+}
+
+/**
+ * Entity 候选（角色、主体、义务这类**语义实体**）。
+ *
+ * <p>★本模块**不实现**它的抽取。Entity 没有可靠的形态特征——「财务经理」
+ * 与「财务报表」在字符层面无从区分，只能靠语义识别。按 ADR §3：
+ *
+ * ```
+ *   LLM / 启发式 / 人  →  提出 EntityCandidate
+ *   确定性 verifier    →  判定（但对 Entity 只能给 REVIEW_REQUIRED）
+ * ```
+ *
+ * <p>此处声明接口是为了**把边界写进类型系统**：调用方一看就知道 Entity 必须
+ * 从外部传入，而不是指望本模块变出来。
+ */
+export interface EntityCandidate {
+  readonly span: TextSpan;
+  readonly text: string;
+  /** 提出者给出的类别（`Role` / `Party` / `Obligation` …），本模块不校验。 */
+  readonly proposedKind: string;
+  /** 谁提出的——与 `ProofIR.ProofSubject` 同源，便于追溯。 */
+  readonly proposedBy: string;
+}
+
+/**
+ * 抽取顺序**有意义**：先匹配的先占位，后面的不再重叠抽取。
+ *
+ * <p>★当前四类模式**几乎互斥**，唯一会相交的形态是 `$1.5%`：
+ * `MONEY` 匹配 `$1.5`、`PERCENT` 匹配 `1.5%`，区间重叠。此时**先声明者胜出**。
+ *
+ * <p>★我初稿在这里写了「MONEY 必须排在纯数字之前，否则 `$10,000` 会被拆成
+ * `10` 和 `000`」——**那是错的**：本模块根本没有「纯数字」模式，挪动 MONEY
+ * 的位置对 `$10,000` 毫无影响（已实测）。注释若声称一个并不存在的保护，
+ * 会误导后来者以为某处有约束而不敢动。
+ */
+const PATTERNS: ReadonlyArray<{ kind: QuantityKind; re: RegExp }> = [
+  // 货币：符号 + 数字（可含千分位与小数）
+  { kind: 'MONEY', re: /[$€£¥]\s?\d[\d,]*(?:\.\d+)?/g },
+  // ISO 日期：必须整段匹配，避免把 2026-01 当成减法
+  { kind: 'DATE', re: /\d{4}-\d{2}-\d{2}/g },
+  // 百分比
+  { kind: 'PERCENT', re: /\d+(?:\.\d+)?\s?%/g },
+  // 时长：数字 + 单位（中英文）
+  { kind: 'DURATION', re: /\d+(?:\.\d+)?\s?(?:小时|分钟|天|秒|hours?|minutes?|days?|seconds?)/g },
+];
+
+/**
+ * 从文档中抽取所有数量实体。
+ *
+ * <p>★**不做任何语义判断**——只按形态特征找出「这里有个数量」，以及它的
+ * 规范化数值。它是否对应某个 IR 节点，由 `MappingIR.verifyMapping` 判定。
+ *
+ * @returns 按出现位置升序；互不重叠
+ */
+export function extractQuantities(document: string): readonly Quantity[] {
+  const found: Quantity[] = [];
+  const claimed: { start: number; end: number }[] = [];
+
+  for (const { kind, re } of PATTERNS) {
+    re.lastIndex = 0;
+    for (let m = re.exec(document); m !== null; m = re.exec(document)) {
+      const start = m.index;
+      const end = start + m[0].length;
+      // ★后来者不得与已占位区间重叠：保证输出无重叠，且优先级由 PATTERNS 顺序决定。
+      if (claimed.some(c => start < c.end && end > c.start)) continue;
+
+      const parsed = normalize(kind, m[0]);
+      if (parsed === undefined) continue; // 形态像但规范化不出来 → 不抽，绝不编造
+
+      claimed.push({ start, end });
+      found.push({
+        kind, span: { start, end }, text: m[0],
+        value: parsed.value,
+        ...(parsed.unit === undefined ? {} : { unit: parsed.unit }),
+      });
+    }
+  }
+
+  return found.sort((a, b) => a.span.start - b.span.start);
+}
+
+/**
+ * 把匹配到的文本规范化成「数值 + 单位」。
+ *
+ * <p>★返回 `undefined` = 规范化不出来（不抽取），**不是**抽成错的值。
+ */
+function normalize(kind: QuantityKind, text: string): { value: string; unit?: string } | undefined {
+  switch (kind) {
+    case 'DATE': {
+      // 日期保持原串——转时间戳会引入时区，那不是原文里的信息。
+      return /^\d{4}-\d{2}-\d{2}$/.test(text) ? { value: text } : undefined;
+    }
+    case 'MONEY': {
+      const m = /^([$€£¥])\s?(\d[\d,]*(?:\.\d+)?)$/.exec(text);
+      if (m === null) return undefined;
+      const value = canonicalDecimal(m[2]!.replace(/,/g, ''));
+      return value === undefined ? undefined : { value, unit: m[1]! };
+    }
+    case 'PERCENT': {
+      const m = /^(\d+(?:\.\d+)?)\s?%$/.exec(text);
+      if (m === null) return undefined;
+      const value = canonicalDecimal(m[1]!);
+      return value === undefined ? undefined : { value };
+    }
+    case 'DURATION': {
+      const m = /^(\d+(?:\.\d+)?)\s?(.+)$/.exec(text);
+      if (m === null) return undefined;
+      const value = canonicalDecimal(m[1]!);
+      return value === undefined ? undefined : { value, unit: m[2]! };
+    }
+  }
+}
+
+/**
+ * 规范成可比较的十进制字符串：去尾随零、去多余前导零。
+ *
+ * <p>★全程字符串运算，**不经过 JS number** —— 与 `MappingIR.canonicalDecimalString`
+ * 同口径，保证「文档里的 $10,000」与「IR 里的 Int 10000」能按值比对。
+ */
+function canonicalDecimal(s: string): string | undefined {
+  const m = /^(\d+)(?:\.(\d*))?$/.exec(s.trim());
+  if (m === null) return undefined;
+  const intPart = m[1]!.replace(/^0+(?=\d)/, '');
+  const frac = (m[2] ?? '').replace(/0+$/, '');
+  return frac.length > 0 ? `${intPart}.${frac}` : intPart;
+}
