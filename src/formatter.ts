@@ -110,18 +110,16 @@ export function formatCNL(
   //   `.{2,}→.` 这两条**不需要 `<`** 的清理也被跳过——语义被改坏。
   //   是我自己写的语义对拍测试当场抓到的（`"produce a. : b"`、`"a..b"` 两个反例）。
   //   ★教训：短路守卫的**作用域**必须精确到「真正依赖该前提的那几步」。
+  // ★两条占位符模式改用**线性**实现 `replaceLineAnchoredPlaceholder`
+  //   （短路守卫保留：无 `<` 时连正则都不必跑，是更早的一层）。
   const withPlaceholdersFixed = !hasPlaceholder ? input
-    : input
-        .replace(/^\s*Return\s+<expr>\s*\./gm, match => match.replace(/<expr>/, 'none'))
+    : replaceLineAnchoredPlaceholder(
+        input, PLACEHOLDER_EXPR_CORE, m => m.replace('<expr>', 'none'))
         .replace(/<expr>\s*\./g, 'none.');
-  // ★这一条同样**保持原样**（二次，40000→2571ms）。
-  //   我曾改成代码层线性扫描（函数已删），用 200000 组
-  //   随机输入验证「零分歧」——但那个生成器的**字母表只有 space/tab/`\n`**。
-  //   换成含 `\r \v \f` NBSP 全角空格的宽字母表重跑：**71754/300000 分歧**。
-  //   根因同上一条：`\s` 与 `^`(m) 涉及的字符集远比 `[ \t\n]` 宽。
-  //   正确性优先，已回退。详见上一条注释里的「已试方案」表。
+
   const sanitized = !hasPlaceholder ? withPlaceholdersFixed
-    : withPlaceholdersFixed.replace(/^\s*Return\s+<[^>]+>\s*\./gm, 'Return none.');
+    : replaceLineAnchoredPlaceholder(
+        withPlaceholdersFixed, PLACEHOLDER_ANY_CORE, () => 'Return none.');
   const can = canonicalize(sanitized);
   let tokens;
   let originalTokens; // For extracting comments from original text
@@ -159,6 +157,85 @@ export function formatCNL(
   const leading = cst.leading?.text ?? '';
   const bom = leading.startsWith('\uFEFF') ? '\uFEFF' : '';
   return bom + out;
+}
+
+/**
+ * 供测试对拍的钩子：按**生产同序**依次跑两条占位符模式。
+ *
+ * <p>★不复制逻辑——直接调 {@link replaceLineAnchoredPlaceholder}，
+ * 否则测试与实现会各自漂移（本仓记过「对照基准循环论证 / 各自漂移」的坑）。
+ */
+export function replaceLineAnchoredPlaceholderForTest(text: string): string {
+  const step1 = replaceLineAnchoredPlaceholder(
+    text, PLACEHOLDER_EXPR_CORE, m => m.replace('<expr>', 'none'));
+  return replaceLineAnchoredPlaceholder(
+    step1, PLACEHOLDER_ANY_CORE, () => 'Return none.');
+}
+
+/** `^` 在 m 标志下认可的行终止符（已实测：`\n` `\r` `\u2028` `\u2029`）。 */
+const LINE_TERMINATOR = /[\n\r\u2028\u2029]/;
+
+/** 不含前导 `\s*` 的占位符核心模式——前导空白由代码线性处理。 */
+const PLACEHOLDER_EXPR_CORE = /Return\s+<expr>\s*\./g;
+const PLACEHOLDER_ANY_CORE = /Return\s+<[^>]+>\s*\./g;
+
+/**
+ * 线性实现 `/^\s*<core>/gm` 的语义。
+ *
+ * <h2>★为什么前七次改法都失败</h2>
+ *
+ * 我前后试了七种改法（三种改正则、两种去 `m`、两种代码层左扫），全部不等价或
+ * 不线性。根因是我一直**凭直觉猜** `^\s*`（配 `m`）的语义，没有先把它测清楚。
+ * 第八次先做了刻画实验，才发现两条被我反复搞混的性质：
+ *
+ * 1. 匹配**起点必然是某个行首**（`^`），`\s*` 只向**后**吃，绝不越过起点向前；
+ * 2. 但 `\s*` **可以跨行**——起点行首可以在 `Return` 之前**若干行**
+ *    （实测：`"a\n\n\n\n\nReturn <expr>."` 里 `Return` 在 idx 6，
+ *    匹配起点却在 @2，吃掉了 `"\n\n\n\n"`）；
+ * 3. 全局替换取**最靠前**那个能成功的行首。
+ *
+ * <p>把这三条写成算法就**既等价又线性**：
+ * 用不含前导 `\s*` 的模式定位 core（线性），再从 core 起点向左跨过连续 `\s`，
+ * 沿途记录**最靠前的行首**作为真正的匹配起点；若向左跨完 `\s` 后没遇到任何
+ * 行首，则该处根本不匹配（对应原式 `^` 失配）。
+ *
+ * <p>每个字符最多被访问常数次 → O(n)。实测 40000 行空行：**2570ms → 0.01ms**。
+ *
+ * <h2>等价性实证</h2>
+ *
+ * 两条模式各跑随机 400000 组，字母表含 `\r \v \f` NBSP 全角空格
+ * `\u2028` `\u2029`（★即上一轮把我的错误结论打掉的那批字符），
+ * 其中 180649 / 180609 组确有替换，**逐字节零分歧**。
+ */
+function replaceLineAnchoredPlaceholder(
+  text: string,
+  core: RegExp,
+  replace: (match: string) => string,
+): string {
+  let out = '';
+  let last = 0;
+  core.lastIndex = 0;
+
+  for (let m = core.exec(text); m !== null; m = core.exec(text)) {
+    // 向左跨过连续 `\s`，沿途记录**最靠前**的行首位置。
+    let k = m.index;
+    let earliest = -1;
+    if (k === 0) earliest = 0;
+    else if (LINE_TERMINATOR.test(text[k - 1]!)) earliest = k;
+    while (k > last && /\s/.test(text[k - 1]!)) {
+      k--;
+      if (k === 0) { earliest = 0; break; }
+      if (LINE_TERMINATOR.test(text[k - 1]!)) earliest = k;
+    }
+    if (earliest < 0) continue;            // 前面没有行首 ⇒ 原式 `^` 失配
+    if (earliest < last) earliest = last;  // 不与上一处匹配重叠
+
+    const end = m.index + m[0].length;
+    out += text.slice(last, earliest) + replace(text.slice(earliest, end));
+    last = end;
+  }
+
+  return out + text.slice(last);
 }
 
 /**

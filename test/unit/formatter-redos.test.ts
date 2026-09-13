@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 
-import { formatCNL } from '../../src/formatter.js';
+import { formatCNL, replaceLineAnchoredPlaceholderForTest } from '../../src/formatter.js';
 import { printCNLFromCst } from '../../src/cst/cst_printer.js';
 import { buildCstLossless } from '../../src/cst/index.js';
 
@@ -74,6 +74,58 @@ describe('formatCNL — 占位符短路守卫', () => {
       `无 \`<\` 的全空行源码（${N} 行）耗时 ${ms.toFixed(0)}ms —— 应 <300ms。\n`
       + '★超预算说明 `hasPlaceholder` 短路守卫被去掉了，'
       + '两条 `^\\s*Return\\s+<...>` 的二次回溯回来了。');
+  });
+
+  it('★★含 `<` 的攻击载荷也必须线性（短路守卫绕过后的真实攻击面）', () => {
+    // ★这条是**真正的漏洞门禁**。此前两条占位符模式是二次的，
+    //   载荷里放一个 `<` 就绕过短路守卫：n=40000 实测 5143ms（×4.0）。
+    //   改用 `replaceLineAnchoredPlaceholder` 线性实现后 → 23.4ms。
+    //
+    //   ★只测「无 `<`」的路径是不够的——那正是短路守卫覆盖的那一半，
+    //   攻击者当然会绕开它。门禁必须打**绕过后**的那条路。
+    const N = 20000;
+    const src = 'Let x be 1<' + '\n'.repeat(N) + '.';
+    const ms = timeOf(() => { formatCNL(src); });
+
+    assert.ok(ms < 300,
+      `含 \`<\` 的全空行载荷（${N} 行）耗时 ${ms.toFixed(0)}ms —— 应 <300ms。\n`
+      + '★超预算说明两条占位符模式退回了 `^\\s*Return...` 的二次正则写法。\n'
+      + '  修法：用 replaceLineAnchoredPlaceholder（不含前导 \\s* 的 core + 代码层左扫行首）。');
+  });
+
+  it('★线性实现必须与原正则逐字节等价（宽字母表对拍）', () => {
+    // ★等价性是这次改动的**全部风险**所在——前七次改法都是栽在这里。
+    //   字母表必须含 `\r \v \f` NBSP 全角空格 U+2028 U+2029，
+    //   否则「零分歧」只是在量语料（本仓已记过这个教训）。
+    const R1 = /^\s*Return\s+<expr>\s*\./gm;
+    const R2 = /^\s*Return\s+<[^>]+>\s*\./gm;
+    const VT = String.fromCharCode(0x0b), FF = String.fromCharCode(0x0c);
+    const NBSP = String.fromCharCode(0xa0), FW = String.fromCharCode(0x3000);
+    const LS = String.fromCharCode(0x2028), PS = String.fromCharCode(0x2029);
+
+    const pool = ['Return <expr>.', '  Return <x>.', '\n', '\r', VT, FF, ' ',
+      FW, NBSP, LS, PS, 'a', '.', '\n\n', '\tReturn <abc>.', '<', '>'];
+    let seed = 7919;
+    const rnd = (): number => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+
+    let replaced = 0;
+    for (let i = 0; i < 20000; i++) {
+      let src = '';
+      const n = 1 + Math.floor(rnd() * 10);
+      for (let j = 0; j < n; j++) src += pool[Math.floor(rnd() * pool.length)]!;
+
+      R1.lastIndex = 0; R2.lastIndex = 0;
+      const expected = src
+        .replace(R1, m => m.replace('<expr>', 'none'))
+        .replace(R2, 'Return none.');
+      const actual = replaceLineAnchoredPlaceholderForTest(src);
+      if (expected !== src) replaced++;
+      assert.strictEqual(actual, expected,
+        `线性实现与原正则不一致。输入 ${JSON.stringify(src)}`);
+    }
+    // ★反向守卫：样本必须真的产生过替换，否则上面的相等断言全空洞。
+    assert.ok(replaced > 2000,
+      `只有 ${replaced}/20000 组发生替换 —— 样本判别力不足。`);
   });
 
   it('★短路守卫不得改变语义（含/不含 `<` 都要与无守卫一致）', () => {
