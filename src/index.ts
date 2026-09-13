@@ -88,3 +88,9 @@ export type { Quantity, QuantityKind, EntityCandidate } from './mapping/quantity
 export { verifyMapping } from './mapping/mapping-ir.js';
 export type { CandidateMapping, VerificationResult, VerificationVerdict,
   VerifiableNode, TextSpan } from './mapping/mapping-ir.js';
+export { buildReviewQueue, recordHumanProof } from './mapping/review-queue.js';
+export type { ReviewQueue, ReviewItem, ReviewSource } from './mapping/review-queue.js';
+export { isApplicableTo, resolveEffective } from './mapping/proof-ir.js';
+export type { Proof, ProofSubject, ProofRule, ProofAnchor, Applicability } from './mapping/proof-ir.js';
+export { proposeEntities, parseProposals, verifyEntityCandidate } from './mapping/entity-proposer.js';
+export type { ProposalResult } from './mapping/entity-proposer.js';
