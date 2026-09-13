@@ -162,4 +162,49 @@ describe('Entity 提出器 — 三段式第①段', () => {
         'systemPrompt 必须明确要求 LLM 不输出金额等数量 —— 那是确定性模块的职责。');
     });
   });
+
+  it('★注入守卫：kind 含标签字符 → 丢弃（防 reason 被渲染成 HTML）', () => {
+    // kind 是 **LLM 完全可控**的自由字符串，且原样进入 reason（人类可读文本）。
+    // 本仓有 6 处 dangerouslySetInnerHTML——一旦有人把 reason 接进去就是存储型 XSS。
+    // ★不能在此做 HTML 转义：那会改变 kind 的值，违反 §12.4「原样保留」。
+    //   正确做法是在源头限制**形态**——合法类别名本就不含这些字符。
+    const payload = JSON.stringify([
+      { text: '财务经理', kind: '<img src=x onerror=alert(1)>', start: DOC.indexOf('财务经理') },
+    ]);
+    const r = parseProposals(payload, DOC, 0, BY);
+
+    assert.strictEqual(r.candidates.length, 0, '含标签字符的 kind 必须丢弃。');
+    assert.match(r.rejected[0]!.why, /标签或控制字符/);
+  });
+
+  it('★合法类别（中英文）不得被注入守卫误伤', () => {
+    // 反向守卫：若字符白名单收得过紧，正常类别会被拒——那比不设防更糟，
+    // 因为它会静默丢掉真实候选。
+    for (const kind of ['Role', 'Obligation', '角色', '义务主体', 'Party_A']) {
+      const r = parseProposals(
+        JSON.stringify([{ text: '财务经理', kind, start: DOC.indexOf('财务经理') }]), DOC, 0, BY);
+      assert.strictEqual(r.candidates.length, 1,
+        `合法类别 ${JSON.stringify(kind)} 被误拒：${JSON.stringify(r.rejected)}`);
+    }
+  });
+
+  it('★资源上限：条目数超限整批拒绝，且如实报告', () => {
+    // 防「LLM 返回巨量条目」耗尽下游内存。★不静默截断——
+    // 调用方必须知道「LLM 返回量异常」这件事。
+    const many = JSON.stringify(
+      Array.from({ length: 5000 }, () => ({ text: '财务经理', kind: 'Role', start: DOC.indexOf('财务经理') })));
+    const r = parseProposals(many, DOC, 0, BY);
+
+    assert.strictEqual(r.candidates.length, 0, '超限应整批拒绝。');
+    assert.strictEqual(r.rejected.length, 1);
+    assert.match(r.rejected[0]!.why, /条目数超上限/);
+  });
+
+  it('★超长 kind → 丢弃（防 reason 变成一大段不可控内容）', () => {
+    const r = parseProposals(
+      JSON.stringify([{ text: '财务经理', kind: 'x'.repeat(200), start: DOC.indexOf('财务经理') }]),
+      DOC, 0, BY);
+    assert.strictEqual(r.candidates.length, 0);
+    assert.match(r.rejected[0]!.why, /过长/);
+  });
 });
