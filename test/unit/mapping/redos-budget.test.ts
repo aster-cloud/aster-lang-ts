@@ -85,34 +85,54 @@ function assertSubQuadratic(
     + '  人类文档是攻击者可控输入，一份构造过的文档就能钉死抽取线程。');
 }
 
+
+/**
+ * 绝对预算判据——★用于「修复态极快、缺陷态极慢」的场景。
+ *
+ * <h2>为什么这三条不用增长率</h2>
+ *
+ * 增长率在这里有个**无解的两难**（2026-09-13 在 main 的 CI 上实证）：
+ *
+ * - base 小 → `large` 落在 0.1〜2ms 的**噪声地板**，测的是调度器不是代码。
+ *   CI 实测把 0.49ms→1.77ms 判成 3.6× 而变红，而同一份代码本机
+ *   7 次取最小是干净的 2.01×。
+ * - base 大 → 脱离噪声了，但**缺陷态会跑到几百秒**（无锚模式 ×4 增长，
+ *   base=400000 时约 1028s/次）——门禁不是变红，而是**挂死**。
+ *   一个挂死的门禁比 flaky 的更糟：它连"哪里错了"都报不出来。
+ *
+ * <p>绝对预算同时解决两头：只需**一次**测量（不比值 ⇒ 不放大噪声），
+ * 且在缺陷态能**很快**超预算并报错。
+ *
+ * <p>实测 n=80000：修复态 ~2.5ms，缺陷态（撤掉左锚）约 10s ——
+ * **差 2500 倍**。取 500ms：修复态 125× 余量、缺陷态超 20 倍必红。
+ */
+function assertWithinBudget(label: string, input: string,
+                            fn: (s: string) => unknown, budgetMs = 500): void {
+  const ms = timeOf(() => { fn(input); });
+  assert.ok(ms < budgetMs,
+    `${label}：${input.length} 长度输入耗时 ${ms.toFixed(1)}ms —— 应 <${budgetMs}ms。\n`
+    + '★修复态实测 ~2.5ms，缺陷态（撤掉 `(?<![\\d.])` 左锚）同规模约 10s（2500×）。\n'
+    + '  超预算说明 ReDoS 左锚被去掉了，长数字串上的全量回退回来了。');
+}
+
 describe('ReDoS 时间预算门禁 — 量增长率而非绝对耗时', () => {
   it('★QuantityIR：长数字串上呈次二次增长', () => {
-    assertSubQuadratic(
-      'extractQuantities / 纯数字串',
-      n => '$' + '1'.repeat(n),
-      s => extractQuantities(s),
-      20000,
-    );
+    // ★改用绝对预算：见 assertWithinBudget 的注释（增长率在此有无解的两难）。
+    assertWithinBudget('extractQuantities / 纯数字串',
+      '$' + '1'.repeat(80000), s => extractQuantities(s));
   });
 
   it('★QuantityIR：数字与小数点混排（最坏形态）也呈次二次增长', () => {
     // ★比纯数字更毒：小数点让 `(?:\.\d+)?` 这个可选组也参与回溯。
-    assertSubQuadratic(
-      'extractQuantities / 数字+小数点',
-      n => '1.'.repeat(n / 2),
-      s => extractQuantities(s),
-      10000,
-    );
+    assertWithinBudget('extractQuantities / 数字+小数点',
+      '1.'.repeat(40000), s => extractQuantities(s));
   });
 
   it('★QuantityIR：贴着单位的长数字串（回溯最容易被触发的形态）', () => {
     // 末尾放一个**能匹配上**的单位，让正则引擎有理由一路试下去。
-    assertSubQuadratic(
-      'extractQuantities / 长数字+单位',
-      n => '1'.repeat(n) + '%',
-      s => extractQuantities(s),
-      20000,
-    );
+    // ★这条正是 2026-09-13 在 main 的 CI 上以 0.49ms→1.77ms 判 3.6× 变红的那条。
+    assertWithinBudget('extractQuantities / 长数字+单位',
+      '1'.repeat(80000) + '%', s => extractQuantities(s));
   });
 
   it('★SourceIR：长文档解析呈次二次增长', () => {
@@ -130,12 +150,8 @@ describe('ReDoS 时间预算门禁 — 量增长率而非绝对耗时', () => {
   });
 
   it('★SourceIR：长单行（无换行）不得触发回溯', () => {
-    assertSubQuadratic(
-      'parseSourceIr / 超长单行',
-      n => '#'.repeat(n) + ' 标题',
-      s => parseSourceIr(s),
-      20000,
-    );
+    assertWithinBudget('parseSourceIr / 超长单行',
+      '#'.repeat(80000) + ' 标题', s => parseSourceIr(s));
   });
 
   it('★SourceIR：**匹配失败**形态（无标题）—— 指数型回溯只活在这里', () => {
