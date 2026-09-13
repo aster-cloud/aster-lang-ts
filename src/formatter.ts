@@ -30,6 +30,19 @@ export function formatCNL(
       // fall through to normalize path
     }
   }
+  // ★线性短路守卫：两条 legacy 占位符模式都**必须**匹配到 `<`，
+  //   故整段源码里没有 `<` 时它们必然零匹配，可以整体跳过。
+  //
+  //   这是**纵深防御，不是修复**（诚实定性，见下方与 ADR 0037 §12.12）：
+  //     无 `<` 的输入（= 绝大多数真实源码）：2570ms → 0.00ms
+  //     载荷里**放一个 `<`** 就绕过守卫：n=40000 仍 5143ms（×4.0 二次）
+  //   即：它改善的是**真实世界**的常见路径，挡不住**刻意构造**的攻击者。
+  //
+  //   等价性实证（宽字母表，含 `\r \v \f` NBSP 全角 U+2028 与 `<` `>`）：
+  //   随机 300000 组、其中 126933 组确有替换，逐字节零分歧。
+  //   ——这条等价性是**可证明**的，不依赖语料：无 `<` ⇒ 两条模式必然零匹配。
+  const hasPlaceholder = text.includes('<');
+
   // Pre-sanitize common broken patterns (e.g., accidental '.:' before earlier formatter fix)
   const input = text
     .replace(/produce([^\n]*?)\.\s*:/g, (_m, p1) => `produce${p1}:`)
@@ -57,6 +70,12 @@ export function formatCNL(
     //   ★为什么宁可留着二次也不改：这条的正确性直接决定用户代码被改写成什么。
     //   正确性 > 性能。
     //
+    //   ★★2026-09-13 补：**改不了正则，就改输入**。本函数开头加了
+    //   `hasPlaceholder` 线性短路（无 `<` ⇒ 两条模式必然零匹配 ⇒ 整段跳过）。
+    //   那是**可证明**的等价，不依赖语料。真实源码绝大多数不含 `<`，
+    //   故常见路径已降到线性。但**放一个 `<` 就绕过**，二次仍在，
+    //   故本条仍属「已立项未修」，不得据此宣称已修复。
+    //
     //   ★★缓解因素（我第一版在这里写错过，特此更正）：
     //
     //   我原先写「二次只在**恰好含 `<expr>` 占位符**时触发」——**那是错的**。
@@ -83,17 +102,26 @@ export function formatCNL(
     //   绝对安全。仅存的内部调用方是 `scripts/format-examples.ts:31`（无 opts）
     //   与 `scripts/test-comments-golden.ts:21`（normalize），两者都未挂
     //   npm script、只读仓库自有文件。
-    .replace(/^\s*Return\s+<expr>\s*\./gm, match => match.replace(/<expr>/, 'none'))
-    .replace(/<expr>\s*\./g, 'none.')
     // Collapse accidental double periods from earlier bad formatters
     .replace(/\.{2,}/g, '.');
+
+  // ★两条占位符模式（**只有它们**需要 `<`）走短路。
+  //   ★我第一版把**整条 sanitize 链**都短路了，结果 `produce…:` 与
+  //   `.{2,}→.` 这两条**不需要 `<`** 的清理也被跳过——语义被改坏。
+  //   是我自己写的语义对拍测试当场抓到的（`"produce a. : b"`、`"a..b"` 两个反例）。
+  //   ★教训：短路守卫的**作用域**必须精确到「真正依赖该前提的那几步」。
+  const withPlaceholdersFixed = !hasPlaceholder ? input
+    : input
+        .replace(/^\s*Return\s+<expr>\s*\./gm, match => match.replace(/<expr>/, 'none'))
+        .replace(/<expr>\s*\./g, 'none.');
   // ★这一条同样**保持原样**（二次，40000→2571ms）。
   //   我曾改成代码层线性扫描（函数已删），用 200000 组
   //   随机输入验证「零分歧」——但那个生成器的**字母表只有 space/tab/`\n`**。
   //   换成含 `\r \v \f` NBSP 全角空格的宽字母表重跑：**71754/300000 分歧**。
   //   根因同上一条：`\s` 与 `^`(m) 涉及的字符集远比 `[ \t\n]` 宽。
   //   正确性优先，已回退。详见上一条注释里的「已试方案」表。
-  const sanitized = input.replace(/^\s*Return\s+<[^>]+>\s*\./gm, 'Return none.');
+  const sanitized = !hasPlaceholder ? withPlaceholdersFixed
+    : withPlaceholdersFixed.replace(/^\s*Return\s+<[^>]+>\s*\./gm, 'Return none.');
   const can = canonicalize(sanitized);
   let tokens;
   let originalTokens; // For extracting comments from original text

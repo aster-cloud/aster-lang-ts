@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 
+import { formatCNL } from '../../src/formatter.js';
 import { printCNLFromCst } from '../../src/cst/cst_printer.js';
 import { buildCstLossless } from '../../src/cst/index.js';
 
@@ -59,6 +60,52 @@ function assertSubQuadratic(label: string, build: (n: number) => string,
     `${label}：${base}→${base * 2}（翻倍）耗时 ${small.toFixed(1)}ms→${large.toFixed(1)}ms，`
     + `增长 ${ratio.toFixed(1)}× —— 应 <3×。\n★接近 4× = 二次回溯，修复被撤掉了。`);
 }
+
+describe('formatCNL — 占位符短路守卫', () => {
+  it('★无 `<` 的源码不得走进二次 sanitize（常见路径已线性）', () => {
+    // 两条 legacy 占位符模式都**必须**匹配到 `<`，故无 `<` 时必然零匹配，
+    // 可整体跳过。这是**可证明**的等价，不依赖语料。
+    // 改前端到端 20000 个空行需 1319ms；加守卫后 ~18ms。
+    const N = 20000;
+    const src = 'Let x be 1' + '\n'.repeat(N) + '.';
+    const ms = timeOf(() => { formatCNL(src); });
+
+    assert.ok(ms < 300,
+      `无 \`<\` 的全空行源码（${N} 行）耗时 ${ms.toFixed(0)}ms —— 应 <300ms。\n`
+      + '★超预算说明 `hasPlaceholder` 短路守卫被去掉了，'
+      + '两条 `^\\s*Return\\s+<...>` 的二次回溯回来了。');
+  });
+
+  it('★短路守卫不得改变语义（含/不含 `<` 都要与无守卫一致）', () => {
+    // 反向守卫：守卫若判错（例如把含 `<` 的也跳过），占位符就不会被改写。
+    // 此处直接对拍「无守卫」的原始链路。
+    const sanitizeNoGuard = (t: string): string =>
+      t.replace(/produce([^\n]*?)\.\s*:/g, (_m, p1) => `produce${p1}:`)
+        .replace(/^\s*Return\s+<expr>\s*\./gm, m => m.replace(/<expr>/, 'none'))
+        .replace(/<expr>\s*\./g, 'none.')
+        .replace(/\.{2,}/g, '.')
+        .replace(/^\s*Return\s+<[^>]+>\s*\./gm, 'Return none.');
+    // ★守卫只包住**依赖 `<` 的那两步**；`produce…:` 与 `.{2,}→.` 无条件执行。
+    //   我第一版把整条链都短路了，被下面的 `"produce a. : b"` / `"a..b"` 抓到。
+    const sanitizeGuarded = (t: string): string => {
+      const base = t.replace(/produce([^\n]*?)\.\s*:/g, (_m, p1) => `produce${p1}:`)
+        .replace(/\.{2,}/g, '.');
+      if (!t.includes('<')) return base;
+      return base
+        .replace(/^\s*Return\s+<expr>\s*\./gm, m => m.replace(/<expr>/, 'none'))
+        .replace(/<expr>\s*\./g, 'none.')
+        .replace(/^\s*Return\s+<[^>]+>\s*\./gm, 'Return none.');
+    };
+
+    for (const src of [
+      'Let x be 1.', 'Return <expr>.', '  Return <x>.', '\n\nReturn <x>.',
+      'a\n  Return <x>.', 'no placeholder here', 'x < y', 'produce a. : b',
+    ]) {
+      assert.strictEqual(sanitizeGuarded(src), sanitizeNoGuard(src),
+        `短路守卫改变了语义。输入 ${JSON.stringify(src)}`);
+    }
+  });
+});
 
 describe('printCNLFromCst / reflowSeams — ReDoS 门禁', () => {
   /**
