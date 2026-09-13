@@ -140,4 +140,37 @@ describe('QuantityIR — 机械抽取数量实体', () => {
         `${role} 出现在 Quantity 输出里 —— Entity 应由 LLM 提出，本模块不得猜测。`);
     }
   });
+
+  it('★ReDoS 守卫：长数字串不得触发二次回溯', () => {
+    // 本模块吃的是**人类文档**——攻击者可控的输入。
+    // 没有 `(?<![\d.])` 左锚时，`\d+` 会在每个数字位置重新贪婪扫描再回退，
+    // 实测呈二次增长：5000→36ms、10000→144ms、20000→576ms、40000→2304ms。
+    // 一份构造过的文档就能把抽取线程钉死。
+    const evil = '$' + '1'.repeat(40000);
+
+    const t = Date.now();
+    extractQuantities(evil);
+    const ms = Date.now() - t;
+
+    assert.ok(ms < 500,
+      `40000 长度的数字串耗时 ${ms}ms —— 应 <500ms。`
+      + '\n★超时说明 PERCENT/DURATION 的左锚 `(?<![\\d.])` 被去掉了，二次回溯回来了。');
+  });
+
+  it('★加锚后语义不变（左锚是 ReDoS 修复，不得改变匹配结果）', () => {
+    // 反向守卫：若有人为了"更快"把锚点改成别的写法而改变了语义，这条会红。
+    const cases: ReadonlyArray<readonly [string, readonly string[]]> = [
+      ['抽 1.5% 起', ['1.5%']],
+      ['30 天内', ['30 天']],
+      ['1.5%和24小时', ['1.5%', '24小时']],
+      ['0.5天', ['0.5天']],
+      ['100%', ['100%']],
+    ];
+    for (const [doc, expected] of cases) {
+      const got = extractQuantities(doc)
+        .filter(q => q.kind === 'PERCENT' || q.kind === 'DURATION')
+        .map(q => q.text);
+      assert.deepStrictEqual(got, [...expected], `文档 ${JSON.stringify(doc)} 的匹配结果变了`);
+    }
+  });
 });
