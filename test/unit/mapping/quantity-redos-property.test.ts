@@ -138,22 +138,42 @@ describe('QuantityIR ReDoS 修复 — property-based 验证', () => {
     //   两个方向都**空洞地成立**。我只断言了变化的**方向**，没断言变化
     //   **发生过**。这正是本仓记过的「测试锁形状不锁内容」。
     //
-    //   故补上这条：必须存在至少一个输入，新旧结果确有差异。拆掉锚点 → 变红。
-    const witnesses = ['1.51.5%', '12.34.56%', '1..5%', '..5%', '1.2.3 小时'];
-    const differing = witnesses.filter(
-      doc => JSON.stringify(currentExtract(doc)) !== JSON.stringify(legacyExtract(doc)));
+    //   故补上这条：必须存在至少一个输入，新旧结果确有差异。
+    //
+    // ★★这条的**第一版仍然是假绿**，由独立审查者用变异找出来：
+    //
+    //   原写法是 `witnesses.filter(...).length > 0`——一个**逻辑或**。
+    //   把 DURATION 的锚 `(?<![\d.])` 削弱成 `(?<!\d)`（精确复活「静默伪造
+    //   数量」缺陷：`1.2.3 小时` → 伪造出 `2.3 小时`），**11/11 依然全绿**，
+    //   因为 `1.51.5%` 走的是 PERCENT、锚完好、仍有差异 → OR 条件满足。
+    //
+    //   ★**一个还活着的锚点替所有其他锚点背书**。更讽刺的是
+    //   `1.2.3 小时` 就在见证集里，但它在变异后与基准相等、对 OR 贡献 0，
+    //   于是无人察觉。
+    //
+    //   修法：**逐 kind 分别钉死**，不许任何一条搭别人的便车。
+    const WITNESSES: ReadonlyArray<readonly [string, readonly string[], readonly string[]]> = [
+      // [输入, 现行应抽出的, 旧模式（无锚）会抽出的伪造值]
+      ['1.51.5%',        [], ['51.5%']],
+      ['12.34.56%',      [], ['34.56%']],
+      ['1..5%',          [], ['5%']],
+      ['..5%',           [], ['5%']],
+      ['1.2.3 小时',      [], ['2.3 小时']],      // ← DURATION，必须单独钉
+      ['12.34.56 days',  [], ['34.56 days']],   // ← DURATION 英文单位，同样单独钉
+      ['1..5 hours',     [], ['5 hours']],
+    ];
 
-    assert.ok(differing.length > 0,
-      '所有见证输入上新旧结果都相同 —— 说明左锚 `(?<![\\d.])` 已失效或被移除。'
-      + `\n见证集：${JSON.stringify(witnesses)}`);
+    for (const [doc, expectedNow, expectedLegacy] of WITNESSES) {
+      // ① 现行实现**不得**抽出任何伪造数量
+      assert.deepStrictEqual(currentExtract(doc).map(x => x.text), [...expectedNow],
+        `${JSON.stringify(doc)} 不是合法数量，不应抽出任何值。\n`
+        + '★抽出了值说明该 kind 的左锚 `(?<![\\d.])` 失效或被削弱'
+        + '（例如改成 `(?<!\\d)` 就只挡数字、不挡小数点）。');
 
-    // 逐条钉死差异的**具体形态**，防止「差异存在但方向变了」也算过。
-    assert.deepStrictEqual(
-      currentExtract('1.51.5%'), [],
-      '`1.51.5%` 不是合法数量，不应抽出任何百分比；旧模式会抽出伪造的 "51.5%"。');
-    assert.deepStrictEqual(
-      legacyExtract('1.51.5%').map(x => x.text), ['51.5%'],
-      '基准函数未复现旧行为 —— 对照基准本身失效了。');
+      // ② 基准确实会抽出伪造值——否则上面那条是空洞的
+      assert.deepStrictEqual(legacyExtract(doc).map(x => x.text), [...expectedLegacy],
+        `基准函数未复现旧行为 —— 对照基准本身失效了。输入 ${JSON.stringify(doc)}`);
+    }
   });
 
   it('★任意输入下输出都无重叠、按位置升序（不变式，非样本）', () => {

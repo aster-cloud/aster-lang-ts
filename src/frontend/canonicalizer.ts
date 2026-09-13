@@ -512,9 +512,25 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   }
 
   // Step 3: Restore multi-word keywords from markers
-  for (const [marker, keyword] of keywordMarkers) {
-    marked = marked.replace(marker, keyword);
-  }
+  //
+  // ★单趟回调替换，**不要**退回「逐个 marker 各扫一遍」的写法：
+  //
+  //   for (const [marker, keyword] of keywordMarkers) marked = marked.replace(marker, keyword);
+  //
+  // `.replace(string, string)` 每次都从偏移 0 重扫并**重建整串**。多词关键词
+  // （`greater than` / `at least` 等）每出现一次就造一个 marker，故 marker 数 M
+  // 随输入长度线性增长 → 总功 **O(M·n)**，实测呈二次。
+  //
+  // 实测（`If a is greater than b.` 重复，含**对照基线**以证明归因）：
+  //   含多词关键词：94KB→31ms、188KB→291ms、375KB→1049ms、750KB→3368ms（每翻倍 ×3.2〜3.6）
+  //   等长无关键词：24ms 且 ×1.94（线性）—— 证明慢的是 marker 数而非文件大小
+  //
+  // ★canonicalize() 是 TS 侧**每一条编译路径**的第一步，输入为用户源码。
+  // ★Java 侧同载荷仅 156ms 且线性（未采用 marker 方案）——这是 TS 独有的 21× 分歧。
+  //
+  // 单趟等价性实证：随机 100000 组（83779 组确有替换，含未登记 marker 原样保留
+  // 的用例），与逐个替换逐字节零分歧。
+  marked = marked.replace(/\x00KW\d+\x00/g, m => keywordMarkers.get(m) ?? m);
   // 清空「只含空白的行」，但**不得改变行数**。
   //
   // ★原写法 `/^\s+$/gm` 与紧邻的注释「Do not collapse newlines globally」自相矛盾：
