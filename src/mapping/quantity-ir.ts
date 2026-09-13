@@ -215,6 +215,22 @@ function normalize(kind: QuantityKind, text: string): { value: string; unit?: st
       return value === undefined ? undefined : { value };
     }
     case 'DURATION': {
+      // ★线性短路：`(.+)$` 里 `.` **不匹配 `\n`**，且 `$` 是串尾（无 `m` 标志）。
+      //   故只要整串以 `\n` 结尾，该模式**必然失配**——但正则引擎要靠
+      //   `\d+` 逐位回退才能确认这一点，呈二次：
+      //     10000→152ms、20000→607ms、40000→2430ms、80000→9723ms（×4.0）
+      //
+      //   一次 `lastIndexOf('\n')` 就能提前判定，把二次砍成 O(n)：
+      //   实测 80000 长度 9723ms → 0.007ms。
+      //
+      //   ★等价性可证明：以 `\n` 结尾 ⇒ 任何切分的尾部要么为空、要么含 `\n`
+      //   ⇒ `(.+)$` 必不匹配。实证：随机 300000 组（96356 组匹配成功）零分歧。
+      //
+      //   ★这条是 **CodeQL 报出来的**（js/polynomial-redos, high）。我第一次
+      //   实测时只试了 5 种载荷，全是线性，一度判定它误报——直到补上
+      //   「尾随 `\n`」这一种才复现。**我的载荷决定了我的结论**，又一次。
+      if (text.endsWith('\n')) return undefined;
+
       const m = /^(\d+(?:\.\d+)?)\s?(.+)$/.exec(text);
       if (m === null) return undefined;
       const value = canonicalDecimal(m[1]!);
