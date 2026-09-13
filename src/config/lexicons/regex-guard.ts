@@ -79,6 +79,68 @@ function hasNestedQuantifier(pattern: string): boolean {
 }
 
 /**
+ * 检测**相邻量词**歧义：`a*a*b`、`a+a+b`、`\d*\d*x` 这类。
+ *
+ * <h2>★为什么 {@link hasNestedQuantifier} 抓不到它</h2>
+ *
+ * 那个检查只看「被量词修饰的**分组**」，而歧义**不需要分组**即可产生：
+ * 两个相邻的、能匹配**同一字符集**的量词，会让「这个 a 归左边还是右边」
+ * 产生 2^n 种切分，后缀失配时全部被穷举。
+ *
+ * <p>实测（独立审查者发现，我已复现）：
+ * <pre>
+ *   a*a*a*a*a*a*a*a*a*a*b   ← 守卫 ACCEPTED，24 字符输入耗时 1705ms（每 +2 字符翻倍）
+ *   a+a+a+a+a+a+a+a+b       ← 守卫 ACCEPTED，同样指数
+ * </pre>
+ *
+ * <p>★TS 侧**没有看门狗兜底**（Java 侧的 {@code replaceAllWithTimeout} 有），
+ * 单线程 JS 下这就是无限挂死。
+ *
+ * <h2>判据</h2>
+ *
+ * 相邻两个「原子 + 量词」，且两个原子**文本相同**（保守：只认完全相同的原子，
+ * 不做字符集交集分析）。这样 {@code a*b*c} 这类不同原子的不会被误伤。
+ */
+function hasAdjacentAmbiguousQuantifier(pattern: string): boolean {
+  /** 从 i 处解析一个「原子 + 量词」，返回 [原子文本, 下一个位置]；无量词则返回 null。 */
+  const readQuantifiedAtom = (s: string, i: number): [string, number] | null => {
+    let atomStart = i;
+    let j = i;
+    if (s[j] === '\\') {
+      j += 2;                                   // 转义原子，如 \d \w \.
+    } else if (s[j] === '[') {                  // 字符类
+      j++;
+      while (j < s.length && s[j] !== ']') { if (s[j] === '\\') j++; j++; }
+      j++;
+    } else if (s[j] === '(' || s[j] === ')' || s[j] === '|') {
+      return null;                              // 分组由 hasNestedQuantifier 负责
+    } else {
+      j++;                                      // 单字符原子
+    }
+    const atom = s.slice(atomStart, j);
+    const q = s[j];
+    if (q === '*' || q === '+') return [atom, j + 1];
+    if (q === '{') {
+      const m = /^\{\d*,\d*\}|^\{\d*,\}/.exec(s.slice(j));   // 开区间重复才有歧义
+      if (m) return [atom, j + m[0].length];
+    }
+    return null;
+  };
+
+  for (let i = 0; i < pattern.length; i++) {
+    const first = readQuantifiedAtom(pattern, i);
+    if (first === null) {
+      if (pattern[i] === '\\') i++;             // 跳过转义
+      continue;
+    }
+    const second = readQuantifiedAtom(pattern, first[1]);
+    if (second !== null && second[0] === first[0]) return true;
+    i = first[1] - 1;
+  }
+  return false;
+}
+
+/**
  * True if a quantified group's body itself contains a quantifier or a top-level
  * alternation — the two shapes that make an outer `+`/`*` exponential.
  */
@@ -129,6 +191,14 @@ export function compileGuardedRegex(
     return {
       ok: false,
       error: `${label}pattern rejected: nested quantifier (ReDoS-prone) detected in /${pattern}/`,
+    };
+  }
+
+  if (hasAdjacentAmbiguousQuantifier(pattern)) {
+    return {
+      ok: false,
+      error: `${label}pattern rejected: adjacent ambiguous quantifier (ReDoS-prone) detected in /${pattern}/`
+        + ' — e.g. `a*a*b`: two quantifiers over the same atom make the split exponential',
     };
   }
 

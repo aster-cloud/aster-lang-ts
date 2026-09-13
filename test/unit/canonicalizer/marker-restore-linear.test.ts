@@ -62,11 +62,21 @@ describe('canonicalize marker 还原 — 必须单趟（线性）', () => {
     }
 
     const ratio = large / Math.max(small, 0.001);
-    assert.ok(ratio < 3.0,
+
+    // ★判据是「**相对对照基线**的倍率」，不是写死的 3.0。
+    //
+    //   我第一版写死 `ratio < 3.0`，单独跑 2.0× 稳过，但**全量套件并发跑**时
+    //   涨到 3.40× 直接变红——这是典型的 flaky 门禁，最后会被人加 skip。
+    //
+    //   对照基线与本组**同时**受调度抖动影响，故两者的比值把机器负载约掉了。
+    //   缺陷态的信号极强（改前 ×9.69 vs 对照 ×1.94，差 5 倍），
+    //   取 2.0 倍余量既挡得住回归，又扛得住噪声。
+    const relative = ratio / Math.max(ctrlRatio, 0.001);
+    assert.ok(relative < 2.0,
       `多词关键词源码 ${base}→${base * 2}（翻倍）耗时 ${small.toFixed(0)}ms→${large.toFixed(0)}ms，`
-      + `增长 ${ratio.toFixed(2)}× —— 应 <3×。\n`
-      + `★对照基线（等长无关键词）增长 ${ctrlRatio.toFixed(2)}× —— `
-      + '对照线性而本组超线性，说明 marker 还原退回了「逐个 replace」的 O(M·n) 写法。\n'
+      + `增长 ${ratio.toFixed(2)}×；对照基线（等长无关键词）增长 ${ctrlRatio.toFixed(2)}×，`
+      + `相对倍率 ${relative.toFixed(2)} —— 应 <2.0。\n`
+      + '★对照线性而本组超线性，说明 marker 还原退回了「逐个 replace」的 O(M·n) 写法。\n'
       + '  修法：marked.replace(/\\x00KW\\d+\\x00/g, m => keywordMarkers.get(m) ?? m)');
   });
 
