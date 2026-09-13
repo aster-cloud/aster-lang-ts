@@ -231,7 +231,7 @@ function normalize(kind: QuantityKind, text: string): { value: string; unit?: st
       //   「尾随 `\n`」这一种才复现。**我的载荷决定了我的结论**，又一次。
       if (text.endsWith('\n')) return undefined;
 
-      const m = /^(\d+(?:\.\d+)?)\s?(.+)$/.exec(text);
+      const m = /^(\d+(?:\.\d+)?)\s?([^\n]+)$/.exec(text);
       if (m === null) return undefined;
       const value = canonicalDecimal(m[1]!);
       return value === undefined ? undefined : { value, unit: m[2]! };
