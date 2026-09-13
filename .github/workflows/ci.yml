@@ -38,6 +38,16 @@ jobs:
           path: aster-lang-platform
           token: ${{ secrets.CROSS_REPO_TOKEN }}
 
+      # 共享判定语料（ADR 0037 §7）：test/unit/mapping/verdict-parity.test.ts
+      # 与 Java 侧 MappingIrVerdictParityTest 读**同一个文件**，证明两引擎
+      # verifier 判定一致。★此前 aster-lang-test 只在 parity job 里 checkout，
+      # 而该测试跑在本 job——不补这步，语料不存在、门禁必红。
+      - uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
+        with:
+          repository: aster-cloud/aster-lang-test
+          path: aster-lang-test
+          token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
+
       # ★错误码单源门禁（2026-08-17 审计）：error-codes-parity 里的
       #   「ts 源 json 与 Java 仓副本 byte-identical」断言此前**从未在 CI 执行**——
       #   它 try/catch 到文件缺失就 return，而这里从不 checkout core。
