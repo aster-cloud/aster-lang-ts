@@ -77,6 +77,14 @@ test('regex-guard 测试套件', async (t) => {
       '\\d*\\d*x',
       '[ab]*[ab]*c',
       'a{1,}a{1,}b',
+      // ★以下三条是独立审查者找出的绕过（第一版全部 ACCEPTED，实测 24 字符
+      //   输入 1720ms / 1720ms / 640ms，与已修的 a*a*b 同级）。
+      //   根因：readQuantifiedAtom 遇 `(` 直接 return null 并注释「交给
+      //   hasNestedQuantifier」，但后者只看**分组内部**有无量词——
+      //   `(a)*(a)*` 两侧内部都没有，于是**无人负责**。
+      '(a)*(a)*b',
+      '(?:a)*(?:a)*b',
+      'a*?a*?b',
     ]) {
       const result = compileGuardedRegex(evil, '');
       assert.strictEqual(result.ok, false, `相邻量词模式 ${evil} 未被拒绝`);
@@ -96,6 +104,8 @@ test('regex-guard 测试套件', async (t) => {
       'a*b*c', '\\d+\\w+', '[a-z]+[0-9]*', '(ab)+c', 'a+b',
       '\\bfoo\\b', 'greater\\s+than', '[\\p{L}]+', 'x{2,5}y',
       'a*a', 'aa*', '\\s+\\S+', '^(#{1,6})\\s',
+      // ★反向：不同原子的相邻量词、含分组的合法模式不得被误伤
+      '(a)(b)*c', '(?:ab)*(?:cd)*e', 'a*?b*?c',
     ]) {
       const result = compileGuardedRegex(ok, ok.includes('p{') ? 'u' : '');
       assert.strictEqual(result.ok, true,

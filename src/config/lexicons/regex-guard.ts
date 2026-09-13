@@ -104,7 +104,7 @@ function hasNestedQuantifier(pattern: string): boolean {
 function hasAdjacentAmbiguousQuantifier(pattern: string): boolean {
   /** 从 i 处解析一个「原子 + 量词」，返回 [原子文本, 下一个位置]；无量词则返回 null。 */
   const readQuantifiedAtom = (s: string, i: number): [string, number] | null => {
-    let atomStart = i;
+    const atomStart = i;
     let j = i;
     if (s[j] === '\\') {
       j += 2;                                   // 转义原子，如 \d \w \.
@@ -112,17 +112,33 @@ function hasAdjacentAmbiguousQuantifier(pattern: string): boolean {
       j++;
       while (j < s.length && s[j] !== ']') { if (s[j] === '\\') j++; j++; }
       j++;
-    } else if (s[j] === '(' || s[j] === ')' || s[j] === '|') {
-      return null;                              // 分组由 hasNestedQuantifier 负责
+    } else if (s[j] === '(') {
+      // ★分组也是原子：`(a)*(a)*b` / `(?:a)*(?:a)*b` 与 `a*a*b` 同样指数。
+      //   我第一版在这里直接 `return null`、注释「交给 hasNestedQuantifier」，
+      //   但那个检查只看**分组内部**有没有量词——`(a)*(a)*` 两侧内部都没有，
+      //   于是**无人负责**。独立审查者实测：两者 24 字符输入均 1720ms。
+      let depth = 0;
+      while (j < s.length) {
+        if (s[j] === '\\') { j += 2; continue; }
+        if (s[j] === '(') depth++;
+        else if (s[j] === ')') { depth--; if (depth === 0) { j++; break; } }
+        j++;
+      }
+      if (depth !== 0) return null;             // 不平衡，交给 RegExp 构造器报错
+    } else if (s[j] === ')' || s[j] === '|') {
+      return null;
     } else {
       j++;                                      // 单字符原子
     }
     const atom = s.slice(atomStart, j);
     const q = s[j];
-    if (q === '*' || q === '+') return [atom, j + 1];
+    // ★惰性量词 `*?` / `+?` 同样有歧义切分（实测 `a*?×10` 24 字符 640ms），
+    //   故读完量词后要把可选的 `?` 一并吃掉。
+    const lazy = (k: number): number => (s[k] === '?' ? k + 1 : k);
+    if (q === '*' || q === '+') return [atom, lazy(j + 1)];
     if (q === '{') {
       const m = /^\{\d*,\d*\}|^\{\d*,\}/.exec(s.slice(j));   // 开区间重复才有歧义
-      if (m) return [atom, j + m[0].length];
+      if (m) return [atom, lazy(j + m[0].length)];
     }
     return null;
   };

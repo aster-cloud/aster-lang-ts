@@ -45,39 +45,45 @@ function timeOf(src: string): number {
 }
 
 describe('canonicalize marker 还原 — 必须单趟（线性）', () => {
-  it('★多词关键词密集的源码不得呈超线性增长', () => {
-    const base = 8000;
-    const small = timeOf(WITH_KEYWORDS.repeat(base));
-    const large = timeOf(WITH_KEYWORDS.repeat(base * 2));
-
-    // ★对照基线：同样翻倍，但输入不含多词关键词。
-    //   它用来证明「若 large/small 偏大，原因是 marker 而非输入变长」。
-    const ctrlSmall = timeOf(CONTROL.repeat(base));
-    const ctrlLarge = timeOf(CONTROL.repeat(base * 2));
-    const ctrlRatio = ctrlLarge / Math.max(ctrlSmall, 0.001);
-
-    if (large < 1.0) {
-      assert.ok(large < 200, `耗时 ${large.toFixed(2)}ms 超出绝对预算 200ms`);
-      return;
-    }
-
-    const ratio = large / Math.max(small, 0.001);
-
-    // ★判据是「**相对对照基线**的倍率」，不是写死的 3.0。
+  it('★多词关键词密集的源码必须在绝对预算内完成', () => {
+    // ★这条**换过两版判据**，两版都被独立审查者证伪，值得写清楚：
     //
-    //   我第一版写死 `ratio < 3.0`，单独跑 2.0× 稳过，但**全量套件并发跑**时
-    //   涨到 3.40× 直接变红——这是典型的 flaky 门禁，最后会被人加 skip。
+    //   v1 `ratio < 3.0`（写死增长率）
+    //      → 单独跑 2.0× 稳过，**全量套件并发**时涨到 3.40× 变红。flaky。
     //
-    //   对照基线与本组**同时**受调度抖动影响，故两者的比值把机器负载约掉了。
-    //   缺陷态的信号极强（改前 ×9.69 vs 对照 ×1.94，差 5 倍），
-    //   取 2.0 倍余量既挡得住回归，又扛得住噪声。
-    const relative = ratio / Math.max(ctrlRatio, 0.001);
-    assert.ok(relative < 2.0,
-      `多词关键词源码 ${base}→${base * 2}（翻倍）耗时 ${small.toFixed(0)}ms→${large.toFixed(0)}ms，`
-      + `增长 ${ratio.toFixed(2)}×；对照基线（等长无关键词）增长 ${ctrlRatio.toFixed(2)}×，`
-      + `相对倍率 ${relative.toFixed(2)} —— 应 <2.0。\n`
-      + '★对照线性而本组超线性，说明 marker 还原退回了「逐个 replace」的 O(M·n) 写法。\n'
+    //   v2 `ratio / 对照基线ratio < 2.0`（相对化）
+    //      → 修好了 flaky，但**把信号也除掉了**：审查者把 marker 还原退回
+    //        O(M·n)，门禁 **3/3 全绿**（本组 ×3.45 ÷ 对照 ×2.10 = 1.64 < 2.0）。
+    //        这是「门禁在结构上无法变红」——比 flaky 更糟。
+    //      ★我引用的「改前 ×9.69」取自 base=4000，而门禁跑的是 base=8000
+    //        （实测仅 ×3.40）——**证据取自与门禁不同的输入规模**。
+    //
+    //   v3（本版）**绝对预算**。缺陷态与修复态在同一规模上差 ~30 倍，
+    //   余量足够大，既不受并发抖动影响，也不会把信号除没：
+    //     修复态  n=32000 → 110ms
+    //     缺陷态  n=32000 → 3368ms
+    //   取 800ms：修复态有 7× 余量（扛得住慢机器/并发），缺陷态超 4 倍必红。
+    const N = 32000;
+    const src = WITH_KEYWORDS.repeat(N);
+    const ms = timeOf(src);
+
+    assert.ok(ms < 800,
+      `${N} 次多词关键词的源码（${(src.length / 1024).toFixed(0)}KB）耗时 ${ms.toFixed(0)}ms —— 应 <800ms。\n`
+      + '★修复态实测 110ms，缺陷态 3368ms（30×）。超预算说明 marker 还原退回了\n'
+      + '  「逐个 replace」的 O(M·n) 写法——每次 replace 都从偏移 0 重扫并重建整串。\n'
       + '  修法：marked.replace(/\\x00KW\\d+\\x00/g, m => keywordMarkers.get(m) ?? m)');
+  });
+
+  it('★对照基线：等长但无多词关键词的输入必须明显更快（证明归因）', () => {
+    // 反向守卫：若两者耗时相当，说明慢的是「输入大」而非「marker 多」，
+    // 上一条的绝对预算就失去了归因意义。
+    const N = 32000;
+    const withKw = timeOf(WITH_KEYWORDS.repeat(N));
+    const control = timeOf(CONTROL.repeat(N));
+
+    assert.ok(control < withKw * 2,
+      `对照基线（无多词关键词）${control.toFixed(0)}ms 竟不快于含关键词的 ${withKw.toFixed(0)}ms —— \n`
+      + '说明 marker 机制没在起作用，上一条的绝对预算失去归因意义。');
   });
 
   it('★还原结果必须与逐个替换逐字节一致（语义守卫）', () => {

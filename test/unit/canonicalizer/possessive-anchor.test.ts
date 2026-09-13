@@ -43,8 +43,13 @@ function assertSubQuadratic(label: string, build: (n: number) => string,
   const small = time(base);
   const large = time(base * 2);
 
-  if (large < 1.0) {
-    assert.ok(large < 50, `${label}：${large.toFixed(2)}ms 超出绝对预算 50ms`);
+  // ★早退分支断言**噪声地板本身**，不是一个必然成立的宽松上界。
+  //   原写法 `if (large < 1.0) assert.ok(large < 50)` 在数学上**永不失败**
+  //   （进入分支的前提就是 large < 1.0，而 1.0 < 50）——那是恒真断言。
+  const NOISE_FLOOR_MS = 1.0;
+  if (large < NOISE_FLOOR_MS) {
+    assert.ok(large < NOISE_FLOOR_MS,
+      `${label}：${large.toFixed(3)}ms —— 应 <${NOISE_FLOOR_MS}ms。`);
     return;
   }
   const ratio = large / Math.max(small, 0.001);

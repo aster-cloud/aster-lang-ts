@@ -27,7 +27,7 @@ import { parseSourceIr } from '../../../src/mapping/source-ir.js';
  */
 
 /** 取多次测量的**最小值**——最小值最接近真实计算量，受调度抖动干扰最小。 */
-function timeOf(fn: () => void, repeats = 3): number {
+function timeOf(fn: () => void, repeats = 7): number {
   let best = Infinity;
   for (let i = 0; i < repeats; i++) {
     const t = process.hrtime.bigint();
@@ -121,7 +121,11 @@ describe('ReDoS 时间预算门禁 — 量增长率而非绝对耗时', () => {
       'parseSourceIr / 多级标题文档',
       n => Array.from({ length: n }, (_, i) => `${'#'.repeat((i % 6) + 1)} 标题 ${i}\n正文 ${i}`).join('\n'),
       s => parseSourceIr(s),
-      2000,
+      // ★base 从 2000 提到 20000：原先 large 仅 1.36ms，在噪声地板附近判增长率
+      //   纯属测量噪声（实测 8 次里红 1 次，0.34ms→1.36ms 报 4.0×）。
+      //   提高规模让 large 稳定超过 10ms，比值才有意义。
+      //   ★20000 仍不够（3.22ms→10.02ms 曾报 3.1×），再提到 40000。
+      40000,
     );
   });
 

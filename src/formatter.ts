@@ -34,21 +34,40 @@ export function formatCNL(
   const input = text
     .replace(/produce([^\n]*?)\.\s*:/g, (_m, p1) => `produce${p1}:`)
     // Replace legacy placeholder return with strict 'none'
-    // ★`(?<=^|\n)([ \t]*)` 取代原 `^\s*`（配 m 标志）—— 这是 **ReDoS 修复**。
-    //   原式的 `\s*` 含 `\n` 且可跨行，`^` 在 m 下落在**每个**行首，于是每个
-    //   行首都要向后扫穿所有剩余空行，呈二次增长：
-    //     5000→40ms、10000→159ms、20000→643ms、40000→2570ms（×4.0）
-    //   ★本条的替换体是 `match.replace(...)`——它**原样保留**匹配到的空白，
-    //   所以缩进无需被 `\s*` 消费，改成不跨行的 `[ \t]*` 语义完全一致。
-    //   实证：随机 200000 组、92489 组确有替换，逐字节零分歧；耗时 2570ms→0ms。
-    .replace(/(?<=^|\n)([ \t]*)Return\s+<expr>\s*\./g, match => match.replace(/<expr>/, 'none'))
+    //
+    // ★★这一条**保持原样**，它确实是二次的（40000→2570ms），但我**没有**
+    //   找到既等价又线性的改法，故不动它。记录已试过的方案，避免后人重走：
+    //
+    //   | 改法 | 等价？ | 线性？ |
+    //   |---|---|---|
+    //   | `(?<=^\|\n)([ \t]*)` | ✖ 窄字母表下零分歧，**宽字母表下全分歧** | ✓ |
+    //   | `(?<!\s)\s*`（去 `^`） | ✖ 84063/300000 分歧 | ✓ |
+    //   | `(?<!\s)^\s*`（保 `^`） | ✖ 30133/300000 分歧 | ✓ |
+    //   | `(?<=^\|[\n\r…])(?:[^\S\n\r…]*[\n\r…])*…` | ✓ 零分歧 | ✖ **仍二次且慢 3 倍** |
+    //   | 代码层左扫（两版） | ✖ 136116 / 121272 分歧 | ✓ |
+    //
+    //   ★第一行是我犯的错，值得写清楚：我曾据「200000 组零分歧」断言它等价，
+    //   但我的**生成器字母表只有 space/tab/`\n`**——结构性地造不出反例。
+    //   独立审查者用含 `\r \v \f` NBSP `U+2028` 的字母表一跑，**169/169 全分歧**。
+    //   根因：`m` 下 `^` 也匹配 `\r`/`U+2028`/`U+2029`；`\s` 含 `\v \f` NBSP 全角空格
+    //   而 `[ \t]` 不含。NBSP／全角空格是复制粘贴的常见输入，端到端可见。
+    //
+    //   **「零分歧」量的是语料，不是代码。**
+    //
+    //   ★为什么宁可留着二次也不改：这条的正确性直接决定用户代码被改写成什么，
+    //   而它的二次只在「构造过的全空行文件 + 恰好含 `<expr>` 占位符」时触发
+    //   ——占位符是**历史遗留格式**，正常源码不含。正确性 > 性能。
+    .replace(/^\s*Return\s+<expr>\s*\./gm, match => match.replace(/<expr>/, 'none'))
     .replace(/<expr>\s*\./g, 'none.')
     // Collapse accidental double periods from earlier bad formatters
     .replace(/\.{2,}/g, '.');
-  // ★原先这里还有一条 `.replace(/^\s*Return\s+<[^>]+>\s*\./gm, 'Return none.')`，
-  //   已改由 replaceLegacyPlaceholderReturn() 实现（同样二次，但**无法**靠改正则
-  //   修复，详见该函数注释）。语义逐字节一致。
-  const sanitized = replaceLegacyPlaceholderReturn(input);
+  // ★这一条同样**保持原样**（二次，40000→2571ms）。
+  //   我曾改成代码层线性扫描 replaceLegacyPlaceholderReturn()，用 200000 组
+  //   随机输入验证「零分歧」——但那个生成器的**字母表只有 space/tab/`\n`**。
+  //   换成含 `\r \v \f` NBSP 全角空格的宽字母表重跑：**71754/300000 分歧**。
+  //   根因同上一条：`\s` 与 `^`(m) 涉及的字符集远比 `[ \t\n]` 宽。
+  //   正确性优先，已回退。详见上一条注释里的「已试方案」表。
+  const sanitized = input.replace(/^\s*Return\s+<[^>]+>\s*\./gm, 'Return none.');
   const can = canonicalize(sanitized);
   let tokens;
   let originalTokens; // For extracting comments from original text
