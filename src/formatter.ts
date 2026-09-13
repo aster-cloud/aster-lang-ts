@@ -78,6 +78,23 @@ export function formatCNL(
   return bom + out;
 }
 
+/**
+ * 去掉行尾的空格与制表符。
+ *
+ * <p>★刻意**不用正则**：`/[ \t]+$/` 呈二次回溯（`+` 在每个起始位置贪婪吃完
+ * 再回退），实测 40000 空格的单行需 2424ms。格式化器吃的是用户源码，属攻击者
+ * 可控输入。从行尾反向线性扫描是 O(n)，且语义完全一致。
+ */
+function stripTrailingBlanks(line: string): string {
+  let end = line.length;
+  while (end > 0) {
+    const c = line.charCodeAt(end - 1);
+    if (c !== 32 && c !== 9) break;   // 空格 / 制表符
+    end--;
+  }
+  return end === line.length ? line : line.slice(0, end);
+}
+
 // Best-effort: preserve inline end-of-line comments (// or #) by collecting them
 // from the original and appending them to the corresponding non-empty lines in
 // the formatted output. Standalone comment lines are not preserved.
@@ -105,7 +122,10 @@ function reattachInlineComments(
     if (line.trim().length === 0) continue;
     // Avoid duplicating if formatted line already contains a comment
     if (/\/\//.test(line) || /(^|\s)#/.test(line)) continue;
-    fmtLines[i] = line.replace(/[ \t]+$/, '') + '  ' + comments[ci]!;
+    // ★用线性扫描而非 `/[ \t]+$/` —— 后者是**二次回溯**：`+` 在每个位置都
+    //   贪婪吃完剩余空白再因不到行尾而回退。实测 40000 空格的单行需 2424ms，
+    //   而格式化器吃的是用户源码（攻击者可控）。
+    fmtLines[i] = stripTrailingBlanks(line) + '  ' + comments[ci]!;
     ci++;
   }
   // Insert standalone comments on empty lines (try to place near top/bottom and around blocks)
