@@ -5,7 +5,6 @@ import { lex } from '../frontend/lexer.js';
 import { parse } from '../parser.js';
 import { lowerModule } from '../lower_to_core.js';
 import { proposeEntities, verifyEntityCandidate } from './entity-proposer.js';
-import type { EntityCandidate } from './quantity-ir.js';
 import type { Proof, ProofSubject } from './proof-ir.js';
 import { runSemanticBridge, type BridgeResult } from './pipeline.js';
 
