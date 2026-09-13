@@ -74,3 +74,17 @@ export type {
 
 // 类型定义重导出
 export type * from './types.js';
+
+// ── ADR 0037 可验证语义桥 ────────────────────────────────────────────
+// ★接线后才导出：此前六个模块全是死代码（生产调用数 0、不在导出面内）。
+//   `runSemanticBridge` 是唯一入口，内部串起
+//   SourceIR → QuantityIR → CandidateGenerator → MappingIR。
+export { runSemanticBridge } from './mapping/pipeline.js';
+export type { BridgeResult, VerifiedCandidate } from './mapping/pipeline.js';
+export { parseSourceIr, nodeAtOffset, verifyCoverage } from './mapping/source-ir.js';
+export type { SourceNode, SectionKind } from './mapping/source-ir.js';
+export { extractQuantities } from './mapping/quantity-ir.js';
+export type { Quantity, QuantityKind, EntityCandidate } from './mapping/quantity-ir.js';
+export { verifyMapping } from './mapping/mapping-ir.js';
+export type { CandidateMapping, VerificationResult, VerificationVerdict,
+  VerifiableNode, TextSpan } from './mapping/mapping-ir.js';
