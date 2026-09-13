@@ -27,9 +27,29 @@ import { verifyMapping, type VerifiableNode } from '../../../src/mapping/mapping
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// ★路径从**编译产物** dist/test/unit/mapping 起算（不是源码目录），故是 5 级。
-//   我第一版按源码目录写了 4 级，测试直接红——路径类的东西必须实测，不能数目录。
-const CORPUS = resolve(HERE, '../../../../../aster-lang-test/corpus/mapping-verdict/cases.json');
+/**
+ * 共享语料路径。★**两种布局都要支持**：
+ *
+ * - **本地开发**：兄弟仓并列 → `<repo>/../aster-lang-test/...`
+ * - **CI**：`checkout-sibling` 用 `path: aster-lang-test` 把它检出到
+ *   **工作区内** → `<repo>/aster-lang-test/...`
+ *
+ * ★路径从**编译产物** `dist/test/unit/mapping` 起算（不是源码目录）。
+ * 我第一版按源码目录数了 4 级、且只考虑了本地布局——前者当场红，
+ * 后者**本地通过但 CI 上必然失败**。路径类的东西必须实测，不能数目录。
+ */
+const CORPUS = ((): string => {
+  const rel = 'corpus/mapping-verdict/cases.json';
+  for (const base of [
+    resolve(HERE, '../../../../aster-lang-test'),      // CI：检出到工作区内
+    resolve(HERE, '../../../../../aster-lang-test'),   // 本地：兄弟仓并列
+  ]) {
+    const p = resolve(base, rel);
+    if (existsSync(p)) return p;
+  }
+  // 都找不到时返回本地布局路径，让"语料必须存在"那条报出明确的缺失信息。
+  return resolve(HERE, '../../../../../aster-lang-test', rel);
+})();
 
 interface Case {
   readonly name: string;
