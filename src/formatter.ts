@@ -65,11 +65,24 @@ export function formatCNL(
     //     含占位符 n=40000 → 2572ms      ← 完全一样
     //   我陈述的那个缓解因素提供**零保护**。
     //
-    //   真正的缓解是**可达路径受限**：本 sanitize 链只在
-    //   `formatCNL(..., { mode: 'normalize' })` 下执行，而 LSP 的默认是
-    //   `'lossless'`（见 `src/lsp/formatting.ts:34,60` 的 mode 分支）。
-    //   另：全仓 `.aster`/`.cnl` 语料中 `Return <` **零命中**，占位符确属
-    //   历史遗留格式——但这只说明**触发面窄**，不减轻单次调用的二次代价。
+    //   真正的缓解是**可达路径受限**，三条（均实测，见 ADR 0037 §12.12）：
+    //
+    //   1. 本 sanitize 链在 `mode !== 'lossless'` 时执行——★**包括不传 opts
+    //      的默认调用**（`formatCNL(s)` n=40000 实测 5232ms，与 normalize 同）。
+    //      我第一版在这里写「只在 `{ mode: 'normalize' }` 下执行」，**漏了默认
+    //      那一档**。LSP 侧默认走 `'lossless'`（`src/lsp/formatting.ts:34,60`），
+    //      且是**直接调** `buildCstLossless` 而非经 `formatCNL`，故 LSP 不可达。
+    //   2. ★`formatCNL` **不在 `src/index.ts` 的公开导出面内**
+    //      （`dist/src/index.js` 零命中）→ 第三方消费者无法直接调到。
+    //      这条比第 1 条更强。
+    //   3. 全仓 `.aster`/`.cnl` 语料中 `Return <` **零命中**，占位符确属历史
+    //      遗留格式——但这只说明**触发面窄**，不减轻单次调用的二次代价。
+    //
+    //   ★注意：`lossless` 分支在 `buildCstLossless` 抛异常时会 fall through
+    //   到 normalize（`U+FFFF` 可触发，实测 5212ms）——传了 lossless 也不等于
+    //   绝对安全。仅存的内部调用方是 `scripts/format-examples.ts:31`（无 opts）
+    //   与 `scripts/test-comments-golden.ts:21`（normalize），两者都未挂
+    //   npm script、只读仓库自有文件。
     .replace(/^\s*Return\s+<expr>\s*\./gm, match => match.replace(/<expr>/, 'none'))
     .replace(/<expr>\s*\./g, 'none.')
     // Collapse accidental double periods from earlier bad formatters
