@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { formatCNL, replaceLegacyPlaceholderReturn } from '../../src/formatter.js';
+
 import { printCNLFromCst } from '../../src/cst/cst_printer.js';
 import { buildCstLossless } from '../../src/cst/index.js';
 
@@ -59,48 +59,6 @@ function assertSubQuadratic(label: string, build: (n: number) => string,
     `${label}：${base}→${base * 2}（翻倍）耗时 ${small.toFixed(1)}ms→${large.toFixed(1)}ms，`
     + `增长 ${ratio.toFixed(1)}× —— 应 <3×。\n★接近 4× = 二次回溯，修复被撤掉了。`);
 }
-
-describe('formatCNL — ReDoS 门禁', () => {
-  // ★这里**没有**「formatCNL 全空行必须次二次」那条门禁，是有意的。
-  //
-  //   `formatCNL` 的 sanitize 阶段有两条 `^\s*Return\s+<...>\s*\.`（m 标志），
-  //   它们**确实是二次的**（20000 个空行 → 1319ms）。我曾把它们改成线性，
-  //   但独立审查者证明我的改写**在宽字母表下不等价**（`\r \v \f` NBSP 全角
-  //   空格上行为全变），已回退 —— 详见 `formatter.ts` 里的「已试方案」表。
-  //
-  //   **正确性 > 性能**：这两条决定用户代码被改写成什么，宁可慢也不能错。
-  //   故此处**不设**该门禁——设一条「明知会红」的断言只会变成 flaky 噪音，
-  //   最后被人加 skip，反而掩盖真问题。
-  //   风险已在 ADR 0037 §12.11 记录并单独立项。
-  //
-  //   ★下面 reflowSeams 的三条是**真修好了**的（等价性在宽字母表下复验过），
-  //   故它们保留门禁。
-
-  it('★占位 Return 的改写语义不得被性能修复改坏（对拍原正则）', () => {
-    // 反向守卫：线性化重写必须**逐字节**保持原行为，包括
-    // 「吞掉前导空白行与缩进」这个反直觉的部分。
-    //
-    // ★这里对拍的是 **sanitize 阶段**而非 formatCNL 的最终输出。原因：
-    //   `Return <expr>.` 这种片段本身不是合法 CNL（Return 不在函数体内），
-    //   formatCNL 解析失败会返回 ""——**那是既有行为**，与本修复无关。
-    //   拿最终输出做断言会把「解析失败」误判成「我改坏了」。
-    //   我第一版正是这么写的，红了才发现测错了对象。
-    const legacy = /^\s*Return\s+<[^>]+>\s*\./gm;
-
-    for (const src of [
-      'Return <expr>.',
-      '  Return <x>.',
-      '\n\nReturn <x>.',
-      'a\n  Return <x>.',
-      'Define f as a function:\n\n  Return <anything>.',
-    ]) {
-      legacy.lastIndex = 0;
-      const expected = src.replace(legacy, 'Return none.');
-      assert.strictEqual(replaceLegacyPlaceholderReturn(src), expected,
-        `线性化重写与原正则行为不一致。\n输入 ${JSON.stringify(src)}`);
-    }
-  });
-});
 
 describe('printCNLFromCst / reflowSeams — ReDoS 门禁', () => {
   /**

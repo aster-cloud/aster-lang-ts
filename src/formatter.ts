@@ -54,15 +54,28 @@ export function formatCNL(
     //
     //   **「零分歧」量的是语料，不是代码。**
     //
-    //   ★为什么宁可留着二次也不改：这条的正确性直接决定用户代码被改写成什么，
-    //   而它的二次只在「构造过的全空行文件 + 恰好含 `<expr>` 占位符」时触发
-    //   ——占位符是**历史遗留格式**，正常源码不含。正确性 > 性能。
+    //   ★为什么宁可留着二次也不改：这条的正确性直接决定用户代码被改写成什么。
+    //   正确性 > 性能。
+    //
+    //   ★★缓解因素（我第一版在这里写错过，特此更正）：
+    //
+    //   我原先写「二次只在**恰好含 `<expr>` 占位符**时触发」——**那是错的**。
+    //   `^\s*` 在**每个行首**回溯，与后面有没有 `Return <...>` 毫无关系。实测：
+    //     无占位符 n=40000 → 2572ms
+    //     含占位符 n=40000 → 2572ms      ← 完全一样
+    //   我陈述的那个缓解因素提供**零保护**。
+    //
+    //   真正的缓解是**可达路径受限**：本 sanitize 链只在
+    //   `formatCNL(..., { mode: 'normalize' })` 下执行，而 LSP 的默认是
+    //   `'lossless'`（见 `src/lsp/formatting.ts:34,60` 的 mode 分支）。
+    //   另：全仓 `.aster`/`.cnl` 语料中 `Return <` **零命中**，占位符确属
+    //   历史遗留格式——但这只说明**触发面窄**，不减轻单次调用的二次代价。
     .replace(/^\s*Return\s+<expr>\s*\./gm, match => match.replace(/<expr>/, 'none'))
     .replace(/<expr>\s*\./g, 'none.')
     // Collapse accidental double periods from earlier bad formatters
     .replace(/\.{2,}/g, '.');
   // ★这一条同样**保持原样**（二次，40000→2571ms）。
-  //   我曾改成代码层线性扫描 replaceLegacyPlaceholderReturn()，用 200000 组
+  //   我曾改成代码层线性扫描（函数已删），用 200000 组
   //   随机输入验证「零分歧」——但那个生成器的**字母表只有 space/tab/`\n`**。
   //   换成含 `\r \v \f` NBSP 全角空格的宽字母表重跑：**71754/300000 分歧**。
   //   根因同上一条：`\s` 与 `^`(m) 涉及的字符集远比 `[ \t\n]` 宽。
@@ -105,70 +118,6 @@ export function formatCNL(
   const leading = cst.leading?.text ?? '';
   const bom = leading.startsWith('\uFEFF') ? '\uFEFF' : '';
   return bom + out;
-}
-
-/** 只匹配**本行**的占位 Return，不跨行——跨行部分交给下面的代码层处理。 */
-const LEGACY_PLACEHOLDER_RETURN = /^[ \t]*Return\s+<[^>]+>\s*\./gm;
-
-/**
- * 把遗留占位返回 `Return <任意>.` 改写成 `Return none.`，
- * 并按原语义**吞掉它前面的整片空白行与缩进**。
- *
- * <h2>★为什么必须写成代码，而不是一条正则</h2>
- *
- * 原实现是 `text.replace(/^\s*Return\s+<[^>]+>\s*\./gm, 'Return none.')`，
- * 呈**二次**增长（5000→40ms、10000→161ms、20000→643ms、40000→2571ms，×4.0），
- * 端到端 `formatCNL` 亦为二次（20000 个空行需 1319ms）。格式化器吃的是用户源码。
- *
- * <p>成因与本文件其他 ReDoS 不同，**无法靠改正则消除**：`m` 标志下 `^` 会
- * 合法地落在**每一个**行首，而 `\s*` 跨行向后扫，于是总功是 O(行数 × 剩余长度)。
- * 我试过四种改法，全部失败：
- *
- * <pre>
- *   ^[ \t]*                          → 不等价（旧式会吞掉前导空行）：22407 组分歧
- *   (?&lt;!\s)^\s*                      → 不等价：18722 组分歧
- *   去掉 m 标志                       → 不等价：21121 组分歧
- *   ^(?:[ \t]*\n)*[ \t]*（等价）      → **等价但仍二次**，且慢 3 倍（40000→8721ms）
- * </pre>
- *
- * <p>★「找到了等价写法」不等于「修好了」——第四种逐字节等价却更慢。
- * 等价性与线性必须**同时**满足。
- *
- * <p>故改为：用**不跨行**的模式线性定位（正则只在本行内工作），
- * 再在代码里向左吞掉整片空白行。每个字符最多被访问常数次 → O(n)。
- * 实测 2571ms → 0.0ms，且 5000→80000 全程线性。
- *
- * <p>等价性实证：随机 200000 组（其中 **135236 组确有替换**，证明样本非空洞），
- * 与原正则逐字节零分歧。
- */
-export function replaceLegacyPlaceholderReturn(text: string): string {
-  let out = '';
-  let last = 0;
-  LEGACY_PLACEHOLDER_RETURN.lastIndex = 0;
-
-  for (let m = LEGACY_PLACEHOLDER_RETURN.exec(text); m !== null;
-       m = LEGACY_PLACEHOLDER_RETURN.exec(text)) {
-    let start = m.index;
-
-    // 向左吞掉「整行都是空白」的行——复刻原 `^\s*` 的跨行行为。
-    // ★每次外循环吞掉的字符此后不再被访问，故总功仍是 O(n)。
-    while (start > 0) {
-      if (text[start - 1] !== '\n') break;
-      let q = start - 2;
-      while (q >= 0 && (text[q] === ' ' || text[q] === '\t')) q--;
-      if (q < 0 || text[q] === '\n') {
-        start = q + 1;       // 整行皆空白 → 连同该行一起吞掉
-        continue;
-      }
-      break;                 // 上一行有内容 → 停在这个 \n 之后
-    }
-
-    if (start < last) start = last;   // 防止与上一处匹配的区间重叠
-    out += text.slice(last, start) + 'Return none.';
-    last = m.index + m[0].length;
-  }
-
-  return out + text.slice(last);
 }
 
 /**

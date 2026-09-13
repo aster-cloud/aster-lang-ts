@@ -100,6 +100,14 @@ function hasNestedQuantifier(pattern: string): boolean {
  *
  * 相邻两个「原子 + 量词」，且两个原子**文本相同**（保守：只认完全相同的原子，
  * 不做字符集交集分析）。这样 {@code a*b*c} 这类不同原子的不会被误伤。
+ *
+ * <h2>★已知边界（如实记录，不编造覆盖）</h2>
+ *
+ * 「文本完全相同」挡不住**语义等价但文本不同**的相邻原子，例如具名组
+ * `(?<n>a)*(?<n2>a)*b`（实测 22 字符 796ms，本检查 ACCEPT）。
+ * 要覆盖它需要字符集/结构等价分析，那会显著抬高误伤风险——而误伤会
+ * **静默丢掉**用户的合法 overlay 规则，比漏一个 ReDoS 更难发现。
+ * 故刻意停在保守判据，把缺口写明而不是假装不存在。
  */
 function hasAdjacentAmbiguousQuantifier(pattern: string): boolean {
   /** 从 i 处解析一个「原子 + 量词」，返回 [原子文本, 下一个位置]；无量词则返回 null。 */
@@ -117,9 +125,19 @@ function hasAdjacentAmbiguousQuantifier(pattern: string): boolean {
       //   我第一版在这里直接 `return null`、注释「交给 hasNestedQuantifier」，
       //   但那个检查只看**分组内部**有没有量词——`(a)*(a)*` 两侧内部都没有，
       //   于是**无人负责**。独立审查者实测：两者 24 字符输入均 1720ms。
+      // ★必须跳过**字符类**：`[)]` 里的括号不是分组括号。
+      //   我第一版没跳，导致 `([)])*([)])*b` / `([(])*([(])*b` 深度算错、
+      //   被判为"不平衡"而放行——**这是本次改动新引入的漏判**
+      //   （上一版遇 `(` 直接 return null，反而不会误算）。实测 22 字符 794ms。
       let depth = 0;
       while (j < s.length) {
         if (s[j] === '\\') { j += 2; continue; }
+        if (s[j] === '[') {                     // 字符类：整体跳过
+          j++;
+          while (j < s.length && s[j] !== ']') { if (s[j] === '\\') j++; j++; }
+          j++;
+          continue;
+        }
         if (s[j] === '(') depth++;
         else if (s[j] === ')') { depth--; if (depth === 0) { j++; break; } }
         j++;

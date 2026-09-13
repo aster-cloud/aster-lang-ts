@@ -85,6 +85,10 @@ test('regex-guard 测试套件', async (t) => {
       '(a)*(a)*b',
       '(?:a)*(?:a)*b',
       'a*?a*?b',
+      // ★字符类里的括号会骗过深度扫描——这是**加分组支持时新引入**的漏判
+      //   （上一版遇 `(` 直接 return null，反而不会误算深度）。实测 22 字符 794ms。
+      '([)])*([)])*b',
+      '([(])*([(])*b',
     ]) {
       const result = compileGuardedRegex(evil, '');
       assert.strictEqual(result.ok, false, `相邻量词模式 ${evil} 未被拒绝`);
@@ -105,7 +109,7 @@ test('regex-guard 测试套件', async (t) => {
       '\\bfoo\\b', 'greater\\s+than', '[\\p{L}]+', 'x{2,5}y',
       'a*a', 'aa*', '\\s+\\S+', '^(#{1,6})\\s',
       // ★反向：不同原子的相邻量词、含分组的合法模式不得被误伤
-      '(a)(b)*c', '(?:ab)*(?:cd)*e', 'a*?b*?c',
+      '(a)(b)*c', '(?:ab)*(?:cd)*e', 'a*?b*?c', '([)])(a)*b',
     ]) {
       const result = compileGuardedRegex(ok, ok.includes('p{') ? 'u' : '');
       assert.strictEqual(result.ok, true,
