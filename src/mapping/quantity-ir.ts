@@ -131,7 +131,42 @@ const PATTERNS: ReadonlyArray<{ kind: QuantityKind; re: RegExp }> = [
  */
 export function extractQuantities(document: string): readonly Quantity[] {
   const found: Quantity[] = [];
+
+  // ★`claimed` 始终按 start 升序，用二分查重叠 —— 这是 **O(m²) 修复**。
+  //
+  //   原写法是 `claimed.some(c => ...)`：每个匹配都线性扫一遍已占位区间，
+  //   m 个匹配总功 O(m²)。实测（多匹配载荷 `'1% '.repeat(n)`）：
+  //     2000→12ms  4000→11ms  8000→35ms(×3.3)  16000→183ms(×5.2)
+  //
+  //   ★这个缺陷**逃过了 §12.6 的 ReDoS 门禁**：那里的载荷是
+  //   `'$' + '1'.repeat(40000)`——**只有一个匹配**，`claimed` 恒为 1，
+  //   O(m²) 项永不激活。门禁量的是对的东西（增长率），但**语料有盲区**。
   const claimed: { start: number; end: number }[] = [];
+
+  /** 二分定位第一个 `end > start` 的区间；只需检查它是否与 [start,end) 重叠。 */
+  const overlaps = (start: number, end: number): boolean => {
+    let lo = 0;
+    let hi = claimed.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (claimed[mid]!.end <= start) lo = mid + 1;
+      else hi = mid;
+    }
+    // claimed 互不重叠且有序，故只有 lo 处那个区间可能与之相交。
+    return lo < claimed.length && claimed[lo]!.start < end;
+  };
+
+  /** 按 start 升序插入，维持 `claimed` 的有序不变式。 */
+  const insertClaimed = (start: number, end: number): void => {
+    let lo = 0;
+    let hi = claimed.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (claimed[mid]!.start < start) lo = mid + 1;
+      else hi = mid;
+    }
+    claimed.splice(lo, 0, { start, end });
+  };
 
   for (const { kind, re } of PATTERNS) {
     re.lastIndex = 0;
@@ -139,12 +174,12 @@ export function extractQuantities(document: string): readonly Quantity[] {
       const start = m.index;
       const end = start + m[0].length;
       // ★后来者不得与已占位区间重叠：保证输出无重叠，且优先级由 PATTERNS 顺序决定。
-      if (claimed.some(c => start < c.end && end > c.start)) continue;
+      if (overlaps(start, end)) continue;
 
       const parsed = normalize(kind, m[0]);
       if (parsed === undefined) continue; // 形态像但规范化不出来 → 不抽，绝不编造
 
-      claimed.push({ start, end });
+      insertClaimed(start, end);
       found.push({
         kind, span: { start, end }, text: m[0],
         value: parsed.value,
