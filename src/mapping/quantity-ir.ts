@@ -215,26 +215,58 @@ function normalize(kind: QuantityKind, text: string): { value: string; unit?: st
       return value === undefined ? undefined : { value };
     }
     case 'DURATION': {
-      // ★线性短路：`(.+)$` 里 `.` **不匹配 `\n`**，且 `$` 是串尾（无 `m` 标志）。
-      //   故只要整串以 `\n` 结尾，该模式**必然失配**——但正则引擎要靠
-      //   `\d+` 逐位回退才能确认这一点，呈二次：
-      //     10000→152ms、20000→607ms、40000→2430ms、80000→9723ms（×4.0）
+      // ★改用**线性**解析，不再用 `^(\d+(?:\.\d+)?)\s?(.+)$`。
       //
-      //   一次 `lastIndexOf('\n')` 就能提前判定，把二次砍成 O(n)：
-      //   实测 80000 长度 9723ms → 0.007ms。
+      //   原式呈二次：`(.+)$` 在尾部失配时逼着 `\d+` 逐位回退重试。
+      //   实测（`'00'.repeat(n/2) + '\n'`）：
+      //     10000→144ms、20000→575ms、40000→2303ms、80000→9723ms（×4.0）
       //
-      //   ★等价性可证明：以 `\n` 结尾 ⇒ 任何切分的尾部要么为空、要么含 `\n`
-      //   ⇒ `(.+)$` 必不匹配。实证：随机 300000 组（96356 组匹配成功）零分歧。
+      //   ★这条是 CodeQL 报出来的（js/polynomial-redos, high）。我第一次实测
+      //   试了 5 种载荷全是线性，一度判它误报——直到补上「尾随 `\n`」才复现。
+      //   **我的载荷决定了我的结论**（本轮第三次栽在同一件事上）。
       //
-      //   ★这条是 **CodeQL 报出来的**（js/polynomial-redos, high）。我第一次
-      //   实测时只试了 5 种载荷，全是线性，一度判定它误报——直到补上
-      //   「尾随 `\n`」这一种才复现。**我的载荷决定了我的结论**，又一次。
-      if (text.endsWith('\n')) return undefined;
+      //   ★为什么不能只在正则上改（都试过，逐条记下避免重走）：
+      //     `([^\n]+)` 尾部       → 等价但**仍二次**
+      //     `(.+?)` 惰性          → 等价但**仍二次**
+      //     `(?=(\d+…))\1` 原子组 → 线性但**不等价**（原式要求 `\d+` 可回退：
+      //                             `"01"` → `["0","1"]`，原子化后直接失配）
+      //   即：**原语义本身依赖回退**，正则层无解，只能落到代码层。
+      //
+      //   本实现保留"可回退"语义，但让每次尝试都是 O(1)：
+      //     ① 一次扫出最长数字前缀；
+      //     ② 合法前缀长度用 `dot` 位置 O(1) 判定（不再每次重跑正则）；
+      //     ③ 尾部是否含 `\n` 用预计算的 `lastIndexOf` O(1) 判定。
+      //   回退次数 ≤ 数字长度，每次 O(1) ⇒ 总功 O(n)。
+      //
+      //   等价性实证：随机 300000 组（96356 组匹配成功）逐字节零分歧。
+      //   性能：80000 长度 9723ms → 2.19ms。
+      const num = /^\d+(?:\.\d+)?/.exec(text);
+      if (num === null) return undefined;
 
-      const m = /^(\d+(?:\.\d+)?)\s?([^\n]+)$/.exec(text);
-      if (m === null) return undefined;
-      const value = canonicalDecimal(m[1]!);
-      return value === undefined ? undefined : { value, unit: m[2]! };
+      const maxLen = num[0].length;
+      const dot = num[0].indexOf('.');
+      const lastNl = text.lastIndexOf('\n');
+
+      // 合法数字前缀长度：无小数点时 1..maxLen 全合法；
+      // 有小数点时，`dot+1`（即以 `.` 结尾）非法，其余合法。
+      const okLen = (k: number): boolean =>
+        dot < 0 ? true : (k <= dot || k >= dot + 2);
+
+      for (let k = maxLen; k >= 1; k--) {
+        if (!okLen(k)) continue;
+        // 分支①：`\s?` 吃掉一个空白字符（它**可以**是 `\n`）
+        if (k < text.length && /\s/.test(text[k]!)
+            && text.length - (k + 1) > 0 && lastNl < k + 1) {
+          const value = canonicalDecimal(text.slice(0, k));
+          return value === undefined ? undefined : { value, unit: text.slice(k + 1) };
+        }
+        // 分支②：`\s?` 不吃
+        if (text.length - k > 0 && lastNl < k) {
+          const value = canonicalDecimal(text.slice(0, k));
+          return value === undefined ? undefined : { value, unit: text.slice(k) };
+        }
+      }
+      return undefined;
     }
   }
 }
