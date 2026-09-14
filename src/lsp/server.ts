@@ -28,10 +28,8 @@ import type {
 } from '../types.js';
 import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import { LexiconRegistry, initializeAllBundledLexicons } from '../config/lexicons/index.js';
-import { vocabularyRegistry } from '../config/lexicons/identifiers/registry.js';
 import { buildCanonicalizeOptions } from './canonicalize-options.js';
 import { applyTenantInitOptions, type TenantInitOptions } from './tenant-init.js';
-import type { DomainVocabulary } from '../config/lexicons/identifiers/types.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { attachDiagnosticMessages } from '../config/lexicons/diagnostic-messages.js';
 import { buildIdIndex, exprTypeText } from './utils.js';
