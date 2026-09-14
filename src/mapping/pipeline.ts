@@ -45,6 +45,22 @@ import { verifyMapping, type CandidateMapping, type VerificationResult,
 export interface VerifiedCandidate {
   readonly mapping: CandidateMapping;
   readonly result: VerificationResult;
+  /**
+   * 目标节点在**本次判定时**的内容指纹（`NodeIdMap` 的 contentHash）。
+   *
+   * <p>★**必须随候选一起交出去**：人工复核记录 Proof 时要用它锚定
+   * 「当时看到的是哪一版内容」。内容一变，`isApplicableTo` 才能算出
+   * `CONTENT_CHANGED` 而不是悄悄沿用旧结论。
+   *
+   * <p>★这个字段是**接 UI 时补的**：此前 `BridgeResult` 不含它，
+   * 导致复核面板拿不到 hash、提交必被服务端拒（要求 64 位十六进制）。
+   * 单测全绿也发现不了——因为没有任何测试真的走完"取候选 → 提交结论"。
+   * 又一次「验了对象，没验连线」。
+   *
+   * <p>节点不在 NodeIdMap 中时为 `undefined`（正常情况下不会发生，
+   * 真发生了 diagnostics 里会有「路径口径可能漂移」）。
+   */
+  readonly contentHash: string | undefined;
 }
 
 /** 端到端结果。★所有"没做成"的事都在 `diagnostics` 里，不静默丢弃。 */
@@ -134,6 +150,7 @@ export function runSemanticBridge(source: string): BridgeResult {
     verified = generated.candidates.map(mapping => ({
       mapping,
       result: verifyMapping(mapping, id => byId.get(id)),
+      contentHash: identities.get(mapping.nodeId)?.contentHash,
     }));
   } catch (e) {
     // ★不把编译失败当成错误——"任意文字"本就编译不了。

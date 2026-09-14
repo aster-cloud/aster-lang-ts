@@ -68,6 +68,26 @@ describe('语义桥端到端 — 可编译源码', () => {
     }
   });
 
+  it('★候选必须带合法 contentHash —— 否则复核结论无法落库', () => {
+    // ★这条是**接 UI 时补的**，补的是一处真实缺口：
+    //   BridgeResult 此前**不含** contentHash，导致复核面板拿不到 hash，
+    //   提交必被服务端拒（要求 64 位十六进制 SHA-256）。
+    //
+    //   ★而当时所有单测都是绿的——因为没有任何测试真的走完
+    //   「取候选 → 提交结论」这条链。又一次「验了对象，没验连线」。
+    //
+    //   contentHash 是**时效性判据**：内容一变，isApplicableTo 才能算出
+    //   CONTENT_CHANGED，而不是悄悄沿用旧结论。
+    const r = runSemanticBridge(ASTER_SRC);
+    assert.ok(r.verified.length > 0, '前置：应有候选。');
+    for (const c of r.verified) {
+      assert.ok(c.contentHash !== undefined,
+        `候选 ${c.mapping.nodeId} 缺 contentHash —— 它将无法被复核落库。`);
+      assert.match(c.contentHash!, /^[0-9a-f]{64}$/,
+        `contentHash 必须是 64 位十六进制 SHA-256，实际 ${JSON.stringify(c.contentHash)}`);
+    }
+  });
+
   it('★nodeId 必须与 NodeIdMap 口径一致（路径漂移守卫）', () => {
     // 三方（collectLiteralNodes / collectVerifiableNodes / NodeIdMap）
     // 的 segmentOf 规则必须一致，否则候选的 nodeId 与 resolve 的键对不上。
