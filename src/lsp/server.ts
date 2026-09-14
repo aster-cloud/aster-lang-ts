@@ -29,7 +29,7 @@ import type {
 import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import { LexiconRegistry, initializeAllBundledLexicons } from '../config/lexicons/index.js';
 import { buildCanonicalizeOptions } from './canonicalize-options.js';
-import { applyTenantInitOptions, type TenantInitOptions } from './tenant-init.js';
+import { resolveTenantContext } from './tenant-init.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { attachDiagnosticMessages } from '../config/lexicons/diagnostic-messages.js';
 import { buildIdIndex, exprTypeText } from './utils.js';
@@ -202,9 +202,7 @@ connection.onInitialize(async (params: InitializeParams) => {
    *   且失败不阻断 initialize —— 词汇缺失应表现为「补全少了几项」，
    *   而不是「LSP 起不来」。
    */
-  const tenantInit = applyTenantInitOptions(
-    params.initializationOptions as TenantInitOptions | undefined,
-  );
+  const tenantInit = resolveTenantContext(params);
   currentTenantId = tenantInit.tenantId;
   currentDomain = tenantInit.domain;
   for (const msg of tenantInit.skipped) {

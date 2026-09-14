@@ -84,3 +84,33 @@ export function applyTenantInitOptions(
 
   return { tenantId, domain, registered, skipped };
 }
+
+/**
+ * 从 **`InitializeParams` 整体**解析并应用租户上下文。
+ *
+ * <p>★为什么还要这一层：{@link applyTenantInitOptions} 收的是
+ * `initializationOptions`，测试直接调它——于是 `server.ts` 里
+ * 「把 `params.initializationOptions` 真的喂进去」那一步**没有任何测试触达**。
+ * 实测：把那行改成 `applyTenantInitOptions(undefined)`，全量 1819 条仍全绿。
+ *
+ * <p>这就是「抽纯函数要抽到底」：抽出被调用方只证明了函数内部对，
+ * 证明不了它被正确调用。本函数把「从 params 取哪个字段」也纳入可测范围——
+ * 改成取错字段（或传 undefined）即有用例变红。
+ *
+ * <p>★**残余边界（如实记录，不要高估覆盖）**：`server.ts` 里那一行
+ * `resolveTenantContext(params)` 本身仍不可测——该模块顶层就
+ * `createConnection()`，一 import 就抛 "Connection input stream is not set"。
+ * 实测把它改成 `resolveTenantContext(undefined)`，本文件 15 条仍全绿。
+ *
+ * <p>要彻底封口需把 `createConnection()` 延迟到 `main()` 使模块可 import，
+ * 再用 `vscode-languageserver` 的内存流发一次真 `initialize` 做端到端接线测试。
+ * 那是独立的重构，不在本 PR 范围内。当前状态：**从 params 到 registry 的
+ * 全链路已可测，只剩「把 params 传进来」这一行靠代码审查保证**。
+ */
+export function resolveTenantContext(
+  params: { initializationOptions?: unknown } | undefined,
+): TenantInitResult {
+  return applyTenantInitOptions(
+    params?.initializationOptions as TenantInitOptions | undefined,
+  );
+}

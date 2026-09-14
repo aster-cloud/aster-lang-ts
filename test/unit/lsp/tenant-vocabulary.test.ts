@@ -8,7 +8,7 @@ import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
 import type { DomainVocabulary } from '../../../src/config/lexicons/identifiers/types.js';
 import { buildCanonicalizeOptions } from '../../../src/lsp/canonicalize-options.js';
-import { applyTenantInitOptions } from '../../../src/lsp/tenant-init.js';
+import { applyTenantInitOptions, resolveTenantContext } from '../../../src/lsp/tenant-init.js';
 
 /**
  * 租户领域词汇必须参与 LSP 的解析（issue #161）。
@@ -191,6 +191,44 @@ describe('租户上下文注册（applyTenantInitOptions）', () => {
 
     assert.equal(r.tenantId, undefined, '一个都没注册成功就不该带 tenantId');
     assert.equal(r.skipped.length, 2);
+  });
+
+  it('★从 InitializeParams **整体**取 initializationOptions（接线本身）', () => {
+    // ★这条锁的是 server.ts 里「把 params.initializationOptions 喂进去」那一步。
+    //   实测：把那行改成 applyTenantInitOptions(undefined)，全量 1819 条仍全绿——
+    //   抽出被调用方只证明函数内部对，证明不了它被正确调用
+    //   （「抽纯函数要抽到底」/「验连线不只验对象」）。
+    const r = resolveTenantContext({
+      initializationOptions: { tenantId: T, domainVocabularies: [vocabOf('vi.wire')] },
+    });
+
+    assert.equal(r.tenantId, T);
+    assert.equal(r.domain, 'vi.wire');
+    assert.equal(r.registered, 1);
+  });
+
+  it('★取错字段即失效（反向守卫：证明上一条不是恒真）', () => {
+    // 把同样的内容放在**别的**字段名下，必须拿不到租户上下文。
+    const r = resolveTenantContext({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      initOptions: { tenantId: T, domainVocabularies: [vocabOf('vi.wrong')] },
+    } as any);
+
+    assert.equal(r.tenantId, undefined);
+    assert.equal(r.registered, 0);
+  });
+
+  it('★registered 必须是**计数**而非布尔（两个都合法时应为 2）', () => {
+    // 原夹具最多只有 1 个有效项，于是 registered 取值域退化成 {0,1}，
+    // `registered++` 改成 `registered = 1` 也全绿（夹具维度塌缩）。
+    const r = applyTenantInitOptions({
+      tenantId: T, domainVocabularies: [vocabOf('vi.two-a'), vocabOf('vi.two-b')],
+    });
+
+    assert.equal(r.registered, 2, 'registered 应是数量，不是布尔');
+    assert.equal(r.domain, 'vi.two-a', 'domain 取第一个成功注册的');
+    assert.ok(vocabularyRegistry.getWithCustom(T, 'vi.two-a', 'zh-CN'));
+    assert.ok(vocabularyRegistry.getWithCustom(T, 'vi.two-b', 'zh-CN'));
   });
 
   it('undefined 入参安全返回空结果', () => {
