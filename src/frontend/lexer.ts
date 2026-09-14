@@ -350,10 +350,16 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
     }
   }
 
-  // Skip UTF-8 BOM if present
+  // Skip UTF-8 BOM if present.
+  //
+  // ★不递增 col：BOM 是**编码标记**，不是源码内容，不该占一列。
+  //   原先 `col++` 会让带 BOM 的文件里所有 token 的列号整体 +1，
+  //   诊断位置、span、IDE 高亮全部偏移——而 ProofIR 的 span 是签字锚定
+  //   的一部分，列号偏移不是小事。
+  //   Java 侧（AsterCustomLexer.skipLeadingBom）同样只 consume 不进位，
+  //   两引擎在此对齐（issue core#158）。
   if (input.charCodeAt(0) === 0xfeff) {
     i++;
-    col++;
   }
 
   while (i < input.length) {
