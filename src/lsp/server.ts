@@ -30,6 +30,7 @@ import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import { LexiconRegistry, initializeAllBundledLexicons } from '../config/lexicons/index.js';
 import { vocabularyRegistry } from '../config/lexicons/identifiers/registry.js';
 import { buildCanonicalizeOptions } from './canonicalize-options.js';
+import { applyTenantInitOptions, type TenantInitOptions } from './tenant-init.js';
 import type { DomainVocabulary } from '../config/lexicons/identifiers/types.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { attachDiagnosticMessages } from '../config/lexicons/diagnostic-messages.js';
@@ -203,27 +204,13 @@ connection.onInitialize(async (params: InitializeParams) => {
    *   且失败不阻断 initialize —— 词汇缺失应表现为「补全少了几项」，
    *   而不是「LSP 起不来」。
    */
-  const initOpts = params.initializationOptions as
-    | { tenantId?: string; domainVocabularies?: unknown[] }
-    | undefined;
-  if (initOpts?.tenantId && Array.isArray(initOpts.domainVocabularies)) {
-    currentTenantId = initOpts.tenantId;
-    for (const vocab of initOpts.domainVocabularies) {
-      try {
-        vocabularyRegistry.registerCustom(initOpts.tenantId, vocab as DomainVocabulary);
-      } catch (err) {
-        /* 单个词汇表校验失败不应拖垮整个会话：registerCustom 对不合法词汇会抛错
-         * （validateVocabulary）。记录后继续处理下一个。 */
-        connection.console.warn(
-          `[lsp] 跳过无效领域词汇: ${(err as Error)?.message ?? String(err)}`,
-        );
-      }
-    }
-    /* domain 取第一个成功注册的词汇表 id —— canonicalizer 的 getWithCustom
-     * 按 (tenantId, domain, locale) 三元组查，一次解析只能指向一个 domain。
-     * 多领域并存需要按文档区分，属后续增强（本轮先支持最常见的单领域场景）。 */
-    const first = initOpts.domainVocabularies[0] as DomainVocabulary | undefined;
-    if (first?.id) currentDomain = first.id;
+  const tenantInit = applyTenantInitOptions(
+    params.initializationOptions as TenantInitOptions | undefined,
+  );
+  currentTenantId = tenantInit.tenantId;
+  currentDomain = tenantInit.domain;
+  for (const msg of tenantInit.skipped) {
+    connection.console.warn(`[lsp] 跳过无效领域词汇: ${msg}`);
   }
 
   // Initialize diagnostics module configuration
