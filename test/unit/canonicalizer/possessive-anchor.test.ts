@@ -87,6 +87,18 @@ describe('english-possessive — 左锚宽度', () => {
       `应整词匹配得 Xdriver.age；出现别的结果说明起跑位置不对。实际：${out}`);
   });
 
+  // ★对齐 aster-lang-core#190/#191：后续标识符只前瞻不消费，空白限定行内。
+  it('★链式所有格一次改写到位（后续标识符不得被上一次匹配消费）', () => {
+    assert.strictEqual(apply('english-possessive', "driver's car's color"), 'driver.car.color');
+    assert.strictEqual(apply('english-possessive', "a's b's c's d"), 'a.b.c.d');
+  });
+
+  it('★行尾所有格不得跨行吞掉下一行行首标识符', () => {
+    assert.strictEqual(apply('english-possessive', "driver's\ncar"), "driver's\ncar");
+    assert.strictEqual(apply('english-possessive', "driver's \n  car"), "driver's \n  car");
+    assert.strictEqual(apply('english-possessive', "driver's\tage"), 'driver.age');
+  });
+
   it('★长标识符 + 不闭合 \'s 不得触发二次回溯', () => {
     // 无左锚时 40000 长度需 2552ms。
     assertSubQuadratic('english-possessive',
