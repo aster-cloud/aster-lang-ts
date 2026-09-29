@@ -74,6 +74,7 @@ import { registerCodeActionHandlers } from './codeaction.js';
 import { registerSymbolsHandlers } from './symbols.js';
 import { registerTokensHandlers, SEM_LEGEND } from './tokens.js';
 import { registerHealthHandlers, incrementRestartCount } from './health.js';
+import { DebounceMap } from './debounce-map.js';
 import { ConfigService } from '../config/config-service.js';
 import { setWarmupPromise } from './shared-state.js';
 import { config } from './config.js';
@@ -113,7 +114,7 @@ type CachedDoc = {
   idIndex?: Map<string, Span[]>;
 };
 const docCache: Map<string, CachedDoc> = new Map();
-const pendingValidate: Map<string, ReturnType<typeof setTimeout>> = new Map();
+const pendingValidate = new DebounceMap();
 let currentIndexPath: string | null = null;
 let indexPersistenceActive = true;
 const workspaceFolders: string[] = [];
@@ -505,6 +506,8 @@ function getDocumentSettings(resource: string): Promise<AsterSettings> {
 // Only keep settings for open documents
 documents.onDidClose(e => {
   documentSettings.delete(e.document.uri);
+  // 关闭时撤销尚未触发的防抖校验，理由见 DebounceMap。
+  pendingValidate.cancel(e.document.uri);
 });
 
 // Push initial diagnostics when a document is opened
@@ -522,18 +525,14 @@ documents.onDidOpen(async (e) => {
 // when the text document first opened or when its content has changed.
 documents.onDidChangeContent(change => {
   const uri = change.document.uri;
-  const prev = pendingValidate.get(uri);
-  if (prev) clearTimeout(prev);
-  const handle = setTimeout(async () => {
-    pendingValidate.delete(uri);
+  pendingValidate.schedule(uri, 150, async () => {
     // Parse to keep caches warm for fast responses
     try { void getOrParse(change.document); }
     catch (err) { connection.console.warn(`[lsp] getOrParse onChange failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`); }
     // Push diagnostics to client (for clients that don't support pull-based diagnostics)
     try { await pushDiagnostics(uri); }
     catch (err) { connection.console.warn(`[lsp] pushDiagnostics onChange failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`); }
-  }, 150);
-  pendingValidate.set(uri, handle);
+  });
   // Clear diagnostic cache when document changes
   try {
     invalidateDiagnosticCache(uri);
