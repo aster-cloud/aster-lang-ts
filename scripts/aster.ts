@@ -13,6 +13,7 @@ import { searchCommand } from '../src/cli/commands/search.js';
 import { aiGenerateCommand, type AIGenerateOptions } from '../src/cli/commands/ai-generate.js';
 import { handleError } from '../src/cli/utils/error-handler.js';
 import { gradleEnv } from '../src/cli/utils/gradle-env.js';
+import { prepareOutDir } from '../src/cli/utils/out-dir.js';
 
 function readFileStrict(file: string): string {
   return fs.readFileSync(file, 'utf8');
@@ -36,12 +37,12 @@ async function cmdCore(file: string): Promise<void> {
   console.log(JSON.stringify(core, null, 2));
 }
 
-async function cmdJvm(file: string, outDir = 'build/jvm-src'): Promise<void> {
+async function cmdJvm(file: string, outDir = 'build/jvm-src', force = false): Promise<void> {
   const input = readFileStrict(file);
   const core = lowerModule(parseAst(lex(canonicalize(input))).ast);
-  fs.rmSync(outDir, { recursive: true, force: true });
-  await emitJava(core, outDir);
-  console.log('Wrote Java sources to', outDir);
+  const target = prepareOutDir(outDir, force);
+  await emitJava(core, target);
+  console.log('Wrote Java sources to', target);
 }
 
 async function ensureAsmEmitterBuilt(): Promise<void> {
@@ -188,10 +189,13 @@ async function main(): Promise<void> {
     .command('jvm <file>', '输出 Java 源码 (默认 build/jvm-src)')
     .option('--out <dir>', '目标目录', { default: 'build/jvm-src' })
     .option('--watch', '监听文件变化', { default: false })
+    .option('--force', '目标目录不在当前目录内或含非生成内容时仍强制清空', { default: false })
     .action(
-      wrapAction(async (file: string, options: { out?: string; watch?: boolean }) => {
+      wrapAction(async (file: string, options: { out?: string; watch?: boolean; force?: boolean }) => {
         const outDir = options.out ?? 'build/jvm-src';
-        await runMaybeWatch(file, Boolean(options.watch), () => cmdJvm(file, outDir));
+        await runMaybeWatch(file, Boolean(options.watch), () =>
+          cmdJvm(file, outDir, Boolean(options.force))
+        );
       })
     );
 
