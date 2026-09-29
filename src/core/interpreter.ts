@@ -143,6 +143,10 @@ function toInt(v: unknown, ctx: string): number {
  * - bigint / Decimal → 转 double（对齐 `Number.doubleValue()`）；
  * - string  → 严格十进制解析且结果有限；空串、"NaN"、"Infinity"、非数值文本拒绝；
  * - 其他    → 抛错。
+ *
+ * ★不能退回裸 `Number(v)`：`Number([...])` 会对数组调 `toString()`，把整个嵌套结构
+ * 物化成巨型字符串再返回 NaN，那份巨串不经过 chargeAllocation（实测 9 层嵌套 +
+ * `List.sort` 10787ms / +707MB 且 success=true），且与 truffle 的类型闸门判定分叉。
  */
 function toNum(v: unknown, ctx: string): number {
   const bad = (): never => {
@@ -540,6 +544,42 @@ const MAX_CALL_DEPTH = 50;
 // 撑爆内存。与 aster-lang-truffle Builtins.MAX_RANGE_SIZE 保持一致，维持双引擎 parity。
 const MAX_RANGE_SIZE = 1_000_000;
 
+/**
+ * 单次执行允许物化的元素总数上限（累计分配预算）。
+ *
+ * ★**为什么单个 builtin 的上限不够**：`List.range` 封顶 1e6、`List.combinations`
+ * 封顶 C(n,k)≤5000，单看都对，但**组合起来没有任何约束**：
+ *
+ *     Let v0 be List.range(0, 1000000).
+ *     Let v1 be List.concat(v0, v0).   -- 每行翻倍
+ *     ... 重复 8 次 ...
+ *
+ * 不到 200 字节源码即可把规模推到约 1.3 亿元素。实测本引擎 7 轮=1.28 亿元素吃掉
+ * 3.3GB 堆且**返回 success**（静默成功，最坏形态）；8 轮=2.56 亿则撞 V8 的
+ * `Array.concat` 2^27 上限报 `Invalid array length`——**那是 V8 的硬限不是我们的防护**。
+ * truffle 侧 1403ms 抛 `Java heap space`。
+ *
+ * ★**为什么既有防护全没拦住**：`MAX_STEPS` 只数解释器步进——`concat` 在它眼里是
+ * 1 步，底层却是几千万次数组拷贝；宿主侧 5 秒 wall-clock 看门狗**来不及**
+ * （OOM 在 1.4 秒），它只对「慢」攻击有效，对「快而肥」的从不参与。
+ *
+ * ★**为什么是累计预算而非给 concat 加上限**：逐个 builtin 打补丁是打地鼠
+ * （map/filter/groupBy 同样能放大）。收敛成单一防线，在 `evalStdlibCall`
+ * 唯一调用点统一计量。
+ *
+ * 与 aster-lang-truffle `AllocationBudget.MAX_ALLOCATION_BUDGET` **必须同值**，
+ * 否则同一规则两引擎一个通过一个拒绝 = parity 分叉。
+ *
+ * 固定常量，不跟随堆/GC 状态——跟随运行时状态会破坏「两引擎逐字节一致 + 可回放」。
+ */
+const MAX_ALLOCATION_BUDGET = 10_000_000;
+
+/**
+ * 计量递归的深度上限，与 truffle `Builtins.CHARGE_MAX_DEPTH` **必须同值**。
+ * 固定常量不跟随运行时栈——同 VALUE_EQUALS_MAX_DEPTH 的理由。
+ */
+const CHARGE_MAX_DEPTH = 8;
+
 /** evalStdlibCall 的哨兵返回值：表示"不是已知 stdlib 调用"。用 Symbol 避免与任何合法返回值冲突。 */
 const NOT_STDLIB = Symbol('not-stdlib');
 
@@ -707,6 +747,8 @@ class Interpreter {
   private readonly enumVariantToEnum: Map<string, string>;
   /** 执行步数计数器（防无限循环） */
   private steps = 0;
+  /** 本次执行累计物化的集合元素数（见 MAX_ALLOCATION_BUDGET）。 */
+  private allocated = 0;
   /** 步数上限（默认 MAX_STEPS，可由受信调用方上调） */
   private readonly maxSteps: number;
   /** 调用深度计数器（防无限递归） */
@@ -1063,7 +1105,13 @@ class Interpreter {
     // 必须在用户函数查找之前，否则 Text.concat 落入未定义函数分支。
     if (call.target.kind === 'Name' && call.target.name.includes('.')) {
       const stdlib = this.evalStdlibCall(call.target.name, call.args, env);
-      if (stdlib !== NOT_STDLIB) return stdlib;
+      if (stdlib !== NOT_STDLIB) {
+        // 累计分配预算：在**唯一调用点**统一计量，而非 evalStdlibCall 内部 70+ 个
+        // return 逐个补——逐个补必然漏掉新增的那个。与 truffle Builtins.call 同位置。
+        // （本引擎这里确实是唯一调用点；truffle 侧则不是，内联特化会绕过 Builtins.call。）
+        this.chargeAllocation(stdlib);
+        return stdlib;
+      }
     }
 
     // 函数调用：可能是用户定义的模块函数，或绑定在环境里的闭包变量
@@ -1735,7 +1783,15 @@ class Interpreter {
     switch (op) {
       case '+': {
         if (typeof left === 'string' || typeof right === 'string') {
-          return String(left) + String(right);
+          const joined = String(left) + String(right);
+          // ★`+` 的字符串分支走 evalBinary，**不经过 evalStdlibCall**，
+          // 而 chargeAllocation 的唯一调用点在那条 stdlib 分支上 → 此处必须单独记账。
+          // 否则用 `plus` 代替 `Text.concat` 做翻倍即可完全绕过预算：
+          // 实测 20 轮 → 3355 万字符 success=true，而同一份 IR 在 truffle 侧
+          // （`+`→`add` builtin 经 Builtins.call 被计量）是 REJECTED
+          // ——这是一条真实发生的**双引擎判定分叉**。
+          this.chargeAllocation(joined);
+          return joined;
         }
         this.assertNumbers(op, left, right);
         return (left as number) + (right as number);
@@ -1832,6 +1888,68 @@ class Interpreter {
         `Maximum execution steps (${this.maxSteps}) exceeded — possible infinite loop`,
       );
     }
+  }
+
+  /**
+   * 按返回值的规模扣减分配预算（见 MAX_ALLOCATION_BUDGET）。
+   *
+   * 逐个**顶层**元素计量。嵌套结构（如 groupBy 的 Map<K, List>）的内层元素本身
+   * 来自已被计过的入参列表——内层每个 List.range 都各自经过本方法单独计量，
+   * 故不会漏计，也不会因重复计量误拒合法的分组操作。
+   *
+   * 与 truffle `Builtins.chargeForResult` 口径逐条对齐：
+   * Array↔Collection、Map↔Map、string↔CharSequence。
+   * ★两边的类型判据必须保持等价——若将来有 builtin 返回 Set（Java 的 Set 是
+   * Collection、会被计量；TS 的 Set 不是 Array、不会被计量），就是 parity 分叉。
+   * 现已确认两侧均无 builtin 返回 Set。
+   */
+  private chargeAllocation(result: unknown): void {
+    const count = this.countElements(result, 0);
+    if (count <= 0) return;
+    // 先判溢出再累加，与 truffle AllocationBudget.charge 同形。
+    if (
+      count > MAX_ALLOCATION_BUDGET ||
+      this.allocated > MAX_ALLOCATION_BUDGET - count
+    ) {
+      this.allocated = MAX_ALLOCATION_BUDGET + 1;
+      throw new InterpreterError(
+        `分配预算耗尽：单次执行累计物化元素数超过上限 ${MAX_ALLOCATION_BUDGET}，拒绝以防内存耗尽 DoS`,
+      );
+    }
+    this.allocated += count;
+  }
+
+  /**
+   * 递归统计返回值物化出的元素总数（深度有界）。
+   *
+   * ★**为什么必须递归、不能只计顶层**：只计顶层有一个 Critical 绕过——
+   * `List.groupBy(a, one)` 把 1e6 元素全归进同一组，返回的 Map 顶层 size=1，
+   * **只扣 1 点而真实物化 1e6**。重复 20 次即 840 字节源码 → 实测 Java 侧 1972ms
+   * 物化 210MB 且 SUCCESS；本引擎抬高 maxSteps 后同样 success、+396MB。
+   *
+   * 此前注释写的「内层元素来自已被计过的入参列表，故不会漏计」是**错的**：
+   * 入参只被扣过**一次**，却可被**重新物化任意多次**。
+   *
+   * 深度上限固定 8，与 truffle `CHARGE_MAX_DEPTH` **必须同值**；理由同
+   * VALUE_EQUALS_MAX_DEPTH：固定常量不跟随运行时栈，否则同一规则在不同机器
+   * 给出不同结果。超深不再下探（宁可少算也不抛）。
+   *
+   * 字符串按字符数计（`Text.concat` 翻倍向量，见 MAX_ALLOCATION_BUDGET 注释）。
+   */
+  private countElements(value: unknown, depth: number): number {
+    if (depth > CHARGE_MAX_DEPTH) return 0;
+    if (Array.isArray(value)) {
+      let n = value.length;
+      for (const e of value) n += this.countElements(e, depth + 1);
+      return n;
+    }
+    if (value instanceof Map) {
+      let n = value.size;
+      for (const e of value.values()) n += this.countElements(e, depth + 1);
+      return n;
+    }
+    if (typeof value === 'string') return value.length;
+    return 0;
   }
 
   /** 判断值是否为 truthy */
