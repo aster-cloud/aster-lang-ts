@@ -12,6 +12,7 @@ import { updateCommand } from '../src/cli/commands/update.js';
 import { searchCommand } from '../src/cli/commands/search.js';
 import { aiGenerateCommand, type AIGenerateOptions } from '../src/cli/commands/ai-generate.js';
 import { handleError } from '../src/cli/utils/error-handler.js';
+import { gradleEnv } from '../src/cli/utils/gradle-env.js';
 
 function readFileStrict(file: string): string {
   return fs.readFileSync(file, 'utf8');
@@ -52,14 +53,7 @@ async function ensureAsmEmitterBuilt(): Promise<void> {
       ? './gradlew :aster-asm-emitter:build'
       : 'gradle :aster-asm-emitter:build';
     try {
-      sh(buildCmd, {
-        env: {
-          GRADLE_USER_HOME: path.resolve('build/.gradle'),
-          GRADLE_OPTS: `${process.env.GRADLE_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-          JAVA_OPTS: `${process.env.JAVA_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-          ...process.env,
-        },
-      });
+      sh(buildCmd, { env: gradleEnv() });
     } catch (e) {
       console.error('Failed to build ASM emitter');
       throw e;
@@ -76,15 +70,9 @@ async function cmdClass(file: string, outDir = 'build/jvm-classes'): Promise<voi
   fs.writeFileSync('build/last-core.json', payload);
   const runCmd = fs.existsSync('./gradlew') ? './gradlew' : 'gradle';
   await new Promise<void>((resolve, reject) => {
-    const env = {
-      GRADLE_USER_HOME: path.resolve('build/.gradle'),
-      GRADLE_OPTS: `${process.env.GRADLE_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-      JAVA_OPTS: `${process.env.JAVA_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-      ...process.env,
-    };
     const proc = cp.spawn(runCmd, [':aster-asm-emitter:run', `--args=${path.resolve(outDir)}`], {
       stdio: ['pipe', 'inherit', 'inherit'],
-      env,
+      env: gradleEnv(),
     });
     proc.on('error', reject);
     proc.on('close', code =>
@@ -136,14 +124,9 @@ async function cmdTruffle(input: string, passthrough: string[]): Promise<void> {
   }
   const argsStr = [corePath, ...pass].join(' ');
   await new Promise<void>((resolve, reject) => {
-    const env2 = {
-      GRADLE_USER_HOME: path.resolve('build/.gradle'),
-      GRADLE_OPTS: `${process.env.GRADLE_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-      ...env,
-    };
     const proc = cp.spawn(runCmd, [':aster-truffle:run', `--args=${argsStr}`], {
       stdio: 'inherit',
-      env: env2,
+      env: gradleEnv(env),
     });
     proc.on('error', reject);
     proc.on('close', code =>
