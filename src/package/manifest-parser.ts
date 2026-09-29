@@ -5,41 +5,52 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import Ajv, { type ValidateFunction, type ErrorObject } from 'ajv';
+import Ajv, { type ValidateFunction, type ErrorObject, type SchemaObject } from 'ajv';
 import type { Manifest, CapabilityKind } from '../manifest.js';
-import { DiagnosticBuilder, DiagnosticCode, type Diagnostic } from '../diagnostics/diagnostics.js';
+import {
+  DiagnosticBuilder,
+  DiagnosticCode,
+  formatDiagnostic,
+  type Diagnostic,
+} from '../diagnostics/diagnostics.js';
 import type { Position } from '../types.js';
+import { MANIFEST_SCHEMA } from './manifest-schema.js';
 
-// 加载manifest.schema.json
-// 从项目根目录加载schema（因为schema文件不会被编译到dist目录）
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-// 从dist/src/package回到项目根目录：../../../
-const schemaPath = join(__dirname, '..', '..', '..', 'manifest.schema.json');
-
-// 懒加载并缓存编译后的校验函数。
-// 之前在模块顶层直接 `JSON.parse(readFileSync(...))`：schema 文件缺失或
-// 损坏会在 *import 时* 抛异常并使整个进程崩溃（无法降级为诊断）。改为
-// 在首次解析 manifest 时再加载、用 try/catch 包裹，失败时返回一个永远
-// 通过的 validator（让 schema 校验被跳过，语义校验仍生效）而不是崩溃。
-let cachedValidateSchema: ValidateFunction | null = null;
-let schemaLoadFailed = false;
-
-function getValidateSchema(): ValidateFunction | null {
-  if (cachedValidateSchema) return cachedValidateSchema;
-  if (schemaLoadFailed) return null;
+/**
+ * 编译 manifest schema 校验函数。
+ *
+ * schema 已内联为常量，不再有「文件缺失」这种失败；剩下的失败只可能是
+ * schema 常量本身被改坏（Ajv strict 拒绝未知关键字等）。此时跳过 schema
+ * 校验、只留语义校验兜底，但必须经 warn 报告出去——跳过与通过不可区分
+ * 的门禁不是门禁。
+ */
+export function compileManifestValidator(
+  schema: SchemaObject,
+  warn: (message: string) => void
+): ValidateFunction | null {
   try {
-    const schema = JSON.parse(readFileSync(schemaPath, 'utf-8'));
-    const ajv = new Ajv({ strict: true, allErrors: true });
-    cachedValidateSchema = ajv.compile(schema);
-    return cachedValidateSchema;
-  } catch {
-    // schema 文件缺失/损坏：记一次失败，跳过 schema 校验（语义校验仍跑）。
-    schemaLoadFailed = true;
+    return new Ajv({ strict: true, allErrors: true }).compile(schema);
+  } catch (err: unknown) {
+    const reason = err instanceof Error ? err.message : String(err);
+    const diagnostic = DiagnosticBuilder.warning(DiagnosticCode.M009_ManifestSchemaUnavailable)
+      .withMessage(`manifest schema 编译失败，已跳过 schema 校验（仅剩语义校验）：${reason}`)
+      .withPosition(dummyPosition())
+      .build();
+    warn(formatDiagnostic(diagnostic));
     return null;
   }
+}
+
+// 首次解析 manifest 时编译一次并缓存；undefined = 尚未编译，null = 编译失败。
+let cachedValidateSchema: ValidateFunction | null | undefined;
+
+function getValidateSchema(): ValidateFunction | null {
+  if (cachedValidateSchema === undefined) {
+    cachedValidateSchema = compileManifestValidator(MANIFEST_SCHEMA, message =>
+      console.warn(`[aster-pkg] ${message}`)
+    );
+  }
+  return cachedValidateSchema;
 }
 
 /**
