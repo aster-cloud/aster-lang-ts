@@ -42,6 +42,12 @@ jobs:
         working-directory: aster-lang-ts
         run: pnpm install --frozen-lockfile
 
+      # golden.ts 通过 ASTER_LANG_TEST_PATH 动态加载 packages/js/dist/loader.js，
+      # checkout 只有源码，必须先构建 loader 产物。
+      - name: Build aster-lang-test corpus loader
+        working-directory: aster-lang-test/packages/js
+        run: pnpm install --frozen-lockfile && pnpm run build
+
       - name: Run golden against new corpus
         working-directory: aster-lang-ts
         env:
