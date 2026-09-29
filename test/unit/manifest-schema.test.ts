@@ -54,6 +54,33 @@ test('manifest.schema.json 验证测试', async (t) => {
     );
   });
 
+  // ★#191：`aster search` 展示的 description 来自 manifest.json，schema 却因
+  //   additionalProperties:false 把它判成未知字段，写了描述的包在缓存校验阶段
+  //   整体安装失败，且报的是「缓存损坏」。
+  await t.test('应接受 description 字段（与 search 命令展示列对齐）', () => {
+    const withDescription = {
+      name: 'aster.finance.loan',
+      version: '1.0.0',
+      description: 'A helpful package',
+    };
+
+    const isValid = validate(withDescription);
+    assert.strictEqual(
+      isValid,
+      true,
+      `含 description 的 manifest 应通过，但失败了：${JSON.stringify(validate.errors, null, 2)}`
+    );
+  });
+
+  await t.test('description 必须是字符串', () => {
+    const isValid = validate({ name: 'aster.test', version: '1.0.0', description: 123 });
+    assert.strictEqual(isValid, false, '非字符串 description 应被拒绝');
+    assert.ok(
+      validate.errors?.some((err) => err.keyword === 'type' && err.instancePath === '/description'),
+      '错误应落在 /description 的 type 校验上'
+    );
+  });
+
   await t.test('应接受缺失dependencies字段的manifest（向后兼容）', () => {
     const backwardCompatibleManifest = {
       capabilities: {
