@@ -130,11 +130,14 @@ function toInt(v: unknown, ctx: string): number {
 }
 
 /**
- * 严格数值换算——与 truffle `Builtins.toDouble` 等价（issue #193）。
+ * 严格数值换算——truffle `Builtins.toDouble` 接受集的**严格子集**（issue #193）。
  *
  * List.sum/min/max/sort/sortBy/minBy/maxBy 此前直接 `Number(x)`：`Number("2o")`
  * 得 NaN，sum 静默产出 NaN、max 静默返回首元素，而 truffle 同输入抛
- * `NumberFormatException`。语义逐条对齐 `toDouble`：
+ * `NumberFormatException`。与 `toDouble`（`Double.parseDouble`）的已知差异：本函数额外
+ * 拒绝 "NaN"/"Infinity"/类型后缀（"1d"）/十六进制浮点（"0x1p3"）——它们在合规引擎里
+ * 只可能是坏输入。另注意 truffle 的 `List.sum` 实际走 `toLong`（仅整数），两侧字符串
+ * 接受集尚未统一，见 aster-lang-ts#199。逐条语义：
  * - number  → 原样返回（含真实 NaN/Infinity：Java `doubleValue()` 同样不拦，
  *             它们只能来自算术，不是坏输入）；
  * - bigint / Decimal → 转 double（对齐 `Number.doubleValue()`）；
