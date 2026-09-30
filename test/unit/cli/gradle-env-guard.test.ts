@@ -7,12 +7,16 @@ import { fileURLToPath } from 'node:url';
 // ★issue #195 / #201：`...process.env` 放在 GRADLE_USER_HOME 之后，宿主导出的
 //   GRADLE_USER_HOME / GRADLE_OPTS / JAVA_OPTS 就把沙箱目录与 IPv4 偏好静默冲掉。
 //   #195 只修了 scripts/aster.ts，#201 发现 emit-classfiles* 三处原样残留。
-//   构造 Gradle 环境只允许经 gradleEnv()；这里对 scripts/ 与 src/ 做静态守卫：
-//   同一对象字面量内 GRADLE_USER_HOME 之后不得再出现 ...process.env。
+//   构造 Gradle 环境只允许经 gradleEnv()。这里不再用手写括号匹配器识别「错误形态」，
+//   而是守一条更强的单一不变量：scripts/ 与 src/ 之下，除 gradle-env.ts 外任何源码
+//   都不得出现字面量 GRADLE_USER_HOME——Object.assign、改名后的展开、任何重新实现
+//   一律被抓住，且没有解析器会被字符串里的花括号带偏。
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const SCAN_DIRS = ['scripts', 'src'];
 const SOURCE_EXT = new Set(['.ts', '.js', '.mjs', '.cjs']);
+const ONLY_ALLOWED = path.join('src', 'cli', 'utils', 'gradle-env.ts');
+const LITERAL = 'GRADLE_USER_HOME';
 
 function listSources(dir: string, out: string[] = []): string[] {
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -26,51 +30,26 @@ function listSources(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** 从 from 起向前扫到包含它的对象字面量的闭合 `}`（模板串里的 `${}` 自身配平，不干扰）。 */
-function literalEnd(src: string, from: number): number {
-  let depth = 0;
-  for (let i = from; i < src.length; i++) {
-    const ch = src[i];
-    if (ch === '{') depth++;
-    else if (ch === '}' && depth-- === 0) return i;
-  }
-  return src.length;
+/** 返回 scripts/ 与 src/ 下含 GRADLE_USER_HOME 字面量、且不是 gradle-env.ts 的源文件（仓库相对路径）。 */
+function findOffenders(): string[] {
+  return SCAN_DIRS.flatMap(d => listSources(path.join(REPO_ROOT, d)))
+    .map(f => path.relative(REPO_ROOT, f))
+    .filter(rel => rel !== ONLY_ALLOWED && fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8').includes(LITERAL));
 }
 
-/** 返回「同一对象字面量内 GRADLE_USER_HOME 之后出现 ...process.env」的位置列表（行号取 GRADLE_USER_HOME 键所在行）。 */
-function findHostOverrides(src: string): number[] {
-  const hits: number[] = [];
-  const re = /GRADLE_USER_HOME['"]?\s*:/g;
-  for (let m = re.exec(src); m; m = re.exec(src)) {
-    const body = src.slice(m.index, literalEnd(src, m.index));
-    if (body.includes('...process.env')) hits.push(src.slice(0, m.index).split('\n').length);
-  }
-  return hits;
-}
-
-describe('gradleEnv 守卫：GRADLE_USER_HOME 之后禁止再展开 ...process.env', () => {
-  it('探测器能抓住 #201 的原始形态（含模板串花括号）', () => {
-    const bad = `const env = {
-  GRADLE_USER_HOME: path.resolve('build/.gradle'),
-  GRADLE_OPTS: \`\${process.env.GRADLE_OPTS ?? ''} -Djava.net.preferIPv4Stack=true\`.trim(),
-  ...process.env,
-};`;
-    assert.deepEqual(findHostOverrides(bad), [2]);
+describe('gradleEnv 守卫：GRADLE_USER_HOME 只许出现在 gradle-env.ts', () => {
+  it('探测器能抓住 scripts/ 下新出现的 GRADLE_USER_HOME（自检）', () => {
+    const tmp = path.join(REPO_ROOT, 'scripts', `.gradle-env-guard-selfcheck-${process.pid}.ts`);
+    fs.writeFileSync(tmp, `// ${LITERAL}\n`);
+    try {
+      assert.ok(findOffenders().includes(path.relative(REPO_ROOT, tmp)), '探测器未能识别新增的违规文件');
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
   });
 
-  it('探测器放过正确顺序与不相关的字面量', () => {
-    const good = `const a = { ...process.env, GRADLE_USER_HOME: x };
-const b = { GRADLE_USER_HOME: x };
-const c = { ...process.env, ASTER_ROOT: process.cwd() };`;
-    assert.deepEqual(findHostOverrides(good), []);
-  });
-
-  it('★scripts/ 与 src/ 中不存在宿主覆盖形态', () => {
-    const files = SCAN_DIRS.flatMap(d => listSources(path.join(REPO_ROOT, d)));
-    assert.ok(files.some(f => f.endsWith(path.join('cli', 'utils', 'gradle-env.ts'))), '扫描根目录定位错误');
-    const offenders = files.flatMap(f =>
-      findHostOverrides(fs.readFileSync(f, 'utf8')).map(line => `${path.relative(REPO_ROOT, f)}:${line}`)
-    );
-    assert.deepEqual(offenders, [], '这些位置须改用 gradleEnv()：宿主 GRADLE_USER_HOME 会覆盖沙箱配置');
+  it('★scripts/ 与 src/ 中 GRADLE_USER_HOME 仅存在于 gradle-env.ts', () => {
+    assert.ok(fs.existsSync(path.join(REPO_ROOT, ONLY_ALLOWED)), '扫描根目录定位错误');
+    assert.deepEqual(findOffenders(), [], '这些文件须改用 gradleEnv()：Gradle 环境只允许在 gradle-env.ts 内构造');
   });
 });

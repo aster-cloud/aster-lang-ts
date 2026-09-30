@@ -57,6 +57,8 @@ async function main(): Promise<void> {
     fs.rmSync(outDir, { recursive: true, force: true });
   }
   await new Promise<void>((resolve, reject) => {
+    // HINTS_PATH / ASTER_ROOT 写在 ...gradleEnv() 之后，因此优先于宿主环境中的同名变量
+    //（#201 之前 ...process.env 置于末尾，宿主值会覆盖这两项；现在以项目内路径为准）。
     const env = {
       ...gradleEnv(),
       HINTS_PATH: path.resolve('build/hints.json'),
