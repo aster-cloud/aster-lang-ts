@@ -7,6 +7,8 @@ import { lex } from '../src/frontend/lexer.js';
 import { parse } from '../src/parser.js';
 import { lowerModule } from '../src/lower_to_core.js';
 import { emitJava } from '../src/jvm/emitter.js';
+import { prepareOutDir } from '../src/cli/utils/out-dir.js';
+import { gradleEnv } from '../src/cli/utils/gradle-env.js';
 import type { Core as CoreIR } from '../src/types.js';
 
 const FINANCE_DTO_PACKAGE = 'com.wontlost.aster.finance.dto';
@@ -125,15 +127,6 @@ function mapTypeName(name: string): JavaTypeInfo {
   }
 }
 
-function envWithGradle(): Record<string, string | undefined> {
-  return {
-    GRADLE_USER_HOME: path.resolve('build/.gradle'),
-    GRADLE_OPTS: `${process.env.GRADLE_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-    JAVA_OPTS: `${process.env.JAVA_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-    ...process.env,
-  };
-}
-
 const JVM_SRC_DIR = path.resolve('build/jvm-src');
 const JAVA_DEP_SOURCE_DIRS = [path.resolve('aster-runtime/src/main/java')];
 // Exclude files that require external dependencies (Quarkus, SmallRye) not available during standalone javac
@@ -166,7 +159,7 @@ function ensureJar(
   try {
     cp.execFileSync(buildCmd[0]!, buildCmd.slice(1), {
       stdio: 'inherit',
-      env: envWithGradle(),
+      env: gradleEnv(),
     });
   } catch (e) {
     console.error(`Failed to build ${label}:`, e);
@@ -329,8 +322,9 @@ async function emitWorkflowModules(
   console.log(
     `[emit-classfiles] 检测到 ${modules.length} 个 workflow 模块，切换到 TypeScript JVM emitter`
   );
-  fs.rmSync(JVM_SRC_DIR, { recursive: true, force: true });
-  fs.mkdirSync(JVM_SRC_DIR, { recursive: true });
+  // 与 `aster jvm` 共用同一套重建规则并写入生成标记：此前这里 rmSync+mkdirSync 从不写
+  // 标记，之后不带参数的 `aster jvm` 会把本脚本的产物当成用户内容拒绝（issue #202）。
+  prepareOutDir(JVM_SRC_DIR, false);
 
   // Generate capability stub facades
   generateCapabilityStubs(JVM_SRC_DIR);
@@ -389,7 +383,7 @@ async function main(): Promise<void> {
         ['-g', 'build/.gradle', ':aster-asm-emitter:run', `--args=${outDir}`],
         {
           stdio: ['pipe', 'inherit', 'inherit'],
-          env: { ...envWithGradle(), ASTER_ROOT: process.cwd() },
+          env: { ...gradleEnv(), ASTER_ROOT: process.cwd() },
         }
       );
       proc.on('error', reject);

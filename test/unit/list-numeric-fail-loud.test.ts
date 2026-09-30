@@ -65,3 +65,26 @@ describe('List 数值 builtin 对非数值元素响亮失败（与 truffle toDou
     assert.equal(run('List.max(["10", "9"])', 'Text').value, '10');
   });
 });
+
+// ★issue #204：List.combinations 的 k 曾是裸 Number()，Number.isInteger 只拦得住 NaN：
+//   ""→0、true→1、"0x2"→2 静默被接受，而 truffle 侧 toInt（Integer.parseInt）一律抛错。
+describe('List.combinations 的 k 非法时响亮失败（与 truffle toInt 对齐）', () => {
+  for (const k of ['""', 'true', '"0x2"', '"2o"', '"2.0"']) {
+    it(`k=${k} 必须报错，而不是静默给答案`, () => {
+      const r = run(`List.length(List.combinations([1, 2, 3], ${k}))`);
+      assert.equal(r.ok, false, `★静默返回了 ${JSON.stringify(r.value)}`);
+      assert.match(r.error, /List\.combinations: expected Int/);
+    });
+  }
+
+  it('k 为负数仍报错', () => {
+    const r = run('List.length(List.combinations([1, 2, 3], 0 minus 1))');
+    assert.equal(r.ok, false);
+    assert.match(r.error, /非负整数/);
+  });
+
+  it('合法 k（数字、整数字符串）照常工作', () => {
+    assert.equal(run('List.length(List.combinations([1, 2, 3], 2))').value, 3);
+    assert.equal(run('List.length(List.combinations([1, 2, 3], "2"))').value, 3);
+  });
+});

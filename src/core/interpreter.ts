@@ -1455,10 +1455,12 @@ class Interpreter {
       // 与 truffle 逐位一致：纯整数索引推进算法（不依赖语言细节）。DoS 防护：n≤64 +
       // 结果数 C(n,k)≤上限（先算组合数，超限即抛，不先生成）——多租户沙箱铁律。
       // 边界：k<0 抛错；k>n 返回 []；k=0 返回 [[]]。保留元素原值与相对顺序。
+      // k 走严格 toInt（对齐 truffle `toInt`：Integer.parseInt / intValue）——裸 Number()
+      // 下 ""→0、true→1、"0x2"→2 会被静默接受，Number.isInteger 只拦得住 NaN。
       case 'List.combinations': {
         const l = reqList('List.combinations', a()[0]);
-        const k = Number(a()[1]);
-        if (!Number.isInteger(k) || k < 0) throw new InterpreterError(`List.combinations: k 须为非负整数，got ${a()[1]}`);
+        const k = toInt(a()[1], 'List.combinations');
+        if (k < 0) throw new InterpreterError(`List.combinations: k 须为非负整数，got ${k}`);
         const n = l.length;
         const MAX_N = 64, MAX_RESULT = 5000;
         if (n > MAX_N) throw new InterpreterError(`List.combinations: 列表过长（${n} > ${MAX_N}），拒绝以防组合爆炸`);

@@ -62,6 +62,44 @@ describe('prepareOutDir：只清空可证明为生成产物的目录', () => {
     }
   });
 
+  // ★issue #202：标记只由 prepareOutDir 写入，升级前的 aster jvm 与 emit-classfiles 都在
+  //   build/jvm-src 生成过源码却没有标记；build/ 之下一律视为产物，否则默认目录首跑即失败。
+  it('★build/ 之下无标记但有内容（升级前或其它脚本的产物）：静默重建', () => {
+    const dir = path.join(cwd, 'build', 'jvm-src', 'com');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'A.java'), 'class A{}');
+    const abs = prepareOutDir('build/jvm-src', false, cwd);
+    assert.deepEqual(fs.readdirSync(abs), [GENERATED_MARKER]);
+  });
+
+  it('build 本身与同名前缀目录（build-x）不享受 build/ 之下的豁免', () => {
+    for (const rel of ['build', 'build-x']) {
+      fs.mkdirSync(path.join(cwd, rel), { recursive: true });
+      fs.writeFileSync(path.join(cwd, rel, 'keep.txt'), 'keep');
+      assert.throws(() => prepareOutDir(rel, false, cwd), /缺少生成标记/);
+      assert.equal(fs.readFileSync(path.join(cwd, rel, 'keep.txt'), 'utf8'), 'keep');
+    }
+  });
+
+  it('错误信息区分「不在 cwd 之下」与「缺少标记」', () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'aster-outside-'));
+    try {
+      assert.throws(
+        () => prepareOutDir(outside, false, cwd),
+        (e: Error) => /不在当前工作目录之下/.test(e.message) && !/标记/.test(e.message)
+      );
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+    const dir = path.join(cwd, 'data');
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, 'important.txt'), 'keep');
+    assert.throws(
+      () => prepareOutDir('data', false, cwd),
+      (e: Error) => /缺少生成标记 \.aster-generated/.test(e.message) && !/不在当前工作目录/.test(e.message)
+    );
+  });
+
   it('--force 时按用户意愿清空', () => {
     const dir = path.join(cwd, 'data');
     fs.mkdirSync(dir);
