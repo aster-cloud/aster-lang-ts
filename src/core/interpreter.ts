@@ -45,6 +45,13 @@ function decimalRoundingMode(mode: unknown): Decimal.Rounding {
   }
 }
 
+/**
+ * 十进制数值字面量（整数/小数/科学计数）。无歧义分支、线性匹配，见 decimalScale 里
+ * 记录的 ReDoS 教训。"0x10"/"Infinity"/"NaN"/"" 一律不匹配——与 Java
+ * `Double.parseDouble` 拒绝十六进制整数、与本仓 toInt 拒绝空串同向。
+ */
+const NUMERIC_LITERAL_RE = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
 /** scale 参数校验：必须是 0..18 的整数（v1 上限 scale 18，与 ADR 0025 一致）。 */
 function decimalScale(scale: unknown): number {
   let n: number;
@@ -62,7 +69,7 @@ function decimalScale(scale: unknown): number {
     //   scale 可由宿主传入，属不可控输入，必须走线性匹配。
     //   改写后语义完全一致（"2"/"1e1"/"+2"/"2.0"/".5"/"2." 接受；
     //   "2d"/"0x10"/"0x1p3"/"" 拒绝），2 万字符耗时降到 0.07ms。
-    if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(t)) {
+    if (!NUMERIC_LITERAL_RE.test(t)) {
       throw new InterpreterError(`Decimal: scale must be an integer in [0, 18], got ${JSON.stringify(scale)}.`);
     }
     n = Number(t);
@@ -117,6 +124,38 @@ function toInt(v: unknown, ctx: string): number {
     if (!/^[+-]?\d+$/.test(t)) return bad();
     const n = Number(t);
     if (!Number.isSafeInteger(n)) return bad();
+    return n;
+  }
+  return bad();
+}
+
+/**
+ * 严格数值换算——truffle `Builtins.toDouble` 接受集的**严格子集**（issue #193）。
+ *
+ * List.sum/min/max/sort/sortBy/minBy/maxBy 此前直接 `Number(x)`：`Number("2o")`
+ * 得 NaN，sum 静默产出 NaN、max 静默返回首元素，而 truffle 同输入抛
+ * `NumberFormatException`。与 `toDouble`（`Double.parseDouble`）的已知差异：本函数额外
+ * 拒绝 "NaN"/"Infinity"/类型后缀（"1d"）/十六进制浮点（"0x1p3"）——它们在合规引擎里
+ * 只可能是坏输入。另注意 truffle 的 `List.sum` 实际走 `toLong`（仅整数），两侧字符串
+ * 接受集尚未统一，见 aster-lang-ts#199。逐条语义：
+ * - number  → 原样返回（含真实 NaN/Infinity：Java `doubleValue()` 同样不拦，
+ *             它们只能来自算术，不是坏输入）；
+ * - bigint / Decimal → 转 double（对齐 `Number.doubleValue()`）；
+ * - string  → 严格十进制解析且结果有限；空串、"NaN"、"Infinity"、非数值文本拒绝；
+ * - 其他    → 抛错。
+ */
+function toNum(v: unknown, ctx: string): number {
+  const bad = (): never => {
+    throw new InterpreterError(`${ctx}: expected Number, got ${JSON.stringify(v) ?? String(v)}`);
+  };
+  if (typeof v === 'number') return v;
+  if (typeof v === 'bigint') return Number(v);
+  if (v instanceof Decimal) return v.toNumber();
+  if (typeof v === 'string') {
+    const t = v.trim();
+    if (!NUMERIC_LITERAL_RE.test(t)) return bad();
+    const n = Number(t);
+    if (!Number.isFinite(n)) return bad();
     return n;
   }
   return bad();
@@ -1365,18 +1404,22 @@ class Interpreter {
       }
 
       // === 通用集合 stdlib（ADR 0024 受控扩展，与 truffle Builtins 镜像，逐位 parity）===
-      // 数值序用 Number() 比较；排序稳定、升序。
+      // 数值序用 toNum 严格换算后比较（非数值元素响亮失败，见 toNum）；排序稳定、升序。
       case 'List.sum': {
         const l = reqList('List.sum', a()[0]);
-        let s = 0; for (const x of l) s += Number(x); return s;
+        let s = 0; for (const x of l) s += toNum(x, 'List.sum'); return s;
       }
       case 'List.min': {
         const l = reqNonEmpty('List.min', a()[0]);
-        let best = l[0]; for (const x of l) if (Number(x) < Number(best)) best = x; return best;
+        let best = l[0]; let bestK = toNum(best, 'List.min');
+        for (const x of l) { const k = toNum(x, 'List.min'); if (k < bestK) { best = x; bestK = k; } }
+        return best;
       }
       case 'List.max': {
         const l = reqNonEmpty('List.max', a()[0]);
-        let best = l[0]; for (const x of l) if (Number(x) > Number(best)) best = x; return best;
+        let best = l[0]; let bestK = toNum(best, 'List.max');
+        for (const x of l) { const k = toNum(x, 'List.max'); if (k > bestK) { best = x; bestK = k; } }
+        return best;
       }
       case 'List.distinct': {
         const l = reqList('List.distinct', a()[0]);
@@ -1443,7 +1486,7 @@ class Interpreter {
       }
       case 'List.sort': {
         const l = reqList('List.sort', a()[0]);
-        return [...l].sort((x, y) => Number(x) - Number(y));
+        return [...l].sort((x, y) => toNum(x, 'List.sort') - toNum(y, 'List.sort'));
       }
       case 'List.count': {
         const l = reqList('List.count', this.evalExpr(argExprs[0]!, env));
@@ -1454,20 +1497,21 @@ class Interpreter {
       case 'List.sortBy': {
         const l = reqList('List.sortBy', this.evalExpr(argExprs[0]!, env));
         const keyFn = callableArg(1);
-        return [...l].sort((x, y) => Number(this.applyCallable(keyFn, [x])) - Number(this.applyCallable(keyFn, [y])));
+        const key = (x: unknown): number => toNum(this.applyCallable(keyFn, [x]), 'List.sortBy');
+        return [...l].sort((x, y) => key(x) - key(y));
       }
       case 'List.minBy': {
         const l = reqNonEmpty('List.minBy', this.evalExpr(argExprs[0]!, env));
         const keyFn = callableArg(1);
-        let best = l[0]; let bestK = Number(this.applyCallable(keyFn, [best]));
-        for (const x of l) { const k = Number(this.applyCallable(keyFn, [x])); if (k < bestK) { best = x; bestK = k; } }
+        let best = l[0]; let bestK = toNum(this.applyCallable(keyFn, [best]), 'List.minBy');
+        for (const x of l) { const k = toNum(this.applyCallable(keyFn, [x]), 'List.minBy'); if (k < bestK) { best = x; bestK = k; } }
         return best;
       }
       case 'List.maxBy': {
         const l = reqNonEmpty('List.maxBy', this.evalExpr(argExprs[0]!, env));
         const keyFn = callableArg(1);
-        let best = l[0]; let bestK = Number(this.applyCallable(keyFn, [best]));
-        for (const x of l) { const k = Number(this.applyCallable(keyFn, [x])); if (k > bestK) { best = x; bestK = k; } }
+        let best = l[0]; let bestK = toNum(this.applyCallable(keyFn, [best]), 'List.maxBy');
+        for (const x of l) { const k = toNum(this.applyCallable(keyFn, [x]), 'List.maxBy'); if (k > bestK) { best = x; bestK = k; } }
         return best;
       }
       case 'List.groupBy': {

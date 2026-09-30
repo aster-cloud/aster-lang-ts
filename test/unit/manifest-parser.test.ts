@@ -91,6 +91,23 @@ test('manifest-parser 测试套件', async (t) => {
     assert.deepStrictEqual(manifest.capabilities.allow, ['Http']);
   });
 
+  // ★#191 端到端：走真实 parseManifest（schema + 语义两层），含 description 不得返回 M007。
+  await t.test('含 description 的 manifest 应解析成功而非 M007', () => {
+    const manifestPath = join(TEST_DIR, 'with-description.json');
+    writeFileSync(
+      manifestPath,
+      JSON.stringify({ name: 'a.b', version: '1.0.0', description: 'A helpful package' }),
+      'utf-8'
+    );
+
+    const result = parseManifest(manifestPath);
+    assert.ok(
+      !Array.isArray(result),
+      `不应返回诊断：${Array.isArray(result) ? JSON.stringify(result) : ''}`
+    );
+    assert.strictEqual((result as Manifest).description, 'A helpful package');
+  });
+
   await t.test('文件不存在时应返回M002错误', () => {
     const nonExistentPath = join(TEST_DIR, 'non-existent.json');
 

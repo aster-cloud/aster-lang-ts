@@ -12,6 +12,8 @@ import { updateCommand } from '../src/cli/commands/update.js';
 import { searchCommand } from '../src/cli/commands/search.js';
 import { aiGenerateCommand, type AIGenerateOptions } from '../src/cli/commands/ai-generate.js';
 import { handleError } from '../src/cli/utils/error-handler.js';
+import { gradleEnv } from '../src/cli/utils/gradle-env.js';
+import { prepareOutDir } from '../src/cli/utils/out-dir.js';
 
 function readFileStrict(file: string): string {
   return fs.readFileSync(file, 'utf8');
@@ -35,12 +37,12 @@ async function cmdCore(file: string): Promise<void> {
   console.log(JSON.stringify(core, null, 2));
 }
 
-async function cmdJvm(file: string, outDir = 'build/jvm-src'): Promise<void> {
+async function cmdJvm(file: string, outDir = 'build/jvm-src', force = false): Promise<void> {
   const input = readFileStrict(file);
   const core = lowerModule(parseAst(lex(canonicalize(input))).ast);
-  fs.rmSync(outDir, { recursive: true, force: true });
-  await emitJava(core, outDir);
-  console.log('Wrote Java sources to', outDir);
+  const target = prepareOutDir(outDir, force);
+  await emitJava(core, target);
+  console.log('Wrote Java sources to', target);
 }
 
 async function ensureAsmEmitterBuilt(): Promise<void> {
@@ -52,14 +54,7 @@ async function ensureAsmEmitterBuilt(): Promise<void> {
       ? './gradlew :aster-asm-emitter:build'
       : 'gradle :aster-asm-emitter:build';
     try {
-      sh(buildCmd, {
-        env: {
-          GRADLE_USER_HOME: path.resolve('build/.gradle'),
-          GRADLE_OPTS: `${process.env.GRADLE_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-          JAVA_OPTS: `${process.env.JAVA_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-          ...process.env,
-        },
-      });
+      sh(buildCmd, { env: gradleEnv() });
     } catch (e) {
       console.error('Failed to build ASM emitter');
       throw e;
@@ -76,15 +71,9 @@ async function cmdClass(file: string, outDir = 'build/jvm-classes'): Promise<voi
   fs.writeFileSync('build/last-core.json', payload);
   const runCmd = fs.existsSync('./gradlew') ? './gradlew' : 'gradle';
   await new Promise<void>((resolve, reject) => {
-    const env = {
-      GRADLE_USER_HOME: path.resolve('build/.gradle'),
-      GRADLE_OPTS: `${process.env.GRADLE_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-      JAVA_OPTS: `${process.env.JAVA_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-      ...process.env,
-    };
     const proc = cp.spawn(runCmd, [':aster-asm-emitter:run', `--args=${path.resolve(outDir)}`], {
       stdio: ['pipe', 'inherit', 'inherit'],
-      env,
+      env: gradleEnv(),
     });
     proc.on('error', reject);
     proc.on('close', code =>
@@ -136,14 +125,9 @@ async function cmdTruffle(input: string, passthrough: string[]): Promise<void> {
   }
   const argsStr = [corePath, ...pass].join(' ');
   await new Promise<void>((resolve, reject) => {
-    const env2 = {
-      GRADLE_USER_HOME: path.resolve('build/.gradle'),
-      GRADLE_OPTS: `${process.env.GRADLE_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-      ...env,
-    };
     const proc = cp.spawn(runCmd, [':aster-truffle:run', `--args=${argsStr}`], {
       stdio: 'inherit',
-      env: env2,
+      env: gradleEnv(env),
     });
     proc.on('error', reject);
     proc.on('close', code =>
@@ -205,10 +189,13 @@ async function main(): Promise<void> {
     .command('jvm <file>', '输出 Java 源码 (默认 build/jvm-src)')
     .option('--out <dir>', '目标目录', { default: 'build/jvm-src' })
     .option('--watch', '监听文件变化', { default: false })
+    .option('--force', '目标目录不在当前目录内或含非生成内容时仍强制清空', { default: false })
     .action(
-      wrapAction(async (file: string, options: { out?: string; watch?: boolean }) => {
+      wrapAction(async (file: string, options: { out?: string; watch?: boolean; force?: boolean }) => {
         const outDir = options.out ?? 'build/jvm-src';
-        await runMaybeWatch(file, Boolean(options.watch), () => cmdJvm(file, outDir));
+        await runMaybeWatch(file, Boolean(options.watch), () =>
+          cmdJvm(file, outDir, Boolean(options.force))
+        );
       })
     );
 

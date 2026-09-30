@@ -68,6 +68,7 @@ export enum DiagnosticCode {
   M006_InvalidEffectName = 'M006',
   M007_UnknownManifestField = 'M007',
   M008_InvalidCapability = 'M008',
+  M009_ManifestSchemaUnavailable = 'M009',
 
   // Package Registry errors (R001-R099)
   R001_NetworkError = 'R001',

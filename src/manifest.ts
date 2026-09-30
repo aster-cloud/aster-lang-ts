@@ -53,6 +53,9 @@ export interface Manifest {
   /** 包版本，遵循 SemVer 规范（如 "1.0.0"） */
   version?: string;
 
+  /** 包的一句话描述，`aster search` 结果的展示列 */
+  description?: string;
+
   /** 生产依赖包及其版本约束 */
   dependencies?: DependencyMap;
 

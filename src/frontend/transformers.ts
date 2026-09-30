@@ -51,12 +51,20 @@ export interface SyntaxTransformer {
  * ```
  * ★这个错误是**等价性检查抓出来的**，人工样本（前 10 组）全绿。
  */
-const POSSESSIVE_RE = /(?<!\p{L})([\p{L}][\p{L}0-9_]*)'s\s+([\p{L}][\p{L}0-9_]*)/gu;
+/**
+ * 后续标识符只**前瞻**不消费：链式所有格 `driver's car's color` 在同一次
+ * replace 里就得到 `driver.car.color`——若把 `$2` 吃掉，`car's` 的 `car` 已被
+ * 上一次匹配占用，残留的 `'s` 撞上无撇号词法规则直接 lexer error。
+ * 空白限定为 `[ \t]`：行尾所有格不得跨行吞掉下一行行首标识符（与 set-to /
+ * result-is 同一取舍）；行尾残留的 `'s` 由此从静默拼接变为显式词法错误。
+ * 与 aster-lang-core EnglishPossessiveTransformer 逐字一致（tier1-parity）。
+ */
+const POSSESSIVE_RE = /(?<!\p{L})([\p{L}][\p{L}0-9_]*)'s[ \t]+(?=[\p{L}])/gu;
 
 const englishPossessive: SyntaxTransformer = {
   name: 'english-possessive',
   transform(source: string): string {
-    return source.replace(POSSESSIVE_RE, '$1.$2');
+    return source.replace(POSSESSIVE_RE, '$1.');
   },
 };
 

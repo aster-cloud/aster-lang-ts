@@ -12,6 +12,10 @@
       "description": "包版本，遵循 SemVer 规范",
       "pattern": "^\\d+\\.\\d+\\.\\d+$"
     },
+    "description": {
+      "type": "string",
+      "description": "包的一句话描述，供 aster search 结果展示"
+    },
     "dependencies": {
       "type": "object",
       "description": "生产依赖包及其版本约束",
@@ -63,6 +67,7 @@
     {
       "name": "aster.finance.loan",
       "version": "1.0.0",
+      "description": "贷款审批规则包",
       "dependencies": {
         "aster.http": "^2.1.0",
         "aster.time": "~1.5.3"
