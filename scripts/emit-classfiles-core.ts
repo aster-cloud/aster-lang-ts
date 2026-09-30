@@ -2,17 +2,10 @@
 import cp from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { gradleEnv } from '../src/cli/utils/gradle-env.js';
 
 function sh(cmd: string, opts: cp.ExecSyncOptions = {}): void {
-  const extraEnv = (opts.env ?? {}) as Record<string, string | undefined>;
-  const env: Record<string, string | undefined> = {
-    GRADLE_USER_HOME: path.resolve('build/.gradle'),
-    GRADLE_OPTS: `${process.env.GRADLE_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-    JAVA_OPTS: `${process.env.JAVA_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-    ...process.env,
-    ...extraEnv,
-  };
-  cp.execSync(cmd, { stdio: 'inherit', env: env as cp.ExecSyncOptions['env'], ...opts });
+  cp.execSync(cmd, { stdio: 'inherit', ...opts, env: { ...gradleEnv(), ...opts.env } });
 }
 
 async function main(): Promise<void> {
@@ -65,12 +58,9 @@ async function main(): Promise<void> {
   }
   await new Promise<void>((resolve, reject) => {
     const env = {
-      GRADLE_USER_HOME: path.resolve('build/.gradle'),
-      GRADLE_OPTS: `${process.env.GRADLE_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-      JAVA_OPTS: `${process.env.JAVA_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
+      ...gradleEnv(),
       HINTS_PATH: path.resolve('build/hints.json'),
       ASTER_ROOT: process.cwd(),
-      ...process.env,
     };
     const proc = cp.spawn(runCmd, [':aster-asm-emitter:run', `--args=${outDir}`], {
       stdio: ['pipe', 'inherit', 'inherit'],

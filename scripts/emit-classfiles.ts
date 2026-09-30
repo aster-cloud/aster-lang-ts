@@ -8,6 +8,7 @@ import { parse } from '../src/parser.js';
 import { lowerModule } from '../src/lower_to_core.js';
 import { emitJava } from '../src/jvm/emitter.js';
 import { prepareOutDir } from '../src/cli/utils/out-dir.js';
+import { gradleEnv } from '../src/cli/utils/gradle-env.js';
 import type { Core as CoreIR } from '../src/types.js';
 
 const FINANCE_DTO_PACKAGE = 'com.wontlost.aster.finance.dto';
@@ -126,15 +127,6 @@ function mapTypeName(name: string): JavaTypeInfo {
   }
 }
 
-function envWithGradle(): Record<string, string | undefined> {
-  return {
-    GRADLE_USER_HOME: path.resolve('build/.gradle'),
-    GRADLE_OPTS: `${process.env.GRADLE_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-    JAVA_OPTS: `${process.env.JAVA_OPTS ?? ''} -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Stack=false`.trim(),
-    ...process.env,
-  };
-}
-
 const JVM_SRC_DIR = path.resolve('build/jvm-src');
 const JAVA_DEP_SOURCE_DIRS = [path.resolve('aster-runtime/src/main/java')];
 // Exclude files that require external dependencies (Quarkus, SmallRye) not available during standalone javac
@@ -167,7 +159,7 @@ function ensureJar(
   try {
     cp.execFileSync(buildCmd[0]!, buildCmd.slice(1), {
       stdio: 'inherit',
-      env: envWithGradle(),
+      env: gradleEnv(),
     });
   } catch (e) {
     console.error(`Failed to build ${label}:`, e);
@@ -391,7 +383,7 @@ async function main(): Promise<void> {
         ['-g', 'build/.gradle', ':aster-asm-emitter:run', `--args=${outDir}`],
         {
           stdio: ['pipe', 'inherit', 'inherit'],
-          env: { ...envWithGradle(), ASTER_ROOT: process.cwd() },
+          env: { ...gradleEnv(), ASTER_ROOT: process.cwd() },
         }
       );
       proc.on('error', reject);
