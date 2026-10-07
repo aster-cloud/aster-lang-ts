@@ -129,6 +129,13 @@ function toInt(v: unknown, ctx: string): number {
   return bad();
 }
 
+/** Verdict 构造参数必须是非空 Text：空理由等于没有决策，非 Text 不做隐式转换（与 truffle 一致）。 */
+function verdictText(v: unknown, fn: string, field: string): string {
+  if (typeof v !== 'string') throw new InterpreterError(`${fn}: ${field} must be Text, got ${Array.isArray(v) ? 'List' : typeof v}`);
+  if (v.length === 0) throw new InterpreterError(`${fn}: ${field} must not be empty`);
+  return v;
+}
+
 /**
  * 严格数值换算——truffle `Builtins.toDouble` 接受集的**严格子集**（issue #193）。
  *
@@ -665,6 +672,10 @@ const BUILTIN_ARITY: Readonly<Record<string, readonly [number, number]>> = {
   'Result.tapError': [2, 2],
   'Result.unwrap': [1, 1],
   'Result.unwrapErr': [1, 1],
+  'Verdict.allow': [0, 0],
+  'Verdict.deny': [1, 1],
+  'Verdict.require_approval': [2, 2],
+  'Verdict.escalate': [1, 1],
   'Text.concat': [2, 2],
   'Text.contains': [2, 2],
   'Text.equals': [2, 2],
@@ -1653,6 +1664,14 @@ class Interpreter {
         }
         throw new InterpreterError('Result.tapError: expected Result (Ok or Err)');
       }
+      // === Verdict（ADR 0039）：与 truffle Builtins 同键序；reason/role 必须是非空 Text ===
+      case 'Verdict.allow': return { __type: 'Verdict', outcome: 'ALLOW' };
+      case 'Verdict.deny': { const [r] = a(); return { __type: 'Verdict', outcome: 'DENY', reason: verdictText(r, 'Verdict.deny', 'reason') }; }
+      case 'Verdict.require_approval': {
+        const [role, r] = a();
+        return { __type: 'Verdict', outcome: 'REQUIRE_APPROVAL', role: verdictText(role, 'Verdict.require_approval', 'role'), reason: verdictText(r, 'Verdict.require_approval', 'reason') };
+      }
+      case 'Verdict.escalate': { const [r] = a(); return { __type: 'Verdict', outcome: 'ESCALATE', reason: verdictText(r, 'Verdict.escalate', 'reason') }; }
       default:
         return NOT_STDLIB;
     }
