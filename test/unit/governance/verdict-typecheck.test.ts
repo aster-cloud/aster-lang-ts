@@ -49,3 +49,55 @@ test('require_approval 两个 Text 通过', () => {
   const codes = diagnose('@id("R-1")\nRule main produce Verdict:\n  Return Verdict.require_approval("Senior Underwriter", "over cap").');
   assert.equal(codes.filter((c) => c.startsWith('E')).length, 0, codes.join(','));
 });
+
+// ===== Verdict 不可当布尔用（ADR 0039 §2.2，评审 C1；Java VerdictTypeCheckTest 镜像）=====
+
+test('If 条件为 Verdict 报类型不匹配', () => {
+  const codes = diagnose('@id("R-1")\nRule main produce Text:\n  Let v be Verdict.deny("x").\n  If v:\n    Return "yes".\n  Return "no".');
+  assert.ok(codes.includes(ErrorCode.TYPE_MISMATCH), codes.join(','));
+});
+
+test('not 作用于 Verdict 报类型不匹配', () => {
+  const codes = diagnose('@id("R-1")\nRule main produce Bool:\n  Let v be Verdict.deny("x").\n  Return not v.');
+  assert.ok(codes.includes(ErrorCode.TYPE_MISMATCH), codes.join(','));
+});
+
+test('Verdict 与 true 相等比较报类型不匹配', () => {
+  const codes = diagnose('@id("R-1")\nRule main produce Bool:\n  Let v be Verdict.deny("x").\n  Return v equals to true.');
+  assert.ok(codes.includes(ErrorCode.TYPE_MISMATCH), codes.join(','));
+});
+
+// ===== Text 形参可作 reason/role（评审 I1）=====
+
+test('Text 形参作 reason 通过', () => {
+  const codes = diagnose('@id("R-1")\nRule main given reason as Text, produce Verdict:\n  Return Verdict.deny(reason).');
+  assert.equal(codes.filter((c) => c.startsWith('E')).length, 0, codes.join(','));
+});
+
+test('Text 形参作 role 与 reason 通过', () => {
+  const codes = diagnose('@id("R-1")\nRule main given role as Text, reason as Text, produce Verdict:\n  Return Verdict.require_approval(role, reason).');
+  assert.equal(codes.filter((c) => c.startsWith('E')).length, 0, codes.join(','));
+});
+
+test('个数不符时仍检查参数内未定义名', () => {
+  const codes = diagnose('@id("R-1")\nRule main produce Verdict:\n  Return Verdict.allow(missing_name).');
+  assert.ok(codes.includes(ErrorCode.GOV_VERDICT_CALL_ARITY), codes.join(','));
+  assert.ok(codes.includes(ErrorCode.UNDEFINED_VARIABLE), codes.join(','));
+});
+
+// ===== Verdict 字段 outcome/role/reason 为 Text（评审 I2）=====
+
+test('读取 outcome 得到 Text', () => {
+  const codes = diagnose('Rule main produce Text:\n  Let d be Verdict.deny("x").\n  Return d.outcome.');
+  assert.equal(codes.filter((c) => c.startsWith('E')).length, 0, codes.join(','));
+});
+
+test('Verdict 字段类型为 Text 而非 Unknown', () => {
+  const codes = diagnose('Rule main produce Int:\n  Let d be Verdict.require_approval("r", "x").\n  Return d.role.');
+  assert.ok(codes.includes(ErrorCode.RETURN_TYPE_MISMATCH), codes.join(','));
+});
+
+test('Verdict 未知字段仍报 E011', () => {
+  const codes = diagnose('Rule main produce Text:\n  Let d be Verdict.deny("x").\n  Return d.verdict.');
+  assert.ok(codes.includes(ErrorCode.UNKNOWN_FIELD), codes.join(','));
+});

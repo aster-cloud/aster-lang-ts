@@ -11,7 +11,7 @@ import {
   typesEqual,
   unknownType,
 } from './pure.js';
-import { typeOfExpr } from './expression.js';
+import { rejectVerdictInBoolContext, typeOfExpr } from './expression.js';
 import { bindPattern } from './pattern.js';
 import { typecheckWorkflow } from './workflow.js';
 
@@ -47,7 +47,11 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
         return;
       }
       case 'If': {
-        void typeOfExpr(module, symbols, statement.cond, diagnostics);
+        rejectVerdictInBoolContext(
+          typeOfExpr(module, symbols, statement.cond, diagnostics),
+          statement.span,
+          diagnostics,
+        );
         const thenType = typecheckBlock(module, symbols, statement.thenBlock, diagnostics);
         const elseType = statement.elseBlock
           ? typecheckBlock(module, symbols, statement.elseBlock, diagnostics)

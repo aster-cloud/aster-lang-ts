@@ -13,7 +13,7 @@ import {
   originToSpan,
   unknownType,
 } from './pure.js';
-import { hasVerdictPrefix, verdictArity, VERDICT_TYPE_NAME } from './verdict_signatures.js';
+import { hasVerdictPrefix, isVerdictField, isVerdictType, verdictArity, VERDICT_TYPE_NAME } from './verdict_signatures.js';
 
 export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext> {
   public handled = false;
@@ -37,6 +37,11 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           let currentType = baseSymbol.type;
           for (const fieldName of fieldPath) {
             const expanded = TypeSystem.expand(currentType, symbols.getTypeAliases());
+            // Verdict 内置字段 outcome/role/reason 一律为 Text（ADR 0039 §2.1，与 Java 对齐）
+            if (isVerdictType(expanded) && isVerdictField(fieldName)) {
+              currentType = { kind: 'TypeName', name: 'Text' } as Core.TypeName;
+              continue;
+            }
             if (expanded.kind === 'TypeName') {
               const dataDecl = module.datas.get(expanded.name);
               const resolvedDataDecl =
@@ -229,7 +234,11 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         // ADR 0019 G2b：表达式级 if 的类型 = then 分支类型（两分支类型一致性由
         // Java 引擎 typecheck + 双引擎 parity 把守；TS typechecker 取 then 作代表）。
         // 仍递归 cond/else 以触发其中的子表达式类型检查。
-        typeOfExpr(module, symbols, expression.cond, diagnostics);
+        rejectVerdictInBoolContext(
+          typeOfExpr(module, symbols, expression.cond, diagnostics),
+          originToSpan(expression.cond.origin) ?? originToSpan(expression.origin),
+          diagnostics,
+        );
         const thenType = typeOfExpr(module, symbols, expression.thenE, diagnostics);
         typeOfExpr(module, symbols, expression.elseE, diagnostics);
         this.result = thenType;
@@ -241,7 +250,12 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           if (expression.args.length !== 1) {
             diagnostics.error(ErrorCode.NOT_CALL_ARITY, originToSpan(expression.origin) ?? originToSpan(expression.target.origin), {});
           } else {
-            void typeOfExpr(module, symbols, expression.args[0]!, diagnostics);
+            const operand = expression.args[0]!;
+            rejectVerdictInBoolContext(
+              typeOfExpr(module, symbols, operand, diagnostics),
+              originToSpan(operand.origin) ?? originToSpan(expression.origin),
+              diagnostics,
+            );
           }
           this.result = { kind: 'TypeName', name: 'Bool' } as Core.TypeName;
           this.handled = true;
@@ -303,6 +317,11 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           const op = expression.target.name;
           const lhs = typeOfExpr(module, symbols, expression.args[0]!, diagnostics);
           const rhs = typeOfExpr(module, symbols, expression.args[1]!, diagnostics);
+          if (op === '==' || op === '!=') {
+            const span = originToSpan(expression.origin) ?? originToSpan(expression.target.origin);
+            rejectVerdictInBoolContext(lhs, span, diagnostics);
+            rejectVerdictInBoolContext(rhs, span, diagnostics);
+          }
           if ((isDec(lhs) && isDbl(rhs)) || (isDbl(lhs) && isDec(rhs))) {
             diagnostics.error(
               ErrorCode.DECIMAL_DOUBLE_MIXING,
@@ -467,4 +486,18 @@ export function typeOfExpr(
   const visitor = new TypeOfExprVisitor();
   visitor.visitExpression(expr, { module: ctx, symbols, diagnostics });
   return visitor.result;
+}
+
+/**
+ * Verdict 不可当布尔用（ADR 0039 §2.2）：If 条件、not 操作数、相等比较操作数位出现 Verdict
+ * 时报 TYPE_MISMATCH(expected Bool)。只针对 Verdict，其它类型维持既有宽松行为（不影响语料）。
+ */
+export function rejectVerdictInBoolContext(
+  actual: Core.Type,
+  span: ReturnType<typeof originToSpan>,
+  diagnostics: DiagnosticBuilder,
+): void {
+  if (isVerdictType(actual)) {
+    diagnostics.typeMismatch({ kind: 'TypeName', name: 'Bool' } as Core.TypeName, actual, span);
+  }
 }

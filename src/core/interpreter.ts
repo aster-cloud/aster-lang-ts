@@ -129,11 +129,19 @@ function toInt(v: unknown, ctx: string): number {
   return bad();
 }
 
-/** Verdict 构造参数必须是非空 Text：空理由等于没有决策，非 Text 不做隐式转换（与 truffle 一致）。 */
+/** Verdict 构造参数必须是非空白 Text：空/纯空白理由等于没有决策（与 @id 拒空白同口径），非 Text 不做隐式转换（与 truffle 一致）。 */
 function verdictText(v: unknown, fn: string, field: string): string {
   if (typeof v !== 'string') throw new InterpreterError(`${fn}: ${field} must be Text, got ${Array.isArray(v) ? 'List' : typeof v}`);
-  if (v.length === 0) throw new InterpreterError(`${fn}: ${field} must not be empty`);
+  if (v.trim() === '') throw new InterpreterError(`${fn}: ${field} must not be empty`);
   return v;
+}
+
+/** 布尔上下文遇到 Verdict 时的统一错误信息（与 truffle Builtins.toBool 同文）。 */
+const VERDICT_AS_BOOL_ERROR = 'Verdict cannot be used as Bool; compare its outcome field instead';
+
+/** 运行时 Verdict 值：带 `__type: "Verdict"` 标记的对象。 */
+function isVerdictValue(v: unknown): boolean {
+  return typeof v === 'object' && v !== null && (v as { __type?: unknown }).__type === 'Verdict';
 }
 
 /**
@@ -1974,6 +1982,8 @@ class Interpreter {
   /** 判断值是否为 truthy */
   private isTruthy(value: unknown): boolean {
     if (value === null || value === undefined) return false;
+    // Verdict 不可当布尔用（ADR 0039 §2.2）：DENY 若按对象真值放行即 fail-open，必须直接失败（与 truffle toBool 一致）
+    if (isVerdictValue(value)) throw new InterpreterError(VERDICT_AS_BOOL_ERROR);
     if (typeof value === 'boolean') return value;
     if (typeof value === 'number') return value !== 0;
     if (typeof value === 'string') return value.length > 0;

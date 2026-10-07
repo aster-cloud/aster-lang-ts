@@ -15,3 +15,13 @@ export const VERDICT_ARITY: ReadonlyMap<string, number> = new Map([
 export function isVerdictCall(name: string): boolean { return VERDICT_ARITY.has(name); }
 export function hasVerdictPrefix(name: string): boolean { return name.startsWith(VERDICT_PREFIX); }
 export function verdictArity(name: string): number | undefined { return VERDICT_ARITY.get(name); }
+
+/** Verdict 值上可读取的字段，全部为 Text（值形状见 ADR 0039 §2.1，Java 侧同表）。 */
+export const VERDICT_FIELDS: ReadonlySet<string> = new Set(['outcome', 'role', 'reason']);
+
+export function isVerdictField(name: string): boolean { return VERDICT_FIELDS.has(name); }
+
+/** 静态类型是否为 Verdict 名义类型。 */
+export function isVerdictType(t: { kind: string; name?: string } | undefined): boolean {
+  return t?.kind === 'TypeName' && t.name === VERDICT_TYPE_NAME;
+}
