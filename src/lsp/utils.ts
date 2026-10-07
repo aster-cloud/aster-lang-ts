@@ -34,6 +34,7 @@ export function exprTypeText(e: any): string {
         const n = e.target.name as string;
         if (n === 'Text.concat') return 'Text';
         if (n === 'Text.length') return 'Int';
+        if (n.startsWith('Verdict.')) return 'Verdict';
         if (n === '+') return 'Int';
         if (n === 'not' || n === '<' || n === '>' || n === '<=' || n === '>=' || n === '==' || n === '!=') return 'Bool';
       }

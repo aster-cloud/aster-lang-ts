@@ -1,4 +1,5 @@
 import type { Core, Span } from '../types.js';
+import { hasVerdictPrefix, VERDICT_TYPE_NAME } from './verdict_signatures.js';
 
 export type Type = Core.Type;
 
@@ -531,6 +532,8 @@ export class TypeSystem {
       }
       case 'Call': {
         if (expr.target.kind === 'Name') {
+          // ADR 0039：Verdict.* 一律返回 Verdict。
+          if (hasVerdictPrefix(expr.target.name)) return { kind: 'TypeName', name: VERDICT_TYPE_NAME };
           const arithmetic = TypeSystem.inferArithmeticCall(expr.target.name, expr.args, fieldTypes);
           if (arithmetic) return arithmetic;
           switch (expr.target.name) {

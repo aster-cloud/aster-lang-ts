@@ -96,21 +96,27 @@ function parseAnnotationValue(ctx: ParserContext, error: (msg: string, tok?: Tok
   }
 }
 
+/** 当前位置是否为 `name: value` 形式的命名注解参数（标识符后紧跟冒号）。 */
+function isNamedAnnotationArg(ctx: ParserContext): boolean {
+  return (ctx.at(TokenKind.IDENT) || ctx.at(TokenKind.TYPE_IDENT)) && ctx.peek(1)?.kind === TokenKind.COLON;
+}
+
 function parseAnnotationArgs(ctx: ParserContext, error: (msg: string, tok?: Token) => never): readonly AnnotationArg[] | undefined {
   if (!ctx.at(TokenKind.LPAREN)) return undefined;
   ctx.next();
   const args: AnnotationArg[] = [];
+  // 位置参数按出现顺序编号为 $0、$1…，与 Java AstBuilder 的键名一致；可与命名参数混用。
+  let positionalIndex = 0;
   while (!ctx.at(TokenKind.RPAREN) && !ctx.at(TokenKind.EOF)) {
-    if (!ctx.at(TokenKind.IDENT) && !ctx.at(TokenKind.TYPE_IDENT)) {
-      error('Expected annotation argument name');
+    if (!isNamedAnnotationArg(ctx)) {
+      const value = parseAnnotationValue(ctx, error);
+      args.push({ name: `$${positionalIndex++}`, value });
+    } else {
+      const name = String(ctx.next().value);
+      ctx.next();
+      const value = parseAnnotationValue(ctx, error);
+      args.push({ name, value });
     }
-    const name = String(ctx.next().value);
-    if (!ctx.at(TokenKind.COLON)) {
-      error("Expected ':' after annotation argument name");
-    }
-    ctx.next();
-    const value = parseAnnotationValue(ctx, error);
-    args.push({ name, value });
     if (ctx.at(TokenKind.COMMA)) {
       ctx.next();
       continue;
@@ -464,7 +470,7 @@ export function parseFuncDecl(
 
   // 如果没有显式声明类型参数，尝试从类型使用中推断
   if (typeParams.length === 0) {
-    const BUILTINS = new Set(['Int', 'Bool', 'Text', 'Long', 'Double', 'Number', 'Float', 'Option', 'Result', 'List', 'Map']);
+    const BUILTINS = new Set(['Int', 'Bool', 'Text', 'Long', 'Double', 'Number', 'Float', 'Option', 'Result', 'List', 'Map', 'Verdict']);
     const found = new Set<string>();
 
     const visitType = (t: Type): void => {

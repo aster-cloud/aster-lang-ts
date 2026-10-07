@@ -229,7 +229,7 @@ export function registerCompletionHandlers(
     }));
 
     // 添加常见类型补全
-    const types = ['Text', 'Int', 'Bool', 'Float', 'User', 'Result', 'Option', 'Maybe'];
+    const types = ['Text', 'Int', 'Bool', 'Float', 'User', 'Result', 'Option', 'Maybe', 'Verdict'];
     types.forEach(type => {
       completions.push({
         label: type,

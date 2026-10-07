@@ -40,7 +40,7 @@ interface FunctionAnalysis {
  */
 const PURE_STDLIB_NAMESPACES: ReadonlySet<string> = new Set([
   'Text', 'List', 'Map', 'Maybe', 'Option', 'Result', 'Date', 'Decimal',
-  'Int', 'Float', 'Bool', 'Json',
+  'Int', 'Float', 'Bool', 'Json', 'Verdict',
 ]);
 
 /** 判断一个 builtin 名是否属于已知纯 stdlib（如 `Text.concat`）。 */

@@ -13,6 +13,7 @@ import {
   originToSpan,
   unknownType,
 } from './pure.js';
+import { hasVerdictPrefix, verdictArity, VERDICT_TYPE_NAME } from './verdict_signatures.js';
 
 export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext> {
   public handled = false;
@@ -243,6 +244,37 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
             void typeOfExpr(module, symbols, expression.args[0]!, diagnostics);
           }
           this.result = { kind: 'TypeName', name: 'Bool' } as Core.TypeName;
+          this.handled = true;
+          return;
+        }
+
+        // Verdict.* 内置签名（ADR 0039）：参数在此只类型化一次；元数不符报 E703，
+        // 元数相符时每个参数必须是 Text；未知成员按未定义名处理。返回类型恒为 Verdict。
+        if (expression.target.kind === 'Name' && hasVerdictPrefix(expression.target.name)) {
+          const expected = verdictArity(expression.target.name);
+          if (expected === undefined) {
+            diagnostics.undefinedVariable(expression.target.name, originToSpan(expression.target.origin) ?? originToSpan(expression.origin));
+            this.result = unknownType();
+            this.handled = true;
+            return;
+          }
+          const argTypes = expression.args.map(arg => typeOfExpr(module, symbols, arg, diagnostics));
+          const actual = expression.args.length;
+          if (actual !== expected) {
+            diagnostics.error(ErrorCode.GOV_VERDICT_CALL_ARITY, originToSpan(expression.origin), {
+              func: expression.target.name,
+              expected,
+              actual,
+            });
+          } else {
+            const text = { kind: 'TypeName', name: 'Text' } as Core.TypeName;
+            argTypes.forEach((t, i) => {
+              if (!isUnknown(t) && !TypeSystem.equals(t, text)) {
+                diagnostics.typeMismatch(text, t, originToSpan(expression.args[i]!.origin) ?? originToSpan(expression.origin));
+              }
+            });
+          }
+          this.result = { kind: 'TypeName', name: VERDICT_TYPE_NAME } as Core.TypeName;
           this.handled = true;
           return;
         }

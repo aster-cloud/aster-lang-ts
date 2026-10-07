@@ -5,6 +5,7 @@ import type { ModuleContext } from './context.js';
 import { TypeSystem } from './type_system.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { formatType, typesEqual } from './pure.js';
+import { VERDICT_TYPE_NAME } from './verdict_signatures.js';
 
 export function unifyTypeParameters(
   expected: Core.Type,
@@ -138,6 +139,8 @@ class UnknownTypeFinder extends DefaultTypeVisitor<{ unknowns: Set<string>; ctx:
   private static readonly KNOWN_SCALARS = new Set([
     'Text', 'Int', 'Bool', 'Float', 'Long', 'Double', 'Unit',
     'Result', 'Option', 'List', 'Map', 'Set', 'Workflow',
+    // ADR 0039：Verdict 为内置类型，不是疑似类型变量
+    VERDICT_TYPE_NAME,
   ]);
   private static readonly isMaybeTypeVarLike = (name: string): boolean => /^[A-Z][A-Za-z0-9_]*$/.test(name);
 
