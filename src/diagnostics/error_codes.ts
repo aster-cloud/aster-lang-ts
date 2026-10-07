@@ -675,7 +675,8 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     severity: 'warning',
     message: "Workflow timeout configuration may be unreasonable: {reason}",
     help: "Check whether the timeout value is too large or too small.",
-  },  [ErrorCode.GOV_VERDICT_RULE_MISSING_ID]: {
+  },
+  [ErrorCode.GOV_VERDICT_RULE_MISSING_ID]: {
     code: ErrorCode.GOV_VERDICT_RULE_MISSING_ID,
     category: 'governance',
     severity: 'warning',
