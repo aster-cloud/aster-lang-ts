@@ -29,6 +29,7 @@ const VALID_CATEGORIES = new Set([
   'async',
   'scope',
   'pii',
+  'governance',
   'syntax',
   'semantic',
 ]);

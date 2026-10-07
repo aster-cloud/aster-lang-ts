@@ -2,7 +2,7 @@
 // 源数据: shared/error_codes.json
 
 
-export type ErrorCategory = 'type' | 'effect' | 'capability' | 'scope' | 'pii' | 'async';
+export type ErrorCategory = 'type' | 'effect' | 'capability' | 'scope' | 'pii' | 'async' | 'governance';
 export type ErrorSeverity = 'error' | 'warning' | 'info';
 
 export const enum ErrorCode {
@@ -78,6 +78,10 @@ export const enum ErrorCode {
   PII_SINK_UNKNOWN = "W074",
   WORKFLOW_RETRY_INCONSISTENT = "W105",
   WORKFLOW_TIMEOUT_UNREASONABLE = "W106",
+  GOV_VERDICT_RULE_MISSING_ID = "W700",
+  GOV_DUPLICATE_RULE_ID = "E701",
+  GOV_ANNOTATION_ARG_INVALID = "E702",
+  GOV_VERDICT_CALL_ARITY = "E703",
 }
 
 export interface ErrorMetadata {
@@ -161,6 +165,10 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.PII_SINK_UNKNOWN]: "PII data may flow to {sinkKind} without annotation",
   [ErrorCode.WORKFLOW_RETRY_INCONSISTENT]: "Workflow retry configuration may be unreasonable: {reason}",
   [ErrorCode.WORKFLOW_TIMEOUT_UNREASONABLE]: "Workflow timeout configuration may be unreasonable: {reason}",
+  [ErrorCode.GOV_VERDICT_RULE_MISSING_ID]: "Rule '{rule}' returns Verdict but has no @id annotation",
+  [ErrorCode.GOV_DUPLICATE_RULE_ID]: "Duplicate rule @id '{id}' on rules: {rules}",
+  [ErrorCode.GOV_ANNOTATION_ARG_INVALID]: "Annotation @{annotation} on rule '{rule}' expects exactly one string literal argument",
+  [ErrorCode.GOV_VERDICT_CALL_ARITY]: "{func} expects {expected} argument(s), got {actual}",
 };
 
 export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
@@ -667,6 +675,33 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     severity: 'warning',
     message: "Workflow timeout configuration may be unreasonable: {reason}",
     help: "Check whether the timeout value is too large or too small.",
+  },  [ErrorCode.GOV_VERDICT_RULE_MISSING_ID]: {
+    code: ErrorCode.GOV_VERDICT_RULE_MISSING_ID,
+    category: 'governance',
+    severity: 'warning',
+    message: "Rule '{rule}' returns Verdict but has no @id annotation",
+    help: "Add @id(\"RULE-001\") so every decision can be traced to a stable rule identity.",
+  },
+  [ErrorCode.GOV_DUPLICATE_RULE_ID]: {
+    code: ErrorCode.GOV_DUPLICATE_RULE_ID,
+    category: 'governance',
+    severity: 'error',
+    message: "Duplicate rule @id '{id}' on rules: {rules}",
+    help: "Rule ids must be unique within a module. Give each rule its own @id.",
+  },
+  [ErrorCode.GOV_ANNOTATION_ARG_INVALID]: {
+    code: ErrorCode.GOV_ANNOTATION_ARG_INVALID,
+    category: 'governance',
+    severity: 'error',
+    message: "Annotation @{annotation} on rule '{rule}' expects exactly one string literal argument",
+    help: "Write @id(\"RULE-001\"), @reason(\"...\") or @control(\"EU_AI_ACT:ART14\").",
+  },
+  [ErrorCode.GOV_VERDICT_CALL_ARITY]: {
+    code: ErrorCode.GOV_VERDICT_CALL_ARITY,
+    category: 'governance',
+    severity: 'error',
+    message: "{func} expects {expected} argument(s), got {actual}",
+    help: "Verdict.allow() takes no arguments; Verdict.deny(reason) and Verdict.escalate(reason) take one Text; Verdict.require_approval(role, reason) takes two Text.",
   },
 };
 
