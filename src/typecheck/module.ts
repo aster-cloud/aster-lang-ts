@@ -21,6 +21,7 @@ import {
   type TypecheckWalkerContext,
 } from './context.js';
 import { DiagnosticBuilder } from './diagnostics.js';
+import { checkGovernance } from './governance.js';
 import { SymbolTable } from './symbol_table.js';
 import {
   formatType,
@@ -132,7 +133,15 @@ export function typecheckModule(m: Core.Module, options?: TypecheckOptions): Typ
       checkModulePII(funcs, piiDiagnostics, ctx.imports);
     }
     const entryDiagnostics = checkEntryRuleUniqueness(m.decls);
-    const result = [...diagnostics.getDiagnostics(), ...effectDiags, ...piiDiagnostics, ...entryDiagnostics];
+    // ADR 0039 治理检查：W700 / E701 / E702 与 Verdict 符号预占
+    const governanceDiagnostics = checkGovernance(m.decls);
+    const result = [
+      ...diagnostics.getDiagnostics(),
+      ...effectDiags,
+      ...piiDiagnostics,
+      ...entryDiagnostics,
+      ...governanceDiagnostics,
+    ];
     const duration = performance.now() - startTime;
     const baseMeta = { moduleName, errorCount: result.length };
     logPerformance({
