@@ -82,6 +82,7 @@ export const enum ErrorCode {
   GOV_DUPLICATE_RULE_ID = "E701",
   GOV_ANNOTATION_ARG_INVALID = "E702",
   GOV_VERDICT_CALL_ARITY = "E703",
+  GOV_CONTROL_UNREGISTERED = "W704",
 }
 
 export interface ErrorMetadata {
@@ -169,6 +170,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.GOV_DUPLICATE_RULE_ID]: "Duplicate rule @id '{id}' on rules: {rules}",
   [ErrorCode.GOV_ANNOTATION_ARG_INVALID]: "Annotation @{annotation} on rule '{rule}' expects exactly one string literal argument",
   [ErrorCode.GOV_VERDICT_CALL_ARITY]: "{func} expects {expected} argument(s), got {actual}",
+  [ErrorCode.GOV_CONTROL_UNREGISTERED]: "Control '{control}' on rule '{rule}' is not registered (controls registry {version})",
 };
 
 export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
@@ -703,6 +705,13 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     severity: 'error',
     message: "{func} expects {expected} argument(s), got {actual}",
     help: "Verdict.allow() takes no arguments; Verdict.deny(reason) and Verdict.escalate(reason) take one Text; Verdict.require_approval(role, reason) takes two Text.",
+  },
+  [ErrorCode.GOV_CONTROL_UNREGISTERED]: {
+    code: ErrorCode.GOV_CONTROL_UNREGISTERED,
+    category: 'governance',
+    severity: 'warning',
+    message: "Control '{control}' on rule '{rule}' is not registered (controls registry {version})",
+    help: "Use a registered key such as EU_AI_ACT:ART14, or add it to aster-lang-locales controls/registry.json (format FRAMEWORK:ARTICLE, at most 64 characters).",
   },
 };
 
