@@ -41,6 +41,18 @@ export function controlCompletions(linePrefix: string): CompletionItem[] | null 
     }));
 }
 
+/** 按补全请求取光标前的行前缀并求 @control 补全；请求缺字段或文档不存在时返回 null。 */
+export function controlCompletionsAt(
+  documents: { get(uri: string): TextDocument | undefined },
+  params: { textDocument?: { uri: string }; position?: { line: number; character: number } } | undefined,
+): CompletionItem[] | null {
+  if (!params?.textDocument || !params.position) return null;
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return null;
+  const linePrefix = doc.getText({ start: { line: params.position.line, character: 0 }, end: params.position });
+  return controlCompletions(linePrefix);
+}
+
 /**
  * 将 AstType 转换为可读的字符串表示
  * @param t AST 类型节点
@@ -222,12 +234,8 @@ export function registerCompletionHandlers(
   // 代码补全：提供关键字和类型补全
   connection.onCompletion((params): CompletionItem[] => {
     // 位于 @control(" 字符串内时只提供注册表键，不混入关键字补全
-    const doc = documents.get(params.textDocument.uri);
-    if (doc) {
-      const linePrefix = doc.getText({ start: { line: params.position.line, character: 0 }, end: params.position });
-      const controls = controlCompletions(linePrefix);
-      if (controls) return controls;
-    }
+    const controls = controlCompletionsAt(documents, params);
+    if (controls) return controls;
     // ★关键词必须取自**该文档的 lexicon**，而不是硬编码的英文 KW。
     //
     //   此前是 `Object.values(KW)` —— KW 是 config/semantic.ts 里写死的英文

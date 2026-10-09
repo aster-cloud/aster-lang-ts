@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { controlCompletions } from '../../../src/lsp/completion.js';
+import { controlCompletions, controlCompletionsAt } from '../../../src/lsp/completion.js';
 
 test('@control(" 处补全全部注册表键', () => {
   const items = controlCompletions('@control("');
@@ -17,4 +17,11 @@ test('按已输入前缀过滤，detail 为英文标题', () => {
 test('非 @control 字符串上下文返回 null', () => {
   assert.equal(controlCompletions('@id("'), null);
   assert.equal(controlCompletions('Rule main'), null);
+});
+
+test('补全请求缺少 params 或 position 时不抛错并返回 null', () => {
+  const docs = { get: () => undefined };
+  assert.equal(controlCompletionsAt(docs, undefined), null);
+  assert.equal(controlCompletionsAt(docs, { textDocument: { uri: 'file:///a' } }), null);
+  assert.equal(controlCompletionsAt(docs, { textDocument: { uri: 'file:///a' }, position: { line: 0, character: 0 } }), null);
 });
