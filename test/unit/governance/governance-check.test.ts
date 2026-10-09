@@ -171,11 +171,19 @@ test('注入的注册表沿 Node / 浏览器 / compileAndTypecheck 透传', () =
 });
 
 // 诊断黄金（ADR 0045 §3）：源文在 aster-lang-test tier3 type-checker 桶，期望在本仓 expected/；
-// 既有 golden 回归脚本读 npm 版语料，新源文发布前读不到，故此处直读兄弟仓，缺失时跳过
+// 既有 golden 回归脚本读 npm 版语料，新源文发布前读不到，故直读兄弟仓（本地 ../ 或 CI 子目录 ./）。
+// 不走 CI 必失败规则：ci.yml 的 test job 不 checkout aster-lang-test（仅 parity job 有，但不跑单测），
+// 故 CI 中恒跳过；待 aster-lang-test 发布含该源文的 npm 版本后改读 npm 语料即可在 CI 生效。
 test('W704 诊断黄金与期望文件一致', (t) => {
   const name = 'governance_control_unregistered';
-  const source = join(process.cwd(), '..', 'aster-lang-test', 'corpus', 'tier3-fixtures', 'type-checker', `${name}.aster`);
-  if (!existsSync(source)) return t.skip('兄弟仓 aster-lang-test 不在');
+  const relative = ['corpus', 'tier3-fixtures', 'type-checker', `${name}.aster`];
+  const source = [
+    join(process.cwd(), '..', 'aster-lang-test', ...relative),
+    join(process.cwd(), 'aster-lang-test', ...relative),
+  ].find((c) => existsSync(c));
+  if (source === undefined) {
+    return t.skip('aster-lang-test 未并列 checkout（CI test job 不 checkout 它；npm 版语料尚无该源文）');
+  }
   const ast = parse(lex(canonicalize(readFileSync(source, 'utf8')))).ast as AstModule;
   const actual = typecheckModule(lowerModule(ast)).map(({ code, severity, message }) => ({ code, severity, message }));
   const expectedPath = join(process.cwd(), 'test', 'type-checker', 'expected', `${name}.errors.json`);
