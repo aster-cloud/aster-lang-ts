@@ -21,6 +21,25 @@ import type {
 } from '../types.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
+import { CONTROLS_REGISTRY } from '../governance/controls-registry.data.js';
+
+const CONTROL_ARG = /@control\(\s*"([^"]*)$/;
+
+/** `@control("` 字符串内补全注册表键（ADR 0045 §3）；其它位置返回 null。 */
+export function controlCompletions(linePrefix: string): CompletionItem[] | null {
+  const m = CONTROL_ARG.exec(linePrefix);
+  if (!m) return null;
+  const typed = m[1] ?? '';
+  const frameworks = new Map(CONTROLS_REGISTRY.frameworks.map((f) => [f.id, f.title]));
+  return CONTROLS_REGISTRY.controls
+    .filter((c) => c.key.startsWith(typed))
+    .map((c) => ({
+      label: c.key,
+      kind: CompletionItemKind.Value,
+      detail: c.title.en,
+      documentation: `${frameworks.get(c.framework)?.en ?? c.framework} · ${c.title.en} / ${c.title.zh} / ${c.title.de}`,
+    }));
+}
 
 /**
  * 将 AstType 转换为可读的字符串表示
@@ -202,6 +221,13 @@ export function registerCompletionHandlers(
 ): void {
   // 代码补全：提供关键字和类型补全
   connection.onCompletion((params): CompletionItem[] => {
+    // 位于 @control(" 字符串内时只提供注册表键，不混入关键字补全
+    const doc = documents.get(params.textDocument.uri);
+    if (doc) {
+      const linePrefix = doc.getText({ start: { line: params.position.line, character: 0 }, end: params.position });
+      const controls = controlCompletions(linePrefix);
+      if (controls) return controls;
+    }
     // ★关键词必须取自**该文档的 lexicon**，而不是硬编码的英文 KW。
     //
     //   此前是 `Object.values(KW)` —— KW 是 config/semantic.ts 里写死的英文
