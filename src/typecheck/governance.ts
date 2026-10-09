@@ -13,7 +13,7 @@
  */
 import type { Annotation, Core, TypecheckDiagnostic } from '../types.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
-import { defaultControlRegistry, type ControlRegistry } from '../governance/controls.js';
+import { defaultControlRegistry, isWellFormedControlKey, type ControlRegistry } from '../governance/controls.js';
 import { DiagnosticBuilder } from './diagnostics.js';
 import { originToSpan } from './pure.js';
 import { VERDICT_TYPE_NAME, isVerdictCall } from './verdict_signatures.js';
@@ -107,9 +107,10 @@ function checkFunc(
   } else if (returnsVerdict(func)) {
     b.warning(ErrorCode.GOV_VERDICT_RULE_MISSING_ID, span, { rule });
   }
-  // ADR 0045：未登记或形态非法的控制键给 W704；同一规则同键只报一次，永不阻断
+  // ADR 0045：未登记或形态非法的控制键给 W704；同一规则同键只报一次，永不阻断。
+  // 形态由本模块自行把关（与 Java ControlRegistry.has 一致），注入的注册表无法放行非法键
   for (const key of new Set(controls(func))) {
-    if (registry.has(key)) continue;
+    if (isWellFormedControlKey(key) && registry.has(key)) continue;
     b.warning(ErrorCode.GOV_CONTROL_UNREGISTERED, span, { control: key, rule, version: registry.version });
   }
 }

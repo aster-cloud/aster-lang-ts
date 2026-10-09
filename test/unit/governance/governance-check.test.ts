@@ -158,6 +158,14 @@ test('注入空注册表时已登记键也报 W704', () => {
   assert.ok(diags.some((d) => d.code === 'W704'), JSON.stringify(diags));
 });
 
+test('注入的注册表放行一切时形态非法键仍报 W704', () => {
+  const permissive = { version: 'x', has: () => true };
+  const body = `@id("R-1")\n@control("eu_ai_act:art14")\n${VERDICT_RULE}`;
+  const diags = typecheckModule(coreOf(body), { controls: permissive });
+  const w704 = diags.filter((d) => d.code === ErrorCode.GOV_CONTROL_UNREGISTERED);
+  assert.equal(w704.length, 1, JSON.stringify(diags));
+});
+
 test('注入的注册表沿 Node / 浏览器 / compileAndTypecheck 透传', () => {
   const empty = { version: '0.0.0', has: () => false };
   const body = `@id("R-1")\n@control("EU_AI_ACT:ART14")\n${VERDICT_RULE}`;
