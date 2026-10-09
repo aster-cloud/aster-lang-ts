@@ -59,6 +59,10 @@ export {
   loadImportedEffects,
 } from './typecheck.js';
 export type { TypecheckDiagnostic, TypecheckOptions } from './typecheck.js';
+export { controlRegistryFrom, defaultControlRegistry } from './governance/controls.js';
+export type { ControlRegistry } from './governance/controls.js';
+export { CONTROLS_REGISTRY } from './governance/controls-registry.data.js';
+export type { ControlsRegistryData, LocalizedTitle } from './governance/controls-registry.data.js';
 
 // 输入值生成器（用于策略执行时自动生成示例输入）
 export {

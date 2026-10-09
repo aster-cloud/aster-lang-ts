@@ -13,6 +13,7 @@
  */
 import type { Annotation, Core, TypecheckDiagnostic } from '../types.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
+import { defaultControlRegistry, type ControlRegistry } from '../governance/controls.js';
 import { DiagnosticBuilder } from './diagnostics.js';
 import { originToSpan } from './pure.js';
 import { VERDICT_TYPE_NAME, isVerdictCall } from './verdict_signatures.js';
@@ -83,8 +84,13 @@ export function returnsVerdict(func: Core.Func): boolean {
   return anyReturnIsVerdictCall(func.body);
 }
 
-/** 单条规则：E702 注解参数、多个 @id，记录 id 归属或报 W700。 */
-function checkFunc(func: Core.Func, idOwners: Map<string, Core.Func[]>, b: DiagnosticBuilder): void {
+/** 单条规则：E702 注解参数、多个 @id，记录 id 归属或报 W700，W704 未登记控制点。 */
+function checkFunc(
+  func: Core.Func,
+  idOwners: Map<string, Core.Func[]>,
+  b: DiagnosticBuilder,
+  registry: ControlRegistry
+): void {
   const span = originToSpan(func.origin);
   const rule = String(func.name);
   for (const a of annotationsOf(func)) {
@@ -101,6 +107,11 @@ function checkFunc(func: Core.Func, idOwners: Map<string, Core.Func[]>, b: Diagn
   } else if (returnsVerdict(func)) {
     b.warning(ErrorCode.GOV_VERDICT_RULE_MISSING_ID, span, { rule });
   }
+  // ADR 0045：未登记或形态非法的控制键给 W704；同一规则同键只报一次，永不阻断
+  for (const key of new Set(controls(func))) {
+    if (registry.has(key)) continue;
+    b.warning(ErrorCode.GOV_CONTROL_UNREGISTERED, span, { control: key, rule, version: registry.version });
+  }
 }
 
 /** Verdict 为内置类型名，用户 Define 同名 Data / Enum 报 DUPLICATE_SYMBOL。 */
@@ -110,14 +121,21 @@ function checkReservedTypeName(decl: Core.Declaration, b: DiagnosticBuilder): vo
   }
 }
 
-/** 检查整个模块：E702 注解参数、W700 缺 @id、E701 模块内 @id 重复、Verdict 符号预占。 */
-export function checkGovernance(decls: readonly Core.Declaration[]): TypecheckDiagnostic[] {
+/**
+ * 检查整个模块：E702 注解参数、W700 缺 @id、E701 模块内 @id 重复、W704 未登记控制点、Verdict 符号预占。
+ * opts.controls 可注入控制注册表，缺省用内置副本（ADR 0045 §3）。
+ */
+export function checkGovernance(
+  decls: readonly Core.Declaration[],
+  opts: { controls?: ControlRegistry } = {}
+): TypecheckDiagnostic[] {
   const b = new DiagnosticBuilder();
+  const registry = opts.controls ?? defaultControlRegistry;
   // @id → 拥有该 id 的规则（按声明顺序），用于发现重复
   const idOwners = new Map<string, Core.Func[]>();
   for (const decl of decls) {
     checkReservedTypeName(decl, b);
-    if (decl.kind === 'Func') checkFunc(decl, idOwners, b);
+    if (decl.kind === 'Func') checkFunc(decl, idOwners, b, registry);
   }
   for (const [id, funcs] of idOwners) {
     if (funcs.length < 2) continue;

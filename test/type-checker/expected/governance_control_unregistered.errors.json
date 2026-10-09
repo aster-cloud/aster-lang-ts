@@ -1,0 +1,10 @@
+{
+  "file": "governance_control_unregistered.aster",
+  "diagnostics": [
+    {
+      "code": "W704",
+      "severity": "warning",
+      "message": "Control 'ACME:ART1' on rule 'decide' is not registered (controls registry 1.0.0)"
+    }
+  ]
+}

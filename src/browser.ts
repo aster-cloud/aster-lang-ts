@@ -125,6 +125,7 @@ import { lowerModule } from './lower_to_core.js';
 import type { Core as CoreTypes, Token, Module as AstModule } from './types.js';
 import type { Lexicon } from './config/lexicons/types.js';
 import { typecheckBrowser as _typecheckBrowser } from './typecheck/browser.js';
+import type { ControlRegistry } from './governance/controls.js';
 import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
 import { attachTypeInferenceRules } from './config/lexicons/type-inference-rules.js';
 import { DiagnosticError } from './diagnostics/diagnostics.js';
@@ -175,6 +176,8 @@ export interface CompileOptions {
   tenantId?: string;
   /** Include intermediate representations in result */
   includeIntermediates?: boolean;
+  /** 控制注册表（ADR 0045）；缺省用内置副本 */
+  controls?: ControlRegistry;
 }
 
 /**
@@ -389,6 +392,10 @@ export type { SchemaResult, SchemaOptions } from './browser/schema.js';
 
 export { typecheckBrowser } from './typecheck/browser.js';
 export type { BrowserTypecheckOptions } from './typecheck/browser.js';
+export { controlRegistryFrom, defaultControlRegistry } from './governance/controls.js';
+export type { ControlRegistry } from './governance/controls.js';
+export { CONTROLS_REGISTRY } from './governance/controls-registry.data.js';
+export type { ControlsRegistryData, LocalizedTitle } from './governance/controls-registry.data.js';
 export type { TypecheckDiagnostic } from './types.js';
 
 /**
@@ -447,10 +454,11 @@ export function compileAndTypecheck(
 
   // enforcePii is forwarded only for source-level compat. _typecheckBrowser
   // ignores it (PII checks always on).
-  const typecheckOptions: { enforcePii?: boolean } = {};
+  const typecheckOptions: { enforcePii?: boolean; controls?: ControlRegistry } = {};
   if (options?.enforcePii !== undefined) {
     typecheckOptions.enforcePii = options.enforcePii;
   }
+  if (options?.controls) typecheckOptions.controls = options.controls;
 
   const typeErrors = _typecheckBrowser(compileResult.core, typecheckOptions);
 
