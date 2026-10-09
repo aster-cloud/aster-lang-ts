@@ -25,12 +25,23 @@ import { CONTROLS_REGISTRY } from '../governance/controls-registry.data.js';
 
 const CONTROL_ARG = /@control\(\s*"([^"]*)$/;
 
-/** `@control("` 字符串内补全注册表键（ADR 0045 §3）；其它位置返回 null。 */
-export function controlCompletions(linePrefix: string): CompletionItem[] | null {
+/**
+ * `@control("` 字符串内补全注册表键（ADR 0045 §3）；其它位置返回 null。
+ * 给出光标位置时，每项带 textEdit 覆盖引号内已输入的前缀（引号后一位至光标），
+ * 避免客户端按单词边界（常止于 `:`）替换而重复插入框架前缀，如 `GDPR:GDPR:ART22`。
+ */
+export function controlCompletions(
+  linePrefix: string,
+  position?: { line: number; character: number },
+): CompletionItem[] | null {
   const m = CONTROL_ARG.exec(linePrefix);
   if (!m) return null;
   const typed = m[1] ?? '';
   const frameworks = new Map(CONTROLS_REGISTRY.frameworks.map((f) => [f.id, f.title]));
+  const range = position && {
+    start: { line: position.line, character: position.character - typed.length },
+    end: position,
+  };
   return CONTROLS_REGISTRY.controls
     .filter((c) => c.key.startsWith(typed))
     .map((c) => ({
@@ -38,6 +49,7 @@ export function controlCompletions(linePrefix: string): CompletionItem[] | null 
       kind: CompletionItemKind.Value,
       detail: c.title.en,
       documentation: `${frameworks.get(c.framework)?.en ?? c.framework} · ${c.title.en} / ${c.title.zh} / ${c.title.de}`,
+      ...(range ? { textEdit: { range, newText: c.key } } : {}),
     }));
 }
 
@@ -50,7 +62,7 @@ export function controlCompletionsAt(
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return null;
   const linePrefix = doc.getText({ start: { line: params.position.line, character: 0 }, end: params.position });
-  return controlCompletions(linePrefix);
+  return controlCompletions(linePrefix, params.position);
 }
 
 /**
