@@ -85,6 +85,7 @@ export const enum ErrorCode {
   GOV_CONTROL_UNREGISTERED = "W704",
   GOV_PROFILE_UNKNOWN = "E705",
   GOV_PROFILE_VIOLATION = "E706",
+  GOV_CHECK_UNAVAILABLE = "E707",
 }
 
 export interface ErrorMetadata {
@@ -175,6 +176,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.GOV_CONTROL_UNREGISTERED]: "Control '{control}' on rule '{rule}' is not registered (controls registry {version})",
   [ErrorCode.GOV_PROFILE_UNKNOWN]: "Module '{module}' declares unknown profile '{profile}' (controls registry {version})",
   [ErrorCode.GOV_PROFILE_VIOLATION]: "Rule '{rule}' violates profile '{profile}': {requirement}",
+  [ErrorCode.GOV_CHECK_UNAVAILABLE]: "Governance check could not run for module '{module}' (profile '{profile}'); saving is blocked until it succeeds",
 };
 
 export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
@@ -730,6 +732,13 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     severity: 'error',
     message: "Rule '{rule}' violates profile '{profile}': {requirement}",
     help: "Satisfy the profile requirement or remove the Profile declaration.",
+  },
+  [ErrorCode.GOV_CHECK_UNAVAILABLE]: {
+    code: ErrorCode.GOV_CHECK_UNAVAILABLE,
+    category: 'governance',
+    severity: 'error',
+    message: "Governance check could not run for module '{module}' (profile '{profile}'); saving is blocked until it succeeds",
+    help: "Retry later; this is a service fault, not a policy violation.",
   },
 };
 
