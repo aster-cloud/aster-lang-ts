@@ -39,7 +39,7 @@ function profilesOf(data: ControlsRegistryData): Map<string, ProfileDef> {
   const profiles = new Map<string, ProfileDef>();
   const raw: unknown = data.profiles ?? [];
   if (!Array.isArray(raw)) throw new Error('控制注册表 profiles 须为数组');
-  const frameworkIds = new Set((data.frameworks ?? []).map((f) => f.id).filter((id) => typeof id === 'string'));
+  const frameworkIds = frameworkIdsOf(data.frameworks);
   const seen = new Set<unknown>();
   const duplicated = new Set<unknown>();
   for (const p of raw as unknown[]) {
@@ -51,6 +51,17 @@ function profilesOf(data: ControlsRegistryData): Map<string, ProfileDef> {
   }
   for (const id of duplicated) profiles.delete(id as string);
   return profiles;
+}
+
+/** 根 frameworks 的已登记 id：非数组视为空，null/非对象条目与空白 id 跳过（与 Java 跳过空白框架 id 一致）。 */
+function frameworkIdsOf(frameworks: unknown): Set<string> {
+  const ids = new Set<string>();
+  if (!Array.isArray(frameworks)) return ids;
+  for (const f of frameworks as unknown[]) {
+    const id = f !== null && typeof f === 'object' ? (f as { id?: unknown }).id : undefined;
+    if (typeof id === 'string' && id.trim() !== '') ids.add(id);
+  }
+  return ids;
 }
 
 /** id 合乎形态、两个开关为布尔、frameworks 为只含已登记框架 id 的数组，否则为 undefined。 */

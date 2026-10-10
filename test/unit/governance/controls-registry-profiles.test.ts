@@ -78,3 +78,28 @@ test('声明畸形档案的模块得到 E705', () => {
   const diags = typecheckModule(lowerModule(parse(lex(canonicalize(src))).ast as AstModule), { controls: r });
   assert.equal(diags.filter((d) => d.code === ErrorCode.GOV_PROFILE_UNKNOWN).length, 1, JSON.stringify(diags));
 });
+
+// 根 frameworks 形态不可信：非数组、null/非对象条目、空白 id 都不抛出，只是不计入已登记框架
+function registryWithFrameworks(frameworks: unknown): ControlRegistry {
+  return controlRegistryFrom({
+    version: '9',
+    frameworks,
+    controls: [],
+    clauses: [],
+    profiles: [profile('ok', true, true, []), profile('blank', true, true, ['']), profile('eu', true, true, ['EU_AI_ACT'])],
+  } as unknown as ControlsRegistryData);
+}
+
+test('根 frameworks 畸形时不抛出，畸形条目与空白 id 不计入', () => {
+  const variants: unknown[] = [
+    'EU_AI_ACT',
+    null,
+    [null, 7, 'EU_AI_ACT', { id: '' }, { id: '   ' }, { id: 3 }],
+  ];
+  for (const fws of variants) {
+    const r = registryWithFrameworks(fws);
+    assert.deepEqual(profileIds(r, ['ok', 'blank', 'eu']), ['ok'], JSON.stringify(fws));
+  }
+  const good = registryWithFrameworks([null, { id: ' ' }, { id: 'EU_AI_ACT' }]);
+  assert.deepEqual(profileIds(good, ['ok', 'blank', 'eu']), ['ok', 'eu']);
+});
