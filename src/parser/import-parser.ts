@@ -74,6 +74,9 @@ export function parseModuleHeader(
   expectDot();
 }
 
+// 模块头至多一个且须在文件开头（与 Java module 规则一致）
+export const MODULE_MISPLACED = 'Module header must appear once, at the start of the file';
+
 // ADR 0046：档案 id 形态（与注册表 profiles[].id 及 Java AstBuilder 一致）
 const PROFILE_ID_REGEX = '^[a-z][a-z0-9-]{0,63}$';
 const PROFILE_ID = new RegExp(PROFILE_ID_REGEX);
