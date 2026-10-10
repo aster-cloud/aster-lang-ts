@@ -109,7 +109,11 @@ test('高风险档案下未登记的同框架键同时违反两条要求', () =>
 test('注入的注册表携带自定义档案与框架', () => {
   const custom = controlRegistryFrom({
     version: '9.9.9',
-    frameworks: [],
+    // 档案引用的框架须在根 frameworks 中登记，否则档案不登记
+    frameworks: [
+      { id: 'ACME', title: { en: 'a', zh: 'a', de: 'a' } },
+      { id: 'SOX', title: { en: 's', zh: 's', de: 's' } },
+    ],
     controls: [
       { key: 'ACME:ART1', framework: 'ACME', article: '1', title: { en: 'a', zh: 'a', de: 'a' } },
       { key: 'acme:bad', framework: 'ACME', article: 'x', title: { en: 'b', zh: 'b', de: 'b' } },

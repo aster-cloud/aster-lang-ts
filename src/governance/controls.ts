@@ -27,18 +27,42 @@ export function isWellFormedControlKey(key: string): boolean {
   return key.length <= MAX_KEY_LENGTH && KEY_PATTERN.test(key);
 }
 
-/** 缺 profiles 视为无档案，以兼容只含控制点的输入。 */
+// 档案 id 形态（与 locales 校验、Java ControlRegistry 及 Profile 声明一致）
+const PROFILE_ID = /^[a-z][a-z0-9-]{0,63}$/;
+
+/**
+ * 缺 profiles（或为 null）视为无档案，以兼容只含控制点的输入；profiles 存在但不是数组属结构错误，抛出。
+ * 注入的数据可能来自运行时 JSON：单条档案按 locales 校验口径判定，不合法即不登记，声明它的模块因此得到 E705；
+ * 重复 id 的各条一律不登记，避免静默择一（与 Java ControlRegistry.readProfiles 一致）。
+ */
 function profilesOf(data: ControlsRegistryData): Map<string, ProfileDef> {
   const profiles = new Map<string, ProfileDef>();
-  for (const p of data.profiles ?? []) {
-    profiles.set(p.id, {
-      id: p.id,
-      ruleId: p.requires.ruleId,
-      registeredControls: p.requires.registeredControls,
-      frameworks: [...p.requires.frameworks],
-    });
+  const raw: unknown = data.profiles ?? [];
+  if (!Array.isArray(raw)) throw new Error('控制注册表 profiles 须为数组');
+  const frameworkIds = new Set((data.frameworks ?? []).map((f) => f.id).filter((id) => typeof id === 'string'));
+  const seen = new Set<unknown>();
+  const duplicated = new Set<unknown>();
+  for (const p of raw as unknown[]) {
+    const id = (p as { id?: unknown } | null)?.id;
+    if (seen.has(id)) duplicated.add(id);
+    seen.add(id);
+    const profile = readProfile(p, frameworkIds);
+    if (profile !== undefined) profiles.set(profile.id, profile);
   }
+  for (const id of duplicated) profiles.delete(id as string);
   return profiles;
+}
+
+/** id 合乎形态、两个开关为布尔、frameworks 为只含已登记框架 id 的数组，否则为 undefined。 */
+function readProfile(p: unknown, frameworkIds: ReadonlySet<string>): ProfileDef | undefined {
+  const { id, requires } = (p ?? {}) as { id?: unknown; requires?: unknown };
+  const { ruleId, registeredControls, frameworks } = (requires ?? {}) as Record<string, unknown>;
+  const shapeOk = typeof id === 'string' && PROFILE_ID.test(id)
+    && typeof ruleId === 'boolean' && typeof registeredControls === 'boolean' && Array.isArray(frameworks);
+  if (!shapeOk) return undefined;
+  const known = (frameworks as unknown[]).every((f) => typeof f === 'string' && frameworkIds.has(f));
+  if (!known) return undefined;
+  return { id, ruleId, registeredControls, frameworks: [...(frameworks as string[])] };
 }
 
 export function controlRegistryFrom(data: ControlsRegistryData): ControlRegistry {
