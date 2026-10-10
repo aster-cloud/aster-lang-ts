@@ -54,7 +54,7 @@ export function parse(tokens: readonly Token[], lexicon?: Lexicon): ParseResult 
   const ctx = createParserContext(tokens, lexicon);
   const tools = createParserTools(ctx);
   const { decls, diagnostics } = collectTopLevelDecls(ctx, tools);
-  const moduleNode = Node.Module(ctx.moduleName, decls);
+  const moduleNode = Node.Module(ctx.moduleName, ctx.moduleProfile, decls);
   const moduleEnd = lastSignificantTokenInStream(tokens);
   assignSpan(moduleNode, spanFromTokens(moduleStart, moduleEnd));
   return { ast: moduleNode, diagnostics };

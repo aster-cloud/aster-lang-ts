@@ -161,7 +161,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Fn1'),
       statements: [Node.Return(lambdaExpr)],
     });
-    const moduleAst = Node.Module('test.lowering.lambda_capture', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.lambda_capture', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const func = core.decls.find(d => d.kind === 'Func') as Core.Func;
     const lambda = (func.body.statements[0] as Core.Return).expr as Core.Lambda;
@@ -176,7 +176,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Text'),
       statements: [Node.Return(awaitExpr)],
     });
-    const moduleAst = Node.Module('test.lowering.await_expr', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.await_expr', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const func = core.decls[0] as Core.Func;
     const retExpr = (func.body.statements[0] as Core.Return).expr;
@@ -191,7 +191,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Int'),
       statements: [Node.Block([Node.Let('inner', Node.Int(2))]), inner],
     });
-    const moduleAst = Node.Module('test.lowering.scope_block', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.scope_block', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const func = core.decls[0] as Core.Func;
     assert.equal(func.body.statements[0]!.kind, 'Scope');
@@ -220,7 +220,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('List'),
       statements: [Node.Return(resultCall), Node.Return(listCall)],
     });
-    const moduleAst = Node.Module('test.lowering.map_calls', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.map_calls', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const body = (core.decls[0] as Core.Func).body.statements;
     const resultExpr = (body[0] as Core.Return).expr as Core.Call;
@@ -243,7 +243,7 @@ Rule makeIdentity, produce Fn1:
       true,
       Node.Block([Node.Return(Node.String('ok'))])
     );
-    const moduleAst = Node.Module('test.lowering.effectcaps.explicit', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.effectcaps.explicit', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const func = core.decls[0] as Core.Func;
     assert.deepEqual(func.effectCaps, caps);
@@ -263,7 +263,7 @@ Rule makeIdentity, produce Fn1:
       false,
       Node.Block([Node.Return(Node.Bool(true))])
     );
-    const moduleAst = Node.Module('test.lowering.effectcaps.implicit', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.effectcaps.implicit', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const func = core.decls[0] as Core.Func;
     assert.deepEqual(func.effectCaps, caps);
@@ -282,7 +282,7 @@ Rule makeIdentity, produce Fn1:
       false,
       Node.Block([Node.Return(Node.Int(1))])
     );
-    const moduleAst = Node.Module('test.lowering.effectcaps.unknown', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.effectcaps.unknown', null, [funcDecl]);
     assert.throws(
       () => lowerAst(moduleAst),
       /Unknown effect/
@@ -300,7 +300,7 @@ Rule makeIdentity, produce Fn1:
         Node.Return(Node.Name('counter')),
       ],
     });
-    const moduleAst = Node.Module('test.lowering.set.basic', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.set.basic', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const func = core.decls[0] as Core.Func;
     const body = func.body.statements;
@@ -321,7 +321,7 @@ Rule makeIdentity, produce Fn1:
         Node.Return(Node.Name('a')),
       ],
     });
-    const moduleAst = Node.Module('test.lowering.set.sequence', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.set.sequence', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const func = core.decls[0] as Core.Func;
     const body = func.body.statements;
@@ -341,7 +341,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Int'),
       statements: [matchStmt],
     });
-    const moduleAst = Node.Module('test.lowering.match.null', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.match.null', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const matchCore = ((core.decls[0] as Core.Func).body.statements[0]) as Core.Match;
     assert.equal(matchCore.cases[0]?.pattern.kind, 'PatNull');
@@ -357,7 +357,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Int'),
       statements: [matchStmt],
     });
-    const moduleAst = Node.Module('test.lowering.match.ctor', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.match.ctor', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const matchCore = ((core.decls[0] as Core.Func).body.statements[0]) as Core.Match;
     const pat = matchCore.cases[0]!.pattern as Core.PatCtor;
@@ -375,7 +375,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Text'),
       statements: [matchStmt],
     });
-    const moduleAst = Node.Module('test.lowering.match.int', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.match.int', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const matchCore = ((core.decls[0] as Core.Func).body.statements[0]) as Core.Match;
     const pat = matchCore.cases[0]!.pattern as Core.PatInt;
@@ -389,7 +389,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Result'),
       statements: [Node.Return(Node.Ok(Node.Int(1)))],
     });
-    const moduleAst = Node.Module('test.lowering.expr.ok', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.expr.ok', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const retStmt = (core.decls[0] as Core.Func).body.statements[0] as Core.Return;
     const expr = retStmt.expr as Core.Ok;
@@ -403,7 +403,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Result'),
       statements: [Node.Return(Node.Err(Node.String('fail')))],
     });
-    const moduleAst = Node.Module('test.lowering.expr.err', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.expr.err', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const retStmt = (core.decls[0] as Core.Func).body.statements[0] as Core.Return;
     const expr = retStmt.expr as Core.Err;
@@ -417,7 +417,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.Maybe(Node.TypeName('Int')),
       statements: [Node.Return(Node.Some(Node.Int(7))), Node.Return(Node.None())],
     });
-    const moduleAst = Node.Module('test.lowering.expr.option', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.expr.option', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const firstReturn = (core.decls[0] as Core.Func).body.statements[0] as Core.Return;
     const secondReturn = (core.decls[0] as Core.Func).body.statements[1] as Core.Return;
@@ -435,7 +435,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Int'),
       statements: [startStmt, Node.Return(Node.Int(0))],
     });
-    const moduleAst = Node.Module('test.lowering.start', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.start', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const stmt = (core.decls[0] as Core.Func).body.statements[0] as Core.Start;
     assert.equal(stmt.kind, 'Start');
@@ -450,7 +450,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Int'),
       statements: [waitStmt, Node.Return(Node.Int(1))],
     });
-    const moduleAst = Node.Module('test.lowering.wait', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.wait', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const stmt = (core.decls[0] as Core.Func).body.statements[0] as Core.Wait;
     assert.equal(stmt.kind, 'Wait');
@@ -464,7 +464,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Null'),
       statements: [callStmt, Node.Return(Node.Null())],
     });
-    const moduleAst = Node.Module('test.lowering.callStmt', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.callStmt', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const stmt = (core.decls[0] as Core.Func).body.statements[0] as Core.Let;
     assert.equal(stmt.kind, 'Let');
@@ -485,7 +485,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Int'),
       statements: [ifStmt, Node.Return(Node.Int(0))],
     });
-    const moduleAst = Node.Module('test.lowering.if.then', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.if.then', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const stmt = (core.decls[0] as Core.Func).body.statements[0] as Core.If;
     assert.equal(stmt.kind, 'If');
@@ -504,7 +504,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Int'),
       statements: [ifStmt, Node.Return(Node.Int(0))],
     });
-    const moduleAst = Node.Module('test.lowering.if.else', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.if.else', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const stmt = (core.decls[0] as Core.Func).body.statements[0] as Core.If;
     assert.equal((stmt.elseBlock as Core.Block).statements[0]?.kind, 'Return');
@@ -520,7 +520,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Int'),
       statements: [scopeBlock],
     });
-    const moduleAst = Node.Module('test.lowering.scope.single', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.scope.single', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const stmt = (core.decls[0] as Core.Func).body.statements[0] as Core.Scope;
     assert.equal(stmt.kind, 'Scope');
@@ -539,7 +539,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Int'),
       statements: [outer],
     });
-    const moduleAst = Node.Module('test.lowering.scope.nested', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.scope.nested', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const scope = (core.decls[0] as Core.Func).body.statements[0] as Core.Scope;
     assert.equal(scope.kind, 'Scope');
@@ -556,7 +556,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Bool'),
       statements: [Node.Return(Node.Bool(true))],
     });
-    const moduleAst = Node.Module('test.lowering.type.pii', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.type.pii', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const paramType = ((core.decls[0] as Core.Func).params[0]!).type as Core.PiiType;
     assert.equal(paramType.kind, 'PiiType');
@@ -585,7 +585,7 @@ Rule makeIdentity, produce Fn1:
         ),
       ])
     );
-    const moduleAst = Node.Module('test.lowering.func.pii', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.func.pii', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const func = core.decls[0] as Core.Func;
     assert.equal(func.piiLevel, 'L2');
@@ -603,7 +603,7 @@ Rule makeIdentity, produce Fn1:
       false,
       Node.Block([Node.Return(Node.Name('value'))])
     );
-    const moduleAst = Node.Module('test.lowering.type.var', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.type.var', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const func = core.decls[0] as Core.Func;
     assert.equal(func.params[0]!.type.kind, 'TypeVar');
@@ -621,7 +621,7 @@ Rule makeIdentity, produce Fn1:
       false,
       Node.Block([Node.Return(Node.Name('pending'))])
     );
-    const moduleAst = Node.Module('test.lowering.type.app', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.type.app', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const ret = (core.decls[0] as Core.Func).ret as Core.TypeApp;
     assert.equal(ret.kind, 'TypeApp');
@@ -638,7 +638,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.Maybe(Node.TypeName('Text')),
       statements: [Node.Return(Node.None())],
     });
-    const moduleAst = Node.Module('test.lowering.type.option', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.type.option', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const paramType = ((core.decls[0] as Core.Func).params[0]!).type as Core.Option;
     const ret = (core.decls[0] as Core.Func).ret as Core.Maybe;
@@ -654,7 +654,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.Result(Node.TypeName('Text'), Node.TypeName('Error')),
       statements: [Node.Return(Node.Ok(Node.String('ok')))],
     });
-    const moduleAst = Node.Module('test.lowering.type.result', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.type.result', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const ret = (core.decls[0] as Core.Func).ret as Core.Result;
     assert.equal(ret.kind, 'Result');
@@ -663,7 +663,7 @@ Rule makeIdentity, produce Fn1:
   });
 
   it('Import 声明应直接映射为 Core.Import', () => {
-    const moduleAst = Node.Module('test.lowering.import', [
+    const moduleAst = Node.Module('test.lowering.import', null, [
       Node.Import('Http.Client', 'HttpClient'),
     ]);
     const core = lowerAst(moduleAst);
@@ -675,7 +675,7 @@ Rule makeIdentity, produce Fn1:
   });
 
   it('Import version 应映射为 Core.Import version', () => {
-    const moduleAst = Node.Module('test.lowering.import.version', [
+    const moduleAst = Node.Module('test.lowering.import.version', null, [
       Node.Import('risk.Scoring', 'Score', 2),
     ]);
     const core = lowerAst(moduleAst);
@@ -698,7 +698,7 @@ Rule makeIdentity, produce Fn1:
       span: freshSpan(),
     };
     const dataDecl = Node.Data('User', [field]);
-    const moduleAst = Node.Module('test.lowering.data.constraints', [dataDecl]);
+    const moduleAst = Node.Module('test.lowering.data.constraints', null, [dataDecl]);
     const core = lowerAst(moduleAst);
     const data = core.decls[0] as Core.Data;
     assert.ok(data.fields[0]!.constraints, '应该存在 constraints');
@@ -729,7 +729,7 @@ Rule makeIdentity, produce Fn1:
       span: freshSpan(),
     };
     const dataDecl = Node.Data('Profile', [fieldWithConstraints, fieldWithoutConstraints]);
-    const moduleAst = Node.Module('test.lowering.data.multi_constraints', [dataDecl]);
+    const moduleAst = Node.Module('test.lowering.data.multi_constraints', null, [dataDecl]);
     const core = lowerAst(moduleAst);
     const data = core.decls[0] as Core.Data;
     assert.equal(data.fields[0]!.constraints!.length, 2);
@@ -746,7 +746,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('User'),
       statements: [Node.Return(construct)],
     });
-    const moduleAst = Node.Module('test.lowering.construct', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.construct', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const expr = ((core.decls[0] as Core.Func).body.statements[0] as Core.Return)
       .expr as Core.Construct;
@@ -762,7 +762,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Long'),
       statements: [Node.Return(Node.Long('1234567890123456789'))],
     });
-    const moduleAst = Node.Module('test.lowering.long', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.long', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const retStmt = (core.decls[0] as Core.Func).body.statements[0] as Core.Return;
     const expr = retStmt.expr as Core.Long;
@@ -776,7 +776,7 @@ Rule makeIdentity, produce Fn1:
       retType: Node.TypeName('Double'),
       statements: [Node.Return(Node.Double(3.14))],
     });
-    const moduleAst = Node.Module('test.lowering.double', [funcDecl]);
+    const moduleAst = Node.Module('test.lowering.double', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const retStmt = (core.decls[0] as Core.Func).body.statements[0] as Core.Return;
     const expr = retStmt.expr as Core.Double;

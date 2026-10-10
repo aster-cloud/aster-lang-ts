@@ -14,6 +14,8 @@ export interface ParserContext {
   readonly lexicon?: Lexicon;
   index: number;
   moduleName: string | null;
+  /** 模块头之后声明的治理档案 id（ADR 0046），未声明为 null */
+  moduleProfile: string | null;
   declaredTypes: Set<string>;
   /**
    * 可【构造】的类型名（Data/Enum 记录类型），不含 type alias。
@@ -165,6 +167,7 @@ export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon)
     ...(lexicon !== undefined && { lexicon }),
     index: 0,
     moduleName: null,
+    moduleProfile: null,
     declaredTypes: new Set<string>(),
     declaredRecordTypes: new Set<string>(),
     currentTypeVars: new Set<string>(),

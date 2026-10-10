@@ -6,6 +6,7 @@ import type {
   If,
   Parameter,
   Pattern,
+  Return,
   Span,
   Statement,
   StepStmt,
@@ -69,6 +70,31 @@ function assignSpanFromSources<T extends { span: Span }>(
   return assignSpan(node, spanFromSources(...sources));
 }
 
+// ADR 0046：结论词序列（字符串参数记为 _）→ 降糖目标，与 Java AstBuilder.SUGAR_OUTCOMES 一致
+const SUGAR_OUTCOMES: ReadonlyMap<string, string> = new Map([
+  [KW.ALLOW, 'Verdict.allow'],
+  [`${KW.DENY} _`, 'Verdict.deny'],
+  [`${KW.ESCALATE} _`, 'Verdict.escalate'],
+  [`${KW.REQUIRE_APPROVAL_BY} _ ${KW.BECAUSE} _`, 'Verdict.require_approval'],
+]);
+const SUGAR_OUTCOME_ERROR =
+  'Expected allow, deny, escalate or require approval by … because … after When/Otherwise';
+const OTHERWISE_NOT_LAST = 'Otherwise must be the last statement of its block';
+
+// Otherwise 语法糖降糖出的 Return：其后不得再有同块语句（不可达）
+const OTHERWISE_SUGAR = new WeakSet<Statement>();
+
+/** 解析块内一条语句；前一条若是 Otherwise 语法糖则报错（对齐 Java requireOtherwiseLast）。 */
+function parseBlockStatement(
+  ctx: ParserContext,
+  error: (msg: string) => never,
+  statements: Statement[]
+): void {
+  const prev = statements[statements.length - 1];
+  if (prev !== undefined && OTHERWISE_SUGAR.has(prev)) error(OTHERWISE_NOT_LAST);
+  statements.push(parseStatement(ctx, error));
+}
+
 /**
  * 解析代码块（Block）
  * @param ctx Parser 上下文
@@ -90,7 +116,7 @@ export function parseBlock(
     while (!ctx.at(TokenKind.DEDENT) && !ctx.at(TokenKind.EOF)) {
       ctx.consumeNewlines();
       if (ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.EOF)) break;
-      statements.push(parseStatement(ctx, error));
+      parseBlockStatement(ctx, error, statements);
       ctx.consumeNewlines();
     }
     if (!ctx.at(TokenKind.DEDENT)) error('Expected dedent');
@@ -112,7 +138,7 @@ export function parseBlock(
     while (!ctx.at(TokenKind.DEDENT) && !ctx.at(TokenKind.EOF)) {
       ctx.consumeNewlines();
       if (ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.EOF)) break;
-      statements.push(parseStatement(ctx, error));
+      parseBlockStatement(ctx, error, statements);
       ctx.consumeNewlines();
     }
     if (statements.length === 0) error('Expected at least one statement in function body');
@@ -145,7 +171,7 @@ export function parseExplicitBlock(
   const statements: Statement[] = [];
   ctx.consumeNewlines();
   while (!ctx.at(TokenKind.BLOCK_END) && !ctx.at(TokenKind.EOF)) {
-    statements.push(parseStatement(ctx, error));
+    parseBlockStatement(ctx, error, statements);
     ctx.consumeNewlines();
   }
   if (!ctx.at(TokenKind.BLOCK_END)) error("Expected explicit block end word (e.g. '毕')");
@@ -285,10 +311,77 @@ function parseInlineIf(
   return ifNode;
 }
 
+function isElseWord(ctx: ParserContext): boolean {
+  return ctx.isKeyword(KW.OTHERWISE) || ctx.isKeyword(KW.ELSE);
+}
+
+/**
+ * If 块之后的 Otherwise/else 是否开启 else 分支：其后须是 `,`、`:` 或换行（对齐 Java ifStmt
+ * 的 `ELSE (COMMA | COLON)? NEWLINE`）；否则留给 Otherwise 语法糖（ADR 0046）。
+ */
+function startsElseBranch(ctx: ParserContext): boolean {
+  const kind = ctx.peek(1).kind;
+  return kind === TokenKind.COMMA || kind === TokenKind.COLON || kind === TokenKind.NEWLINE;
+}
+
+/**
+ * ADR 0046：解析结论 `allow | deny <text> | escalate <text> | require approval by <text> because <text>`，
+ * 降糖为 `Return Verdict.<op>(…)`。词序列查表，与 Java 的 sugarOutcome 文法 + 校验同口径。
+ */
+function parseSugarOutcome(ctx: ParserContext, error: (msg: string) => never): Return {
+  const startTok = ctx.peek();
+  const shape: string[] = [];
+  const args: Expression[] = [];
+  for (let tok = ctx.peek(); isWordToken(tok) || tok.kind === TokenKind.STRING; tok = ctx.peek()) {
+    ctx.next();
+    if (tok.kind === TokenKind.STRING) {
+      shape.push('_');
+      args.push(assignTokenSpan(Node.String(tok.value as string), tok));
+    } else {
+      shape.push(String(tok.value).toLowerCase());
+    }
+  }
+  const target = SUGAR_OUTCOMES.get(shape.join(' '));
+  if (target === undefined) error(SUGAR_OUTCOME_ERROR);
+  // 与 Java 一致：合成的 Name/Call/Return 共用结论词范围（不含句点）
+  const span = spanFromTokens(startTok, lastNonLayoutToken(ctx));
+  const call = assignSpan(Node.Call(assignSpan(Node.Name(target), span), args), span);
+  return assignSpan(Node.Return(call), span);
+}
+
+function isWordToken(tok: Token): boolean {
+  return tok.kind === TokenKind.IDENT || tok.kind === TokenKind.TYPE_IDENT || tok.kind === TokenKind.KEYWORD;
+}
+
+/** ADR 0046：`When <cond>, <outcome>.` → `If <cond>: Return Verdict.*(…)`（无 else）。 */
+function parseWhenSugar(ctx: ParserContext, error: (msg: string) => never): If {
+  const whenTok = ctx.nextWord();
+  const cond = parseExpr(ctx, error);
+  if (!ctx.at(TokenKind.COMMA)) error("Expected ',' after When condition");
+  ctx.next();
+  const ret = parseSugarOutcome(ctx, error);
+  expectPeriodEnd(ctx, error);
+  // 合成的块与 If 必须补 span，否则以第 0 行进入 Core IR（同 parseInlineIf）
+  const thenBlock = assignSpan(Node.Block([ret]), spanFromSources(ret));
+  return assignSpan(Node.If(cond, thenBlock, null), spanFromTokens(whenTok, lastNonLayoutToken(ctx)));
+}
+
+/** ADR 0046：`Otherwise <outcome>.` → `Return Verdict.*(…)`，并登记为须收尾所在块。 */
+function parseOtherwiseSugar(ctx: ParserContext, error: (msg: string) => never): Return {
+  ctx.nextWord();
+  const ret = parseSugarOutcome(ctx, error);
+  expectPeriodEnd(ctx, error);
+  OTHERWISE_SUGAR.add(ret);
+  return ret;
+}
+
 export function parseStatement(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Statement {
+  // ADR 0046：语句位置的 When / Otherwise 是治理结论语法糖（Match 分支的 When 由 parseCases 自行消费）
+  if (ctx.isKeyword(KW.WHEN)) return parseWhenSugar(ctx, error);
+  if (isElseWord(ctx)) return parseOtherwiseSugar(ctx, error);
   if (ctx.isKeyword(KW.LET)) {
     const letTok = ctx.peek();
     ctx.nextWord();
@@ -391,8 +484,9 @@ export function parseStatement(
     expectNewline(ctx, error);
     const thenBlock = parseBlock(ctx, error);
     let elseBlock: Block | null = null;
-    // else 与 otherwise 都接受（与 core ELSE: Else|Otherwise 对齐）。
-    if (ctx.isKeyword(KW.OTHERWISE) || ctx.isKeyword(KW.ELSE)) {
+    // else 与 otherwise 都接受（与 core ELSE: Else|Otherwise 对齐）；其后不是 `,`/`:`/换行时
+    // 不消费，留作下一条 Otherwise 语法糖语句（ADR 0046）。
+    if (isElseWord(ctx) && startsElseBranch(ctx)) {
       ctx.nextWord();
       if (ctx.at(TokenKind.COMMA)) ctx.next();
       if (ctx.at(TokenKind.COLON)) ctx.next();
@@ -1216,7 +1310,8 @@ const ALL_KEYWORDS = new Set<string>((Object.values(KW) as string[]).map((k) => 
 const APPLY_TARGET_SOFT_KEYWORDS = new Set<string>([
   KW.LET, KW.MATCH, KW.IF, KW.RETURN, KW.RULE, KW.DEFINE, KW.WHEN,
   KW.START, KW.OTHERWISE, KW.ELSE, KW.THEN, KW.APPLY,
-  // ADR 0046 软关键词：Java 侧经 structKeywordName 放行，且此前在 TS 中本是普通标识符。
+  // ADR 0046 结论/档案词：Java 侧没有对应词法记号，它们就是普通 IDENT，天然可作目标段；
+  // TS 把它们登记进了 KW，故须在此显式放行以保持一致。
   KW.PROFILE, KW.ALLOW, KW.DENY, KW.ESCALATE, KW.BECAUSE,
   // 字面量：这些是 Java structKeywordName/MAP 成员，但 TS 的 KW 对象未必有同名键。
   'wait', 'map', 'max', 'attempts',

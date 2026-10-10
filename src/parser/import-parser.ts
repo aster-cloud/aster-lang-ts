@@ -74,6 +74,38 @@ export function parseModuleHeader(
   expectDot();
 }
 
+// ADR 0046：档案 id 形态（与注册表 profiles[].id 及 Java AstBuilder 一致）
+const PROFILE_ID_REGEX = '^[a-z][a-z0-9-]{0,63}$';
+const PROFILE_ID = new RegExp(PROFILE_ID_REGEX);
+export const PROFILE_MISPLACED = 'Profile must follow the Module header and appear at most once';
+
+/** ADR 0046：模块头之后的下一条声明是否为 Profile（关键词文本须与 Java 一致，精确为 Profile）。 */
+export function atProfileDecl(ctx: ParserContext): boolean {
+  return ctx.at(TokenKind.TYPE_IDENT, 'Profile');
+}
+
+/**
+ * 解析治理档案声明（ADR 0046）
+ * 语法: Profile "eu-ai-act-high-risk".
+ *
+ * 只能紧跟模块头且至多一条；位置由调用方保证，此处只在重复时报错。
+ * id 用字符串字面量书写（两个引擎的词法都把 `-` 切成 MINUS）。
+ */
+export function parseProfileDecl(
+  ctx: ParserContext,
+  error: (msg: string, tok?: Token) => never,
+  expectDot: () => void
+): void {
+  const kwTok = ctx.next();
+  if (ctx.moduleProfile !== null) error(PROFILE_MISPLACED, kwTok);
+  const idTok = ctx.peek();
+  if (!ctx.at(TokenKind.STRING)) error('Expected profile id string after Profile', idTok);
+  const id = ctx.next().value as string;
+  if (!PROFILE_ID.test(id)) error(`Profile id must match ${PROFILE_ID_REGEX}: ${id}`, idTok);
+  expectDot();
+  ctx.moduleProfile = id;
+}
+
 /**
  * 解析导入语句
  * 语法: use foo.bar. 或 use foo.bar version 2 as Baz.

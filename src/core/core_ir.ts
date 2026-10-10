@@ -7,9 +7,11 @@ export { Effect };
 
 export const Core = {
   // Program structure
-  Module: (name: string | null, decls: readonly CoreTypes.Declaration[]): CoreTypes.Module => ({
+  // ADR 0046：profile 仅在声明时输出（与 Java NON_NULL 一致），未声明档案的模块 IR 逐字节不变
+  Module: (name: string | null, decls: readonly CoreTypes.Declaration[], profile?: string): CoreTypes.Module => ({
     kind: 'Module',
     name,
+    ...(profile !== undefined ? { profile } : {}),
     decls,
   }),
   Import: (name: string, asName: string | null, version?: number | null): CoreTypes.Import => ({

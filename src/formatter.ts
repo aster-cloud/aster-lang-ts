@@ -477,6 +477,8 @@ class AstFormatterVisitor extends DefaultAstVisitor<void> {
   override visitModule(m: Module, _ctx: void): void {
     if (m.name) {
       this.out.push(`Module ${m.name}.`);
+      // ADR 0046：档案声明紧跟模块头；语法糖已在解析期降糖，按长写法输出（§10 已知限制）
+      if (m.profile !== undefined) this.out.push(`Profile ${JSON.stringify(m.profile)}.`);
       // 在模块头和第一个declaration之间添加空行
       if (m.decls.length > 0) this.out.push('');
     }
