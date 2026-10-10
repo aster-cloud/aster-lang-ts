@@ -112,7 +112,7 @@ test('returnsVerdict 穿透 Block → Scope → Return（手工构造 Core IR）
   const ret = Core.Return(Core.Call(Core.Name('Verdict.deny'), [Core.String('no')]));
   const func = handFunc('main', Core.Block([Core.Scope([ret])]));
   assert.equal(returnsVerdict(func), true);
-  const codes = checkGovernance([func]).map((d) => d.code);
+  const codes = checkGovernance({ name: 'probe', decls: [func] }).map((d) => d.code);
   assert.deepEqual(codes, [ErrorCode.GOV_VERDICT_RULE_MISSING_ID]);
 });
 
@@ -127,8 +127,8 @@ test('returnsVerdict 不经由变量判定', () => {
 test('注解 name 为 null/undefined 不抛异常', () => {
   const bogus = [{ name: null }, { name: undefined }] as unknown as Annotation[];
   const func = handFunc('main', Core.Block([Core.Return(Core.Bool(true))]), bogus);
-  assert.doesNotThrow(() => checkGovernance([func]));
-  assert.deepEqual(checkGovernance([func]), []);
+  assert.doesNotThrow(() => checkGovernance({ name: 'probe', decls: [func] }));
+  assert.deepEqual(checkGovernance({ name: 'probe', decls: [func] }), []);
   assert.equal(ruleId(func), undefined);
   assert.deepEqual(controls(func), []);
 });
@@ -154,7 +154,7 @@ test('注入空注册表时已登记键也报 W704', () => {
     { name: 'id', args: [{ name: '$0', value: 'R-1' }] },
     { name: 'control', args: [{ name: '$0', value: 'EU_AI_ACT:ART14' }] },
   ]);
-  const diags = checkGovernance([fn], { controls: empty });
+  const diags = checkGovernance({ name: 'probe', decls: [fn] }, { controls: empty });
   assert.ok(diags.some((d) => d.code === 'W704'), JSON.stringify(diags));
 });
 

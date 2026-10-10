@@ -133,8 +133,8 @@ export function typecheckModule(m: Core.Module, options?: TypecheckOptions): Typ
       checkModulePII(funcs, piiDiagnostics, ctx.imports);
     }
     const entryDiagnostics = checkEntryRuleUniqueness(m.decls);
-    // ADR 0039 / 0045 治理检查：W700 / E701 / E702 / W704 与 Verdict 符号预占
-    const governanceDiagnostics = checkGovernance(m.decls, options?.controls ? { controls: options.controls } : {});
+    // ADR 0039 / 0045 / 0046 治理检查：W700 / E701 / E702 / W704 / E705 / E706 与 Verdict 符号预占
+    const governanceDiagnostics = checkGovernance(m, options?.controls ? { controls: options.controls } : {});
     const result = [
       ...diagnostics.getDiagnostics(),
       ...effectDiags,
