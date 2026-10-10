@@ -261,7 +261,7 @@ function lowerConstraints(
  */
 export function lowerModule(ast: Module): import('./types.js').Core.Module {
   const decls = ast.decls.map(lowerDecl);
-  const m = Core.Module(ast.name, decls);
+  const m = Core.Module(ast.name, decls, ast.profile);
   return withOrigin(m, ast);
 }
 

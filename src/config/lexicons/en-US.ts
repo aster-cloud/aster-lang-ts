@@ -31,6 +31,12 @@ export const EN_US: Lexicon = {
     [SemanticTokenKind.RESULT_IS]: 'the result is',
     [SemanticTokenKind.FOR_EACH]: 'for each',
     [SemanticTokenKind.IN]: 'in',
+    [SemanticTokenKind.PROFILE]: 'Profile',
+    [SemanticTokenKind.ALLOW]: 'allow',
+    [SemanticTokenKind.DENY]: 'deny',
+    [SemanticTokenKind.ESCALATE]: 'escalate',
+    [SemanticTokenKind.REQUIRE_APPROVAL_BY]: 'require approval by',
+    [SemanticTokenKind.BECAUSE]: 'because',
     [SemanticTokenKind.LET]: 'Let',
     [SemanticTokenKind.BE]: 'be',
     [SemanticTokenKind.SET]: 'set',
@@ -90,9 +96,6 @@ export const EN_US: Lexicon = {
     [SemanticTokenKind.PATTERN]: 'pattern',
   },
 
-  // ADR 0022：官方 builtin 不内置别名（方案 A 已回滚）。别名机制保留供方案 D
-  // （用户自定义、随版本快照固化的 aliasSet）在编译期注入。
-
   punctuation: {
     statementEnd: '.',
     listSeparator: ',',
@@ -111,8 +114,8 @@ export const EN_US: Lexicon = {
     articles: ['a', 'an', 'the'],
     allowedDuplicates: [
       [SemanticTokenKind.FUNC_TO, SemanticTokenKind.TO_WORD],
-      [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN],
-      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
+      [SemanticTokenKind.LESS_THAN, SemanticTokenKind.UNDER],
+      [SemanticTokenKind.MORE_THAN, SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN],
     ],
   },
 

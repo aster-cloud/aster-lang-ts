@@ -104,6 +104,24 @@ export enum SemanticTokenKind {
   /** 集合成员 - "in" / "在" */
   IN = 'IN',
 
+  /** 治理档案声明（ADR 0046 §2）- "Profile" / "档案"。软关键词：仅在 Module 行之后的声明位置生效 */
+  PROFILE = 'PROFILE',
+
+  /** 语法糖结论词：放行（ADR 0046 §5）- "allow" / "允许"。软关键词，不影响 Verdict.allow() 成员名 */
+  ALLOW = 'ALLOW',
+
+  /** 语法糖结论词：拒绝（ADR 0046 §5）- "deny" / "拒绝" */
+  DENY = 'DENY',
+
+  /** 语法糖结论词：升级处理（ADR 0046 §5）- "escalate" / "升级" */
+  ESCALATE = 'ESCALATE',
+
+  /** 语法糖结论词：需人工审批，后接审批角色（ADR 0046 §5）- "require approval by" / "需审批人" */
+  REQUIRE_APPROVAL_BY = 'REQUIRE_APPROVAL_BY',
+
+  /** 语法糖原因连接词，用于审批结论（ADR 0046 §5）- "because" / "因为" */
+  BECAUSE = 'BECAUSE',
+
   // ============================================================
   // 变量操作
   // ============================================================
@@ -356,6 +374,12 @@ export const SEMANTIC_TOKEN_CATEGORIES: Record<string, SemanticTokenKind[]> = {
     SemanticTokenKind.RESULT_IS,
     SemanticTokenKind.FOR_EACH,
     SemanticTokenKind.IN,
+    SemanticTokenKind.PROFILE,
+    SemanticTokenKind.ALLOW,
+    SemanticTokenKind.DENY,
+    SemanticTokenKind.ESCALATE,
+    SemanticTokenKind.REQUIRE_APPROVAL_BY,
+    SemanticTokenKind.BECAUSE,
   ],
   variable: [SemanticTokenKind.LET, SemanticTokenKind.BE, SemanticTokenKind.SET, SemanticTokenKind.TO_WORD],
   boolean: [SemanticTokenKind.OR, SemanticTokenKind.AND, SemanticTokenKind.NOT],

@@ -11,7 +11,14 @@ import { toDiagnostic } from '../diagnostics/diagnostics.js';
 import type { ParserContext } from './context.js';
 import { kwParts, tokLowerAt } from './context.js';
 import type { ParserTools } from './parser-tools.js';
-import { parseModuleHeader, parseImport } from './import-parser.js';
+import {
+  atProfileDecl,
+  MODULE_MISPLACED,
+  parseModuleHeader,
+  parseImport,
+  parseProfileDecl,
+  PROFILE_MISPLACED,
+} from './import-parser.js';
 import { parseType, parseEffectList, separateEffectsAndCaps } from './type-parser.js';
 import { parseBlock, parseExplicitBlock, parseParamList } from './expr-stmt-parser.js';
 import { parseFieldList, parseVariantList } from './field-variant-parser.js';
@@ -674,7 +681,15 @@ export function collectTopLevelDecls(
     try {
       // 解析模块头: Module foo.bar.
       if (ctx.isKeywordSeq(KW.MODULE_IS)) {
+        if (ctx.moduleName !== null || decls.length > 0) tools.error(MODULE_MISPLACED);
         parseModuleHeader(ctx, tools.error, tools.expectDot);
+        // ADR 0046：Profile 只能紧跟模块头（中间可有空行）；模块头唯一，故此处至多解析一条，其余交给下方分支报错
+        ctx.consumeNewlines();
+        if (atProfileDecl(ctx)) parseProfileDecl(ctx, tools.error, tools.expectDot);
+      }
+      // 其余位置出现的 Profile（重复、模块头之前或声明之间）一律报错
+      else if (ctx.isKeyword(KW.PROFILE)) {
+        tools.error(PROFILE_MISPLACED);
       }
       // 解析导入: use foo.bar. 或 use foo.bar as Baz.
       else if (ctx.isKeyword(KW.USE)) {

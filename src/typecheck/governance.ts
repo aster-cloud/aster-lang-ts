@@ -9,10 +9,19 @@
  * 治理注解只接受恰好一个非空白位置字符串参数，命名参数、非字符串、空白字符串一律 E702；
  * 同一规则出现多个 @id 也报 E702（@control 可重复）。
  *
+ * 档案（ADR 0046 §4）：模块声明的档案不在注册表中报 E705（模块 origin），之后不再做档案检查；
+ * 已知档案只约束返回 Verdict 的规则，违反要求报 E706（规则 span），同一规则同一要求只报一次。
+ *
  * 本模块只依赖纯函数与 DiagnosticBuilder，Node / 浏览器两条类型检查路径共用。
  */
-import type { Annotation, Core, TypecheckDiagnostic } from '../types.js';
+import type { Annotation, Core, Origin, TypecheckDiagnostic } from '../types.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
+import {
+  defaultControlRegistry,
+  isWellFormedControlKey,
+  type ControlRegistry,
+  type ProfileDef,
+} from '../governance/controls.js';
 import { DiagnosticBuilder } from './diagnostics.js';
 import { originToSpan } from './pure.js';
 import { VERDICT_TYPE_NAME, isVerdictCall } from './verdict_signatures.js';
@@ -83,8 +92,19 @@ export function returnsVerdict(func: Core.Func): boolean {
   return anyReturnIsVerdictCall(func.body);
 }
 
-/** 单条规则：E702 注解参数、多个 @id，记录 id 归属或报 W700。 */
-function checkFunc(func: Core.Func, idOwners: Map<string, Core.Func[]>, b: DiagnosticBuilder): void {
+/** 形态由本模块自行把关（与 Java ControlRegistry.has 一致），注入的注册表无法放行非法键。 */
+function isRegistered(key: string, registry: ControlRegistry): boolean {
+  return isWellFormedControlKey(key) && registry.has(key);
+}
+
+/** 单条规则：E702 注解参数、多个 @id，记录 id 归属或报 W700，W704 未登记控制点，E706 档案要求。 */
+function checkFunc(
+  func: Core.Func,
+  idOwners: Map<string, Core.Func[]>,
+  b: DiagnosticBuilder,
+  registry: ControlRegistry,
+  profile: ProfileDef | undefined
+): void {
   const span = originToSpan(func.origin);
   const rule = String(func.name);
   for (const a of annotationsOf(func)) {
@@ -101,6 +121,47 @@ function checkFunc(func: Core.Func, idOwners: Map<string, Core.Func[]>, b: Diagn
   } else if (returnsVerdict(func)) {
     b.warning(ErrorCode.GOV_VERDICT_RULE_MISSING_ID, span, { rule });
   }
+  // ADR 0045：未登记或形态非法的控制键给 W704；同一规则同键只报一次，永不阻断。
+  for (const key of new Set(controls(func))) {
+    if (isRegistered(key, registry)) continue;
+    b.warning(ErrorCode.GOV_CONTROL_UNREGISTERED, span, { control: key, rule, version: registry.version });
+  }
+  if (profile) checkProfile(func, profile, b, registry);
+}
+
+/** ADR 0046 §4：只对 Verdict 规则检查档案要求；同一规则同一要求只报一次。 */
+function checkProfile(func: Core.Func, p: ProfileDef, b: DiagnosticBuilder, registry: ControlRegistry): void {
+  if (!returnsVerdict(func)) return;
+  const violation = (requirement: string): void => {
+    b.error(ErrorCode.GOV_PROFILE_VIOLATION, originToSpan(func.origin), { rule: String(func.name), profile: p.id, requirement });
+  };
+  if (p.ruleId && ruleId(func) === undefined) violation('missing @id');
+  const keys = [...new Set(controls(func))];
+  if (p.registeredControls) {
+    keys.filter((k) => !isRegistered(k, registry)).forEach((k) => violation(`unregistered control ${k}`));
+  }
+  if (p.frameworks.length > 0 && !keys.some((k) => coversFramework(k, p, registry))) {
+    violation(`no registered control from framework ${p.frameworks.join(', ')}`);
+  }
+}
+
+function coversFramework(key: string, p: ProfileDef, registry: ControlRegistry): boolean {
+  const framework = registry.frameworkOf?.(key);
+  return isRegistered(key, registry) && framework !== undefined && p.frameworks.includes(framework);
+}
+
+/** 声明了档案的模块按档案要求检查；未知档案报 E705 后不再做档案检查。 */
+function resolveProfile(module: GovernanceModule, b: DiagnosticBuilder, registry: ControlRegistry): ProfileDef | undefined {
+  if (module.profile === undefined) return undefined;
+  const profile = registry.profile?.(module.profile);
+  if (!profile) {
+    b.error(ErrorCode.GOV_PROFILE_UNKNOWN, originToSpan(module.origin), {
+      module: String(module.name),
+      profile: module.profile,
+      version: registry.version,
+    });
+  }
+  return profile;
 }
 
 /** Verdict 为内置类型名，用户 Define 同名 Data / Enum 报 DUPLICATE_SYMBOL。 */
@@ -110,14 +171,31 @@ function checkReservedTypeName(decl: Core.Declaration, b: DiagnosticBuilder): vo
   }
 }
 
-/** 检查整个模块：E702 注解参数、W700 缺 @id、E701 模块内 @id 重复、Verdict 符号预占。 */
-export function checkGovernance(decls: readonly Core.Declaration[]): TypecheckDiagnostic[] {
+/** 治理检查所需的模块视图：Core.Module 满足此形状，测试可只给 decls。 */
+export interface GovernanceModule {
+  readonly name: string | null;
+  readonly profile?: string;
+  readonly decls: readonly Core.Declaration[];
+  readonly origin?: Origin;
+}
+
+/**
+ * 检查整个模块：E702 注解参数、W700 缺 @id、E701 模块内 @id 重复、W704 未登记控制点、
+ * E705/E706 档案（ADR 0046）、Verdict 符号预占。
+ * opts.controls 可注入控制注册表，缺省用内置副本（ADR 0045 §3）。
+ */
+export function checkGovernance(
+  module: GovernanceModule,
+  opts: { controls?: ControlRegistry } = {}
+): TypecheckDiagnostic[] {
   const b = new DiagnosticBuilder();
+  const registry = opts.controls ?? defaultControlRegistry;
+  const profile = resolveProfile(module, b, registry);
   // @id → 拥有该 id 的规则（按声明顺序），用于发现重复
   const idOwners = new Map<string, Core.Func[]>();
-  for (const decl of decls) {
+  for (const decl of module.decls) {
     checkReservedTypeName(decl, b);
-    if (decl.kind === 'Func') checkFunc(decl, idOwners, b);
+    if (decl.kind === 'Func') checkFunc(decl, idOwners, b, registry, profile);
   }
   for (const [id, funcs] of idOwners) {
     if (funcs.length < 2) continue;

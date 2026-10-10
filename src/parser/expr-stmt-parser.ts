@@ -6,6 +6,7 @@ import type {
   If,
   Parameter,
   Pattern,
+  Return,
   Span,
   Statement,
   StepStmt,
@@ -69,6 +70,46 @@ function assignSpanFromSources<T extends { span: Span }>(
   return assignSpan(node, spanFromSources(...sources));
 }
 
+// ADR 0046：结论词序列（字符串参数记为 _）→ 降糖目标，与 Java AstBuilder.SUGAR_OUTCOMES 一致
+const SUGAR_OUTCOMES: ReadonlyMap<string, string> = new Map([
+  [KW.ALLOW, 'Verdict.allow'],
+  [`${KW.DENY} _`, 'Verdict.deny'],
+  [`${KW.ESCALATE} _`, 'Verdict.escalate'],
+  [`${KW.REQUIRE_APPROVAL_BY} _ ${KW.BECAUSE} _`, 'Verdict.require_approval'],
+]);
+const SUGAR_OUTCOME_ERROR =
+  'Expected allow, deny, escalate or require approval by … because … after When/Otherwise';
+const OTHERWISE_NOT_LAST = 'Otherwise must be the last statement of its block';
+
+/** 语法糖结论非法时的报告方式：立即抛错，或记下待块结束再报。 */
+type OutcomeErrorSink = (msg: string) => void;
+
+/**
+ * 块内语句解析器，错误次序对齐 Java AstBuilder：先查本块的 Otherwise 收尾（requireOtherwiseLast），
+ * 再校验各语句的语法糖结论。因此 Otherwise 之后再有语句立即报错；本块结论非法的错误先记下，
+ * 由 finish 在块结束时报出（只报第一条）。状态都在本块闭包里，随块解析结束而释放。
+ */
+function blockStatementParser(
+  ctx: ParserContext,
+  error: (msg: string) => never,
+  statements: Statement[]
+): { next: () => void; finish: () => void } {
+  let closed = false;
+  let pendingOutcomeError: string | undefined;
+  const deferOutcomeError: OutcomeErrorSink = (msg) => { pendingOutcomeError ??= msg; };
+  return {
+    next: (): void => {
+      if (closed) error(OTHERWISE_NOT_LAST);
+      // 语句开头的 Otherwise/else 必走 parseOtherwiseSugar（If 的 else 分支由 If 自身消费）
+      closed = isElseWord(ctx);
+      statements.push(parseStatement(ctx, error, deferOutcomeError));
+    },
+    finish: (): void => {
+      if (pendingOutcomeError !== undefined) error(pendingOutcomeError);
+    },
+  };
+}
+
 /**
  * 解析代码块（Block）
  * @param ctx Parser 上下文
@@ -80,6 +121,7 @@ export function parseBlock(
   error: (msg: string) => never
 ): Block {
   const statements: Statement[] = [];
+  const blockParser = blockStatementParser(ctx, error, statements);
   ctx.consumeNewlines();
   // Check if we have an INDENT token (new indented block)
   const hasIndent = ctx.at(TokenKind.INDENT);
@@ -90,10 +132,11 @@ export function parseBlock(
     while (!ctx.at(TokenKind.DEDENT) && !ctx.at(TokenKind.EOF)) {
       ctx.consumeNewlines();
       if (ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.EOF)) break;
-      statements.push(parseStatement(ctx, error));
+      blockParser.next();
       ctx.consumeNewlines();
     }
     if (!ctx.at(TokenKind.DEDENT)) error('Expected dedent');
+    blockParser.finish();
     const endTok = ctx.peek();
     ctx.next();
     const b = Node.Block(statements);
@@ -112,10 +155,11 @@ export function parseBlock(
     while (!ctx.at(TokenKind.DEDENT) && !ctx.at(TokenKind.EOF)) {
       ctx.consumeNewlines();
       if (ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.EOF)) break;
-      statements.push(parseStatement(ctx, error));
+      blockParser.next();
       ctx.consumeNewlines();
     }
     if (statements.length === 0) error('Expected at least one statement in function body');
+    blockParser.finish();
     const endTok = ctx.tokens[ctx.index - 1] || startTok;
     const b = Node.Block(statements);
     if (statements.length > 0) {
@@ -143,13 +187,15 @@ export function parseExplicitBlock(
   error: (msg: string) => never
 ): Block {
   const statements: Statement[] = [];
+  const blockParser = blockStatementParser(ctx, error, statements);
   ctx.consumeNewlines();
   while (!ctx.at(TokenKind.BLOCK_END) && !ctx.at(TokenKind.EOF)) {
-    statements.push(parseStatement(ctx, error));
+    blockParser.next();
     ctx.consumeNewlines();
   }
   if (!ctx.at(TokenKind.BLOCK_END)) error("Expected explicit block end word (e.g. '毕')");
   if (statements.length === 0) error('Expected at least one statement in explicit block');
+  blockParser.finish();
   ctx.next(); // consume BLOCK_END
   const b = Node.Block(statements);
   const firstStmt = statements[0]!;
@@ -285,10 +331,96 @@ function parseInlineIf(
   return ifNode;
 }
 
+function isElseWord(ctx: ParserContext): boolean {
+  return ctx.isKeyword(KW.OTHERWISE) || ctx.isKeyword(KW.ELSE);
+}
+
+/**
+ * If 块之后的 Otherwise/else 是否开启 else 分支：其后须是 `,`、`:` 或换行（对齐 Java ifStmt
+ * 的 `ELSE (COMMA | COLON)? NEWLINE`）；否则留给 Otherwise 语法糖（ADR 0046）。
+ */
+function startsElseBranch(ctx: ParserContext): boolean {
+  const kind = ctx.peek(1).kind;
+  return kind === TokenKind.COMMA || kind === TokenKind.COLON || kind === TokenKind.NEWLINE;
+}
+
+// 结论不跨越的记号：句点收尾，换行与缩进变化同样终止（与 Java sugarOutcome 的 ~(DOT|NEWLINE|INDENT|DEDENT|EOF) 一致）
+const OUTCOME_END: ReadonlySet<TokenKind> = new Set([
+  TokenKind.DOT, TokenKind.NEWLINE, TokenKind.INDENT, TokenKind.DEDENT, TokenKind.EOF,
+]);
+// 结论不得以逗号或冒号开头：`Otherwise, …` / `Otherwise: …` 不是语法糖，按普通解析错误报告
+const OUTCOME_BAD_START: ReadonlyMap<TokenKind, string> = new Map([[TokenKind.COMMA, ','], [TokenKind.COLON, ':']]);
+
+/**
+ * ADR 0046：解析结论 `allow | deny <text> | escalate <text> | require approval by <text> because <text>`，
+ * 降糖为 `Return Verdict.<op>(…)`。收下句点前的全部记号再查表：字符串记为 _，其余记号取小写文本，
+ * 数字、运算符、括号等非单词记号使查表落空，与 Java sugarOutcome 文法 + 校验同口径、同消息。
+ */
+function parseSugarOutcome(
+  ctx: ParserContext,
+  error: (msg: string) => never,
+  reportOutcomeError: OutcomeErrorSink
+): Return {
+  const startTok = ctx.peek();
+  const badStart = OUTCOME_BAD_START.get(startTok.kind);
+  if (badStart !== undefined) error(`Unexpected '${badStart}' where an outcome was expected`);
+  const shape: string[] = [];
+  const args: Expression[] = [];
+  for (let tok = ctx.peek(); !OUTCOME_END.has(tok.kind); tok = ctx.peek()) {
+    ctx.next();
+    if (tok.kind === TokenKind.STRING) {
+      shape.push('_');
+      args.push(assignTokenSpan(Node.String(tok.value as string), tok));
+    } else {
+      shape.push(String(tok.value).toLowerCase());
+    }
+  }
+  // 查表落空时 target 为空串：错误若被延后，整次解析终将失败，该节点不会流出
+  const target = SUGAR_OUTCOMES.get(shape.join(' ')) ?? '';
+  if (target === '') reportOutcomeError(SUGAR_OUTCOME_ERROR);
+  // 与 Java 一致：合成的 Name/Call/Return 共用结论词范围（不含句点）
+  const span = spanFromTokens(startTok, lastNonLayoutToken(ctx));
+  const call = assignSpan(Node.Call(assignSpan(Node.Name(target), span), args), span);
+  return assignSpan(Node.Return(call), span);
+}
+
+/** ADR 0046：`When <cond>, <outcome>.` → `If <cond>: Return Verdict.*(…)`（无 else）。 */
+function parseWhenSugar(
+  ctx: ParserContext,
+  error: (msg: string) => never,
+  reportOutcomeError: OutcomeErrorSink
+): If {
+  const whenTok = ctx.nextWord();
+  const cond = parseExpr(ctx, error);
+  if (!ctx.at(TokenKind.COMMA)) error("Expected ',' after When condition");
+  ctx.next();
+  const ret = parseSugarOutcome(ctx, error, reportOutcomeError);
+  expectPeriodEnd(ctx, error);
+  // 合成的块与 If 必须补 span，否则以第 0 行进入 Core IR（同 parseInlineIf）
+  const thenBlock = assignSpan(Node.Block([ret]), spanFromSources(ret));
+  return assignSpan(Node.If(cond, thenBlock, null), spanFromTokens(whenTok, lastNonLayoutToken(ctx)));
+}
+
+/** ADR 0046：`Otherwise <outcome>.` → `Return Verdict.*(…)`；须收尾所在块由 blockStatementParser 检查。 */
+function parseOtherwiseSugar(
+  ctx: ParserContext,
+  error: (msg: string) => never,
+  reportOutcomeError: OutcomeErrorSink
+): Return {
+  ctx.nextWord();
+  const ret = parseSugarOutcome(ctx, error, reportOutcomeError);
+  expectPeriodEnd(ctx, error);
+  return ret;
+}
+
 export function parseStatement(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: (msg: string) => never,
+  reportOutcomeError: OutcomeErrorSink = error
 ): Statement {
+  // ADR 0046：语句位置的 When / Otherwise 是治理结论语法糖（Match 分支的 When 由 parseCases 自行消费）
+  if (ctx.isKeyword(KW.WHEN)) return parseWhenSugar(ctx, error, reportOutcomeError);
+  if (isElseWord(ctx)) return parseOtherwiseSugar(ctx, error, reportOutcomeError);
   if (ctx.isKeyword(KW.LET)) {
     const letTok = ctx.peek();
     ctx.nextWord();
@@ -391,8 +523,9 @@ export function parseStatement(
     expectNewline(ctx, error);
     const thenBlock = parseBlock(ctx, error);
     let elseBlock: Block | null = null;
-    // else 与 otherwise 都接受（与 core ELSE: Else|Otherwise 对齐）。
-    if (ctx.isKeyword(KW.OTHERWISE) || ctx.isKeyword(KW.ELSE)) {
+    // else 与 otherwise 都接受（与 core ELSE: Else|Otherwise 对齐）；其后不是 `,`/`:`/换行时
+    // 不消费，留作下一条 Otherwise 语法糖语句（ADR 0046）。
+    if (isElseWord(ctx) && startsElseBranch(ctx)) {
       ctx.nextWord();
       if (ctx.at(TokenKind.COMMA)) ctx.next();
       if (ctx.at(TokenKind.COLON)) ctx.next();
@@ -1216,6 +1349,9 @@ const ALL_KEYWORDS = new Set<string>((Object.values(KW) as string[]).map((k) => 
 const APPLY_TARGET_SOFT_KEYWORDS = new Set<string>([
   KW.LET, KW.MATCH, KW.IF, KW.RETURN, KW.RULE, KW.DEFINE, KW.WHEN,
   KW.START, KW.OTHERWISE, KW.ELSE, KW.THEN, KW.APPLY,
+  // ADR 0046 结论/档案词：Java 侧没有对应词法记号，它们就是普通 IDENT，天然可作目标段；
+  // TS 把它们登记进了 KW，故须在此显式放行以保持一致。
+  KW.PROFILE, KW.ALLOW, KW.DENY, KW.ESCALATE, KW.BECAUSE,
   // 字面量：这些是 Java structKeywordName/MAP 成员，但 TS 的 KW 对象未必有同名键。
   'wait', 'map', 'max', 'attempts',
 ].map((k) => k.toLowerCase()));
@@ -1290,10 +1426,38 @@ function parseCallTargetName(
   return target;
 }
 
+// 前缀运算符调用 `<op>(a, b)` 的运算符记号 → 规范符号（与 Java operatorCall + normalizeOperator 一致，`=` 同中缀降为 `==`）
+const PREFIX_OPERATORS: ReadonlyMap<TokenKind, string> = new Map([
+  [TokenKind.LT, '<'],
+  [TokenKind.GT, '>'],
+  [TokenKind.LTE, '<='],
+  [TokenKind.GTE, '>='],
+  [TokenKind.NEQ, '!='],
+  [TokenKind.EQ, '=='],
+  [TokenKind.EQUALS, '=='],
+  [TokenKind.PLUS, '+'],
+  [TokenKind.MINUS, '-'],
+  [TokenKind.STAR, '*'],
+  [TokenKind.SLASH, '/'],
+]);
+
+/** 前缀运算符调用：恰好 2 个实参，降为与中缀相同的 Call(Name(op), [a, b])。 */
+function parsePrefixOperatorCall(ctx: ParserContext, error: (msg: string) => never, op: string): Expression {
+  const opTok = ctx.next();
+  const args = parseArgList(ctx, error);
+  if (args.length !== 2) error(`前缀操作符调用需要 2 个参数，但实际为 ${args.length}`);
+  const target = assignTokenSpan(Node.Name(op), opTok);
+  return assignSpan(Node.Call(target, args), spanFromTokens(opTok, lastNonLayoutToken(ctx)));
+}
+
 function parsePrimary(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Expression {
+  const prefixOp = PREFIX_OPERATORS.get(ctx.peek().kind);
+  if (prefixOp !== undefined && ctx.peek(1).kind === TokenKind.LPAREN) {
+    return parsePrefixOperatorCall(ctx, error, prefixOp);
+  }
   // Minimal: construction, literals, names, Ok/Err/Some/None, call with dotted names and parens args
   // Lambda (block form): 'a function' (or 'function') ... 'produce' Type ':' \n Block
   if ((ctx.isKeyword('a') && tokLowerAt(ctx, ctx.index + 1) === 'function') || ctx.isKeyword('function')) {

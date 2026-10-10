@@ -91,6 +91,8 @@ export interface BaseEnum<S = Span | Origin> extends BaseNode<S> {
 export interface BaseModule<S = Span | Origin, D = unknown> extends BaseNode<S> {
   readonly kind: 'Module';
   readonly name: string | null;
+  /** 声明的治理档案 id（ADR 0046）；未声明时不出现该键 */
+  readonly profile?: string;
   readonly decls: readonly D[];
 }
 

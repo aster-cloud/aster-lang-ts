@@ -109,6 +109,7 @@ export function __setPiiCheckerForTest(fn: PiiCheckerFn | null): void {
   _piiCheckerOverride = fn;
 }
 import { DiagnosticBuilder } from './diagnostics.js';
+import type { ControlRegistry } from '../governance/controls.js';
 import { checkGovernance } from './governance.js';
 import { SymbolTable } from './symbol_table.js';
 import { TypeSystem } from './type_system.js';
@@ -161,6 +162,9 @@ export interface BrowserTypecheckOptions {
    * Module URI for diagnostic reporting
    */
   uri?: string | null;
+
+  /** 控制注册表（ADR 0045）；缺省用内置副本 */
+  controls?: ControlRegistry;
 }
 
 /**
@@ -316,8 +320,8 @@ export function typecheckBrowser(
     }
 
     const entryDiagnostics = checkEntryRuleUniqueness(m.decls);
-    // ADR 0039 治理检查：W700 / E701 / E702 与 Verdict 符号预占
-    const governanceDiagnostics = checkGovernance(m.decls);
+    // ADR 0039 / 0045 / 0046 治理检查：W700 / E701 / E702 / W704 / E705 / E706 与 Verdict 符号预占
+    const governanceDiagnostics = checkGovernance(m, options?.controls ? { controls: options.controls } : {});
     const result = [
       ...diagnostics.getDiagnostics(),
       ...effectDiags,

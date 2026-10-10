@@ -1,11 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../src/frontend/lexer.js';
 import { parse } from '../../../src/parser.js';
 import { lowerModule } from '../../../src/lower_to_core.js';
 import { typecheckModule } from '../../../src/typecheck.js';
 import { typecheckBrowser } from '../../../src/typecheck/browser.js';
+import { compileAndTypecheck } from '../../../src/browser.js';
 import { Core } from '../../../src/core/core_ir.js';
 import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
 import { checkGovernance, controls, returnsVerdict, ruleId } from '../../../src/typecheck/governance.js';
@@ -109,7 +112,7 @@ test('returnsVerdict 穿透 Block → Scope → Return（手工构造 Core IR）
   const ret = Core.Return(Core.Call(Core.Name('Verdict.deny'), [Core.String('no')]));
   const func = handFunc('main', Core.Block([Core.Scope([ret])]));
   assert.equal(returnsVerdict(func), true);
-  const codes = checkGovernance([func]).map((d) => d.code);
+  const codes = checkGovernance({ name: 'probe', decls: [func] }).map((d) => d.code);
   assert.deepEqual(codes, [ErrorCode.GOV_VERDICT_RULE_MISSING_ID]);
 });
 
@@ -124,8 +127,8 @@ test('returnsVerdict 不经由变量判定', () => {
 test('注解 name 为 null/undefined 不抛异常', () => {
   const bogus = [{ name: null }, { name: undefined }] as unknown as Annotation[];
   const func = handFunc('main', Core.Block([Core.Return(Core.Bool(true))]), bogus);
-  assert.doesNotThrow(() => checkGovernance([func]));
-  assert.deepEqual(checkGovernance([func]), []);
+  assert.doesNotThrow(() => checkGovernance({ name: 'probe', decls: [func] }));
+  assert.deepEqual(checkGovernance({ name: 'probe', decls: [func] }), []);
   assert.equal(ruleId(func), undefined);
   assert.deepEqual(controls(func), []);
 });
@@ -133,4 +136,65 @@ test('注解 name 为 null/undefined 不抛异常', () => {
 test('浏览器路径同样报 W700', () => {
   const codes = typecheckBrowser(coreOf(VERDICT_RULE)).map((d) => String(d.code));
   assert.ok(codes.includes(ErrorCode.GOV_VERDICT_RULE_MISSING_ID), codes.join(','));
+});
+
+test('已登记控制点无 W704', () => {
+  const codes = diagnose(`@id("R-1")\n@control("EU_AI_ACT:ART14")\n${VERDICT_RULE}`);
+  assert.equal(codes.filter((c) => c === 'W704').length, 0, codes.join(','));
+});
+
+test('未登记与形态非法都报 W704，同键只报一次', () => {
+  const codes = diagnose(`@id("R-1")\n@control("ACME:ART1")\n@control("ACME:ART1")\n@control("eu_ai_act:art14")\n${VERDICT_RULE}`);
+  assert.equal(codes.filter((c) => c === 'W704').length, 2, codes.join(','));
+});
+
+test('注入空注册表时已登记键也报 W704', () => {
+  const empty = { version: '0.0.0', has: () => false };
+  const fn = handFunc('main', Core.Block([]), [
+    { name: 'id', args: [{ name: '$0', value: 'R-1' }] },
+    { name: 'control', args: [{ name: '$0', value: 'EU_AI_ACT:ART14' }] },
+  ]);
+  const diags = checkGovernance({ name: 'probe', decls: [fn] }, { controls: empty });
+  assert.ok(diags.some((d) => d.code === 'W704'), JSON.stringify(diags));
+});
+
+test('注入的注册表放行一切时形态非法键仍报 W704', () => {
+  const permissive = { version: 'x', has: () => true };
+  const body = `@id("R-1")\n@control("eu_ai_act:art14")\n${VERDICT_RULE}`;
+  const diags = typecheckModule(coreOf(body), { controls: permissive });
+  const w704 = diags.filter((d) => d.code === ErrorCode.GOV_CONTROL_UNREGISTERED);
+  assert.equal(w704.length, 1, JSON.stringify(diags));
+});
+
+test('注入的注册表沿 Node / 浏览器 / compileAndTypecheck 透传', () => {
+  const empty = { version: '0.0.0', has: () => false };
+  const body = `@id("R-1")\n@control("EU_AI_ACT:ART14")\n${VERDICT_RULE}`;
+  const nodeCodes = typecheckModule(coreOf(body), { controls: empty }).map((d) => String(d.code));
+  const browserCodes = typecheckBrowser(coreOf(body), { controls: empty }).map((d) => String(d.code));
+  const compiled = compileAndTypecheck(`Module probe.\n${body}\n`, { controls: empty });
+  const compiledCodes = compiled.typeErrors.map((d) => String(d.code));
+  for (const codes of [nodeCodes, browserCodes, compiledCodes]) {
+    assert.ok(codes.includes(ErrorCode.GOV_CONTROL_UNREGISTERED), codes.join(','));
+  }
+});
+
+// 诊断黄金（ADR 0045 §3）：源文在 aster-lang-test tier3 type-checker 桶，期望在本仓 expected/；
+// 既有 golden 回归脚本读 npm 版语料，新源文发布前读不到，故直读兄弟仓（本地 ../ 或 CI 工作区 ./）。
+// CI 的 test job 会 checkout aster-lang-test，因此 CI 中缺失即失败；仅本地未并列 checkout 时跳过。
+test('W704 诊断黄金与期望文件一致', (t) => {
+  const name = 'governance_control_unregistered';
+  const relative = ['corpus', 'tier3-fixtures', 'type-checker', `${name}.aster`];
+  const source = [
+    join(process.cwd(), '..', 'aster-lang-test', ...relative),
+    join(process.cwd(), 'aster-lang-test', ...relative),
+  ].find((c) => existsSync(c));
+  if (source === undefined) {
+    assert.ok(!process.env.CI, 'CI 中须 checkout aster-lang-test（见 .github/workflows/ci.yml test job）');
+    return t.skip('aster-lang-test 未并列 checkout');
+  }
+  const ast = parse(lex(canonicalize(readFileSync(source, 'utf8')))).ast as AstModule;
+  const actual = typecheckModule(lowerModule(ast)).map(({ code, severity, message }) => ({ code, severity, message }));
+  const expectedPath = join(process.cwd(), 'test', 'type-checker', 'expected', `${name}.errors.json`);
+  const expected = (JSON.parse(readFileSync(expectedPath, 'utf8')) as { diagnostics: unknown[] }).diagnostics;
+  assert.deepEqual(actual, expected);
 });

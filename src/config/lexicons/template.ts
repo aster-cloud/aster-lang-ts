@@ -160,6 +160,24 @@ export const TEMPLATE: Lexicon = {
     /** 集合成员 - 英语 "in" / 中文 "在" */
     [SemanticTokenKind.IN]: '', // TODO: 翻译
 
+    /** 治理档案声明（ADR 0046 §2）- "Profile" / "档案"。软关键词：仅在 Module 行之后的声明位置生效 */
+    [SemanticTokenKind.PROFILE]: '', // TODO: 翻译
+
+    /** 语法糖结论词：放行（ADR 0046 §5）- "allow" / "允许"。软关键词，不影响 Verdict.allow() 成员名 */
+    [SemanticTokenKind.ALLOW]: '', // TODO: 翻译
+
+    /** 语法糖结论词：拒绝（ADR 0046 §5）- "deny" / "拒绝" */
+    [SemanticTokenKind.DENY]: '', // TODO: 翻译
+
+    /** 语法糖结论词：升级处理（ADR 0046 §5）- "escalate" / "升级" */
+    [SemanticTokenKind.ESCALATE]: '', // TODO: 翻译
+
+    /** 语法糖结论词：需人工审批，后接审批角色（ADR 0046 §5）- "require approval by" / "需审批人" */
+    [SemanticTokenKind.REQUIRE_APPROVAL_BY]: '', // TODO: 翻译
+
+    /** 语法糖原因连接词，用于审批结论（ADR 0046 §5）- "because" / "因为" */
+    [SemanticTokenKind.BECAUSE]: '', // TODO: 翻译
+
     // ----------------------------------------------------------
     // 变量操作
     // ----------------------------------------------------------

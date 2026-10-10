@@ -22,7 +22,8 @@ function main(): void {
     if (haveOut) {
       const expected = fs.readFileSync(outPath, 'utf8');
       const reflowed = formatCNL(src, { mode: 'lossless', reflow: true });
-      const norm = (s: string): string => s.replace(/\r\n/g, '\n').replace(/\s+$/g, '');
+      // 只忽略末尾的单个换行，其余空白逐字比较
+      const norm = (s: string): string => s.replace(/\n$/, '');
       if (norm(reflowed) !== norm(expected)) {
         console.error(`[reflow] mismatch for ${f}`);
         console.error('--- Got ---');

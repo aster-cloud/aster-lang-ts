@@ -1,0 +1,19 @@
+Module aster.pilot.credit.
+Profile "eu-ai-act-high-risk".
+
+Define Applicant has
+  creditScore as Int,
+  monthlyIncome as Decimal,
+  monthlyDebt as Decimal,
+  requestedAmount as Decimal,
+  activeDefaults as Int.
+
+@id("CP-DECIDE")
+@control("EU_AI_ACT:ART14")
+@control("GDPR:ART22")
+Rule decide given applicant as Applicant, produce Verdict:
+  When applicant.activeDefaults at least 1, deny "active_default".
+  When applicant.monthlyDebt greater than applicant.monthlyIncome times 0.45m, deny "dti_exceeds_limit".
+  When applicant.requestedAmount at least 50000m, require approval by "Credit Officer" because "large_exposure".
+  When applicant.creditScore at least 620 and applicant.creditScore at most 679, escalate "borderline_credit_score".
+  Otherwise allow.

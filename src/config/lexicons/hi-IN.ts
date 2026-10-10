@@ -31,6 +31,12 @@ export const HI_IN: Lexicon = {
     [SemanticTokenKind.RESULT_IS]: 'परिणाम है',
     [SemanticTokenKind.FOR_EACH]: 'प्रत्येक',
     [SemanticTokenKind.IN]: 'में',
+    [SemanticTokenKind.PROFILE]: 'प्रोफ़ाइल',
+    [SemanticTokenKind.ALLOW]: 'अनुमति',
+    [SemanticTokenKind.DENY]: 'अस्वीकार',
+    [SemanticTokenKind.ESCALATE]: 'आगे बढ़ाएँ',
+    [SemanticTokenKind.REQUIRE_APPROVAL_BY]: 'अनुमोदक',
+    [SemanticTokenKind.BECAUSE]: 'क्योंकि',
     [SemanticTokenKind.LET]: 'मानें',
     [SemanticTokenKind.BE]: 'हो',
     [SemanticTokenKind.SET]: 'निर्धारित',
@@ -107,8 +113,8 @@ export const HI_IN: Lexicon = {
     removeArticles: false,
     allowedDuplicates: [
       [SemanticTokenKind.FUNC_TO, SemanticTokenKind.TO_WORD],
-      [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN],
-      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
+      [SemanticTokenKind.LESS_THAN, SemanticTokenKind.UNDER],
+      [SemanticTokenKind.MORE_THAN, SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN],
     ],
   },
 

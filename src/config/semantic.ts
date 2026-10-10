@@ -272,6 +272,14 @@ export const KW = {
   OTHERWISE: 'otherwise',
   MATCH: 'match',
   WHEN: 'when',
+  // ADR 0046：Profile 声明与 When/Otherwise 语法糖结论词。均为软关键词，
+  // 仅在对应语句位置由 parser 以 isKeyword 文本匹配识别，其余位置仍是普通标识符。
+  PROFILE: 'profile',
+  ALLOW: 'allow',
+  DENY: 'deny',
+  ESCALATE: 'escalate',
+  REQUIRE_APPROVAL_BY: 'require approval by',
+  BECAUSE: 'because',
   APPLY: 'apply',
   WORKFLOW: 'workflow',
   STEP: 'step',

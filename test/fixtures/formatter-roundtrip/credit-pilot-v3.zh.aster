@@ -1,0 +1,19 @@
+模块 aster.pilot.credit。
+档案 "eu-ai-act-high-risk"。
+
+定义 Applicant 包含
+  creditScore 作为 整数，
+  monthlyIncome 作为 Decimal，
+  monthlyDebt 作为 Decimal，
+  requestedAmount 作为 Decimal，
+  activeDefaults 作为 整数。
+
+@id("CP-DECIDE")
+@control("EU_AI_ACT:ART14")
+@control("GDPR:ART22")
+规则 decide 给定 applicant 作为 Applicant 产出 Verdict：
+  当 applicant.activeDefaults 至少 1，拒绝 "active_default"。
+  当 applicant.monthlyDebt 大于 applicant.monthlyIncome 乘以 0.45m，拒绝 "dti_exceeds_limit"。
+  当 applicant.requestedAmount 至少 50000m，需审批人 "Credit Officer" 因为 "large_exposure"。
+  当 applicant.creditScore 至少 620 并且 applicant.creditScore 至多 679，升级 "borderline_credit_score"。
+  否则 允许。

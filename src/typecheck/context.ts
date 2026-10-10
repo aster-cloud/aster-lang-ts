@@ -2,6 +2,7 @@ import type { Core, Span } from '../types.js';
 import type { EffectSignature } from '../effects/effect_signature.js';
 import type { ModuleCache } from '../lsp/module_cache.js';
 import type { Lexicon } from '../config/lexicons/types.js';
+import type { ControlRegistry } from '../governance/controls.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
@@ -52,6 +53,8 @@ export interface TypecheckOptions {
   moduleSearchPaths?: readonly string[];
   moduleCache?: ModuleCache;
   lexicon?: Lexicon | undefined;
+  /** 控制注册表（ADR 0045）；缺省用内置副本 */
+  controls?: ControlRegistry | undefined;
 }
 
 export function defineSymbol(

@@ -87,6 +87,16 @@ describe('apply <fn> to <arg> — 无括号单参调用（ADR 0027）', () => {
     assert.ok(compiles('Rule r given x:\n  Return apply return to x.'), '`apply return to x` 应接受');
   });
 
+  it('ADR 0046 新词作 target：`apply profile/allow/deny/escalate/because to x` ≡ 同名调用', () => {
+    for (const word of ['profile', 'allow', 'deny', 'escalate', 'because']) {
+      assert.equal(
+        fingerprint(`Rule r given x:\n  Return apply ${word} to x.`),
+        fingerprint(`Rule r given x:\n  Return ${word}(x).`),
+        `\`apply ${word} to x\` 应仍是调用目标段`,
+      );
+    }
+  });
+
   it('硬关键词作 target 拒绝：`apply and/or/with/given/set to x` 报错（对齐 Java，避免双引擎分歧）', () => {
     for (const kw of ['and', 'or', 'not', 'with', 'given', 'produce', 'set', 'to']) {
       assert.ok(!compiles(`Rule r given x:\n  Return apply ${kw} to x.`),

@@ -9,9 +9,10 @@ function createEmptySpan(): AST.Span {
 }
 
 export const Node = {
-  Module: (name: string | null, decls: readonly AST.Declaration[]): AST.Module => ({
+  Module: (name: string | null, profile: string | null, decls: readonly AST.Declaration[]): AST.Module => ({
     kind: 'Module',
     name,
+    ...(profile !== null ? { profile } : {}),
     decls,
     span: createEmptySpan(),
   }),
