@@ -5,6 +5,7 @@ import { lex } from '../../../src/frontend/lexer.js';
 import { parse } from '../../../src/parser.js';
 import { lowerModule } from '../../../src/lower_to_core.js';
 import { typecheckModule } from '../../../src/typecheck.js';
+import { typecheckBrowser } from '../../../src/typecheck/browser.js';
 import { controlRegistryFrom, defaultControlRegistry } from '../../../src/governance/controls.js';
 import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
 import type { ControlRegistry } from '../../../src/governance/controls.js';
@@ -38,7 +39,7 @@ test('未知档案报 E705', () => {
   assert.equal(count(diags, ErrorCode.GOV_PROFILE_UNKNOWN), 1, show(diags));
   assert.ok(messages(diags, ErrorCode.GOV_PROFILE_UNKNOWN).includes("unknown profile 'nope' (controls registry 1.1.0)"));
   const e705 = diags.find((d) => d.code === ErrorCode.GOV_PROFILE_UNKNOWN)!;
-  assert.ok(e705.span !== undefined, 'E705 应定位到模块');
+  assert.equal(e705.span?.start.line, 1, 'E705 应定位到 Module 声明行');
 });
 
 test('缺 @id 报 E706 且 W700 照常', () => {
@@ -143,4 +144,23 @@ test('默认注册表含档案与框架归属', () => {
   assert.deepEqual(defaultControlRegistry.profile?.('eu-ai-act-high-risk')?.frameworks, ['EU_AI_ACT']);
   assert.equal(defaultControlRegistry.profile?.('nope'), undefined);
   assert.equal(defaultControlRegistry.frameworkOf?.('EU_AI_ACT:ART14'), 'EU_AI_ACT');
+});
+
+test('缺 profiles 的输入视为空档案', () => {
+  const r = controlRegistryFrom({
+    version: '9',
+    frameworks: [],
+    controls: [{ key: 'A:B', framework: 'A', article: 'B', title: { en: 'a', zh: 'a', de: 'a' } }],
+    clauses: [],
+  });
+  assert.equal(r.profile?.('governed'), undefined);
+  assert.equal(r.has('A:B'), true);
+});
+
+test('浏览器类型检查路径同样报 E705', () => {
+  const src = 'Module m.\nProfile "nope".\n\nRule r produce Int:\n  Return 1.\n';
+  const core = lowerModule(parse(lex(canonicalize(src))).ast as AstModule);
+  const diags = typecheckBrowser(core);
+  assert.equal(count(diags, ErrorCode.GOV_PROFILE_UNKNOWN), 1, show(diags));
+  assert.ok(messages(diags, ErrorCode.GOV_PROFILE_UNKNOWN).includes("unknown profile 'nope' (controls registry 1.1.0)"));
 });
