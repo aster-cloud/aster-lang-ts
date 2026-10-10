@@ -1,0 +1,20 @@
+Module regression.poker.straighthigh.
+
+Rule straightHighEager given ranks, produce:
+  Let sortedDistinct be List.sort(List.distinct(ranks)).
+  Let distinctRanks be List.length(sortedDistinct).
+  Let straightHigh be List.get(sortedDistinct, 4).
+  If distinctRanks equals to 5:
+    Return straightHigh.
+  Return 0.
+
+Rule straightHighSafe given ranks, produce:
+  Let distinctRanks be List.length(List.distinct(ranks)).
+  Let straightHigh be List.max(ranks).
+  If distinctRanks equals to 5:
+    Return straightHigh.
+  Return 0.
+
+Rule isWheel given ranks, produce:
+  Let sortedDistinct be List.sort(List.distinct(ranks)).
+  Return List.length(sortedDistinct) equals to 5 and List.get(sortedDistinct, 4) equals to 14 and List.get(sortedDistinct, 3) equals to 5.
