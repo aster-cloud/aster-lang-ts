@@ -81,6 +81,27 @@ function plainDouble(v: number): string {
   return `${sign}${whole.replace(/^0+(?=\d)/, '')}.${frac.replace(/0+$/, '') || '0'}`;
 }
 
+/**
+ * 打印文本是否以未加括号的构造（或块形 lambda）收尾：这类值会把其后的 `, f set to …` 当作自己的字段。
+ * 作运算符操作数的构造已由 operand 加括号，故只需沿右侧不加括号的位置下探。
+ */
+function endsWithConstruct(e: Expression): boolean {
+  switch (e.kind) {
+    case 'Construct':
+      return true;
+    case 'Lambda':
+      return !isArrowLambda(e) || endsWithConstruct((e.body.statements[0] as Statement & { kind: 'Return' }).expr);
+    case 'Ok':
+    case 'Err':
+    case 'Some':
+      return endsWithConstruct(e.expr);
+    case 'IfExpr':
+      return endsWithConstruct(e.elseE);
+    default:
+      return false;
+  }
+}
+
 /** 字段、参数与 lambda 参数的共同形状 */
 interface Binding {
   readonly name: string;
@@ -321,7 +342,7 @@ class CnlPrinter {
       case 'ListLit':
         return `[${e.elements.map(x => this.expr(x)).join(', ')}]`;
       case 'Construct':
-        return `${e.typeName} with ${e.fields.map(f => this.constructField(f)).join(' and ')}`;
+        return `${e.typeName} with ${e.fields.map(f => this.constructField(f)).join(', ')}`;
       case 'Call':
         return this.call(e);
       case 'Lambda':
@@ -332,9 +353,10 @@ class CnlPrinter {
     }
   }
 
-  /** 字段值由 parseExpr 贪婪读取，非原子值加括号，避免与字段分隔的 and 混淆 */
+  /** 字段值由 parseExpr 读到逗号为止；只有以嵌套构造收尾的值会吞掉后续字段，须加括号 */
   constructField(f: ConstructField): string {
-    return `${f.name} set to ${this.operand(f.expr, ATOM_PREC)}`;
+    const text = this.expr(f.expr);
+    return `${f.name} set to ${endsWithConstruct(f.expr) ? `(${text})` : text}`;
   }
 
   call(e: Expression & { kind: 'Call' }): string {

@@ -96,6 +96,17 @@ describe('格式化器往返（Core IR 不变）', () => {
     }
   });
 
+  test('构造字段以逗号分隔，只在会贪婪吞并后续字段时加括号', () => {
+    const src = ['Module m.', '', 'Define Inner has x as Int, y as Int.', '',
+      'Define Outer has inner as Inner, wrapped as Option of Inner, n as Int, ok as Bool.', '',
+      'Rule r given k as Int, produce Outer:',
+      '  Return Outer with inner set to (Inner with x set to 1, y set to 2), ' +
+        'wrapped set to some of (Inner with x set to k plus 1, y set to 4), n set to k plus 1, ok set to k at least 1 and true.',
+      ''].join('\n');
+    const formatted = assertRoundTrip(src);
+    assert.match(formatted, /inner set to \(Inner with x set to 1, y set to 2\), wrapped set to \(some of Inner with x set to k plus 1, y set to 4\), n set to k plus 1, ok set to k at least 1 and true\./);
+  });
+
   test('运算符按中缀输出，括号保持结合与优先级', () => {
     const body = [
       'Return (a plus b) times c.',
