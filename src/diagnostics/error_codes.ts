@@ -83,6 +83,8 @@ export const enum ErrorCode {
   GOV_ANNOTATION_ARG_INVALID = "E702",
   GOV_VERDICT_CALL_ARITY = "E703",
   GOV_CONTROL_UNREGISTERED = "W704",
+  GOV_PROFILE_UNKNOWN = "E705",
+  GOV_PROFILE_VIOLATION = "E706",
 }
 
 export interface ErrorMetadata {
@@ -171,6 +173,8 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.GOV_ANNOTATION_ARG_INVALID]: "Annotation @{annotation} on rule '{rule}' expects exactly one string literal argument",
   [ErrorCode.GOV_VERDICT_CALL_ARITY]: "{func} expects {expected} argument(s), got {actual}",
   [ErrorCode.GOV_CONTROL_UNREGISTERED]: "Control '{control}' on rule '{rule}' is not registered (controls registry {version})",
+  [ErrorCode.GOV_PROFILE_UNKNOWN]: "Module '{module}' declares unknown profile '{profile}' (controls registry {version})",
+  [ErrorCode.GOV_PROFILE_VIOLATION]: "Rule '{rule}' violates profile '{profile}': {requirement}",
 };
 
 export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
@@ -712,6 +716,20 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     severity: 'warning',
     message: "Control '{control}' on rule '{rule}' is not registered (controls registry {version})",
     help: "Use a registered key such as EU_AI_ACT:ART14, or add it to aster-lang-locales controls/registry.json (format FRAMEWORK:ARTICLE, at most 64 characters).",
+  },
+  [ErrorCode.GOV_PROFILE_UNKNOWN]: {
+    code: ErrorCode.GOV_PROFILE_UNKNOWN,
+    category: 'governance',
+    severity: 'error',
+    message: "Module '{module}' declares unknown profile '{profile}' (controls registry {version})",
+    help: "Use a profile defined in aster-lang-locales controls/registry.json, such as governed or eu-ai-act-high-risk.",
+  },
+  [ErrorCode.GOV_PROFILE_VIOLATION]: {
+    code: ErrorCode.GOV_PROFILE_VIOLATION,
+    category: 'governance',
+    severity: 'error',
+    message: "Rule '{rule}' violates profile '{profile}': {requirement}",
+    help: "Satisfy the profile requirement or remove the Profile declaration.",
   },
 };
 
