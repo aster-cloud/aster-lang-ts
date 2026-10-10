@@ -222,7 +222,11 @@ function main(): void {
 
   // CI first-party 可选 token（与 runtime LexiconRegistry.OPTIONAL_KINDS 故意解耦，
   // 见上方注释）。APPLY 已从此集移除 → first-party 包必须包含 APPLY。
-  const CI_OPTIONAL_KINDS = new Set<string>(['IMPORT_VERSION', 'THEN']);
+  // ADR 0046 新 kind，发版列车完成前保留（ADR 0029 先例）：词法包发版前 first-party 包可缺。
+  const CI_OPTIONAL_KINDS = new Set<string>([
+    'IMPORT_VERSION', 'THEN',
+    'PROFILE', 'ALLOW', 'DENY', 'ESCALATE', 'REQUIRE_APPROVAL_BY', 'BECAUSE',
+  ]);
   const requiredKinds = [...javaTokens].filter(t => !CI_OPTIONAL_KINDS.has(t));
 
   for (const localeId of Object.keys(TS_LEXICONS)) {

@@ -31,6 +31,12 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.RESULT_IS]: '结果为',
     [SemanticTokenKind.FOR_EACH]: '对每个',
     [SemanticTokenKind.IN]: '属于',
+    [SemanticTokenKind.PROFILE]: '档案',
+    [SemanticTokenKind.ALLOW]: '允许',
+    [SemanticTokenKind.DENY]: '拒绝',
+    [SemanticTokenKind.ESCALATE]: '升级',
+    [SemanticTokenKind.REQUIRE_APPROVAL_BY]: '需审批人',
+    [SemanticTokenKind.BECAUSE]: '因为',
     [SemanticTokenKind.LET]: '令',
     [SemanticTokenKind.BE]: '定义为',
     [SemanticTokenKind.SET]: '将',
@@ -106,10 +112,10 @@ export const ZH_CN: Lexicon = {
     whitespaceMode: 'chinese',
     removeArticles: false,
     allowedDuplicates: [
-      [SemanticTokenKind.TYPE_HAS, SemanticTokenKind.TYPE_WITH],
+      [SemanticTokenKind.TYPE_WITH, SemanticTokenKind.TYPE_HAS],
       [SemanticTokenKind.IS, SemanticTokenKind.EQUALS_TO],
-      [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN],
-      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
+      [SemanticTokenKind.LESS_THAN, SemanticTokenKind.UNDER],
+      [SemanticTokenKind.MORE_THAN, SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN],
     ],
     compoundPatterns: [
       {

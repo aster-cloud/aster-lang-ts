@@ -31,6 +31,12 @@ export const DE_DE: Lexicon = {
     [SemanticTokenKind.RESULT_IS]: 'Ergebnis ist',
     [SemanticTokenKind.FOR_EACH]: 'fuer jedes',
     [SemanticTokenKind.IN]: 'in',
+    [SemanticTokenKind.PROFILE]: 'Profil',
+    [SemanticTokenKind.ALLOW]: 'erlauben',
+    [SemanticTokenKind.DENY]: 'ablehnen',
+    [SemanticTokenKind.ESCALATE]: 'eskalieren',
+    [SemanticTokenKind.REQUIRE_APPROVAL_BY]: 'Genehmigung durch',
+    [SemanticTokenKind.BECAUSE]: 'weil',
     [SemanticTokenKind.LET]: 'sei',
     [SemanticTokenKind.BE]: 'gleich',
     [SemanticTokenKind.SET]: 'setze',
@@ -114,8 +120,8 @@ export const DE_DE: Lexicon = {
       { name: 'ss-to-ß-gross', pattern: '\\bgross\\b', replacement: 'groß' },
     ],
     allowedDuplicates: [
-      [SemanticTokenKind.UNDER, SemanticTokenKind.LESS_THAN],
-      [SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN, SemanticTokenKind.MORE_THAN],
+      [SemanticTokenKind.LESS_THAN, SemanticTokenKind.UNDER],
+      [SemanticTokenKind.MORE_THAN, SemanticTokenKind.OVER, SemanticTokenKind.GREATER_THAN],
     ],
   },
 

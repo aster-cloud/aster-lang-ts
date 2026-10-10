@@ -1216,6 +1216,8 @@ const ALL_KEYWORDS = new Set<string>((Object.values(KW) as string[]).map((k) => 
 const APPLY_TARGET_SOFT_KEYWORDS = new Set<string>([
   KW.LET, KW.MATCH, KW.IF, KW.RETURN, KW.RULE, KW.DEFINE, KW.WHEN,
   KW.START, KW.OTHERWISE, KW.ELSE, KW.THEN, KW.APPLY,
+  // ADR 0046 软关键词：Java 侧经 structKeywordName 放行，且此前在 TS 中本是普通标识符。
+  KW.PROFILE, KW.ALLOW, KW.DENY, KW.ESCALATE, KW.BECAUSE,
   // 字面量：这些是 Java structKeywordName/MAP 成员，但 TS 的 KW 对象未必有同名键。
   'wait', 'map', 'max', 'attempts',
 ].map((k) => k.toLowerCase()));
