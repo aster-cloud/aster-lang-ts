@@ -77,6 +77,8 @@ describe('ADR 0046 — Profile 声明', () => {
     assert.throws(() => toCore('Module m.\nProfile "a".\nProfile "b".\n'), misplaced);
     assert.throws(() => toCore('Profile "a".\nModule m.\n'), misplaced);
     assert.throws(() => toCore('Module m.\n\nRule r produce Int:\n  Return 1.\n\nProfile "a".\n'), misplaced);
+    // 第二个模块头之后的 Profile 同样算重复（Java 连第二个模块头都拒绝）
+    assert.throws(() => toCore('Module a.\nProfile "x".\nModule b.\nProfile "y".\n'), misplaced);
   });
 });
 

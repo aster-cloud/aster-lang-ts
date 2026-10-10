@@ -675,9 +675,9 @@ export function collectTopLevelDecls(
       // 解析模块头: Module foo.bar.
       if (ctx.isKeywordSeq(KW.MODULE_IS)) {
         parseModuleHeader(ctx, tools.error, tools.expectDot);
-        // ADR 0046：Profile 只能紧跟模块头（中间可有空行）
+        // ADR 0046：Profile 只能紧跟模块头（中间可有空行）且至多一条；已声明过则交给下方分支报错
         ctx.consumeNewlines();
-        if (atProfileDecl(ctx)) parseProfileDecl(ctx, tools.error, tools.expectDot);
+        if (ctx.moduleProfile === null && atProfileDecl(ctx)) parseProfileDecl(ctx, tools.error, tools.expectDot);
       }
       // 其余位置出现的 Profile（重复、模块头之前或声明之间）一律报错
       else if (ctx.isKeyword(KW.PROFILE)) {

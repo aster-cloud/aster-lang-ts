@@ -88,7 +88,7 @@ export function atProfileDecl(ctx: ParserContext): boolean {
  * 解析治理档案声明（ADR 0046）
  * 语法: Profile "eu-ai-act-high-risk".
  *
- * 只能紧跟模块头且至多一条；位置由调用方保证，此处只在重复时报错。
+ * 只能紧跟模块头且至多一条；位置与次数由调用方（collectTopLevelDecls）保证。
  * id 用字符串字面量书写（两个引擎的词法都把 `-` 切成 MINUS）。
  */
 export function parseProfileDecl(
@@ -96,8 +96,7 @@ export function parseProfileDecl(
   error: (msg: string, tok?: Token) => never,
   expectDot: () => void
 ): void {
-  const kwTok = ctx.next();
-  if (ctx.moduleProfile !== null) error(PROFILE_MISPLACED, kwTok);
+  ctx.next();
   const idTok = ctx.peek();
   if (!ctx.at(TokenKind.STRING)) error('Expected profile id string after Profile', idTok);
   const id = ctx.next().value as string;
