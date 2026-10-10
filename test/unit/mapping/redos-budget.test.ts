@@ -26,39 +26,63 @@ import { parseSourceIr } from '../../../src/mapping/source-ir.js';
  * 40000→2304ms，每翻倍约 ×4。
  */
 
+/** 单次计时（毫秒）。 */
+function timeOnce(fn: () => void): number {
+  const t = process.hrtime.bigint();
+  fn();
+  return Number(process.hrtime.bigint() - t) / 1e6;
+}
+
 /** 取多次测量的**最小值**——最小值最接近真实计算量，受调度抖动干扰最小。 */
 function timeOf(fn: () => void, repeats = 7): number {
   let best = Infinity;
-  for (let i = 0; i < repeats; i++) {
-    const t = process.hrtime.bigint();
-    fn();
-    const ms = Number(process.hrtime.bigint() - t) / 1e6;
-    if (ms < best) best = ms;
-  }
+  for (let i = 0; i < repeats; i++) best = Math.min(best, timeOnce(fn));
   return best;
 }
 
 /**
+ * 增长率门禁的规模倍数。
+ *
+ * ★原先只把输入**翻倍**：线性 ≈2×、二次 ≈4×，门槛 3× 夹在中间，两侧各只有
+ * 1.5 倍的缝。共享 runner 的一次调度突发就能跨过这条缝——2026-10-10 发布
+ * 1.0.31 时自检用例就这样误红过（已知二次算法没被判出来）。
+ *
+ * ×8 后线性 ≈8×、二次 ≈64×，两带之间拉开 8 倍；判据改用**增长指数**
+ * （log 比值 / log 倍数：线性=1，二次=2），门槛取中点 1.5，即比值 <8^1.5≈22.6，
+ * 两侧都有约 2.8 倍余量。
+ */
+const SCALE = 8;
+const EXPONENT_LIMIT = 1.5;
+const ROUNDS = 11;
+
+/**
  * 断言 `fn` 对长度 n 的输入呈**次二次**增长。
  *
- * @param ratioLimit 输入翻倍时允许的最大耗时倍数。线性=2，二次=4。
- *   取 3.0 作门槛：线性(2)有 50% 余量，二次(4)被稳稳挡住。
+ * ★量法：两种规模**各自**预热，再**交替**测量，各取最小值。
+ * - 只预热一次不够：JIT 可能在小规模测量期间才升到最优层级，
+ *   小规模被测成「慢的那一层」，比值被系统性压低。
+ * - 调度、GC 噪声只会让一次测量变慢、不会变快，所以最小值最接近真实计算量；
+ *   交替测量让噪声突发两组均摊。满载实测最小值比中位数更稳。
+ * - 本地满载（10 个忙循环 + 并行跑另一仓全量测试）30 轮：
+ *   SourceIR 指数 ≤1.24，自检（已知二次）≥1.99，门槛 1.5 两侧都有余量。
  */
 function assertSubQuadratic(
   label: string,
   build: (n: number) => string,
   fn: (s: string) => unknown,
   base: number,
-  ratioLimit = 3.0,
 ): void {
   const small = build(base);
-  const large = build(base * 2);
+  const large = build(base * SCALE);
 
-  // 预热：让 JIT 稳定下来，否则第一次调用的编译开销会污染比值。
-  fn(build(base / 4));
+  for (let i = 0; i < 3; i++) { fn(small); fn(large); }
 
-  const tSmall = timeOf(() => { fn(small); });
-  const tLarge = timeOf(() => { fn(large); });
+  let tSmall = Infinity;
+  let tLarge = Infinity;
+  for (let i = 0; i < ROUNDS; i++) {
+    tSmall = Math.min(tSmall, timeOnce(() => { fn(small); }));
+    tLarge = Math.min(tLarge, timeOnce(() => { fn(large); }));
+  }
 
   // ★耗时过短时比值噪声极大（0.1ms vs 0.2ms 的比值毫无意义）。
   //
@@ -78,13 +102,13 @@ function assertSubQuadratic(
   }
 
   const ratio = tLarge / Math.max(tSmall, 0.001);
-  assert.ok(ratio < ratioLimit,
-    `${label}：输入 ${base}→${base * 2}（翻倍）耗时 ${tSmall.toFixed(2)}ms→`
-    + `${tLarge.toFixed(2)}ms，增长 ${ratio.toFixed(1)}× —— 应 <${ratioLimit}×。\n`
-    + '★接近 4× 意味着**二次回溯**：某条正则在每个起始位置都重新贪婪扫描再回退。\n'
+  const exponent = Math.log(ratio) / Math.log(SCALE);
+  assert.ok(exponent < EXPONENT_LIMIT,
+    `${label}：输入 ${base}→${base * SCALE}（×${SCALE}）耗时最小值 ${tSmall.toFixed(2)}ms→`
+    + `${tLarge.toFixed(2)}ms，增长 ${ratio.toFixed(1)}×、指数 ${exponent.toFixed(2)} —— 应 <${EXPONENT_LIMIT}。\n`
+    + '★指数接近 2 意味着**二次回溯**：某条正则在每个起始位置都重新贪婪扫描再回退。\n'
     + '  人类文档是攻击者可控输入，一份构造过的文档就能钉死抽取线程。');
 }
-
 
 /**
  * 绝对预算判据——★用于「修复态极快、缺陷态极慢」的场景。
@@ -114,6 +138,9 @@ function assertWithinBudget(label: string, input: string,
     + '★修复态实测 ~2.5ms，缺陷态（撤掉 `(?<![\\d.])` 左锚）同规模约 10s（2500×）。\n'
     + '  超预算说明 ReDoS 左锚被去掉了，长数字串上的全量回退回来了。');
 }
+
+/** 自检参照算法的结果落点：可观察的副作用，阻止 V8 把双重循环当死代码消除。 */
+let selfCheckSink = 0;
 
 describe('ReDoS 时间预算门禁 — 量增长率而非绝对耗时', () => {
   it('★QuantityIR：长数字串上呈次二次增长', () => {
@@ -145,7 +172,9 @@ describe('ReDoS 时间预算门禁 — 量增长率而非绝对耗时', () => {
       //   纯属测量噪声（实测 8 次里红 1 次，0.34ms→1.36ms 报 4.0×）。
       //   提高规模让 large 稳定超过 10ms，比值才有意义。
       //   ★20000 仍不够（3.22ms→10.02ms 曾报 3.1×），再提到 40000。
-      40000,
+      //   ★规模倍数改为 ×8 后回到 20000（large=160000 行）：40000×8 时堆压力
+      //     让修复态指数在满载下升到 1.5 附近，20000 则稳定在 ≤1.24。
+      20000,
     );
   });
 
@@ -191,15 +220,22 @@ describe('ReDoS 时间预算门禁 — 量增长率而非绝对耗时', () => {
     // ★本仓反复记录的教训：「门禁在结构上无法变红」是最危险的假绿。
     //   这条把一个**已知二次**的函数喂给同一套判定逻辑，若判定通过，
     //   说明 assertSubQuadratic 根本测不出二次增长——量具没连上。
-    const quadratic = (s: string): number => {
+    //
+    // ★参照算法必须让 V8 **无法化简**：原先的 `acc += 1` 每次迭代极廉价
+    //   （1.0.31 发布时 CI 上整条自检只跑了 154ms 就误红），小规模一侧贴着噪声，
+    //   且结果被丢弃、可被优化的余地无从排除。现改为逐字符混合哈希（无闭式解），
+    //   结果写进模块级 sink（可观察副作用）。
+    const quadratic = (s: string): void => {
       let acc = 0;
-      for (let i = 0; i < s.length; i++) for (let j = 0; j < s.length; j++) acc += 1;
-      return acc;
+      for (let i = 0; i < s.length; i++) {
+        for (let j = 0; j < s.length; j++) acc = (Math.imul(acc, 31) + (s.charCodeAt(j) ^ i)) | 0;
+      }
+      selfCheckSink = acc;
     };
 
     assert.throws(
-      () => { assertSubQuadratic('自检', n => 'x'.repeat(n), quadratic, 3000); },
-      /增长 .* —— 应 </,
+      () => { assertSubQuadratic('自检', n => 'x'.repeat(n), quadratic, 1000); },
+      /指数 .* —— 应 </,
       '已知二次算法未被判定为超线性 —— assertSubQuadratic 失效，本文件所有门禁都是假绿。');
   });
 });
