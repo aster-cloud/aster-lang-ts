@@ -150,6 +150,14 @@ jobs:
           path: aster-lang-core
           token: ${{ secrets.CROSS_REPO_TOKEN }}
 
+      # ★prepublishOnly 会再跑一遍全量测试（clean → build → test），同样需要 aster-lang-test
+      - name: Checkout aster-lang-test (prepublishOnly 全量测试需要)
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
+        with:
+          repository: aster-cloud/aster-lang-test
+          path: aster-lang-test
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+
       - name: Install pnpm
         uses: pnpm/action-setup@v6
 
