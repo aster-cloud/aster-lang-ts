@@ -110,6 +110,15 @@ describe('ADR 0046 — When/Otherwise 语法糖', () => {
       '  Return Verdict.deny("x").', ''].join('\n')), /Otherwise must be the last statement of its block/);
   });
 
+  test('Otherwise 只收尾所在块：嵌套块内收尾不影响外层后续语句', () => {
+    const core = toCore(['Module m.', '', 'Rule r given n as Int, produce Verdict:', '  If n at least 1:',
+      '    Otherwise deny "x".', '  Return Verdict.allow().', ''].join('\n'));
+    assert.equal(bodyOf(core).length, 2);
+    assert.throws(() => toCore(['Module m.', '', 'Rule r given n as Int, produce Verdict:', '  If n at least 1:',
+      '    Otherwise deny "x".', '    Return Verdict.allow().', ''].join('\n')),
+    /Otherwise must be the last statement of its block/);
+  });
+
   test('结论词组合非法抛错', () => {
     for (const outcome of ['allow "x"', 'deny', 'approve "x"',
       'require approval by "a"', 'require approval by "a" since "b"']) {

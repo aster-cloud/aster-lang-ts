@@ -81,18 +81,22 @@ const SUGAR_OUTCOME_ERROR =
   'Expected allow, deny, escalate or require approval by … because … after When/Otherwise';
 const OTHERWISE_NOT_LAST = 'Otherwise must be the last statement of its block';
 
-// Otherwise 语法糖降糖出的 Return：其后不得再有同块语句（不可达）
-const OTHERWISE_SUGAR = new WeakSet<Statement>();
-
-/** 解析块内一条语句；前一条若是 Otherwise 语法糖则报错（对齐 Java requireOtherwiseLast）。 */
-function parseBlockStatement(
+/**
+ * 块内语句解析器：Otherwise 语法糖收尾所在块，其后再有语句即报错（对齐 Java requireOtherwiseLast）。
+ * 是否已收尾记在本块的闭包里，随块解析结束而释放。
+ */
+function blockStatementParser(
   ctx: ParserContext,
   error: (msg: string) => never,
   statements: Statement[]
-): void {
-  const prev = statements[statements.length - 1];
-  if (prev !== undefined && OTHERWISE_SUGAR.has(prev)) error(OTHERWISE_NOT_LAST);
-  statements.push(parseStatement(ctx, error));
+): () => void {
+  let closed = false;
+  return () => {
+    if (closed) error(OTHERWISE_NOT_LAST);
+    // 语句开头的 Otherwise/else 必走 parseOtherwiseSugar（If 的 else 分支由 If 自身消费）
+    closed = isElseWord(ctx);
+    statements.push(parseStatement(ctx, error));
+  };
 }
 
 /**
@@ -106,6 +110,7 @@ export function parseBlock(
   error: (msg: string) => never
 ): Block {
   const statements: Statement[] = [];
+  const parseNext = blockStatementParser(ctx, error, statements);
   ctx.consumeNewlines();
   // Check if we have an INDENT token (new indented block)
   const hasIndent = ctx.at(TokenKind.INDENT);
@@ -116,7 +121,7 @@ export function parseBlock(
     while (!ctx.at(TokenKind.DEDENT) && !ctx.at(TokenKind.EOF)) {
       ctx.consumeNewlines();
       if (ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.EOF)) break;
-      parseBlockStatement(ctx, error, statements);
+      parseNext();
       ctx.consumeNewlines();
     }
     if (!ctx.at(TokenKind.DEDENT)) error('Expected dedent');
@@ -138,7 +143,7 @@ export function parseBlock(
     while (!ctx.at(TokenKind.DEDENT) && !ctx.at(TokenKind.EOF)) {
       ctx.consumeNewlines();
       if (ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.EOF)) break;
-      parseBlockStatement(ctx, error, statements);
+      parseNext();
       ctx.consumeNewlines();
     }
     if (statements.length === 0) error('Expected at least one statement in function body');
@@ -169,9 +174,10 @@ export function parseExplicitBlock(
   error: (msg: string) => never
 ): Block {
   const statements: Statement[] = [];
+  const parseNext = blockStatementParser(ctx, error, statements);
   ctx.consumeNewlines();
   while (!ctx.at(TokenKind.BLOCK_END) && !ctx.at(TokenKind.EOF)) {
-    parseBlockStatement(ctx, error, statements);
+    parseNext();
     ctx.consumeNewlines();
   }
   if (!ctx.at(TokenKind.BLOCK_END)) error("Expected explicit block end word (e.g. '毕')");
@@ -366,12 +372,11 @@ function parseWhenSugar(ctx: ParserContext, error: (msg: string) => never): If {
   return assignSpan(Node.If(cond, thenBlock, null), spanFromTokens(whenTok, lastNonLayoutToken(ctx)));
 }
 
-/** ADR 0046：`Otherwise <outcome>.` → `Return Verdict.*(…)`，并登记为须收尾所在块。 */
+/** ADR 0046：`Otherwise <outcome>.` → `Return Verdict.*(…)`；须收尾所在块由 blockStatementParser 检查。 */
 function parseOtherwiseSugar(ctx: ParserContext, error: (msg: string) => never): Return {
   ctx.nextWord();
   const ret = parseSugarOutcome(ctx, error);
   expectPeriodEnd(ctx, error);
-  OTHERWISE_SUGAR.add(ret);
   return ret;
 }
 
