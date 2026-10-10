@@ -48,6 +48,14 @@ jobs:
           repository: aster-cloud/aster-lang-core
           path: aster-lang-core
           token: ${{ secrets.CROSS_REPO_TOKEN }}
+      # W704 诊断黄金（test/unit/governance/governance-check.test.ts）直读兄弟仓源文，
+      # 在工作区根下按 ./aster-lang-test 查找；与 parity-tier1 job 同一 checkout 方式。
+      - name: Checkout aster-lang-test
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
+        with:
+          repository: aster-cloud/aster-lang-test
+          path: aster-lang-test
+          token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
       - uses: actions/setup-python@v6
         with: { python-version: '3.12' }
       - name: Release-plan drift gate
