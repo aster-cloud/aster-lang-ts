@@ -106,6 +106,8 @@ Let same be a equals to b.
 Let older be age at least 21.
 ```
 
+`and` / `or` short-circuit: the right operand is evaluated only when the left does not decide the result (`and` when the left is true, `or` when it is false), so `List.length(xs) equals to 5 and List.get(xs, 4) equals to 14` is safe for shorter lists.
+
 ## Formatting rules
 
 - End statements with a period.
