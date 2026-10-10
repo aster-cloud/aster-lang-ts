@@ -1392,10 +1392,38 @@ function parseCallTargetName(
   return target;
 }
 
+// 前缀运算符调用 `<op>(a, b)` 的运算符记号 → 规范符号（与 Java operatorCall + normalizeOperator 一致，`=` 同中缀降为 `==`）
+const PREFIX_OPERATORS: ReadonlyMap<TokenKind, string> = new Map([
+  [TokenKind.LT, '<'],
+  [TokenKind.GT, '>'],
+  [TokenKind.LTE, '<='],
+  [TokenKind.GTE, '>='],
+  [TokenKind.NEQ, '!='],
+  [TokenKind.EQ, '=='],
+  [TokenKind.EQUALS, '=='],
+  [TokenKind.PLUS, '+'],
+  [TokenKind.MINUS, '-'],
+  [TokenKind.STAR, '*'],
+  [TokenKind.SLASH, '/'],
+]);
+
+/** 前缀运算符调用：恰好 2 个实参，降为与中缀相同的 Call(Name(op), [a, b])。 */
+function parsePrefixOperatorCall(ctx: ParserContext, error: (msg: string) => never, op: string): Expression {
+  const opTok = ctx.next();
+  const args = parseArgList(ctx, error);
+  if (args.length !== 2) error(`前缀操作符调用需要 2 个参数，但实际为 ${args.length}`);
+  const target = assignTokenSpan(Node.Name(op), opTok);
+  return assignSpan(Node.Call(target, args), spanFromTokens(opTok, lastNonLayoutToken(ctx)));
+}
+
 function parsePrimary(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Expression {
+  const prefixOp = PREFIX_OPERATORS.get(ctx.peek().kind);
+  if (prefixOp !== undefined && ctx.peek(1).kind === TokenKind.LPAREN) {
+    return parsePrefixOperatorCall(ctx, error, prefixOp);
+  }
   // Minimal: construction, literals, names, Ok/Err/Some/None, call with dotted names and parens args
   // Lambda (block form): 'a function' (or 'function') ... 'produce' Type ':' \n Block
   if ((ctx.isKeyword('a') && tokLowerAt(ctx, ctx.index + 1) === 'function') || ctx.isKeyword('function')) {
