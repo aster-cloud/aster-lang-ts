@@ -106,6 +106,8 @@ Let same be a equals to b.
 Let older be age at least 21.
 ```
 
+`and` / `or` werten kurzschlussartig aus: Der rechte Operand wird nur ausgewertet, wenn der linke das Ergebnis nicht festlegt (`and` bei wahrem, `or` bei falschem linken Operanden), daher ist `List.length(xs) equals to 5 and List.get(xs, 4) equals to 14` auch fuer kuerzere Listen sicher.
+
 ## Formatierungsregeln
 
 - Anweisungen enden mit einem Punkt.

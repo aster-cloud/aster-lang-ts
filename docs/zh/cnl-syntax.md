@@ -106,6 +106,8 @@ Let same be a equals to b.
 Let older be age at least 21.
 ```
 
+`and` / `or` 短路求值：仅当左操作数不足以决定结果时才求值右操作数（`and` 左为真、`or` 左为假时），因此 `List.length(xs) equals to 5 and List.get(xs, 4) equals to 14` 对较短列表也不会越界。
+
 ## 格式规则
 
 - 语句以句号结尾。
