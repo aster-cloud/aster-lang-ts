@@ -330,15 +330,25 @@ function startsElseBranch(ctx: ParserContext): boolean {
   return kind === TokenKind.COMMA || kind === TokenKind.COLON || kind === TokenKind.NEWLINE;
 }
 
+// 结论不跨越的记号：句点收尾，换行与缩进变化同样终止（与 Java sugarOutcome 的 ~(DOT|NEWLINE|INDENT|DEDENT|EOF) 一致）
+const OUTCOME_END: ReadonlySet<TokenKind> = new Set([
+  TokenKind.DOT, TokenKind.NEWLINE, TokenKind.INDENT, TokenKind.DEDENT, TokenKind.EOF,
+]);
+// 结论不得以逗号或冒号开头：`Otherwise, …` / `Otherwise: …` 不是语法糖，按普通解析错误报告
+const OUTCOME_BAD_START: ReadonlyMap<TokenKind, string> = new Map([[TokenKind.COMMA, ','], [TokenKind.COLON, ':']]);
+
 /**
  * ADR 0046：解析结论 `allow | deny <text> | escalate <text> | require approval by <text> because <text>`，
- * 降糖为 `Return Verdict.<op>(…)`。词序列查表，与 Java 的 sugarOutcome 文法 + 校验同口径。
+ * 降糖为 `Return Verdict.<op>(…)`。收下句点前的全部记号再查表：字符串记为 _，其余记号取小写文本，
+ * 数字、运算符、括号等非单词记号使查表落空，与 Java sugarOutcome 文法 + 校验同口径、同消息。
  */
 function parseSugarOutcome(ctx: ParserContext, error: (msg: string) => never): Return {
   const startTok = ctx.peek();
+  const badStart = OUTCOME_BAD_START.get(startTok.kind);
+  if (badStart !== undefined) error(`Unexpected '${badStart}' where an outcome was expected`);
   const shape: string[] = [];
   const args: Expression[] = [];
-  for (let tok = ctx.peek(); isWordToken(tok) || tok.kind === TokenKind.STRING; tok = ctx.peek()) {
+  for (let tok = ctx.peek(); !OUTCOME_END.has(tok.kind); tok = ctx.peek()) {
     ctx.next();
     if (tok.kind === TokenKind.STRING) {
       shape.push('_');
@@ -353,10 +363,6 @@ function parseSugarOutcome(ctx: ParserContext, error: (msg: string) => never): R
   const span = spanFromTokens(startTok, lastNonLayoutToken(ctx));
   const call = assignSpan(Node.Call(assignSpan(Node.Name(target), span), args), span);
   return assignSpan(Node.Return(call), span);
-}
-
-function isWordToken(tok: Token): boolean {
-  return tok.kind === TokenKind.IDENT || tok.kind === TokenKind.TYPE_IDENT || tok.kind === TokenKind.KEYWORD;
 }
 
 /** ADR 0046：`When <cond>, <outcome>.` → `If <cond>: Return Verdict.*(…)`（无 else）。 */
