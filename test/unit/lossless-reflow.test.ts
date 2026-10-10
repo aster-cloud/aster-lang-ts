@@ -49,6 +49,29 @@ describe('lossless reflow 只动记号之间的空白', () => {
     assert.equal(reflow(src), src);
   });
 
+  test('文件中间只含空白的行被清空', () => {
+    const src = 'Module m.\n   \nRule r, produce Int:\n  Let x be 1.\n  \t \n  Return x.\n';
+    assert.equal(reflow(src), 'Module m.\n\nRule r, produce Int:\n  Let x be 1.\n\n  Return x.\n');
+  });
+
+  test('文件末尾的空白行与行尾空白去掉，至多留一个换行', () => {
+    const body = 'Module m.\n\nRule r, produce Int:\n  Return 1.';
+    assert.equal(reflow(`${body}\n  \n  \n`), `${body}\n`);
+    assert.equal(reflow(`${body}\n\n  `), `${body}\n`);
+    assert.equal(reflow(`${body}   `), body);
+  });
+
+  test('CRLF 文件去掉换行前的空白并保持 CRLF', () => {
+    const src = 'Module m.  \r\n   \r\nRule r, produce Int:  \r\n  // 注释 , 不动   \r\n  Return 1.   \r\n  \r\n\r\n';
+    const want = 'Module m.\r\n\r\nRule r, produce Int:\r\n  // 注释 , 不动\r\n  Return 1.\r\n';
+    assert.equal(reflow(src), want);
+  });
+
+  test('reflow 幂等', () => {
+    const src = 'Module m .  \r\n \r\nRule r given a as Int , produce Int . :  \r\n  Return a .  \r\n  \r\n  ';
+    assert.equal(reflow(reflow(src)), reflow(src));
+  });
+
   test('区间格式化同样不改字符串', () => {
     const src = 'Module m.\n\nRule r, produce Text:\n  Return "a , b" .\n';
     const cst = buildCstLossless(src);
@@ -64,8 +87,8 @@ describe('lossless golden', () => {
       const src = readFileSync(join(goldenDir, file), 'utf8');
       const expected = readFileSync(join(goldenDir, file.replace(/\.in\.aster$/, '.out.aster')), 'utf8');
       assert.equal(printCNLFromCst(buildCstLossless(src)), src, '无 reflow 时须逐字节还原');
-      // 与 scripts/test-lossless-golden 同一比较口径：忽略结尾空白与 CRLF
-      const norm = (t: string): string => t.replace(/\r\n/g, '\n').replace(/\s+$/, '');
+      // 与 scripts/test-lossless-golden 同一比较口径：只忽略期望文件末尾的单个换行，其余空白逐字比较
+      const norm = (t: string): string => t.replace(/\n$/, '');
       assert.equal(norm(reflow(src)), norm(expected));
       assert.equal(coreJson(expected), coreJson(src), 'reflow 前后 Core IR 须相同');
     });
