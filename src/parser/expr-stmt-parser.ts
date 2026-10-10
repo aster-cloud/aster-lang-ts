@@ -81,21 +81,32 @@ const SUGAR_OUTCOME_ERROR =
   'Expected allow, deny, escalate or require approval by … because … after When/Otherwise';
 const OTHERWISE_NOT_LAST = 'Otherwise must be the last statement of its block';
 
+/** 语法糖结论非法时的报告方式：立即抛错，或记下待块结束再报。 */
+type OutcomeErrorSink = (msg: string) => void;
+
 /**
- * 块内语句解析器：Otherwise 语法糖收尾所在块，其后再有语句即报错（对齐 Java requireOtherwiseLast）。
- * 是否已收尾记在本块的闭包里，随块解析结束而释放。
+ * 块内语句解析器，错误次序对齐 Java AstBuilder：先查本块的 Otherwise 收尾（requireOtherwiseLast），
+ * 再校验各语句的语法糖结论。因此 Otherwise 之后再有语句立即报错；本块结论非法的错误先记下，
+ * 由 finish 在块结束时报出（只报第一条）。状态都在本块闭包里，随块解析结束而释放。
  */
 function blockStatementParser(
   ctx: ParserContext,
   error: (msg: string) => never,
   statements: Statement[]
-): () => void {
+): { next: () => void; finish: () => void } {
   let closed = false;
-  return () => {
-    if (closed) error(OTHERWISE_NOT_LAST);
-    // 语句开头的 Otherwise/else 必走 parseOtherwiseSugar（If 的 else 分支由 If 自身消费）
-    closed = isElseWord(ctx);
-    statements.push(parseStatement(ctx, error));
+  let pendingOutcomeError: string | undefined;
+  const deferOutcomeError: OutcomeErrorSink = (msg) => { pendingOutcomeError ??= msg; };
+  return {
+    next: (): void => {
+      if (closed) error(OTHERWISE_NOT_LAST);
+      // 语句开头的 Otherwise/else 必走 parseOtherwiseSugar（If 的 else 分支由 If 自身消费）
+      closed = isElseWord(ctx);
+      statements.push(parseStatement(ctx, error, deferOutcomeError));
+    },
+    finish: (): void => {
+      if (pendingOutcomeError !== undefined) error(pendingOutcomeError);
+    },
   };
 }
 
@@ -110,7 +121,7 @@ export function parseBlock(
   error: (msg: string) => never
 ): Block {
   const statements: Statement[] = [];
-  const parseNext = blockStatementParser(ctx, error, statements);
+  const blockParser = blockStatementParser(ctx, error, statements);
   ctx.consumeNewlines();
   // Check if we have an INDENT token (new indented block)
   const hasIndent = ctx.at(TokenKind.INDENT);
@@ -121,10 +132,11 @@ export function parseBlock(
     while (!ctx.at(TokenKind.DEDENT) && !ctx.at(TokenKind.EOF)) {
       ctx.consumeNewlines();
       if (ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.EOF)) break;
-      parseNext();
+      blockParser.next();
       ctx.consumeNewlines();
     }
     if (!ctx.at(TokenKind.DEDENT)) error('Expected dedent');
+    blockParser.finish();
     const endTok = ctx.peek();
     ctx.next();
     const b = Node.Block(statements);
@@ -143,10 +155,11 @@ export function parseBlock(
     while (!ctx.at(TokenKind.DEDENT) && !ctx.at(TokenKind.EOF)) {
       ctx.consumeNewlines();
       if (ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.EOF)) break;
-      parseNext();
+      blockParser.next();
       ctx.consumeNewlines();
     }
     if (statements.length === 0) error('Expected at least one statement in function body');
+    blockParser.finish();
     const endTok = ctx.tokens[ctx.index - 1] || startTok;
     const b = Node.Block(statements);
     if (statements.length > 0) {
@@ -174,14 +187,15 @@ export function parseExplicitBlock(
   error: (msg: string) => never
 ): Block {
   const statements: Statement[] = [];
-  const parseNext = blockStatementParser(ctx, error, statements);
+  const blockParser = blockStatementParser(ctx, error, statements);
   ctx.consumeNewlines();
   while (!ctx.at(TokenKind.BLOCK_END) && !ctx.at(TokenKind.EOF)) {
-    parseNext();
+    blockParser.next();
     ctx.consumeNewlines();
   }
   if (!ctx.at(TokenKind.BLOCK_END)) error("Expected explicit block end word (e.g. '毕')");
   if (statements.length === 0) error('Expected at least one statement in explicit block');
+  blockParser.finish();
   ctx.next(); // consume BLOCK_END
   const b = Node.Block(statements);
   const firstStmt = statements[0]!;
@@ -342,7 +356,11 @@ const OUTCOME_BAD_START: ReadonlyMap<TokenKind, string> = new Map([[TokenKind.CO
  * 降糖为 `Return Verdict.<op>(…)`。收下句点前的全部记号再查表：字符串记为 _，其余记号取小写文本，
  * 数字、运算符、括号等非单词记号使查表落空，与 Java sugarOutcome 文法 + 校验同口径、同消息。
  */
-function parseSugarOutcome(ctx: ParserContext, error: (msg: string) => never): Return {
+function parseSugarOutcome(
+  ctx: ParserContext,
+  error: (msg: string) => never,
+  reportOutcomeError: OutcomeErrorSink
+): Return {
   const startTok = ctx.peek();
   const badStart = OUTCOME_BAD_START.get(startTok.kind);
   if (badStart !== undefined) error(`Unexpected '${badStart}' where an outcome was expected`);
@@ -357,8 +375,9 @@ function parseSugarOutcome(ctx: ParserContext, error: (msg: string) => never): R
       shape.push(String(tok.value).toLowerCase());
     }
   }
-  const target = SUGAR_OUTCOMES.get(shape.join(' '));
-  if (target === undefined) error(SUGAR_OUTCOME_ERROR);
+  // 查表落空时 target 为空串：错误若被延后，整次解析终将失败，该节点不会流出
+  const target = SUGAR_OUTCOMES.get(shape.join(' ')) ?? '';
+  if (target === '') reportOutcomeError(SUGAR_OUTCOME_ERROR);
   // 与 Java 一致：合成的 Name/Call/Return 共用结论词范围（不含句点）
   const span = spanFromTokens(startTok, lastNonLayoutToken(ctx));
   const call = assignSpan(Node.Call(assignSpan(Node.Name(target), span), args), span);
@@ -366,12 +385,16 @@ function parseSugarOutcome(ctx: ParserContext, error: (msg: string) => never): R
 }
 
 /** ADR 0046：`When <cond>, <outcome>.` → `If <cond>: Return Verdict.*(…)`（无 else）。 */
-function parseWhenSugar(ctx: ParserContext, error: (msg: string) => never): If {
+function parseWhenSugar(
+  ctx: ParserContext,
+  error: (msg: string) => never,
+  reportOutcomeError: OutcomeErrorSink
+): If {
   const whenTok = ctx.nextWord();
   const cond = parseExpr(ctx, error);
   if (!ctx.at(TokenKind.COMMA)) error("Expected ',' after When condition");
   ctx.next();
-  const ret = parseSugarOutcome(ctx, error);
+  const ret = parseSugarOutcome(ctx, error, reportOutcomeError);
   expectPeriodEnd(ctx, error);
   // 合成的块与 If 必须补 span，否则以第 0 行进入 Core IR（同 parseInlineIf）
   const thenBlock = assignSpan(Node.Block([ret]), spanFromSources(ret));
@@ -379,20 +402,25 @@ function parseWhenSugar(ctx: ParserContext, error: (msg: string) => never): If {
 }
 
 /** ADR 0046：`Otherwise <outcome>.` → `Return Verdict.*(…)`；须收尾所在块由 blockStatementParser 检查。 */
-function parseOtherwiseSugar(ctx: ParserContext, error: (msg: string) => never): Return {
+function parseOtherwiseSugar(
+  ctx: ParserContext,
+  error: (msg: string) => never,
+  reportOutcomeError: OutcomeErrorSink
+): Return {
   ctx.nextWord();
-  const ret = parseSugarOutcome(ctx, error);
+  const ret = parseSugarOutcome(ctx, error, reportOutcomeError);
   expectPeriodEnd(ctx, error);
   return ret;
 }
 
 export function parseStatement(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: (msg: string) => never,
+  reportOutcomeError: OutcomeErrorSink = error
 ): Statement {
   // ADR 0046：语句位置的 When / Otherwise 是治理结论语法糖（Match 分支的 When 由 parseCases 自行消费）
-  if (ctx.isKeyword(KW.WHEN)) return parseWhenSugar(ctx, error);
-  if (isElseWord(ctx)) return parseOtherwiseSugar(ctx, error);
+  if (ctx.isKeyword(KW.WHEN)) return parseWhenSugar(ctx, error, reportOutcomeError);
+  if (isElseWord(ctx)) return parseOtherwiseSugar(ctx, error, reportOutcomeError);
   if (ctx.isKeyword(KW.LET)) {
     const letTok = ctx.peek();
     ctx.nextWord();

@@ -158,6 +158,26 @@ describe('ADR 0046 — When/Otherwise 语法糖', () => {
     }
   });
 
+  test('结论中的句点结束语句：错误与 Java 相同', () => {
+    const rule = (...body: string[]): string => ['Module m.', '', 'Rule r given n, produce Verdict:', ...body, ''].join('\n');
+    // When 的结论只剩 `deny x`，`y.` 成为下一条语句，Otherwise 仍收尾：报结论错误
+    assert.throws(() => toCore(rule('  When n at least 1, deny x.y.', '  Otherwise allow.')), OUTCOME_ERROR);
+    // Otherwise 之后的 `y.` 是下一条语句：报 Otherwise 收尾错误，而非结论错误
+    assert.throws(() => toCore(rule('  Otherwise deny x.y.')), (e: Error) => {
+      assert.equal(e.message.split('\n')[0], 'Otherwise must be the last statement of its block');
+      return true;
+    });
+  });
+
+  test('同一块内 Otherwise 收尾检查先于结论校验（对齐 Java AstBuilder）', () => {
+    const src = ['Module m.', '', 'Rule r given n, produce Verdict:', '  When n at least 1, deny 42.',
+      '  Otherwise allow.', '  Return Verdict.deny("x").', ''].join('\n');
+    assert.throws(() => toCore(src), (e: Error) => {
+      assert.equal(e.message.split('\n')[0], 'Otherwise must be the last statement of its block');
+      return true;
+    });
+  });
+
   test('Otherwise 后紧跟逗号或冒号不是语法糖：报普通解析错误而非语法糖消息', () => {
     // If 块之后：按 else 分支解析，缺换行
     assertPlainParseError('  If n at least 1:\n    Return Verdict.deny("x").\n  Otherwise, Return Verdict.allow().',
