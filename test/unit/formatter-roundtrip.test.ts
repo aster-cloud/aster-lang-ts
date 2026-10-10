@@ -76,6 +76,26 @@ describe('格式化器往返（Core IR 不变）', () => {
     assert.match(formatted, /\n {2}Otherwise:\n/);
   });
 
+  test('数值字面量极值按普通十进制输出并原值往返', () => {
+    const literals: ReadonlyArray<readonly [string, string, unknown]> = [
+      // [源文写法, 返回类型, 期望 Core 字面量值]
+      ['0.0000001', 'Double', 1e-7],
+      ['123456789012345678901234.5', 'Double', 123456789012345678901234.5],
+      ['0.5', 'Double', 0.5],
+      ['3.0', 'Double', 3],
+      ['2147483647', 'Int', 2147483647],
+      ['0', 'Int', 0],
+      ['9223372036854775807L', 'Long', '9223372036854775807'],
+    ];
+    for (const [literal, ret, value] of literals) {
+      const src = `Module m.\n\nRule r, produce ${ret}:\n  Return ${literal}.\n`;
+      const formatted = assertRoundTrip(src);
+      assert.doesNotMatch(formatted, /\d[eE][+-]?\d/, formatted);
+      const ret0 = (toCore(formatted).decls[0] as Core.Func).body.statements[0] as Core.Return;
+      assert.equal((ret0.expr as { value: unknown }).value, value, literal);
+    }
+  });
+
   test('运算符按中缀输出，括号保持结合与优先级', () => {
     const body = [
       'Return (a plus b) times c.',

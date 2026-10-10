@@ -66,6 +66,21 @@ function precedenceOf(e: Expression): number {
   return operatorOf(e)?.prec ?? ATOM_PREC;
 }
 
+/**
+ * Double 按普通十进制输出：词法不接受指数写法，且须保留小数点才读回 Double。
+ * 取 JS 最短往返数字串，再把指数展开成补零的普通写法，读回得到同一个值。
+ */
+function plainDouble(v: number): string {
+  const [mantissa, exp] = String(v).split('e');
+  const sign = mantissa!.startsWith('-') ? '-' : '';
+  const [intPart, fracPart = ''] = mantissa!.replace('-', '').split('.');
+  const digits = intPart! + fracPart;
+  const point = intPart!.length + Number(exp ?? 0);
+  const whole = point <= 0 ? '0' : digits.slice(0, point).padEnd(point, '0');
+  const frac = point <= 0 ? '0'.repeat(-point) + digits : digits.slice(point);
+  return `${sign}${whole.replace(/^0+(?=\d)/, '')}.${frac.replace(/0+$/, '') || '0'}`;
+}
+
 /** 字段、参数与 lambda 参数的共同形状 */
 interface Binding {
   readonly name: string;
@@ -288,7 +303,7 @@ class CnlPrinter {
       case 'Long':
         return `${e.value}L`;
       case 'Double':
-        return Number.isInteger(e.value) ? e.value.toFixed(1) : String(e.value);
+        return plainDouble(e.value);
       case 'Decimal':
         return `${e.value}m`;
       case 'String':
