@@ -16,6 +16,7 @@ import { formatCNL } from '../../../src/formatter.js';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
 import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
+import { HI_IN } from '../../../src/config/lexicons/hi-IN.js';
 import type { Lexicon } from '../../../src/config/lexicons/types.js';
 import type { Core } from '../../../src/types.js';
 
@@ -249,6 +250,29 @@ describe('ADR 0046 — When/Otherwise 语法糖', () => {
       '  sonst erlauben.', ''].join('\n');
     assert.deepEqual(stripOrigins(toCore(zhSrc, ZH_CN)), expected, 'zh-CN');
     assert.deepEqual(stripOrigins(toCore(deSrc, DE_DE)), expected, 'de-DE');
+  });
+
+  test('印地语档案与语法糖同样降糖', () => {
+    // 用词取自真实 hi-IN 词法包（暂定，待母语审校）；与中德用例同一策略与期望
+    const enKeepArticles: Lexicon = {
+      ...EN_US,
+      canonicalization: { ...EN_US.canonicalization, removeArticles: false },
+    };
+    const expected = stripOrigins(toCore(['Module m.', 'Profile "governed".', '',
+      'Rule r given a produce Verdict:',
+      '  If a at least 100:', '    Return Verdict.require_approval("Officer", "large").',
+      '  If a at least 50:', '    Return Verdict.escalate("review").',
+      '  If a at least 1:', '    Return Verdict.deny("x").',
+      '  Return Verdict.allow().', ''].join('\n'), enKeepArticles));
+    const hiSrc = ['मॉड्यूल m।', 'प्रोफ़ाइल "governed"।', '',
+      'नियम r दिया गया a उत्पन्न Verdict:',
+      '  जब a कम से कम 100, अनुमोदक "Officer" क्योंकि "large"।',
+      '  जब a कम से कम 50, आगे बढ़ाएँ "review"।',
+      '  जब a कम से कम 1, अस्वीकार "x"।',
+      '  अन्यथा अनुमति।', ''].join('\n');
+    const hi = toCore(hiSrc, HI_IN);
+    assert.equal(hi.profile, 'governed');
+    assert.deepEqual(stripOrigins(hi), expected, 'hi-IN');
   });
 });
 
