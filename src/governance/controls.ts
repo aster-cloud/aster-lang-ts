@@ -53,13 +53,19 @@ function profilesOf(data: ControlsRegistryData): Map<string, ProfileDef> {
   return profiles;
 }
 
-/** 根 frameworks 的已登记 id：非数组视为空，null/非对象条目与空白 id 跳过（与 Java 跳过空白框架 id 一致）。 */
+// 空白 = 只由 ASCII 空白（空格 \t \n \v \f \r）组成，含空串
+const BLANK = /^[ \t\n\v\f\r]*$/;
+
+/**
+ * 根 frameworks 中已登记的框架 id。只认数组；只认 id 为字符串且非空白的对象条目，原样取用；
+ * 其余条目（null、非对象、缺 id、id 非字符串、空白 id）一律跳过，不转成字符串。
+ */
 function frameworkIdsOf(frameworks: unknown): Set<string> {
   const ids = new Set<string>();
   if (!Array.isArray(frameworks)) return ids;
   for (const f of frameworks as unknown[]) {
     const id = f !== null && typeof f === 'object' ? (f as { id?: unknown }).id : undefined;
-    if (typeof id === 'string' && id.trim() !== '') ids.add(id);
+    if (typeof id === 'string' && !BLANK.test(id)) ids.add(id);
   }
   return ids;
 }

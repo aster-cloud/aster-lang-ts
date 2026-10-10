@@ -103,3 +103,20 @@ test('根 frameworks 畸形时不抛出，畸形条目与空白 id 不计入', (
   const good = registryWithFrameworks([null, { id: ' ' }, { id: 'EU_AI_ACT' }]);
   assert.deepEqual(profileIds(good, ['ok', 'blank', 'eu']), ['ok', 'eu']);
 });
+
+// 空白的确切定义：只由 ASCII 空白（空格 \t \n \v \f \r，即 Java 正则默认的 \s）组成；
+// 其它 Unicode 空白（如 NBSP）不算空白，id 照常登记，以便 Java 用 id.matches("\\s*") 得到同一结果
+test('空白 id 只按 ASCII 空白判定', () => {
+  for (const blank of ['', ' ', '\t\n\v\f\r ']) {
+    const r = controlRegistryFrom({
+      version: '9', frameworks: [{ id: blank }], controls: [], clauses: [],
+      profiles: [profile('p', true, true, [blank])],
+    } as unknown as ControlsRegistryData);
+    assert.equal(r.profile?.('p'), undefined, JSON.stringify(blank));
+  }
+  const nbsp = controlRegistryFrom({
+    version: '9', frameworks: [{ id: ' ' }], controls: [], clauses: [],
+    profiles: [profile('p', true, true, [' '])],
+  } as unknown as ControlsRegistryData);
+  assert.deepEqual(nbsp.profile?.('p')?.frameworks, [' ']);
+});
