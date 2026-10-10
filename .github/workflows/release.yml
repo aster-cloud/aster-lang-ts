@@ -92,6 +92,16 @@ jobs:
           path: aster-lang-core
           token: ${{ secrets.CROSS_REPO_TOKEN }}
 
+      # ★全语料格式化往返、lossless 镜像、W704 黄金三组用例直读 aster-lang-test 源文，
+      #   缺兄弟仓即 fail-closed（与 ci.yml test job 同一 checkout 方式；tag 构建取同名 tag）。
+      #   1.0.31 列车 layer 4 实测：本文件此前只补了 core，漏了 test。
+      - name: Checkout aster-lang-test (全语料与黄金用例需要)
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
+        with:
+          repository: aster-cloud/aster-lang-test
+          path: aster-lang-test
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+
       - name: Install pnpm
         uses: pnpm/action-setup@v6
 
