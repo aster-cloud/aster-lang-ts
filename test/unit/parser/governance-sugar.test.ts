@@ -45,6 +45,24 @@ function bodyOf(core: Core.Module): readonly Core.Statement[] {
 
 const OUTCOME_ERROR = /Expected allow, deny, escalate or require approval by … because … after When\/Otherwise/;
 
+/** 单条语句作为 Verdict 规则体时，须报语法糖结论错误。 */
+function assertOutcomeError(stmt: string): void {
+  assert.throws(() => toCore(['Module m.', '', 'Rule r given n, produce Verdict:', stmt, ''].join('\n')),
+    OUTCOME_ERROR, stmt);
+}
+
+const SUGAR_MESSAGES = /Otherwise must be the last statement|Expected allow, deny, escalate/;
+
+/** 规则体须报给定的普通解析错误，且不带任何语法糖消息。 */
+function assertPlainParseError(body: string, expected: RegExp): void {
+  const src = ['Module m.', '', 'Rule r given n as Int, produce Verdict:', body, ''].join('\n');
+  assert.throws(() => toCore(src), (e: Error) => {
+    assert.doesNotMatch(e.message, SUGAR_MESSAGES, body);
+    assert.match(e.message, expected, body);
+    return true;
+  });
+}
+
 describe('ADR 0046 — Profile 声明', () => {
   test('Profile 声明进入 Core.Module.profile', () => {
     const core = toCore('Module m.\nProfile "governed".\n\nRule r produce Int:\n  Return 1.\n');
@@ -135,31 +153,20 @@ describe('ADR 0046 — When/Otherwise 语法糖', () => {
   test('结论含非单词记号同样报结论错误（对齐 Java A5）', () => {
     for (const outcome of ['deny 42', 'deny "a" + "b"', 'escalate ("x")', 'allow, deny "x"',
       'deny "x" because 1', 'require approval by "a" because "b" now', 'allow 1.5']) {
-      for (const stmt of [`  When n at least 1, ${outcome}.`, `  Otherwise ${outcome}.`]) {
-        assert.throws(() => toCore(['Module m.', '', 'Rule r given n, produce Verdict:', stmt, ''].join('\n')),
-          OUTCOME_ERROR, stmt);
-      }
+      assertOutcomeError(`  When n at least 1, ${outcome}.`);
+      assertOutcomeError(`  Otherwise ${outcome}.`);
     }
   });
 
   test('Otherwise 后紧跟逗号或冒号不是语法糖：报普通解析错误而非语法糖消息', () => {
-    const sugarMessages = /Otherwise must be the last statement|Expected allow, deny, escalate/;
-    const cases: ReadonlyArray<readonly [string, RegExp]> = [
-      // If 块之后：按 else 分支解析，缺换行
-      ['  If n at least 1:\n    Return Verdict.deny("x").\n  Otherwise, Return Verdict.allow().', /^Expected newline$/],
-      ['  If n at least 1:\n    Return Verdict.deny("x").\n  Otherwise: Return Verdict.allow().', /^Expected newline$/],
-      // 没有前置 If：结论不得以逗号或冒号开头
-      ['  Otherwise, Return Verdict.allow().', /^Unexpected ',' where an outcome was expected$/],
-      ['  Otherwise: Return Verdict.allow().', /^Unexpected ':' where an outcome was expected$/],
-    ];
-    for (const [body, expected] of cases) {
-      const src = ['Module m.', '', 'Rule r given n as Int, produce Verdict:', body, ''].join('\n');
-      assert.throws(() => toCore(src), (e: Error) => {
-        assert.doesNotMatch(e.message, sugarMessages, body);
-        assert.match(e.message, expected, body);
-        return true;
-      });
-    }
+    // If 块之后：按 else 分支解析，缺换行
+    assertPlainParseError('  If n at least 1:\n    Return Verdict.deny("x").\n  Otherwise, Return Verdict.allow().',
+      /^Expected newline$/);
+    assertPlainParseError('  If n at least 1:\n    Return Verdict.deny("x").\n  Otherwise: Return Verdict.allow().',
+      /^Expected newline$/);
+    // 没有前置 If：结论不得以逗号或冒号开头
+    assertPlainParseError('  Otherwise, Return Verdict.allow().', /^Unexpected ',' where an outcome was expected$/);
+    assertPlainParseError('  Otherwise: Return Verdict.allow().', /^Unexpected ':' where an outcome was expected$/);
   });
 
   test('If 块后的 Otherwise 换行块仍是 else 分支', () => {
