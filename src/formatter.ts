@@ -1,6 +1,7 @@
 import { canonicalize } from './frontend/canonicalizer.js';
 import { lex } from './frontend/lexer.js';
-import { parse } from './parser.js';
+import { parseWithLexicon } from './parser.js';
+import type { Lexicon } from './config/lexicons/types.js';
 import { buildCst, buildCstLossless } from './cst/cst_builder.js';
 import { printCNLFromCst } from './cst/cst_printer.js';
 import type {
@@ -20,8 +21,16 @@ import { DefaultAstVisitor } from './ast/ast_visitor.js';
 
 export function formatCNL(
   text: string,
-  opts?: { mode?: 'lossless' | 'normalize'; reflow?: boolean; preserveComments?: boolean; preserveStandaloneComments?: boolean }
+  opts?: {
+    mode?: 'lossless' | 'normalize';
+    reflow?: boolean;
+    preserveComments?: boolean;
+    preserveStandaloneComments?: boolean;
+    /** 源文所用词法包（缺省 en-US）；输出一律为英文 CNL */
+    lexicon?: Lexicon;
+  }
 ): string {
+  const lexicon = opts?.lexicon;
   if (opts?.mode === 'lossless') {
     try {
       const cst = buildCstLossless(text);
@@ -120,15 +129,15 @@ export function formatCNL(
   const sanitized = !hasPlaceholder ? withPlaceholdersFixed
     : replaceLineAnchoredPlaceholder(
         withPlaceholdersFixed, PLACEHOLDER_ANY_CORE, () => 'Return none.');
-  const can = canonicalize(sanitized);
+  const can = canonicalize(sanitized, lexicon);
   let tokens;
   let originalTokens; // For extracting comments from original text
   try {
-    tokens = lex(can);
+    tokens = lex(can, lexicon);
     // When preserving comments, lex the original text to extract comment tokens
     if (opts?.preserveComments) {
       try {
-        originalTokens = lex(text);
+        originalTokens = lex(text, lexicon);
       } catch {
         // If original fails to lex, fall back to no comment preservation
         originalTokens = undefined;
@@ -140,7 +149,7 @@ export function formatCNL(
   let formatted: string;
   const cst = buildCst(text, originalTokens ?? tokens);
   try {
-    const ast = parse(tokens).ast as Module;
+    const ast = parseWithLexicon(tokens, lexicon).ast as Module;
     formatted = simpleFormatModule(ast);
   } catch {
     // If the source doesn't parse, return it unchanged
@@ -321,6 +330,45 @@ function joinWithCommas(parts: string[]): string {
 
 // No doc-comment preservation in output; we keep formatting deterministic
 
+/** IR 运算符名 → 英文 CNL 词形、优先级（数值越大结合越紧）与元数，与解析器 parseOr…parseMultiplication 各层一致 */
+interface OperatorInfo {
+  readonly word: string;
+  readonly prec: number;
+  readonly arity: 1 | 2;
+}
+const COMPARISON_PREC = 4;
+const ATOM_PREC = 7;
+const OPERATORS: ReadonlyMap<string, OperatorInfo> = new Map<string, OperatorInfo>([
+  ['or', { word: 'or', prec: 1, arity: 2 }],
+  ['and', { word: 'and', prec: 2, arity: 2 }],
+  ['not', { word: 'not', prec: 3, arity: 1 }],
+  ['<', { word: 'less than', prec: COMPARISON_PREC, arity: 2 }],
+  ['>', { word: 'greater than', prec: COMPARISON_PREC, arity: 2 }],
+  ['<=', { word: 'at most', prec: COMPARISON_PREC, arity: 2 }],
+  ['>=', { word: 'at least', prec: COMPARISON_PREC, arity: 2 }],
+  ['==', { word: 'equals to', prec: COMPARISON_PREC, arity: 2 }],
+  ['!=', { word: 'not equal to', prec: COMPARISON_PREC, arity: 2 }],
+  ['+', { word: 'plus', prec: 5, arity: 2 }],
+  ['-', { word: 'minus', prec: 5, arity: 2 }],
+  ['*', { word: 'times', prec: 6, arity: 2 }],
+  ['/', { word: 'divided by', prec: 6, arity: 2 }],
+  ['//', { word: 'integer divided by', prec: 6, arity: 2 }],
+  ['%', { word: 'modulo', prec: 6, arity: 2 }],
+]);
+
+/** 目标为运算符名且实参个数与元数相符的调用才按运算符输出，其余仍是普通调用 */
+function operatorOf(e: Expression): OperatorInfo | undefined {
+  if (e.kind !== 'Call' || e.target.kind !== 'Name') return undefined;
+  const op = OPERATORS.get(e.target.name);
+  return op !== undefined && op.arity === e.args.length ? op : undefined;
+}
+
+/** 表达式级 if 与 lambda 作操作数时一律加括号 */
+function precedenceOf(e: Expression): number {
+  if (e.kind === 'IfExpr' || e.kind === 'Lambda') return 0;
+  return operatorOf(e)?.prec ?? ATOM_PREC;
+}
+
 class AstFormatterVisitor extends DefaultAstVisitor<void> {
   out: string[] = [];
   firstDecl = true;
@@ -354,9 +402,9 @@ class AstFormatterVisitor extends DefaultAstVisitor<void> {
         return `Wait for ${inner}.`;
       }
       case 'If': {
-        const head = `If ${this.fmtExpr(s.cond)},:`;
+        const head = `If ${this.fmtExpr(s.cond)}:`;
         const thenB = '\n' + this.fmtBlock(s.thenBlock, lvl + 1);
-        const elseB = s.elseBlock ? `\n${indent(lvl)}Otherwise,:\n${this.fmtBlock(s.elseBlock, lvl + 1)}` : '';
+        const elseB = s.elseBlock ? `\n${indent(lvl)}Otherwise:\n${this.fmtBlock(s.elseBlock, lvl + 1)}` : '';
         return `${head}${thenB}${elseB}`;
       }
       case 'Match': {
@@ -365,7 +413,7 @@ class AstFormatterVisitor extends DefaultAstVisitor<void> {
           .map(c => {
             const pat = this.fmtPattern(c.pattern as any);
             if (c.body.kind === 'Return') return `${indent(lvl + 1)}When ${pat}, Return ${this.fmtExpr(c.body.expr)}.`;
-            return `${indent(lvl + 1)}When ${pat},:\n${this.fmtBlock(c.body, lvl + 2)}`;
+            return `${indent(lvl + 1)}When ${pat},\n${this.fmtBlock(c.body, lvl + 2)}`;
           })
           .join('\n');
         return `${head}\n${cases}`;
@@ -410,6 +458,8 @@ class AstFormatterVisitor extends DefaultAstVisitor<void> {
         if (Number.isFinite(v) && Math.floor(v) === v) return v.toFixed(1);
         return String(v);
       }
+      case 'Decimal':
+        return `${e.value}m`;
       case 'String':
         return JSON.stringify(e.value);
       case 'None':
@@ -423,6 +473,8 @@ class AstFormatterVisitor extends DefaultAstVisitor<void> {
       case 'Construct':
         return `${e.typeName} with ${e.fields.map(f => this.fmtConstructField(f)).join(', ')}`;
       case 'Call': {
+        const op = operatorOf(e);
+        if (op !== undefined) return this.fmtOperator(op, e.args);
         const t = e.target;
         const target = t.kind === 'Name' ? t.name : `(${this.fmtExpr(t)})`;
         const args = e.args.map(a => this.fmtExpr(a)).join(', ');
@@ -438,6 +490,17 @@ class AstFormatterVisitor extends DefaultAstVisitor<void> {
       default:
         return '<expr>';
     }
+  }
+  /** 运算符按中缀（not 按前缀）输出英文词形；子表达式优先级不足时加括号以保持同一棵树 */
+  fmtOperator(op: OperatorInfo, args: readonly Expression[]): string {
+    if (op.arity === 1) return `${op.word} ${this.fmtOperand(args[0]!, op.prec)}`;
+    // 比较不可链式，左右都须严格更高；其余左结合，右操作数须严格更高
+    const leftMin = op.prec === COMPARISON_PREC ? op.prec + 1 : op.prec;
+    return `${this.fmtOperand(args[0]!, leftMin)} ${op.word} ${this.fmtOperand(args[1]!, op.prec + 1)}`;
+  }
+  fmtOperand(e: Expression, minPrec: number): string {
+    const text = this.fmtExpr(e);
+    return precedenceOf(e) < minPrec ? `(${text})` : text;
   }
   fmtConstructField(f: ConstructField): string {
     return `${f.name} = ${this.fmtExpr(f.expr)}`;
@@ -530,13 +593,26 @@ function formatFunc(f: Func): string {
   const capsTxt = formatEffectCaps(f);
   const effTxt = hasEff ? ` It performs ${formatEffects(f.effects)}${capsTxt}` : '';
   if (!f.body) {
-    return `Rule ${f.name}${params}, produce ${formatType(f.retType)}.${effTxt}`.trimEnd();
+    return `${formatAnnotations(f)}Rule ${f.name}${params}, produce ${formatType(f.retType)}.${effTxt}`.trimEnd();
   }
   const header = hasEff
     ? `Rule ${f.name}${params}, produce ${formatType(f.retType)}.${effTxt}:`
     : `Rule ${f.name}${params}, produce ${formatType(f.retType)}:`;
   const body = formatBlock(f.body, 1);
-  return `${header}\n${body}`;
+  return `${formatAnnotations(f)}${header}\n${body}`;
+}
+
+/** 规则注解逐行输出于规则头之前；位置参数（$0、$1…）按位置写出，具名参数写作 name: value */
+function formatAnnotations(f: Func): string {
+  return (f.annotations ?? [])
+    .map(a => {
+      const args = (a.args ?? []).map(arg => {
+        const value = typeof arg.value === 'string' ? JSON.stringify(arg.value) : String(arg.value);
+        return arg.name.startsWith('$') ? value : `${arg.name}: ${value}`;
+      });
+      return args.length > 0 ? `@${a.name}(${args.join(', ')})\n` : `@${a.name}\n`;
+    })
+    .join('');
 }
 
 function formatEffectCaps(f: Func): string {
@@ -555,7 +631,8 @@ function formatEffects(effs: readonly string[]): string {
 
 function formatParams(ps: readonly Parameter[]): string {
   if (!ps || ps.length === 0) return '';
-  const inner = ps.map(p => `${p.name} as ${formatType(p.type)}`);
+  // 推断出的参数类型不写出，保持原文的省略写法（类型由同一推断规则再次得出）
+  const inner = ps.map(p => (p.typeInferred ? p.name : `${p.name} as ${formatType(p.type)}`));
   return ` given ${joinWithCommas(inner)}`;
 }
 
