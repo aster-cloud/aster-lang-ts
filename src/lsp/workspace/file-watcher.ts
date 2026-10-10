@@ -65,6 +65,8 @@ export class FileWatcher {
   private workspaceFolders: string[] = [];
   private isRunning = false;
   private isScanning = false; // 单飞行锁：防止并发扫描
+  // 每次 stop() 递增；扫描只在启动它的那一轮内生效，停止后残留的扫描不占锁、不写快照、不发事件
+  private generation = 0;
 
   /**
    * 事件发射器：用于测试观察和验证
@@ -127,7 +129,10 @@ export class FileWatcher {
   stop(): void {
     this.isRunning = false;
     this.stopPolling();
-    this.fileSnapshots.clear();
+    this.generation++;
+    this.isScanning = false;
+    // 换新表而非 clear()：残留扫描持有的是旧表，写入不会进入下一轮
+    this.fileSnapshots = new Map();
     // 注意：不清理事件监听器，保持与旧实现的兼容性
     // 调用方可以在 configure() 前后持续使用同一监听器
   }
@@ -205,38 +210,42 @@ export class FileWatcher {
     this.events.emit('scan:start');
 
     this.isScanning = true;
+    const generation = this.generation;
+    const snapshots = this.fileSnapshots;
     try {
       const changes: FileChangeEvent[] = [];
 
       for (const folder of this.workspaceFolders) {
-        const detectedChanges = await this.detectChanges(folder);
+        const detectedChanges = await this.detectChanges(folder, snapshots);
         changes.push(...detectedChanges);
       }
 
-      // 批量处理变更
-      await this.processChanges(changes);
+      // 批量处理变更；扫描期间已被停止则丢弃结果
+      if (generation === this.generation) await this.processChanges(changes);
     } finally {
-      this.isScanning = false;
-      this.events.emit('scan:end');
+      if (generation === this.generation) {
+        this.isScanning = false;
+        this.events.emit('scan:end');
+      }
     }
   }
 
   /**
    * 检测目录下的文件变更
    */
-  private async detectChanges(dir: string): Promise<FileChangeEvent[]> {
+  private async detectChanges(dir: string, snapshots: Map<string, FileSnapshot>): Promise<FileChangeEvent[]> {
     const changes: FileChangeEvent[] = [];
     const currentFiles = new Set<string>();
 
     try {
-      await this.scanDirectory(dir, currentFiles, changes);
+      await this.scanDirectory(dir, currentFiles, changes, snapshots);
     } catch {
       // 目录不存在或无法访问
       return changes;
     }
 
     // 检查已删除的文件
-    for (const [path] of this.fileSnapshots) {
+    for (const [path] of snapshots) {
       // 使用 relative 检查文件是否在目录下，避免前缀碰撞
       const rel = relative(dir, path);
       const isInDir = rel && !rel.startsWith('..') && !rel.startsWith(sep);
@@ -246,7 +255,7 @@ export class FileWatcher {
           uri: pathToFileURL(path).href,
           type: 'deleted',
         });
-        this.fileSnapshots.delete(path);
+        snapshots.delete(path);
       }
     }
 
@@ -259,7 +268,8 @@ export class FileWatcher {
   private async scanDirectory(
     dir: string,
     currentFiles: Set<string>,
-    changes: FileChangeEvent[]
+    changes: FileChangeEvent[],
+    snapshots: Map<string, FileSnapshot>
   ): Promise<void> {
     let entries;
     try {
@@ -277,7 +287,7 @@ export class FileWatcher {
       const fullPath = `${dir}/${entry.name}`;
 
       if (entry.isDirectory()) {
-        await this.scanDirectory(fullPath, currentFiles, changes);
+        await this.scanDirectory(fullPath, currentFiles, changes, snapshots);
       } else if (entry.isFile() && extname(entry.name) === '.aster') {
         currentFiles.add(fullPath);
 
@@ -288,7 +298,7 @@ export class FileWatcher {
             size: stats.size,
           };
 
-          const previous = this.fileSnapshots.get(fullPath);
+          const previous = snapshots.get(fullPath);
           if (!previous) {
             // 新文件
             changes.push({
@@ -303,7 +313,7 @@ export class FileWatcher {
             });
           }
 
-          this.fileSnapshots.set(fullPath, snapshot);
+          snapshots.set(fullPath, snapshot);
         } catch {
           // 文件无法访问
         }
