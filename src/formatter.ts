@@ -138,7 +138,7 @@ export function formatCNL(
   const cst = buildCst(text, originalTokens ?? tokens);
   try {
     const ast = parseWithLexicon(tokens, lexicon).ast as Module;
-    formatted = simpleFormatModule(ast);
+    formatted = printModule(ast);
   } catch {
     // If the source doesn't parse, return it unchanged
     return input;
@@ -304,8 +304,4 @@ function reattachInlineComments(
     if (si < standalone.length) fmtLines.push(standalone[si]!);
   }
   return fmtLines.join('\n');
-}
-
-function simpleFormatModule(m: Module): string {
-  return printModule(m);
 }
