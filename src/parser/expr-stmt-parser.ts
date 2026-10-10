@@ -1441,9 +1441,70 @@ const PREFIX_OPERATORS: ReadonlyMap<TokenKind, string> = new Map([
   [TokenKind.SLASH, '/'],
 ]);
 
-/** 前缀运算符调用：恰好 2 个实参，降为与中缀相同的 Call(Name(op), [a, b])。 */
-function parsePrefixOperatorCall(ctx: ParserContext, error: (msg: string) => never, op: string): Expression {
+// 运算符词 → 非英语词法表下 Java Canonicalizer（OPERATOR_SYMBOL_MAP）把它翻成的符号；
+// null 表示不翻译，词仍是 Java lexer 的硬 token，不能作前缀调用目标。
+const OPERATOR_WORD_SYMBOLS: ReadonlyMap<string, string | null> = new Map([
+  [KW.AND, null],
+  [KW.OR, null],
+  [KW.MODULO, null],
+  [KW.INTEGER_DIVIDED_BY, null],
+  [KW.PLUS, '+'],
+  [KW.MINUS, '-'],
+  [KW.TIMES, '*'],
+  [KW.DIVIDED_BY, '/'],
+  [KW.LESS_THAN, '<'],
+  [KW.GREATER_THAN, '>'],
+  [KW.MORE_THAN, '>'],
+  [KW.EQUALS_TO, '=='],
+  [KW.AT_LEAST, '>='],
+  [KW.AT_MOST, '<='],
+  [KW.UNDER, '<'],
+  [KW.OVER, '>'],
+]);
+
+// en-US 下 under/over 是软关键词（Java 当普通 IDENT），前缀位置就是普通函数调用
+const EN_SOFT_OPERATOR_WORDS: ReadonlySet<string> = new Set([KW.UNDER, KW.OVER]);
+
+const PREFIX_SYMBOL_LIST = '< > <= >= != == = + - * /';
+
+/** 当前位置是否为「运算符词 + (」；按原文大小写精确匹配（Java lexer 区分大小写）。 */
+function operatorWordBeforeParen(ctx: ParserContext, english: boolean): string | undefined {
+  for (const word of OPERATOR_WORD_SYMBOLS.keys()) {
+    const parts = kwParts(word);
+    const matches = parts.every((part, k) => ctx.peek(k).kind === TokenKind.IDENT && ctx.peek(k).value === part);
+    if (matches && ctx.peek(parts.length).kind === TokenKind.LPAREN) {
+      return english && EN_SOFT_OPERATOR_WORDS.has(word) ? undefined : word;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * 运算符词前缀调用，与 Java 一致：en-US 规范拼写不翻译，词是硬 token → 拒绝；
+ * 非英语词法表下可映射为符号的词按符号前缀调用处理，其余拒绝。
+ */
+function parseOperatorWordCall(
+  ctx: ParserContext,
+  error: (msg: string) => never,
+  word: string,
+  english: boolean
+): Expression {
+  const symbol = english ? null : OPERATOR_WORD_SYMBOLS.get(word);
+  if (!symbol) {
+    error(`运算符词 '${word}' 不能用作前缀调用；只有符号运算符 ${PREFIX_SYMBOL_LIST} 可以写成 op(a, b)`);
+  }
+  return parsePrefixOperatorCall(ctx, error, symbol, kwParts(word).length);
+}
+
+/** 前缀运算符调用：恰好 2 个实参，降为与中缀相同的 Call(Name(op), [a, b])。运算符可占多个 token。 */
+function parsePrefixOperatorCall(
+  ctx: ParserContext,
+  error: (msg: string) => never,
+  op: string,
+  opTokenCount = 1
+): Expression {
   const opTok = ctx.next();
+  for (let k = 1; k < opTokenCount; k++) ctx.next();
   const args = parseArgList(ctx, error);
   if (args.length !== 2) error(`前缀操作符调用需要 2 个参数，但实际为 ${args.length}`);
   const target = assignTokenSpan(Node.Name(op), opTok);
@@ -1457,6 +1518,11 @@ function parsePrimary(
   const prefixOp = PREFIX_OPERATORS.get(ctx.peek().kind);
   if (prefixOp !== undefined && ctx.peek(1).kind === TokenKind.LPAREN) {
     return parsePrefixOperatorCall(ctx, error, prefixOp);
+  }
+  const english = ctx.lexicon === undefined || ctx.lexicon.id === 'en-US';
+  const operatorWord = operatorWordBeforeParen(ctx, english);
+  if (operatorWord !== undefined) {
+    return parseOperatorWordCall(ctx, error, operatorWord, english);
   }
   // Minimal: construction, literals, names, Ok/Err/Some/None, call with dotted names and parens args
   // Lambda (block form): 'a function' (or 'function') ... 'produce' Type ':' \n Block
