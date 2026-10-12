@@ -215,6 +215,13 @@ connection.onInitialize(async (params: InitializeParams) => {
         interFileDependencies: false,
         workspaceDiagnostics: true,
       },
+      /* ★能力探测标志：客户端据此决定注册哪些功能，而不是猜服务端版本。
+       *   localizedParsing      —— 非英文文档的 hover/跳转/符号等按 lexicon 解析（旧版恒抛错）
+       *   openDocumentNavigation —— 引用/重命名读打开中的内存文本（旧版对 inmemory 文档恒空）
+       *   旧版服务端不带这些标志，客户端应只对 en-US 注册基于解析的功能，且不注册引用/重命名。 */
+      experimental: {
+        aster: { localizedParsing: true, openDocumentNavigation: true },
+      },
       codeActionProvider: {
         codeActionKinds: [CodeActionKind.QuickFix],
       },

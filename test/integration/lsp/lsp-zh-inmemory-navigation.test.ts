@@ -12,10 +12,13 @@ import { LSPClient } from '../../../scripts/lsp-client-helper.js';
 const URI = 'inmemory://policy/default.aster';
 const ZH_DOC = '模块 demo.p。\n\n定义 Req 包含\n  a 作为 整数。\n\n规则 helper 给定 x 作为 整数 产出 整数：\n  返回 x 加上 1。\n\n规则 twice 给定 r 作为 Req 产出 整数：\n  返回 helper(r.a) 乘以 2。\n';
 
+let initCapabilities: { experimental?: { aster?: Record<string, boolean> } } = {};
+
 async function open(locale: string, text: string): Promise<LSPClient> {
   const client = new LSPClient();
   client.spawn('dist/src/lsp/server.js');
-  await client.request('initialize', { processId: process.pid, rootUri: null, capabilities: {} });
+  const init = (await client.request('initialize', { processId: process.pid, rootUri: null, capabilities: {} })) as { capabilities: typeof initCapabilities };
+  initCapabilities = init.capabilities;
   client.notify('initialized', {});
   // 持久化索引关掉：测试不在仓库目录写 .asteri/
   client.notify('workspace/didChangeConfiguration', { settings: { asterLanguageServer: { locale, index: { persist: false } } } });
@@ -30,6 +33,9 @@ describe('LSP zh + inmemory 文档（真实服务端进程）', () => {
 
   it('★文档符号 / hover / 跳转定义 / 重命名 / 引用 都返回真实结果', async () => {
     client = await open('zh-CN', ZH_DOC);
+
+    // 客户端按这两个标志决定是否注册对应功能（见 server.ts experimental.aster）
+    assert.deepEqual(initCapabilities.experimental?.aster, { localizedParsing: true, openDocumentNavigation: true });
 
     const symbols = (await client.request('textDocument/documentSymbol', { textDocument: { uri: URI } })) as Array<{ name: string }>;
     assert.deepEqual(symbols.map((s) => s.name), ['demo.p']);
