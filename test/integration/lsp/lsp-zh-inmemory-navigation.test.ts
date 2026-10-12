@@ -7,7 +7,16 @@
  */
 import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { LSPClient } from '../../../scripts/lsp-client-helper.js';
+
+/* ★必须在独立空目录里启动：未传 rootUri 时服务端把 cwd 当工作区，扫描其中的 .aster 文件并
+ *   读回 cwd/.asteri 的持久化索引。在仓库根启动会把语料里的同名符号算进引用（CI 实测 7 != 2）。
+ *   这与 aster-cloud 网关为每个连接分配独立工作目录是同一个隔离要求。 */
+const SERVER = resolve('dist/src/lsp/server.js');
+const workDir = mkdtempSync(join(tmpdir(), 'lsp-zh-nav-'));
 
 const URI = 'inmemory://policy/default.aster';
 const ZH_DOC = '模块 demo.p。\n\n定义 Req 包含\n  a 作为 整数。\n\n规则 helper 给定 x 作为 整数 产出 整数：\n  返回 x 加上 1。\n\n规则 twice 给定 r 作为 Req 产出 整数：\n  返回 helper(r.a) 乘以 2。\n';
@@ -16,7 +25,7 @@ let initCapabilities: { experimental?: { aster?: Record<string, boolean> } } = {
 
 async function open(locale: string, text: string): Promise<LSPClient> {
   const client = new LSPClient();
-  client.spawn('dist/src/lsp/server.js');
+  client.spawn(SERVER, { cwd: workDir });
   const init = (await client.request('initialize', { processId: process.pid, rootUri: null, capabilities: {} })) as { capabilities: typeof initCapabilities };
   initCapabilities = init.capabilities;
   client.notify('initialized', {});
@@ -29,7 +38,7 @@ async function open(locale: string, text: string): Promise<LSPClient> {
 
 describe('LSP zh + inmemory 文档（真实服务端进程）', () => {
   let client: LSPClient | null = null;
-  after(() => client?.close());
+  after(() => { client?.close(); rmSync(workDir, { recursive: true, force: true }); });
 
   it('★文档符号 / hover / 跳转定义 / 重命名 / 引用 都返回真实结果', async () => {
     client = await open('zh-CN', ZH_DOC);

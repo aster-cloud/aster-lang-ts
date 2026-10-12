@@ -16,12 +16,17 @@ export class LSPClient {
   private closed = false;
 
   /** 启动 LSP 服务器进程 */
-  spawn(serverPath: string): void {
+  /**
+   * @param options.cwd 服务端工作目录。未传 rootUri 时服务端把 cwd 当工作区根：扫描其中的
+   *   .aster 文件并读写 cwd/.asteri/lsp-index.json。需要隔离的测试应传独立临时目录。
+   */
+  spawn(serverPath: string, options: { cwd?: string } = {}): void {
     if (this.server) throw new Error('LSP 服务已在运行');
 
     this.resetState();
     const server = spawn('node', [serverPath, '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe'],
+      ...(options.cwd ? { cwd: options.cwd } : {}),
     }) as unknown as ChildProcessWithoutNullStreams;
 
     // 配置 stdout 缓冲区大小为 100KB，支持大型 JSON 响应（如 workspace/diagnostic）
