@@ -71,7 +71,7 @@ export function registerRenameHandlers(
     if (!doc) return null;
     const text = doc.getText();
     const offset = doc.offsetAt(params.position);
-    const word = captureWordAt(text, offset);
+    const word = captureWordAt(text, offset, getLexiconForDoc?.(doc.uri));
     if (!word) return null;
     const changes: Record<string, import('vscode-languageserver/node.js').TextEdit[]> = {};
     const settings = await getDocumentSettings(doc.uri).catch(() => defaultSettings);
@@ -160,7 +160,7 @@ export function registerRenameHandlers(
     }
 
     // 词法精确匹配失败时回退到简单的词边界捕获
-    const fallback = captureWordAt(text, offset);
+    const fallback = captureWordAt(text, offset, getLexiconForDoc?.(doc.uri));
     if (!fallback) return null;
     const isWord = (c: string): boolean => /[A-Za-z0-9_.]/.test(c);
     let start = offset;

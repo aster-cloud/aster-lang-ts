@@ -9,7 +9,7 @@ import { canonicalize } from '../../frontend/canonicalizer.js';
 import { lex } from '../../frontend/lexer.js';
 import { TokenKind } from '../../frontend/tokens.js';
 import path from 'node:path';
-import type { Lexicon } from '../../config/lexicons/types.js';
+import { findSemanticTokenKind, type Lexicon } from '../../config/lexicons/types.js';
 import { buildCanonicalizeOptions } from '../canonicalize-options.js';
 import {
   getSpan,
@@ -43,8 +43,28 @@ export function escapeRegExp(str: string): string {
  * @param offset 偏移量位置
  * @returns 捕获的单词，如果不在单词位置则返回 null
  */
-export function captureWordAt(text: string, offset: number): string | null {
-  const isWord = (c: string): boolean => /[A-Za-z0-9_.]/.test(c);
+export function captureWordAt(text: string, offset: number, lexicon?: Lexicon): string | null {
+  // ★优先按词法规则取光标所在的标识符 token：标识符可以是任意 Unicode 字母（zh「加倍」、
+  //   de「größe」），且 zh 关键字与标识符之间可以不留空格（「返回加倍(…)」），ASCII 正则
+  //   两种情况都处理不了——旧实现对「加倍」恒回 null，重命名框弹出却什么都不改。
+  //   关键字不是可重命名的符号，直接拒绝。
+  try {
+    const can = canonicalize(text, buildCanonicalizeOptions(lexicon, undefined, undefined));
+    const toks = lex(can, lexicon);
+    const starts = buildLineStarts(text);
+    for (const t of toks) {
+      if (t.kind !== TokenKind.IDENT && t.kind !== TokenKind.TYPE_IDENT) continue;
+      const s = toOffset(starts, t.start.line, t.start.col);
+      const e = toOffset(starts, t.end.line, t.end.col);
+      if (offset < s || offset > e) continue;
+      const value = String(t.value);
+      if (lexicon && findSemanticTokenKind(lexicon, value) !== undefined) return null;
+      return value;
+    }
+  } catch {
+    // 词法失败（文本残缺）时退回字符级捕获
+  }
+  const isWord = (c: string): boolean => /[\p{L}\p{N}_.]/u.test(c);
   let s = offset;
   while (s > 0 && isWord(text[s - 1]!)) s--;
   let e = offset;
@@ -61,7 +81,8 @@ export function captureWordAt(text: string, offset: number): string | null {
  */
 export function findWordPositions(text: string, word: string): Array<{ start: number; end: number }> {
   const out: Array<{ start: number; end: number }> = [];
-  const re = new RegExp(`(?<![A-Za-z0-9_.])${escapeRegExp(word)}(?![A-Za-z0-9_.])`, 'g');
+  // 词边界按 Unicode 字母/数字判定（标识符可以是中文、带变音的德文等）
+  const re = new RegExp(`(?<![\\p{L}\\p{N}_.])${escapeRegExp(word)}(?![\\p{L}\\p{N}_.])`, 'gu');
   for (let m; (m = re.exec(text)); ) {
     out.push({ start: m.index, end: m.index + word.length });
   }

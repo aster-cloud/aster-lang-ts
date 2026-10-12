@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { LexiconRegistry, initializeAllBundledLexicons } from '../../../src/config/lexicons/index.js';
 import { resolvePushedSettings } from '../../../src/lsp/settings.js';
-import { ensureUri, findTokenPositionsSafe } from '../../../src/lsp/navigation/shared.js';
+import { captureWordAt, ensureUri, findTokenPositionsSafe, findWordPositions } from '../../../src/lsp/navigation/shared.js';
 import { updateDocumentIndex } from '../../../src/lsp/workspace/document-indexer.js';
 import { computeDiagnostics, MISSING_MODULE_HEADER_CODE } from '../../../src/lsp/diagnostics.js';
 import { parseDocumentText } from '../../../src/lsp/parse-document.js';
@@ -66,5 +66,21 @@ describe('computeDiagnostics: 缺少模块头', () => {
     const header = diags.find((d) => d.code === MISSING_MODULE_HEADER_CODE);
     assert.ok(header, `应有 code=${MISSING_MODULE_HEADER_CODE} 的诊断，实际: ${JSON.stringify(diags.map((d) => [d.code, d.message]))}`);
     assert.match(String(header.message), /模块/);
+  });
+});
+
+describe('词边界与取词（Unicode 标识符）', () => {
+  it('★findWordPositions 按 Unicode 字母判定边界：「四加倍」里的「加倍」不算', () => {
+    const text = '四加倍 加倍';
+    assert.deepEqual(findWordPositions(text, '加倍'), [{ start: 4, end: 6 }]);
+  });
+
+  it('★captureWordAt 取中文与带变音的标识符，关键字返回 null', () => {
+    const zhText = '规则 加倍 给定 数值 作为 整数 产出 整数：';
+    assert.equal(captureWordAt(zhText, zhText.indexOf('加倍') + 1, zh), '加倍');
+    assert.equal(captureWordAt(zhText, 1, zh), null);
+    const de = LexiconRegistry.get('de-DE');
+    const deText = 'Regel verdoppeln gegeben größe als Ganzzahl, liefert Ganzzahl:';
+    assert.equal(captureWordAt(deText, deText.indexOf('größe') + 3, de), 'größe');
   });
 });

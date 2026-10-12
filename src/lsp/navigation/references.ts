@@ -69,7 +69,7 @@ export function registerReferencesHandler(
     const pos = params.position;
     const offset = doc.offsetAt(pos);
     // naive token capture: expand to nearest word boundaries
-    const word = captureWordAt(text, offset);
+    const word = captureWordAt(text, offset, getLexiconForDoc?.(doc.uri));
     if (!word) return [];
     const out: Location[] = [];
     const settings = await getDocumentSettings(doc.uri).catch(() => defaultSettings);
