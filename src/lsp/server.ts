@@ -18,17 +18,13 @@ import { performance } from 'node:perf_hooks';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
-import { canonicalize } from '../frontend/canonicalizer.js';
-import { lex } from '../frontend/lexer.js';
-import { parse, parseWithLexicon } from '../parser.js';
-import { needsKeywordTranslation } from '../frontend/keyword-translator.js';
 import type {
   Module as AstModule,
   Span,
 } from '../types.js';
 import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import { LexiconRegistry, initializeAllBundledLexicons } from '../config/lexicons/index.js';
-import { buildCanonicalizeOptions } from './canonicalize-options.js';
+import { parseDocumentText } from './parse-document.js';
 import { resolveTenantContext } from './tenant-init.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { attachDiagnosticMessages } from '../config/lexicons/diagnostic-messages.js';
@@ -140,19 +136,8 @@ function getOrParse(doc: TextDocument): CachedDoc {
   if (prev && prev.version === doc.version) return prev;
   const text = doc.getText();
   const lexicon = getLexiconForDoc(doc.uri);
-  const can = canonicalize(text, buildCanonicalizeOptions(lexicon, currentTenantId, currentDomain));
-  const tokens = lex(can);
-  let ast: AstModule | null;
-  let parseDiagnostics: readonly Diagnostic[] = [];
-  try {
-    const result = lexicon && needsKeywordTranslation(lexicon)
-      ? parseWithLexicon(tokens, lexicon)
-      : parse(tokens, lexicon);
-    ast = result.ast as AstModule;
-    parseDiagnostics = result.diagnostics;
-  } catch {
-    ast = null;
-  }
+  // 解析逻辑抽到 parse-document.ts（可测）：lexicon 必须同时传给 canonicalize 与 lex。
+  const { can, tokens, ast, parseDiagnostics } = parseDocumentText(text, lexicon, currentTenantId, currentDomain);
   const entry: CachedDoc = { version: doc.version, text, can, tokens, ast, parseDiagnostics };
   // Build simple identifier index for performance (by token value)
   entry.idIndex = buildIdIndex(tokens);

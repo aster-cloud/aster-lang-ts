@@ -206,6 +206,38 @@ describe('registerCodeActionHandlers', () => {
     assert.ok(nullFixAction.title.includes('""'), 'should suggest "" for Text.split param 1');
   });
 
+  /* ★zh 文档的诊断信息是本地化的（「缺少模块头…」），按英文前缀匹配会让 Quick Fix 消失；
+   *   插入的模块头也必须用该文档的关键字与句末标点，而不是英文 `Module x.`。 */
+  it('★zh-CN：按诊断 code 识别缺少模块头，插入「模块 …。」', async () => {
+    const { LexiconRegistry, initializeAllBundledLexicons } = await import('../../../src/config/lexicons/index.js');
+    initializeAllBundledLexicons();
+    const zh = LexiconRegistry.get('zh-CN');
+    const connection = createMockConnection();
+    const documents = createMockDocuments('', 'file:///project/cnl/examples/test.aster');
+    const getOrParse = createMockGetOrParse();
+    const uriToFsPath = createMockUriToFsPath('/project/cnl/examples/test.aster');
+
+    registerCodeActionHandlers(connection as any, documents as any, getOrParse, uriToFsPath, () => zh);
+
+    const actions = await connection.handlers.codeAction({
+      textDocument: { uri: 'file:///project/cnl/examples/test.aster' },
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+      context: {
+        diagnostics: [{
+          message: '缺少模块头。请添加 "模块 <名称>。"',
+          code: 'missing-module-header',
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+        }],
+      },
+    });
+
+    const headerAction = actions.find((a: any) => a.edit?.changes?.['file:///project/cnl/examples/test.aster']);
+    assert.ok(headerAction, 'zh 下也应提供添加模块头的 Quick Fix');
+    const newText = headerAction.edit.changes['file:///project/cnl/examples/test.aster'][0].newText as string;
+    assert.ok(newText.startsWith('模块 '), `应以「模块 」开头，实际: ${newText}`);
+    assert.ok(newText.endsWith('。\n'), `应以「。」结尾，实际: ${JSON.stringify(newText)}`);
+  });
+
   it('应该对 Missing module header 提供添加 Quick Fix', async () => {
     const connection = createMockConnection();
     const documents = createMockDocuments('', 'file:///project/cnl/examples/test.aster');

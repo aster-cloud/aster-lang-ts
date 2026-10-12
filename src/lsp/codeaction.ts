@@ -7,12 +7,13 @@ import type { Connection, CodeAction, CodeActionParams, Range } from 'vscode-lan
 import { CodeActionKind, TextEdit } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { computeDisambiguationEdits } from './analysis.js';
-import { loadCapabilityManifest } from './diagnostics.js';
+import { loadCapabilityManifest, MISSING_MODULE_HEADER_CODE } from './diagnostics.js';
 import { ConfigService } from '../config/config-service.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { Lexicon } from '../config/lexicons/types.js';
+import { SemanticTokenKind } from '../config/token-kind.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
 import { escapeRegExp } from './navigation/shared.js';
 
@@ -231,12 +232,19 @@ export function registerCodeActionHandlers(
       }
 
       // Quick fix: add missing module header
-      if (typeof d.message === 'string' && d.message.startsWith('Missing module header')) {
+      // ★按稳定 code 识别：message 已本地化（zh 为「缺少模块头…」），英文前缀只作旧客户端兜底。
+      //   插入的模块头用该文档 lexicon 的关键字与句末标点（zh：「模块 x。」），而不是英文。
+      const isMissingHeader = d.code === MISSING_MODULE_HEADER_CODE
+        || (typeof d.message === 'string' && d.message.startsWith('Missing module header'));
+      if (isMissingHeader) {
         const fsPath = uriToFsPath(doc.uri) || doc.uri;
         const mod = suggestModuleFromPath(fsPath);
-        const header = `Module ${mod}.\n`;
+        const moduleKeyword = lexicon?.keywords[SemanticTokenKind.MODULE_DECL] ?? 'Module';
+        const statementEnd = lexicon?.punctuation.statementEnd ?? '.';
+        const headerLine = `${moduleKeyword} ${mod}${statementEnd}`;
+        const header = `${headerLine}\n`;
         actions.push({
-          title: `${ui.fixPrefix} Add module header (Module ${mod}.)`,
+          title: `${ui.fixPrefix} Add module header (${headerLine})`,
           kind: 'quickfix' as any,
           diagnostics: [d],
           edit: { changes: { [params.textDocument.uri]: [TextEdit.insert({ line: 0, character: 0 }, header)] } },
