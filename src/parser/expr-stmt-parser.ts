@@ -16,7 +16,8 @@ import type {
   Timeout,
   WorkflowStmt,
 } from '../types.js';
-import { kw, kwq } from './keyword-display.js';
+import { kw, kwKind, kwKindq, kwq } from './keyword-display.js';
+import { SemanticTokenKind } from '../config/token-kind.js';
 import type { ParserContext } from './context.js';
 import { kwParts, tokLowerAt, tryReadTranslatedIdent } from './context.js';
 import { TokenKind, KW } from '../frontend/tokens.js';
@@ -310,7 +311,7 @@ function parseInlineIf(
       assignSpan(elseBlock, spanFromSources(nested));
     } else {
       // else return X.（末尾 return，带句点）。
-      if (!ctx.isKeyword(KW.RETURN)) error(`Expected ${kwq(ctx, KW.RETURN)} or ${kwq(ctx, KW.IF)} after ${kwq(ctx, KW.ELSE)}`);
+      if (!ctx.isKeyword(KW.RETURN)) error(`Expected ${kwq(ctx, KW.RETURN)} or ${kwq(ctx, KW.IF)} after ${kwKindq(ctx, SemanticTokenKind.OTHERWISE, 'else')}`);
       const elseRetTok = ctx.peek();
       ctx.nextWord();
       const elseExpr = parseExpr(ctx, error);
@@ -764,6 +765,8 @@ function parseTimeout(
   const seconds = secondsTok.value as number;
   if (seconds < 0) error('Timeout value must be non-negative');
   if (!(ctx.isKeyword('seconds') || ctx.isKeyword('second'))) {
+    // 'seconds' 不做本地化：所有 locale 的词表都没有时间单位的本地拼写，
+    // zh/de 作者同样只能写英文 seconds，报错里的 'seconds' 正是作者该写的词。
     error("Timeout must specify time unit 'seconds'");
   }
   ctx.nextWord();
@@ -792,7 +795,7 @@ function parseCases(
     while (!ctx.at(TokenKind.DEDENT)) {
       if (!ctx.isKeyword(KW.WHEN)) {
         // 改进的错误消息，提示复合模式关系
-        error("Expected 'When' (若...为 pattern requires '为' after '若')");
+        error(`Expected ${kwq(ctx, KW.WHEN, 'When')} (若...为 pattern requires '为' after '若')`);
       }
       const whenTok = ctx.nextWord();
       const pat = parsePattern(ctx, error);
@@ -881,7 +884,10 @@ function parseIfExpr(
   const thenE = parseExpr(ctx, error);
   skipInlineElseLayout(ctx);
   if (!ctx.isKeyword(KW.ELSE) && !ctx.isKeyword(KW.OTHERWISE)) {
-    error("Expected 'else' in if-expression (else is mandatory for expression-level if)");
+    error(
+      `Expected ${kwKindq(ctx, SemanticTokenKind.OTHERWISE, 'else')} in if-expression ` +
+        `(${kwKind(ctx, SemanticTokenKind.OTHERWISE, 'else')} is mandatory for expression-level if)`,
+    );
   }
   ctx.nextWord(); // 消费 ELSE / OTHERWISE
   const elseE = parseExpr(ctx, error);

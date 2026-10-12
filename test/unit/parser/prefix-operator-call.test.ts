@@ -186,7 +186,7 @@ describe('运算符词前缀调用（非英语词法表）：Java Canonicalizer 
     });
   }
 
-  // 报错里的运算符词按作者 locale 拼写呈现（parseWithLexicon 回译规范关键词）。
+  // 报错里的运算符词按作者 locale 拼写呈现（构造诊断时经 parser/keyword-display 按上下文 lexicon 显示）。
   // 作者在 zh 源码里直接写英文 and/modulo 时，同样显示 zh 词表的规范拼写。
   const REJECTED: ReadonlyArray<readonly [string, string]> = [
     ['并且(真值，假值)', '并且'],

@@ -11,6 +11,7 @@
  */
 
 import type { Lexicon } from '../config/lexicons/types.js';
+import type { SemanticTokenKind } from '../config/token-kind.js';
 import { EN_US } from '../config/lexicons/en-US.js';
 
 /** 只依赖上下文里的 lexicon，便于各子解析器直接传 ctx。 */
@@ -55,4 +56,27 @@ export function kw(ctx: HasLexicon, canonical: string, enText: string = canonica
 /** 带单引号的关键词槽位显示文本。 */
 export function kwq(ctx: HasLexicon, canonical: string, enText: string = canonical): string {
   return `'${kw(ctx, canonical, enText)}'`;
+}
+
+/**
+ * 按语义种类取关键词槽位的显示文本。
+ *
+ * 用于 KW 常量拼写与 EN_US 规范拼写不一致的槽位：KW.ELSE 是 'else'，
+ * 而 EN_US 里同一语义（OTHERWISE）拼作 'Otherwise'，按拼写查表会落空、退回英文。
+ */
+export function kwKind(ctx: HasLexicon, kind: SemanticTokenKind, enText: string): string {
+  const lexicon = ctx.lexicon;
+  if (!lexicon || lexicon.id === EN_US.id) return enText;
+  const spelled = (lexicon.keywords as Readonly<Record<string, string | undefined>>)[kind];
+  return spelled && spelled.length > 0 ? spelled : enText;
+}
+
+/** 带单引号的 {@link kwKind}。 */
+export function kwKindq(ctx: HasLexicon, kind: SemanticTokenKind, enText: string): string {
+  return `'${kwKind(ctx, kind, enText)}'`;
+}
+
+/** 当前上下文是否会把关键词显示成非英文拼写（en-US / 无 lexicon 时为 false）。 */
+export function isLocalizing(ctx: HasLexicon): boolean {
+  return Boolean(ctx.lexicon && ctx.lexicon.id !== EN_US.id);
 }

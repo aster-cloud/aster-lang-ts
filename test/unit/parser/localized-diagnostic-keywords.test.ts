@@ -54,6 +54,46 @@ describe('语法诊断关键词槽位本地化', () => {
   });
 });
 
+describe('各关键词槽位（zh 逐条锁住，en 逐字不变）', () => {
+  const ZH_RULE = ZH_HEADER + '规则 r 给定 x 作为 整数 产出 整数：\n';
+  const EN_RULE = 'Module m.\n\nRule r given x as Int, produce Int:\n';
+  const cases: ReadonlyArray<readonly [string, string, string]> = [
+    // [说明, zh 源码, 期望的完整报错]
+    ['else 分支（KW.ELSE 与 EN_US 的 Otherwise 拼写不同，须按语义种类查）',
+      ZH_RULE + '  如果 x 小于 0 那么 返回 1 否则 x。\n  返回 x。',
+      "Expected '返回' or '如果' after '否则'"],
+    ['Let … be',
+      ZH_RULE + '  令 y x。\n  返回 y。',
+      "Use '定义为' in bindings: '令 x 定义为 ...'."],
+    ['表达式 if 缺 else',
+      ZH_RULE + '  返回 如果 x 小于 0 那么 1。',
+      "Expected '否则' in if-expression (否则 is mandatory for expression-level if)"],
+    ['match 分支缺 When',
+      ZH_RULE + '  匹配于 x：\n    1，返回 1。\n  返回 x。',
+      "Expected '当' (若...为 pattern requires '为' after '若')"],
+    ['约束 at 后缺 least/most（zh 里 at least 是单个词，给出完整本地写法）',
+      ZH_HEADER + '定义 P 包含 score 作为 整数 at foo 3。',
+      "此处需要 '至少' 或 '至多'"],
+    ['约束 at least 后缺数值',
+      ZH_HEADER + '定义 P 包含 score 作为 整数 至少。',
+      "约束 '至少' 后需要数值"],
+  ];
+  for (const [label, src, expected] of cases) {
+    it(`zh：${label}`, () => {
+      assert.strictEqual(messages(src, ZH_CN), expected);
+    });
+  }
+
+  it('en：else 分支与 at 修饰词文案逐字不变', () => {
+    assert.strictEqual(
+      messages(EN_RULE + '  If x less than 0 then Return 1 otherwise x.\n  Return x.', EN_US),
+      "Expected 'return' or 'if' after 'else'");
+    assert.strictEqual(
+      messages('Module m.\n\nDefine P with score as Int at foo 3.', EN_US),
+      "'at' 后需要 'least' 或 'most'");
+  });
+});
+
 describe('用户名字不被当作关键词改写', () => {
   // 类型名与规范关键词同形：profile（档案）/ pattern（模式）
   for (const [typeName, wouldBe] of [['Profile', '档案'], ['Pattern', '模式']] as const) {
