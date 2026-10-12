@@ -85,6 +85,22 @@ export function registerHoverHandler(
       const lexicon = getLexiconForDoc?.(params.textDocument.uri);
       const ui = getLspUiTexts(lexicon);
       const ast2 = (ast as AstModule) || (parse(toks).ast as AstModule);
+      const describeDecl = (d: unknown): string | null => {
+        if (isAstFunc(d)) return `${ui.functionLabel} ${d.name} — ${funcDetail(d)}`;
+        if (isAstData(d)) {
+          const fields = d.fields.map(f => `**${f.name}**: ${typeText(f.type)}`).join(', ');
+          return `${ui.typeLabel} ${d.name}${fields ? ' — ' + fields : ''}`;
+        }
+        if (isAstEnum(d)) return `${ui.enumLabel} ${d.name} — ${d.variants.join(', ')}`;
+        return null;
+      };
+      /* ★光标上的名字若是顶层函数/类型/枚举，描述**那个**声明——与跳转定义同一套解析。
+       *   旧实现只查参数/局部/模式绑定，其余一律落到外层函数：`Return twice(twice(x)).`
+       *   里两个 twice 都显示「函数 quad」。 */
+      const topLevelByName = (name: string | null): unknown => {
+        if (!name) return undefined;
+        return (ast2.decls as unknown[]).find(d => (isAstFunc(d) || isAstData(d) || isAstEnum(d)) && (d as { name: string }).name === name);
+      };
       const decl = findDeclAt(ast2, pos);
       if (decl) {
         if (isAstFunc(decl)) {
@@ -109,6 +125,9 @@ export function registerHoverHandler(
               const hint = exprTypeText(localInfo.expr);
               return { contents: { kind: 'markdown', value: `${ui.localLabel} ${nameAt}${hint ? ': ' + hint : ''}` } };
             }
+            const named = topLevelByName(nameAt);
+            const namedText = named ? describeDecl(named) : null;
+            if (namedText) return { contents: { kind: 'markdown', value: namedText } };
           }
           return { contents: { kind: 'markdown', value: `${ui.functionLabel} ${f.name} — ${funcDetail(f)}` } };
         }

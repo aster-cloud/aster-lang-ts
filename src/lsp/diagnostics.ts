@@ -27,6 +27,9 @@ import type { CapabilityManifest } from '../effects/capabilities.js';
 import { ConfigService } from '../config/config-service.js';
 import { invalidateModuleEffectsByUri } from './module_cache.js';
 
+/** 「缺少模块头」诊断的稳定 code（message 随 locale 本地化，不能用来识别） */
+export const MISSING_MODULE_HEADER_CODE = 'missing-module-header';
+
 /**
  * 表示诊断模块的配置选项。
  */
@@ -487,6 +490,8 @@ export async function computeDiagnostics(
         severity: DiagnosticSeverity.Warning,
         range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
         message: ui.missingModuleHeader,
+        // 稳定 code：message 已本地化，code action 不能再靠英文前缀识别
+        code: MISSING_MODULE_HEADER_CODE,
         source: 'aster',
       });
     }

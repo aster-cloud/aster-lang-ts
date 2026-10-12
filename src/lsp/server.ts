@@ -18,17 +18,14 @@ import { performance } from 'node:perf_hooks';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
-import { canonicalize } from '../frontend/canonicalizer.js';
-import { lex } from '../frontend/lexer.js';
-import { parse, parseWithLexicon } from '../parser.js';
-import { needsKeywordTranslation } from '../frontend/keyword-translator.js';
 import type {
   Module as AstModule,
   Span,
 } from '../types.js';
 import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import { LexiconRegistry, initializeAllBundledLexicons } from '../config/lexicons/index.js';
-import { buildCanonicalizeOptions } from './canonicalize-options.js';
+import { parseDocumentText } from './parse-document.js';
+import { resolvePushedSettings, type AsterSettings } from './settings.js';
 import { resolveTenantContext } from './tenant-init.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { attachDiagnosticMessages } from '../config/lexicons/diagnostic-messages.js';
@@ -140,19 +137,8 @@ function getOrParse(doc: TextDocument): CachedDoc {
   if (prev && prev.version === doc.version) return prev;
   const text = doc.getText();
   const lexicon = getLexiconForDoc(doc.uri);
-  const can = canonicalize(text, buildCanonicalizeOptions(lexicon, currentTenantId, currentDomain));
-  const tokens = lex(can);
-  let ast: AstModule | null;
-  let parseDiagnostics: readonly Diagnostic[] = [];
-  try {
-    const result = lexicon && needsKeywordTranslation(lexicon)
-      ? parseWithLexicon(tokens, lexicon)
-      : parse(tokens, lexicon);
-    ast = result.ast as AstModule;
-    parseDiagnostics = result.diagnostics;
-  } catch {
-    ast = null;
-  }
+  // 解析逻辑抽到 parse-document.ts（可测）：lexicon 必须同时传给 canonicalize 与 lex。
+  const { can, tokens, ast, parseDiagnostics } = parseDocumentText(text, lexicon, currentTenantId, currentDomain);
   const entry: CachedDoc = { version: doc.version, text, can, tokens, ast, parseDiagnostics };
   // Build simple identifier index for performance (by token value)
   entry.idIndex = buildIdIndex(tokens);
@@ -228,6 +214,13 @@ connection.onInitialize(async (params: InitializeParams) => {
       diagnosticProvider: {
         interFileDependencies: false,
         workspaceDiagnostics: true,
+      },
+      /* ★能力探测标志：客户端据此决定注册哪些功能，而不是猜服务端版本。
+       *   localizedParsing      —— 非英文文档的 hover/跳转/符号等按 lexicon 解析（旧版恒抛错）
+       *   openDocumentNavigation —— 引用/重命名读打开中的内存文本（旧版对 inmemory 文档恒空）
+       *   旧版服务端不带这些标志，客户端应只对 en-US 注册基于解析的功能，且不注册引用/重命名。 */
+      experimental: {
+        aster: { localizedParsing: true, openDocumentNavigation: true },
       },
       codeActionProvider: {
         codeActionKinds: [CodeActionKind.QuickFix],
@@ -401,18 +394,9 @@ connection.onInitialized(() => {
 });
 
 // The example settings
-interface AsterSettings {
-  maxNumberOfProblems: number;
-  format?: { mode?: 'lossless' | 'normalize'; reflow?: boolean };
-  index?: { persist?: boolean; path?: string };
-  rename?: { scope?: 'open' | 'workspace' };
-  diagnostics?: { workspace?: boolean };
-  streaming?: { referencesChunk?: number; renameChunk?: number; logChunks?: boolean };
-  locale?: string; // 'en-US' | 'zh-CN' | 'de-DE'
-}
-
+// 设置默认值与合并规则见 settings.ts（可测）。
 // The global settings, used when the `workspace/configuration` request is not supported by the client.
-const defaultSettings: AsterSettings = { maxNumberOfProblems: 1000, format: { mode: 'lossless', reflow: true }, index: { persist: true }, rename: { scope: 'workspace' }, diagnostics: { workspace: true }, streaming: { referencesChunk: 200, renameChunk: 200, logChunks: false } };
+const defaultSettings: AsterSettings = resolvePushedSettings(undefined);
 let globalSettings: AsterSettings = defaultSettings;
 
 // Cache the settings of all open documents
@@ -423,7 +407,8 @@ connection.onDidChangeConfiguration(change => {
     // Reset all cached document settings
     documentSettings.clear();
   } else {
-    globalSettings = <AsterSettings>(change.settings.asterLanguageServer || defaultSettings);
+    // ★合并而非整体替换：客户端只推 locale 时其余默认值必须保留
+    globalSettings = resolvePushedSettings(change.settings?.asterLanguageServer);
   }
 
   // 更新 diagnostics/index/locale 设置；缓存失效必须在更新 locale 后执行，
@@ -547,7 +532,7 @@ documents.onDidChangeContent(change => {
   }
   // Update index for open document
   try {
-    void updateDocumentIndex(change.document.uri, change.document.getText()).catch(() => {});
+    void updateDocumentIndex(change.document.uri, change.document.getText(), getLexiconForDoc(change.document.uri)).catch(() => {});
   } catch {
     // ignore
   }
@@ -555,7 +540,7 @@ documents.onDidChangeContent(change => {
 
 documents.onDidSave(e => {
   try {
-    void updateDocumentIndex(e.document.uri, e.document.getText()).catch(() => {});
+    void updateDocumentIndex(e.document.uri, e.document.getText(), getLexiconForDoc(e.document.uri)).catch(() => {});
   } catch {
     // ignore
   }

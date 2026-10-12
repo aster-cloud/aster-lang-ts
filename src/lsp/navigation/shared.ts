@@ -8,6 +8,76 @@ import { typeText } from '../completion.js';
 import { canonicalize } from '../../frontend/canonicalizer.js';
 import { lex } from '../../frontend/lexer.js';
 import { TokenKind } from '../../frontend/tokens.js';
+import path from 'node:path';
+import { findSemanticTokenKind, type Lexicon } from '../../config/lexicons/types.js';
+import { buildCanonicalizeOptions } from '../canonicalize-options.js';
+import { alignTokensToSource } from '../source-positions.js';
+import { EN_US } from '../../config/lexicons/en-US.js';
+
+/**
+ * 词法分析并把 token 位置映射回原文坐标（导航取词/查找用）。
+ * canonicalize 会删冠词等、改变行内长度，直接用规范化文本的列号会改错位置。
+ */
+export function lexInSourceCoordinates(text: string, lexicon?: Lexicon): readonly any[] {
+  const can = canonicalize(text, buildCanonicalizeOptions(lexicon, undefined, undefined));
+  return alignTokensToSource(text, can, lex(can, lexicon));
+}
+
+/**
+ * 是否为该文档语言的关键字。无 lexicon（en 文档在服务端就是这样）时按 en-US 判定——
+ * 否则 en 下 `Return` / `Rule` 也能被重命名，重命名会改掉所有同名关键字。
+ */
+export function isKeywordFor(word: string, lexicon?: Lexicon): boolean {
+  return findSemanticTokenKind(lexicon ?? EN_US, word) !== undefined;
+}
+
+const isIdentToken = (t: any): boolean => t?.kind === TokenKind.IDENT || t?.kind === TokenKind.TYPE_IDENT;
+/** 位置是否确定可编辑：只有与原文逐字对齐的 token 才算（未对齐过的 token 视为确定） */
+const isExact = (t: any): boolean => t?.srcAlign === undefined || t.srcAlign === 'exact';
+
+/**
+ * 光标处的**可编辑**标识符：必须是标识符 token、位置与原文逐字对齐、且不是关键字。
+ * ★重命名/引用只能基于它，不能退回字符级或正则取词——冠词（the / eine）不是 token，
+ *   退回字符级会取到 `the`，再退回全文正则就把每个 the 都改掉。
+ */
+export function identifierTokenAt(
+  tokens: readonly any[],
+  text: string,
+  offset: number,
+  lexicon?: Lexicon,
+): { name: string; start: number; end: number } | null {
+  const starts = buildLineStarts(text);
+  for (const t of tokens) {
+    if (!isIdentToken(t) || !t.start || !t.end) continue;
+    const s = toOffset(starts, t.start.line, t.start.col);
+    const e = toOffset(starts, t.end.line, t.end.col);
+    if (offset < s || offset > e) continue;
+    const name = String(t.value);
+    if (!isExact(t) || isKeywordFor(name, lexicon)) return null;
+    return { name, start: s, end: e };
+  }
+  return null;
+}
+
+/**
+ * 某名字在 token 流里的全部**确定**位置。uncertain=true 表示存在同名但位置非逐字对齐的 token
+ * （领域词汇翻译、推算位置）——此时重命名必须整体拒绝，不能只改一部分或改到推算的位置。
+ */
+export function exactIdentifierPositions(
+  tokens: readonly any[],
+  text: string,
+  name: string,
+): { positions: Array<{ start: number; end: number }>; uncertain: boolean } {
+  const starts = buildLineStarts(text);
+  const positions: Array<{ start: number; end: number }> = [];
+  let uncertain = false;
+  for (const t of tokens) {
+    if (!isIdentToken(t) || !t.start || !t.end || String(t.value) !== name) continue;
+    if (!isExact(t)) { uncertain = true; continue; }
+    positions.push({ start: toOffset(starts, t.start.line, t.start.col), end: toOffset(starts, t.end.line, t.end.col) });
+  }
+  return { positions, uncertain };
+}
 import {
   getSpan,
   getVariantSpans,
@@ -40,8 +110,19 @@ export function escapeRegExp(str: string): string {
  * @param offset 偏移量位置
  * @returns 捕获的单词，如果不在单词位置则返回 null
  */
-export function captureWordAt(text: string, offset: number): string | null {
-  const isWord = (c: string): boolean => /[A-Za-z0-9_.]/.test(c);
+export function captureWordAt(text: string, offset: number, lexicon?: Lexicon): string | null {
+  // ★优先按词法规则取光标所在的标识符 token：标识符可以是任意 Unicode 字母（zh「加倍」、
+  //   de「größe」），且 zh 关键字与标识符之间可以不留空格（「返回加倍(…)」），ASCII 正则
+  //   两种情况都处理不了——旧实现对「加倍」恒回 null，重命名框弹出却什么都不改。
+  //   关键字不是可重命名的符号，直接拒绝。
+  try {
+    const toks = lexInSourceCoordinates(text, lexicon);
+    // 词法成功时只认 token：光标不在可编辑标识符上（如冠词 the）就是 null，不退回字符级
+    return identifierTokenAt(toks, text, offset, lexicon)?.name ?? null;
+  } catch {
+    // 词法失败（文本残缺）时退回字符级捕获
+  }
+  const isWord = (c: string): boolean => /[\p{L}\p{N}_.]/u.test(c);
   let s = offset;
   while (s > 0 && isWord(text[s - 1]!)) s--;
   let e = offset;
@@ -58,7 +139,8 @@ export function captureWordAt(text: string, offset: number): string | null {
  */
 export function findWordPositions(text: string, word: string): Array<{ start: number; end: number }> {
   const out: Array<{ start: number; end: number }> = [];
-  const re = new RegExp(`(?<![A-Za-z0-9_.])${escapeRegExp(word)}(?![A-Za-z0-9_.])`, 'g');
+  // 词边界按 Unicode 字母/数字判定（标识符可以是中文、带变音的德文等）
+  const re = new RegExp(`(?<![\\p{L}\\p{N}_.])${escapeRegExp(word)}(?![\\p{L}\\p{N}_.])`, 'gu');
   for (let m; (m = re.exec(text)); ) {
     out.push({ start: m.index, end: m.index + word.length });
   }
@@ -71,12 +153,17 @@ export function findWordPositions(text: string, word: string): Array<{ start: nu
  * @param word 要查找的标记或单词
  * @returns 标记位置数组，如果词法分析失败则回退到正则匹配
  */
-export function findTokenPositionsSafe(text: string, word: string): Array<{ start: number; end: number }> {
+export function findTokenPositionsSafe(
+  text: string,
+  word: string,
+  lexicon?: Lexicon,
+): Array<{ start: number; end: number }> {
   // If word contains '.', fallback to simple word regex matching over text
   if (word.includes('.')) return findWordPositions(text, word);
   try {
-    const can = canonicalize(text);
-    const toks = lex(can);
+    // ★非英文文档必须带 lexicon 词法分析，否则 lexer 遇到中文关键字即抛，
+    //   静默退化成 ASCII 词边界正则（会命中字符串字面量里的同名文本）。
+    const toks = lexInSourceCoordinates(text, lexicon);
     const starts = buildLineStarts(text);
     const out: Array<{ start: number; end: number }> = [];
     for (const t of toks) {
@@ -135,10 +222,11 @@ export function offsetToPos(text: string, off: number): { line: number; characte
  * @returns file:// URI 字符串
  */
 export function ensureUri(u: string): string {
-  if (u.startsWith('file://')) return u;
-  const path = require('node:path');
-  const to = 'file://' + (path.isAbsolute(u) ? u : path.join(process.cwd(), u));
-  return to;
+  // ★已带 scheme 的 URI（file:// 以及编辑器的 inmemory:// 等）原样返回。
+  //   旧实现在 ESM 里调 require（ReferenceError: require is not defined），
+  //   且会把 inmemory://x 拼成 file:///cwd/inmemory://x。
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(u)) return u;
+  return 'file://' + (path.isAbsolute(u) ? u : path.join(process.cwd(), u));
 }
 
 /**

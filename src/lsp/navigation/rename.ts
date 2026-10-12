@@ -11,7 +11,7 @@ import type {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { getAllModules, updateDocumentIndex } from '../index.js';
-import { captureWordAt, findTokenPositionsSafe, offsetToPos, ensureUri, uriToFsPath, tokenNameAt } from './shared.js';
+import { offsetToPos, ensureUri, uriToFsPath, identifierTokenAt, exactIdentifierPositions, lexInSourceCoordinates } from './shared.js';
 import { promises as fsPromises } from 'node:fs';
 
 /**
@@ -35,7 +35,8 @@ export function registerRenameHandlers(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined; keys(): string[] },
   getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any },
-  getDocumentSettings: (uri: string) => Promise<any>
+  getDocumentSettings: (uri: string) => Promise<any>,
+  getLexiconForDoc?: (uri: string) => import('../../config/lexicons/types.js').Lexicon | undefined,
 ): void {
   const _beginProgress = (token: ProgressToken | undefined, title: string): void => {
     try {
@@ -70,8 +71,17 @@ export function registerRenameHandlers(
     if (!doc) return null;
     const text = doc.getText();
     const offset = doc.offsetAt(params.position);
-    const word = captureWordAt(text, offset);
-    if (!word) return null;
+    // ★只认光标处可编辑的标识符 token（与 prepareRename 同一判据），没有就拒绝——
+    //   不退回字符级/正则取词（否则在冠词 the 上按 F2 会把全文每个 the 都改掉）
+    const hit = identifierTokenAt(getOrParse(doc).tokens, text, offset, getLexiconForDoc?.(doc.uri));
+    if (!hit) return null;
+    const word = hit.name;
+    /** 打开中的文档用解析缓存里的 token（含领域词汇翻译的对齐信息），其余读盘后词法分析 */
+    const tokensFor = (uri: string, t: string): readonly any[] => {
+      const open = documents.get(uri);
+      return open ? getOrParse(open).tokens : lexInSourceCoordinates(t, getLexiconForDoc?.(uri));
+    };
+    let refused = false;
     const changes: Record<string, import('vscode-languageserver/node.js').TextEdit[]> = {};
     const settings = await getDocumentSettings(doc.uri).catch(() => defaultSettings);
     const scope = settings.rename?.scope ?? 'workspace';
@@ -79,7 +89,7 @@ export function registerRenameHandlers(
     let processed = 0;
     const modules = getAllModules();
     const total = modules.length;
-    try { await updateDocumentIndex(doc.uri, doc.getText()); } catch {}
+    try { await updateDocumentIndex(doc.uri, doc.getText(), getLexiconForDoc?.(doc.uri)); } catch {}
     _beginProgress(params.workDoneToken, 'Aster rename');
     const CHUNK = settings.streaming?.renameChunk ?? 200;
     const BATCH_SIZE = 20; // 批量并发读取文件数
@@ -95,9 +105,12 @@ export function registerRenameHandlers(
           if (scope === 'open' && !openUris.has(rec.uri)) return null;
           try {
             const uri = ensureUri(rec.uri);
-            const fsPath = uriToFsPath(rec.uri) || rec.uri;
-            const t = await fsPromises.readFile(fsPath, 'utf8');
-            const positions = findTokenPositionsSafe(t, word);
+            // ★打开中的文档用内存文本：inmemory:// 文档不在磁盘上，读盘恒失败 → 旧实现恒回空 changes
+            const t = documents.get(rec.uri)?.getText()
+              ?? await fsPromises.readFile(uriToFsPath(rec.uri) || rec.uri, 'utf8');
+            const { positions, uncertain } = exactIdentifierPositions(tokensFor(rec.uri, t), t, word);
+            // 存在位置不确定的同名 token（领域词汇翻译、推算位置）→ 整体拒绝，绝不基于推算位置编辑
+            if (uncertain) { refused = true; return null; }
             if (positions.length === 0) return null;
             const edits: import('vscode-languageserver/node.js').TextEdit[] = positions.map(p => ({
               range: { start: offsetToPos(t, p.start), end: offsetToPos(t, p.end) },
@@ -127,6 +140,7 @@ export function registerRenameHandlers(
       }
     }
     _endProgress(params.workDoneToken);
+    if (refused) return null;
     return { changes };
   });
 
@@ -134,44 +148,14 @@ export function registerRenameHandlers(
   connection.onPrepareRename(params => {
     const doc = documents.get(params.textDocument.uri);
     if (!doc) return null;
-
-    const entry = getOrParse(doc);
-    const { tokens: toks } = entry;
-    const nameAt = tokenNameAt(toks, params.position);
-    if (!nameAt) {
-      // 光标未命中有效标识符，直接拒绝
-      return null;
-    }
-
     const text = doc.getText();
-    const offset = doc.offsetAt(params.position);
-    const precisePositions = findTokenPositionsSafe(text, nameAt);
-    const precise = precisePositions.find(pos => offset >= pos.start && offset <= pos.end);
-    if (precise) {
-      return {
-        range: {
-          start: offsetToPos(text, precise.start),
-          end: offsetToPos(text, precise.end),
-        },
-        placeholder: text.slice(precise.start, precise.end),
-      };
-    }
-
-    // 词法精确匹配失败时回退到简单的词边界捕获
-    const fallback = captureWordAt(text, offset);
-    if (!fallback) return null;
-    const isWord = (c: string): boolean => /[A-Za-z0-9_.]/.test(c);
-    let start = offset;
-    while (start > 0 && isWord(text[start - 1]!)) start--;
-    let end = offset;
-    while (end < text.length && isWord(text[end]!)) end++;
-
+    const { tokens } = getOrParse(doc);
+    // 与 onRenameRequest 同一判据：可编辑标识符 token，且同名 token 位置全部确定；否则不弹重命名框
+    const hit = identifierTokenAt(tokens, text, doc.offsetAt(params.position), getLexiconForDoc?.(doc.uri));
+    if (!hit || exactIdentifierPositions(tokens, text, hit.name).uncertain) return null;
     return {
-      range: {
-        start: offsetToPos(text, start),
-        end: offsetToPos(text, end),
-      },
-      placeholder: text.slice(start, end),
+      range: { start: offsetToPos(text, hit.start), end: offsetToPos(text, hit.end) },
+      placeholder: text.slice(hit.start, hit.end),
     };
   });
 }

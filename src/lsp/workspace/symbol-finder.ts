@@ -7,7 +7,7 @@ import { promises as fs } from 'node:fs';
 import type { Location } from 'vscode-languageserver-types';
 import { getAllModules } from './index-manager.js';
 
-type NavigationHelpers = Pick<typeof import('../navigation.js'), 'findTokenPositionsSafe' | 'offsetToPos' | 'ensureUri' | 'uriToFsPath'>;
+type NavigationHelpers = Pick<typeof import('../navigation/shared.js'), 'exactIdentifierPositions' | 'lexInSourceCoordinates' | 'offsetToPos' | 'ensureUri' | 'uriToFsPath'>;
 let navigationHelpersPromise: Promise<NavigationHelpers> | null = null;
 
 /**
@@ -15,8 +15,9 @@ let navigationHelpersPromise: Promise<NavigationHelpers> | null = null;
  */
 async function loadNavigationHelpers(): Promise<NavigationHelpers> {
   if (!navigationHelpersPromise) {
-    navigationHelpersPromise = import('../navigation.js').then(mod => ({
-      findTokenPositionsSafe: mod.findTokenPositionsSafe,
+    navigationHelpersPromise = import('../navigation/shared.js').then(mod => ({
+      exactIdentifierPositions: mod.exactIdentifierPositions,
+      lexInSourceCoordinates: mod.lexInSourceCoordinates,
       offsetToPos: mod.offsetToPos,
       ensureUri: mod.ensureUri,
       uriToFsPath: mod.uriToFsPath,
@@ -31,8 +32,20 @@ async function loadNavigationHelpers(): Promise<NavigationHelpers> {
  * @param excludeUri 可选的排除 URI，用于忽略当前文档。
  * @returns 匹配到的引用列表。
  */
-export async function findSymbolReferences(symbol: string, excludeUri?: string): Promise<Location[]> {
-  const { findTokenPositionsSafe, offsetToPos, ensureUri, uriToFsPath } = await loadNavigationHelpers();
+/** 查找选项：打开中的文档以内存文本为准（未保存的编辑、inmemory:// 文档都不在磁盘上） */
+export interface FindReferencesOptions {
+  readonly readOpenText?: (uri: string) => string | undefined;
+  readonly lexiconFor?: (uri: string) => import('../../config/lexicons/types.js').Lexicon | undefined;
+  /** 打开中的文档：解析缓存里的 token（已对齐原文、含领域词汇翻译信息） */
+  readonly tokensForOpen?: (uri: string) => readonly any[] | undefined;
+}
+
+export async function findSymbolReferences(
+  symbol: string,
+  excludeUri?: string,
+  options: FindReferencesOptions = {},
+): Promise<Location[]> {
+  const { exactIdentifierPositions, lexInSourceCoordinates, offsetToPos, ensureUri, uriToFsPath } = await loadNavigationHelpers();
   const locations: Location[] = [];
   const BATCH_SIZE = 20;
   const modules = getAllModules();
@@ -48,9 +61,12 @@ export async function findSymbolReferences(symbol: string, excludeUri?: string):
           return [];
         }
         try {
-          const fsPath = uriToFsPath(uri) ?? (uri.startsWith('file://') ? new URL(uri).pathname : uri);
-          const content = await fs.readFile(fsPath, 'utf8');
-          const positions = findTokenPositionsSafe(content, symbol);
+          // ★打开中的文档用内存文本：inmemory:// 文档根本不在磁盘上，读盘恒失败 → 恒空结果
+          const content = options.readOpenText?.(mod.uri) ?? await fs.readFile(
+            uriToFsPath(uri) ?? (uri.startsWith('file://') ? new URL(uri).pathname : uri), 'utf8');
+          // ★只取与原文逐字对齐的标识符 token 位置，不退回正则（正则会命中字符串字面量、冠词等）
+          const tokens = options.tokensForOpen?.(mod.uri) ?? lexInSourceCoordinates(content, options.lexiconFor?.(mod.uri));
+          const { positions } = exactIdentifierPositions(tokens, content, symbol);
           if (positions.length === 0) {
             return [];
           }
