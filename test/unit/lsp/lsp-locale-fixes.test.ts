@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { LexiconRegistry, initializeAllBundledLexicons } from '../../../src/config/lexicons/index.js';
 import { resolvePushedSettings } from '../../../src/lsp/settings.js';
-import { captureWordAt, ensureUri, findTokenPositionsSafe, findWordPositions } from '../../../src/lsp/navigation/shared.js';
+import { captureWordAt, ensureUri, exactIdentifierPositions, findTokenPositionsSafe, findWordPositions, identifierTokenAt } from '../../../src/lsp/navigation/shared.js';
 import { updateDocumentIndex } from '../../../src/lsp/workspace/document-indexer.js';
 import { computeDiagnostics, MISSING_MODULE_HEADER_CODE } from '../../../src/lsp/diagnostics.js';
 import { parseDocumentText } from '../../../src/lsp/parse-document.js';
@@ -90,5 +90,28 @@ describe('取词回退路径（词法失败时）', () => {
   it('★未闭合字符串导致词法失败时仍能取到中文标识符', () => {
     const text = '规则 加倍 给定 数值 作为 整数 产出 文本：\n  返回 「未闭合';
     assert.equal(captureWordAt(text, text.indexOf('加倍') + 1, zh), '加倍');
+  });
+});
+
+describe('领域词汇 token 的可编辑性', () => {
+  const text = '模块 demo.p。\n\n规则 评估 给定 甲 作为 申请人 产出 整数：\n  返回 1。\n';
+  const { tokens } = parseDocumentText(text, zh, 'tenant-unit', 'finance.loan');
+
+  it('★被翻译的词汇 token 标为 translated，位置是原文「申请人」', () => {
+    const t = tokens.find((x: any) => x.value === 'Applicant') as any;
+    assert.ok(t, '应有 Applicant token（词汇翻译生效）');
+    assert.equal(t.srcAlign, 'translated');
+    const line = text.split('\n')[2]!;
+    assert.equal(t.start.col - 1, line.indexOf('申请人'));
+    // 其后的 token 仍逐字对齐
+    const after = tokens.find((x: any) => x.start?.line === 3 && x.value === '整数') as any;
+    assert.equal(after.srcAlign, 'exact');
+    assert.equal(after.start.col - 1, line.indexOf('整数'));
+  });
+
+  it('★光标在词汇词上不可编辑；同名存在非逐字对齐 token 时标记 uncertain', () => {
+    assert.equal(identifierTokenAt(tokens, text, text.indexOf('申请人') + 1, zh), null);
+    assert.equal(exactIdentifierPositions(tokens, text, 'Applicant').uncertain, true);
+    assert.equal(exactIdentifierPositions(tokens, text, '甲').uncertain, false);
   });
 });

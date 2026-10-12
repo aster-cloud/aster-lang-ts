@@ -18,7 +18,7 @@ import { EN_US } from '../../config/lexicons/en-US.js';
  * 词法分析并把 token 位置映射回原文坐标（导航取词/查找用）。
  * canonicalize 会删冠词等、改变行内长度，直接用规范化文本的列号会改错位置。
  */
-function lexInSourceCoordinates(text: string, lexicon?: Lexicon): readonly any[] {
+export function lexInSourceCoordinates(text: string, lexicon?: Lexicon): readonly any[] {
   const can = canonicalize(text, buildCanonicalizeOptions(lexicon, undefined, undefined));
   return alignTokensToSource(text, can, lex(can, lexicon));
 }
@@ -29,6 +29,54 @@ function lexInSourceCoordinates(text: string, lexicon?: Lexicon): readonly any[]
  */
 export function isKeywordFor(word: string, lexicon?: Lexicon): boolean {
   return findSemanticTokenKind(lexicon ?? EN_US, word) !== undefined;
+}
+
+const isIdentToken = (t: any): boolean => t?.kind === TokenKind.IDENT || t?.kind === TokenKind.TYPE_IDENT;
+/** 位置是否确定可编辑：只有与原文逐字对齐的 token 才算（未对齐过的 token 视为确定） */
+const isExact = (t: any): boolean => t?.srcAlign === undefined || t.srcAlign === 'exact';
+
+/**
+ * 光标处的**可编辑**标识符：必须是标识符 token、位置与原文逐字对齐、且不是关键字。
+ * ★重命名/引用只能基于它，不能退回字符级或正则取词——冠词（the / eine）不是 token，
+ *   退回字符级会取到 `the`，再退回全文正则就把每个 the 都改掉。
+ */
+export function identifierTokenAt(
+  tokens: readonly any[],
+  text: string,
+  offset: number,
+  lexicon?: Lexicon,
+): { name: string; start: number; end: number } | null {
+  const starts = buildLineStarts(text);
+  for (const t of tokens) {
+    if (!isIdentToken(t) || !t.start || !t.end) continue;
+    const s = toOffset(starts, t.start.line, t.start.col);
+    const e = toOffset(starts, t.end.line, t.end.col);
+    if (offset < s || offset > e) continue;
+    const name = String(t.value);
+    if (!isExact(t) || isKeywordFor(name, lexicon)) return null;
+    return { name, start: s, end: e };
+  }
+  return null;
+}
+
+/**
+ * 某名字在 token 流里的全部**确定**位置。uncertain=true 表示存在同名但位置非逐字对齐的 token
+ * （领域词汇翻译、推算位置）——此时重命名必须整体拒绝，不能只改一部分或改到推算的位置。
+ */
+export function exactIdentifierPositions(
+  tokens: readonly any[],
+  text: string,
+  name: string,
+): { positions: Array<{ start: number; end: number }>; uncertain: boolean } {
+  const starts = buildLineStarts(text);
+  const positions: Array<{ start: number; end: number }> = [];
+  let uncertain = false;
+  for (const t of tokens) {
+    if (!isIdentToken(t) || !t.start || !t.end || String(t.value) !== name) continue;
+    if (!isExact(t)) { uncertain = true; continue; }
+    positions.push({ start: toOffset(starts, t.start.line, t.start.col), end: toOffset(starts, t.end.line, t.end.col) });
+  }
+  return { positions, uncertain };
 }
 import {
   getSpan,
@@ -69,16 +117,8 @@ export function captureWordAt(text: string, offset: number, lexicon?: Lexicon): 
   //   关键字不是可重命名的符号，直接拒绝。
   try {
     const toks = lexInSourceCoordinates(text, lexicon);
-    const starts = buildLineStarts(text);
-    for (const t of toks) {
-      if (t.kind !== TokenKind.IDENT && t.kind !== TokenKind.TYPE_IDENT) continue;
-      const s = toOffset(starts, t.start.line, t.start.col);
-      const e = toOffset(starts, t.end.line, t.end.col);
-      if (offset < s || offset > e) continue;
-      const value = String(t.value);
-      if (isKeywordFor(value, lexicon)) return null;
-      return value;
-    }
+    // 词法成功时只认 token：光标不在可编辑标识符上（如冠词 the）就是 null，不退回字符级
+    return identifierTokenAt(toks, text, offset, lexicon)?.name ?? null;
   } catch {
     // 词法失败（文本残缺）时退回字符级捕获
   }

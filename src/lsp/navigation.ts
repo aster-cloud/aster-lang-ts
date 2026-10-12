@@ -38,7 +38,7 @@ export function registerNavigationHandlers(
   getLexiconForDoc?: (uri: string) => import('../config/lexicons/types.js').Lexicon | undefined,
 ): void {
   // 注册各个处理器
-  registerReferencesHandler(connection, documents, getDocumentSettings, getLexiconForDoc);
+  registerReferencesHandler(connection, documents, getDocumentSettings, getLexiconForDoc, getOrParse);
   registerRenameHandlers(connection, documents, getOrParse, getDocumentSettings, getLexiconForDoc);
   registerHoverHandler(connection, documents, getOrParse, getLexiconForDoc);
   registerDefinitionHandler(connection, documents, getOrParse);

@@ -11,7 +11,7 @@ import type {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { findSymbolReferences, updateDocumentIndex } from '../index.js';
-import { captureWordAt } from './shared.js';
+import { identifierTokenAt } from './shared.js';
 
 /**
  * LSP 参数类型扩展，包含 progress token 字段
@@ -34,6 +34,7 @@ export function registerReferencesHandler(
   documents: { get(uri: string): TextDocument | undefined; keys(): string[] },
   getDocumentSettings: (uri: string) => Promise<any>,
   getLexiconForDoc?: (uri: string) => import('../../config/lexicons/types.js').Lexicon | undefined,
+  getOrParse?: (doc: TextDocument) => { tokens: readonly any[] },
 ): void {
   const _beginProgress = (token: ProgressToken | undefined, title: string): void => {
     try {
@@ -68,8 +69,11 @@ export function registerReferencesHandler(
     const text = doc.getText();
     const pos = params.position;
     const offset = doc.offsetAt(pos);
-    // naive token capture: expand to nearest word boundaries
-    const word = captureWordAt(text, offset, getLexiconForDoc?.(doc.uri));
+    // ★只认光标处可编辑的标识符 token：冠词、关键字、位置不确定的 token 都不查引用
+    const tokens = getOrParse?.(doc).tokens;
+    const word = tokens
+      ? identifierTokenAt(tokens, text, offset, getLexiconForDoc?.(doc.uri))?.name ?? null
+      : null;
     if (!word) return [];
     const out: Location[] = [];
     const settings = await getDocumentSettings(doc.uri).catch(() => defaultSettings);
@@ -79,6 +83,10 @@ export function registerReferencesHandler(
     const refs = await findSymbolReferences(word, undefined, {
       readOpenText: (uri) => documents.get(uri)?.getText(),
       lexiconFor: (uri) => getLexiconForDoc?.(uri),
+      tokensForOpen: (uri) => {
+        const open = documents.get(uri);
+        return open && getOrParse ? getOrParse(open).tokens : undefined;
+      },
     });
     const filtered = scope === 'open' ? refs.filter(loc => openUris.has(loc.uri)) : refs;
     _beginProgress(params.workDoneToken, 'Aster references');
