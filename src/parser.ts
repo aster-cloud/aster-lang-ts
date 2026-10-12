@@ -10,6 +10,7 @@
 import { Node } from './ast/ast.js';
 import type { Module, Token } from './types.js';
 import type { Diagnostic } from './diagnostics/diagnostics.js';
+import { localizeDiagnostics } from './parser/localize-diagnostics.js';
 import type { Lexicon } from './config/lexicons/types.js';
 import { createParserContext } from './parser/context.js';
 import { createParserTools } from './parser/parser-tools.js';
@@ -100,5 +101,7 @@ export function parseWithLexicon(
 
   // 附加类型推断规则后传递给 parse
   const effective = attachTypeInferenceRules(lexicon);
-  return parse(translatedTokens, effective);
+  const result = parse(translatedTokens, effective);
+  // 报错文案里的英文规范关键词回译成作者所写语言（解析器只见翻译后的英文 token）
+  return { ...result, diagnostics: localizeDiagnostics(result.diagnostics, lexicon) };
 }

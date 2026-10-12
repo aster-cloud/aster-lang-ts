@@ -186,13 +186,15 @@ describe('运算符词前缀调用（非英语词法表）：Java Canonicalizer 
     });
   }
 
+  // 报错里的运算符词按作者 locale 拼写呈现（parseWithLexicon 回译规范关键词）。
+  // 作者在 zh 源码里直接写英文 and/modulo 时，同样显示 zh 词表的规范拼写。
   const REJECTED: ReadonlyArray<readonly [string, string]> = [
-    ['并且(真值，假值)', 'and'],
-    ['或者(真值，假值)', 'or'],
-    ['取模(甲，乙)', 'modulo'],
-    ['整除(甲，乙)', 'integer divided by'],
-    ['and(真值，假值)', 'and'],
-    ['modulo(甲，乙)', 'modulo'],
+    ['并且(真值，假值)', '并且'],
+    ['或者(真值，假值)', '或者'],
+    ['取模(甲，乙)', '取模'],
+    ['整除(甲，乙)', '整除'],
+    ['and(真值，假值)', '并且'],
+    ['modulo(甲，乙)', '取模'],
   ];
   for (const [expr, word] of REJECTED) {
     test(`${expr} 被拒绝`, () => {
