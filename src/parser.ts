@@ -100,5 +100,6 @@ export function parseWithLexicon(
 
   // 附加类型推断规则后传递给 parse
   const effective = attachTypeInferenceRules(lexicon);
+  // 报错文案里的关键词槽位由各子解析器经 keyword-display 按 effective 的 lexicon 显示
   return parse(translatedTokens, effective);
 }

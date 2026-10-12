@@ -16,6 +16,7 @@
  */
 
 import { KW, TokenKind } from '../frontend/tokens.js';
+import { isLocalizing, kw, kwq } from './keyword-display.js';
 import type { Constraint, ConstraintRequired, ConstraintRange, ConstraintPattern, Span, Token } from '../types.js';
 import type { ParserContext } from './context.js';
 
@@ -205,20 +206,20 @@ function parseBetweenConstraint(
   // 解析最小值
   const minTok = ctx.peek();
   if (!ctx.at(TokenKind.INT) && !ctx.at(TokenKind.FLOAT)) {
-    error("约束 'between' 后需要数值作为最小值", minTok);
+    error(`约束 ${kwq(ctx, KW.BETWEEN)} 后需要数值作为最小值`, minTok);
   }
   const min = ctx.next().value as number;
 
   // 期望 'and'
   if (!ctx.isKeyword(KW.AND)) {
-    error("约束 'between X' 后需要 'and Y' 指定最大值", ctx.peek());
+    error(`约束 '${kw(ctx, KW.BETWEEN)} X' 后需要 '${kw(ctx, KW.AND)} Y' 指定最大值`, ctx.peek());
   }
   ctx.nextWord(); // consume 'and'
 
   // 解析最大值
   const maxTok = ctx.peek();
   if (!ctx.at(TokenKind.INT) && !ctx.at(TokenKind.FLOAT)) {
-    error("约束 'between X and' 后需要数值作为最大值", maxTok);
+    error(`约束 '${kw(ctx, KW.BETWEEN)} X ${kw(ctx, KW.AND)}' 后需要数值作为最大值`, maxTok);
   }
   const max = ctx.next().value as number;
 
@@ -239,19 +240,19 @@ function parseAtConstraint(
   // 检查是 'least' 还是 'most'
   const modifierTok = ctx.peek();
   if (!ctx.at(TokenKind.IDENT)) {
-    error("'at' 后需要 'least' 或 'most'", modifierTok);
+    error(atModifierMessage(ctx), modifierTok);
   }
 
   const modifier = ((modifierTok.value as string) || '').toLowerCase();
   if (modifier !== 'least' && modifier !== 'most') {
-    error("'at' 后需要 'least' 或 'most'", modifierTok);
+    error(atModifierMessage(ctx), modifierTok);
   }
   ctx.next(); // consume 'least' / 'most'
 
   // 解析数值
   const valueTok = ctx.peek();
   if (!ctx.at(TokenKind.INT) && !ctx.at(TokenKind.FLOAT)) {
-    error(`约束 'at ${modifier}' 后需要数值`, valueTok);
+    error(`约束 ${kwq(ctx, modifier === 'least' ? KW.AT_LEAST : KW.AT_MOST, `at ${modifier}`)} 后需要数值`, valueTok);
   }
   const value = ctx.next().value as number;
 
@@ -284,7 +285,7 @@ function parseMatchingConstraint(
   // 解析正则表达式字符串
   const regexpTok = ctx.peek();
   if (!ctx.at(TokenKind.STRING)) {
-    error("约束 'matching' 后需要正则表达式字符串", regexpTok);
+    error(`约束 ${kwq(ctx, KW.MATCHING)} 后需要正则表达式字符串`, regexpTok);
   }
   const regexp = ctx.next().value as string;
 
@@ -293,3 +294,12 @@ function parseMatchingConstraint(
   return { constraint, endToken: regexpTok };
 }
 
+/**
+ * 「at 后缺 least/most」的报错文案。
+ * en 保持原句；其它 locale 里 at least / at most 是单个词（如 zh 的「至少」「至多」），
+ * 拆成 'at' + 'least' 对作者毫无意义，故直接给出完整的本地写法。
+ */
+function atModifierMessage(ctx: ParserContext): string {
+  if (!isLocalizing(ctx)) return "'at' 后需要 'least' 或 'most'";
+  return `此处需要 ${kwq(ctx, KW.AT_LEAST)} 或 ${kwq(ctx, KW.AT_MOST)}`;
+}
