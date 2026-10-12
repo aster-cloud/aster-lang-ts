@@ -32,7 +32,8 @@ const defaultSettings = { rename: { scope: 'workspace' }, streaming: { reference
 export function registerReferencesHandler(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined; keys(): string[] },
-  getDocumentSettings: (uri: string) => Promise<any>
+  getDocumentSettings: (uri: string) => Promise<any>,
+  getLexiconForDoc?: (uri: string) => import('../../config/lexicons/types.js').Lexicon | undefined,
 ): void {
   const _beginProgress = (token: ProgressToken | undefined, title: string): void => {
     try {
@@ -74,8 +75,11 @@ export function registerReferencesHandler(
     const settings = await getDocumentSettings(doc.uri).catch(() => defaultSettings);
     const scope = settings.rename?.scope ?? 'workspace';
     const openUris = new Set(documents.keys());
-    try { await updateDocumentIndex(doc.uri, doc.getText()); } catch {}
-    const refs = await findSymbolReferences(word, undefined);
+    try { await updateDocumentIndex(doc.uri, doc.getText(), getLexiconForDoc?.(doc.uri)); } catch {}
+    const refs = await findSymbolReferences(word, undefined, {
+      readOpenText: (uri) => documents.get(uri)?.getText(),
+      lexiconFor: (uri) => getLexiconForDoc?.(uri),
+    });
     const filtered = scope === 'open' ? refs.filter(loc => openUris.has(loc.uri)) : refs;
     _beginProgress(params.workDoneToken, 'Aster references');
     const CHUNK = settings.streaming?.referencesChunk ?? 200;

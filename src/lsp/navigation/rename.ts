@@ -35,7 +35,8 @@ export function registerRenameHandlers(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined; keys(): string[] },
   getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any },
-  getDocumentSettings: (uri: string) => Promise<any>
+  getDocumentSettings: (uri: string) => Promise<any>,
+  getLexiconForDoc?: (uri: string) => import('../../config/lexicons/types.js').Lexicon | undefined,
 ): void {
   const _beginProgress = (token: ProgressToken | undefined, title: string): void => {
     try {
@@ -79,7 +80,7 @@ export function registerRenameHandlers(
     let processed = 0;
     const modules = getAllModules();
     const total = modules.length;
-    try { await updateDocumentIndex(doc.uri, doc.getText()); } catch {}
+    try { await updateDocumentIndex(doc.uri, doc.getText(), getLexiconForDoc?.(doc.uri)); } catch {}
     _beginProgress(params.workDoneToken, 'Aster rename');
     const CHUNK = settings.streaming?.renameChunk ?? 200;
     const BATCH_SIZE = 20; // 批量并发读取文件数
@@ -95,9 +96,10 @@ export function registerRenameHandlers(
           if (scope === 'open' && !openUris.has(rec.uri)) return null;
           try {
             const uri = ensureUri(rec.uri);
-            const fsPath = uriToFsPath(rec.uri) || rec.uri;
-            const t = await fsPromises.readFile(fsPath, 'utf8');
-            const positions = findTokenPositionsSafe(t, word);
+            // ★打开中的文档用内存文本：inmemory:// 文档不在磁盘上，读盘恒失败 → 旧实现恒回空 changes
+            const t = documents.get(rec.uri)?.getText()
+              ?? await fsPromises.readFile(uriToFsPath(rec.uri) || rec.uri, 'utf8');
+            const positions = findTokenPositionsSafe(t, word, getLexiconForDoc?.(rec.uri));
             if (positions.length === 0) return null;
             const edits: import('vscode-languageserver/node.js').TextEdit[] = positions.map(p => ({
               range: { start: offsetToPos(t, p.start), end: offsetToPos(t, p.end) },
@@ -145,7 +147,7 @@ export function registerRenameHandlers(
 
     const text = doc.getText();
     const offset = doc.offsetAt(params.position);
-    const precisePositions = findTokenPositionsSafe(text, nameAt);
+    const precisePositions = findTokenPositionsSafe(text, nameAt, getLexiconForDoc?.(doc.uri));
     const precise = precisePositions.find(pos => offset >= pos.start && offset <= pos.end);
     if (precise) {
       return {

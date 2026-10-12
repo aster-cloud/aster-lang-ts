@@ -8,6 +8,9 @@ import { typeText } from '../completion.js';
 import { canonicalize } from '../../frontend/canonicalizer.js';
 import { lex } from '../../frontend/lexer.js';
 import { TokenKind } from '../../frontend/tokens.js';
+import path from 'node:path';
+import type { Lexicon } from '../../config/lexicons/types.js';
+import { buildCanonicalizeOptions } from '../canonicalize-options.js';
 import {
   getSpan,
   getVariantSpans,
@@ -71,12 +74,18 @@ export function findWordPositions(text: string, word: string): Array<{ start: nu
  * @param word 要查找的标记或单词
  * @returns 标记位置数组，如果词法分析失败则回退到正则匹配
  */
-export function findTokenPositionsSafe(text: string, word: string): Array<{ start: number; end: number }> {
+export function findTokenPositionsSafe(
+  text: string,
+  word: string,
+  lexicon?: Lexicon,
+): Array<{ start: number; end: number }> {
   // If word contains '.', fallback to simple word regex matching over text
   if (word.includes('.')) return findWordPositions(text, word);
   try {
-    const can = canonicalize(text);
-    const toks = lex(can);
+    // ★非英文文档必须带 lexicon 词法分析，否则 lexer 遇到中文关键字即抛，
+    //   静默退化成 ASCII 词边界正则（会命中字符串字面量里的同名文本）。
+    const can = canonicalize(text, buildCanonicalizeOptions(lexicon, undefined, undefined));
+    const toks = lex(can, lexicon);
     const starts = buildLineStarts(text);
     const out: Array<{ start: number; end: number }> = [];
     for (const t of toks) {
@@ -135,10 +144,11 @@ export function offsetToPos(text: string, off: number): { line: number; characte
  * @returns file:// URI 字符串
  */
 export function ensureUri(u: string): string {
-  if (u.startsWith('file://')) return u;
-  const path = require('node:path');
-  const to = 'file://' + (path.isAbsolute(u) ? u : path.join(process.cwd(), u));
-  return to;
+  // ★已带 scheme 的 URI（file:// 以及编辑器的 inmemory:// 等）原样返回。
+  //   旧实现在 ESM 里调 require（ReferenceError: require is not defined），
+  //   且会把 inmemory://x 拼成 file:///cwd/inmemory://x。
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(u)) return u;
+  return 'file://' + (path.isAbsolute(u) ? u : path.join(process.cwd(), u));
 }
 
 /**

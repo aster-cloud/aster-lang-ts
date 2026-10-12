@@ -4,10 +4,9 @@
  */
 
 import type { Range } from 'vscode-languageserver-types';
-import { canonicalize } from '../../frontend/canonicalizer.js';
-import { lex } from '../../frontend/lexer.js';
-import { parse } from '../../parser.js';
-import type { Module as AstModule, Span } from '../../types.js';
+import type { Span } from '../../types.js';
+import type { Lexicon } from '../../config/lexicons/types.js';
+import { parseDocumentText } from '../parse-document.js';
 import type { ModuleIndex, SymbolInfo } from './types.js';
 import { setModuleIndex, invalidateDocument as invalidateDocumentInternal } from './index-manager.js';
 
@@ -18,13 +17,13 @@ export { invalidateDocument } from './index-manager.js';
  * 更新指定文档的索引内容。
  * @param uri 目标文档的 URI。
  * @param content 文档最新内容。
+ * @param lexicon 文档所用 lexicon（非英文文档必传）。
  * @returns 更新完成后的模块索引。
  */
-export async function updateDocumentIndex(uri: string, content: string): Promise<ModuleIndex> {
+export async function updateDocumentIndex(uri: string, content: string, lexicon?: Lexicon): Promise<ModuleIndex> {
   try {
-    const canonical = canonicalize(content);
-    const tokens = lex(canonical);
-    const ast = parse(tokens).ast as AstModule;
+    // ★与 getOrParse 同一条解析路径：非英文文档必须带 lexicon，否则从不被索引。
+    const { ast } = parseDocumentText(content, lexicon, undefined, undefined);
 
     const symbols: SymbolInfo[] = [];
     const decls = Array.isArray((ast as any)?.decls) ? ((ast as any).decls as any[]) : [];

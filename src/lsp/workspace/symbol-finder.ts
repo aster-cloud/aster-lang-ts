@@ -31,7 +31,17 @@ async function loadNavigationHelpers(): Promise<NavigationHelpers> {
  * @param excludeUri 可选的排除 URI，用于忽略当前文档。
  * @returns 匹配到的引用列表。
  */
-export async function findSymbolReferences(symbol: string, excludeUri?: string): Promise<Location[]> {
+/** 查找选项：打开中的文档以内存文本为准（未保存的编辑、inmemory:// 文档都不在磁盘上） */
+export interface FindReferencesOptions {
+  readonly readOpenText?: (uri: string) => string | undefined;
+  readonly lexiconFor?: (uri: string) => import('../../config/lexicons/types.js').Lexicon | undefined;
+}
+
+export async function findSymbolReferences(
+  symbol: string,
+  excludeUri?: string,
+  options: FindReferencesOptions = {},
+): Promise<Location[]> {
   const { findTokenPositionsSafe, offsetToPos, ensureUri, uriToFsPath } = await loadNavigationHelpers();
   const locations: Location[] = [];
   const BATCH_SIZE = 20;
@@ -48,9 +58,10 @@ export async function findSymbolReferences(symbol: string, excludeUri?: string):
           return [];
         }
         try {
-          const fsPath = uriToFsPath(uri) ?? (uri.startsWith('file://') ? new URL(uri).pathname : uri);
-          const content = await fs.readFile(fsPath, 'utf8');
-          const positions = findTokenPositionsSafe(content, symbol);
+          // ★打开中的文档用内存文本：inmemory:// 文档根本不在磁盘上，读盘恒失败 → 恒空结果
+          const content = options.readOpenText?.(mod.uri) ?? await fs.readFile(
+            uriToFsPath(uri) ?? (uri.startsWith('file://') ? new URL(uri).pathname : uri), 'utf8');
+          const positions = findTokenPositionsSafe(content, symbol, options.lexiconFor?.(mod.uri));
           if (positions.length === 0) {
             return [];
           }
