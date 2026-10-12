@@ -6,6 +6,8 @@
  *   就抛 "Unexpected character"。曾因 getOrParse 写成 `lex(can)`，zh/de 文档的
  *   hover、跳转、文档符号全部失败（诊断路径吞掉异常，表现为「无问题」）。
  *   浏览器侧编译（browser.ts）与 formatter 一直是 `lex(canonical, lexicon)`，此处对齐。
+ *
+ * 返回的 tokens 与 ast 的位置均为**原文**坐标（`can` 仅供需要规范化文本的调用方）。
  */
 import { canonicalize } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
@@ -15,6 +17,7 @@ import type { Module as AstModule } from '../types.js';
 import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { buildCanonicalizeOptions } from './canonicalize-options.js';
+import { alignTokensToSource } from './source-positions.js';
 
 export interface ParsedDocument {
   readonly can: string;
@@ -30,7 +33,9 @@ export function parseDocumentText(
   domain: string | undefined,
 ): ParsedDocument {
   const can = canonicalize(text, buildCanonicalizeOptions(lexicon, tenantId, domain));
-  const tokens = lex(can, lexicon);
+  // ★token 位置改为原文坐标后再解析：AST span 由 token 派生，于是高亮/跳转/hover/重命名/
+  //   诊断的位置都对应原文（canonicalize 删冠词等会改变行内长度，见 source-positions.ts）。
+  const tokens = alignTokensToSource(text, can, lex(can, lexicon));
   let ast: AstModule | null;
   let parseDiagnostics: readonly Diagnostic[] = [];
   try {

@@ -84,3 +84,11 @@ describe('词边界与取词（Unicode 标识符）', () => {
     assert.equal(captureWordAt(deText, deText.indexOf('größe') + 3, de), 'größe');
   });
 });
+
+describe('取词回退路径（词法失败时）', () => {
+  /* U1：词法失败（未闭合字符串）时退回字符级捕获，字符类必须是 Unicode */
+  it('★未闭合字符串导致词法失败时仍能取到中文标识符', () => {
+    const text = '规则 加倍 给定 数值 作为 整数 产出 文本：\n  返回 「未闭合';
+    assert.equal(captureWordAt(text, text.indexOf('加倍') + 1, zh), '加倍');
+  });
+});

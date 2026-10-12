@@ -11,6 +11,25 @@ import { TokenKind } from '../../frontend/tokens.js';
 import path from 'node:path';
 import { findSemanticTokenKind, type Lexicon } from '../../config/lexicons/types.js';
 import { buildCanonicalizeOptions } from '../canonicalize-options.js';
+import { alignTokensToSource } from '../source-positions.js';
+import { EN_US } from '../../config/lexicons/en-US.js';
+
+/**
+ * 词法分析并把 token 位置映射回原文坐标（导航取词/查找用）。
+ * canonicalize 会删冠词等、改变行内长度，直接用规范化文本的列号会改错位置。
+ */
+function lexInSourceCoordinates(text: string, lexicon?: Lexicon): readonly any[] {
+  const can = canonicalize(text, buildCanonicalizeOptions(lexicon, undefined, undefined));
+  return alignTokensToSource(text, can, lex(can, lexicon));
+}
+
+/**
+ * 是否为该文档语言的关键字。无 lexicon（en 文档在服务端就是这样）时按 en-US 判定——
+ * 否则 en 下 `Return` / `Rule` 也能被重命名，重命名会改掉所有同名关键字。
+ */
+export function isKeywordFor(word: string, lexicon?: Lexicon): boolean {
+  return findSemanticTokenKind(lexicon ?? EN_US, word) !== undefined;
+}
 import {
   getSpan,
   getVariantSpans,
@@ -49,8 +68,7 @@ export function captureWordAt(text: string, offset: number, lexicon?: Lexicon): 
   //   两种情况都处理不了——旧实现对「加倍」恒回 null，重命名框弹出却什么都不改。
   //   关键字不是可重命名的符号，直接拒绝。
   try {
-    const can = canonicalize(text, buildCanonicalizeOptions(lexicon, undefined, undefined));
-    const toks = lex(can, lexicon);
+    const toks = lexInSourceCoordinates(text, lexicon);
     const starts = buildLineStarts(text);
     for (const t of toks) {
       if (t.kind !== TokenKind.IDENT && t.kind !== TokenKind.TYPE_IDENT) continue;
@@ -58,7 +76,7 @@ export function captureWordAt(text: string, offset: number, lexicon?: Lexicon): 
       const e = toOffset(starts, t.end.line, t.end.col);
       if (offset < s || offset > e) continue;
       const value = String(t.value);
-      if (lexicon && findSemanticTokenKind(lexicon, value) !== undefined) return null;
+      if (isKeywordFor(value, lexicon)) return null;
       return value;
     }
   } catch {
@@ -105,8 +123,7 @@ export function findTokenPositionsSafe(
   try {
     // ★非英文文档必须带 lexicon 词法分析，否则 lexer 遇到中文关键字即抛，
     //   静默退化成 ASCII 词边界正则（会命中字符串字面量里的同名文本）。
-    const can = canonicalize(text, buildCanonicalizeOptions(lexicon, undefined, undefined));
-    const toks = lex(can, lexicon);
+    const toks = lexInSourceCoordinates(text, lexicon);
     const starts = buildLineStarts(text);
     const out: Array<{ start: number; end: number }> = [];
     for (const t of toks) {

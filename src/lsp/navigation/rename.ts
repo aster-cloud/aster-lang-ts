@@ -11,7 +11,7 @@ import type {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { getAllModules, updateDocumentIndex } from '../index.js';
-import { captureWordAt, findTokenPositionsSafe, offsetToPos, ensureUri, uriToFsPath, tokenNameAt } from './shared.js';
+import { captureWordAt, findTokenPositionsSafe, offsetToPos, ensureUri, uriToFsPath, tokenNameAt, isKeywordFor } from './shared.js';
 import { promises as fsPromises } from 'node:fs';
 
 /**
@@ -140,6 +140,8 @@ export function registerRenameHandlers(
     const entry = getOrParse(doc);
     const { tokens: toks } = entry;
     const nameAt = tokenNameAt(toks, params.position);
+    // 关键字不可重命名（各语言一致；en 文档无 lexicon 时按 en-US 判定）
+    if (nameAt && isKeywordFor(nameAt, getLexiconForDoc?.(doc.uri))) return null;
     if (!nameAt) {
       // 光标未命中有效标识符，直接拒绝
       return null;
@@ -162,7 +164,8 @@ export function registerRenameHandlers(
     // 词法精确匹配失败时回退到简单的词边界捕获
     const fallback = captureWordAt(text, offset, getLexiconForDoc?.(doc.uri));
     if (!fallback) return null;
-    const isWord = (c: string): boolean => /[A-Za-z0-9_.]/.test(c);
+    // Unicode 字母/数字：标识符可以是中文、带变音的德文等
+    const isWord = (c: string): boolean => /[\p{L}\p{N}_.]/u.test(c);
     let start = offset;
     while (start > 0 && isWord(text[start - 1]!)) start--;
     let end = offset;
