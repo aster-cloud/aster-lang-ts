@@ -123,6 +123,12 @@ jobs:
       - name: Run tests
         run: pnpm run test
 
+      # golden 默认读兄弟 checkout 的语料（scripts/corpus-loader.ts），须先构建其 loader 产物；
+      # 兄弟仓嵌在本仓工作区内，须忽略本仓 pnpm-workspace.yaml。
+      - name: Build aster-lang-test corpus loader
+        working-directory: aster-lang-test/packages/js
+        run: pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
+
       - name: Run golden tests
         run: pnpm run test:golden
 
