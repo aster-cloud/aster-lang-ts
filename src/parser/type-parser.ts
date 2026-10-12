@@ -1,4 +1,5 @@
 import type { PiiDataCategory, PiiSensitivityLevel, Token, Type } from '../types.js';
+import { kwq } from './keyword-display.js';
 import type { ParserContext } from './context.js';
 import { kwParts } from './context.js';
 import { TokenKind, KW } from '../frontend/tokens.js';
@@ -56,7 +57,7 @@ export function parseEffectList(
 
     // First capability after 'with'
     if (!ctx.at(TokenKind.TYPE_IDENT)) {
-      error("Expected capability name (capitalized identifier) after 'with'");
+      error(`Expected capability name (capitalized identifier) after ${kwq(ctx, KW.WITH)}`);
     }
     const cap = ctx.next().value as string;
     effs.push(cap);
@@ -65,7 +66,7 @@ export function parseEffectList(
     while (ctx.isKeyword(KW.AND)) {
       ctx.nextWord(); // consume 'and'
       if (!ctx.at(TokenKind.TYPE_IDENT)) {
-        error("Expected capability name (capitalized identifier) after 'and'");
+        error(`Expected capability name (capitalized identifier) after ${kwq(ctx, KW.AND)}`);
       }
       const cap2 = ctx.next().value as string;
       effs.push(cap2);
@@ -92,7 +93,7 @@ export function parseEffectList(
         effs.push('cpu');
         continue;
       }
-      error("Expected capability name (capitalized identifier) after 'and'");
+      error(`Expected capability name (capitalized identifier) after ${kwq(ctx, KW.AND)}`);
     }
     const cap = ctx.next().value as string;
     effs.push(cap);
@@ -271,7 +272,7 @@ function parseTypePrimary(
     const keyType = parseType(ctx, error);
     if (!ctx.isKeyword(KW.TO_WORD)) {
       Diagnostics.expectedKeyword(KW.TO_WORD, ctx.peek().start)
-        .withMessage("Expected 'to' in map type")
+        .withMessage(`Expected ${kwq(ctx, KW.TO_WORD)} in map type`)
         .throw();
     }
     const toTok = ctx.nextWord();

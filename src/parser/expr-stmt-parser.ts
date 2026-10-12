@@ -16,6 +16,7 @@ import type {
   Timeout,
   WorkflowStmt,
 } from '../types.js';
+import { kw, kwq } from './keyword-display.js';
 import type { ParserContext } from './context.js';
 import { kwParts, tokLowerAt, tryReadTranslatedIdent } from './context.js';
 import { TokenKind, KW } from '../frontend/tokens.js';
@@ -278,10 +279,10 @@ function parseInlineIf(
   cond: Expression
 ): If {
   skipInlineThenLayout(ctx);
-  if (!ctx.isKeyword(KW.THEN)) error("Expected 'then' in inline if");
+  if (!ctx.isKeyword(KW.THEN)) error(`Expected ${kwq(ctx, KW.THEN)} in inline if`);
   ctx.nextWord();
   // then 分支：单个 return（内联，不带句点；句点由整条 inline-if 末尾的 return 承担）。
-  if (!ctx.isKeyword(KW.RETURN)) error("Expected 'return' after 'then'");
+  if (!ctx.isKeyword(KW.RETURN)) error(`Expected ${kwq(ctx, KW.RETURN)} after ${kwq(ctx, KW.THEN)}`);
   const thenRetTok = ctx.peek();
   ctx.nextWord();
   const thenExpr = parseExpr(ctx, error);
@@ -309,7 +310,7 @@ function parseInlineIf(
       assignSpan(elseBlock, spanFromSources(nested));
     } else {
       // else return X.（末尾 return，带句点）。
-      if (!ctx.isKeyword(KW.RETURN)) error("Expected 'return' or 'if' after 'else'");
+      if (!ctx.isKeyword(KW.RETURN)) error(`Expected ${kwq(ctx, KW.RETURN)} or ${kwq(ctx, KW.IF)} after ${kwq(ctx, KW.ELSE)}`);
       const elseRetTok = ctx.peek();
       ctx.nextWord();
       const elseExpr = parseExpr(ctx, error);
@@ -426,14 +427,14 @@ export function parseStatement(
     ctx.nextWord();
     const nameTok = ctx.peek();
     const name = parseIdent(ctx, error);
-    expectKeyword(ctx, error, KW.BE, "Use 'be' in bindings: 'Let x be ...'.");
+    expectKeyword(ctx, error, KW.BE, `Use ${kwq(ctx, KW.BE)} in bindings: '${kw(ctx, KW.LET, 'Let')} x ${kw(ctx, KW.BE)} ...'.`);
     // Special-case lambda block form to avoid trailing '.'
     if ((ctx.isKeyword('a') && tokLowerAt(ctx, ctx.index + 1) === 'function') || ctx.isKeyword('function')) {
       if (ctx.isKeyword('a')) ctx.nextWord(); // optional 'a'
       const functionTok = ctx.nextWord(); // 'function'
       const params = parseParamList(ctx, error);
       expectCommaOr(ctx);
-      expectKeyword(ctx, error, KW.PRODUCE, "Expected 'produce' and return type");
+      expectKeyword(ctx, error, KW.PRODUCE, `Expected ${kwq(ctx, KW.PRODUCE)} and return type`);
       let retType: Type;
       if (ctx.at(TokenKind.COLON)) {
         retType = Node.TypeName('Unknown');
@@ -465,7 +466,7 @@ export function parseStatement(
     const setTok = ctx.peek();
     ctx.nextWord();
     const name = parseIdent(ctx, error);
-    expectKeyword(ctx, error, KW.TO_WORD, "Use 'to' in assignments: 'Set x to ...'.");
+    expectKeyword(ctx, error, KW.TO_WORD, `Use ${kwq(ctx, KW.TO_WORD)} in assignments: '${kw(ctx, KW.SET, 'Set')} x ${kw(ctx, KW.TO_WORD)} ...'.`);
     const expr = parseExpr(ctx, error);
     expectPeriodEnd(ctx, error);
     const nd = Node.Set(name, expr);
@@ -575,8 +576,8 @@ export function parseStatement(
   }
   if (ctx.isKeyword(KW.WITHIN)) {
     ctx.nextWord();
-    expectKeyword(ctx, error, KW.SCOPE, "Expected 'scope' after 'Within'");
-    if (!ctx.at(TokenKind.COLON)) error("Expected ':' after 'scope'");
+    expectKeyword(ctx, error, KW.SCOPE, `Expected ${kwq(ctx, KW.SCOPE)} after ${kwq(ctx, KW.WITHIN, 'Within')}`);
+    if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.SCOPE)}`);
     ctx.next();
     expectNewline(ctx, error);
     return parseBlock(ctx, error); // Lowering later
@@ -584,8 +585,8 @@ export function parseStatement(
   if (ctx.isKeyword(KW.START)) {
     const startTok = ctx.nextWord();
     const name = parseIdent(ctx, error);
-    expectKeyword(ctx, error, KW.AS, "Expected 'as' after name");
-    expectKeyword(ctx, error, KW.ASYNC, "Expected 'async'");
+    expectKeyword(ctx, error, KW.AS, `Expected ${kwq(ctx, KW.AS)} after name`);
+    expectKeyword(ctx, error, KW.ASYNC, `Expected ${kwq(ctx, KW.ASYNC)}`);
     const expr = parseExpr(ctx, error);
     expectPeriodEnd(ctx, error);
     const nd = Node.Start(name, expr);
@@ -622,8 +623,8 @@ function parseWorkflow(
   error: (msg: string) => never
 ): WorkflowStmt {
   const workflowTok = ctx.peek();
-  expectKeyword(ctx, error, KW.WORKFLOW, "Expected 'workflow'");
-  if (!ctx.at(TokenKind.COLON)) error("Expected ':' after 'workflow'");
+  expectKeyword(ctx, error, KW.WORKFLOW, `Expected ${kwq(ctx, KW.WORKFLOW)}`);
+  if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.WORKFLOW)}`);
   ctx.next();
   expectNewline(ctx, error);
   if (!ctx.at(TokenKind.INDENT)) error('Expected indent after workflow header');
@@ -660,13 +661,13 @@ function parseStep(
   error: (msg: string) => never
 ): StepStmt {
   const stepTok = ctx.peek();
-  expectKeyword(ctx, error, KW.STEP, "Expected 'step'");
+  expectKeyword(ctx, error, KW.STEP, `Expected ${kwq(ctx, KW.STEP)}`);
   const name = parseIdent(ctx, error);
   const dependencies: string[] = [];
   if (ctx.isKeyword(KW.DEPENDS)) {
     ctx.nextWord();
-    expectKeyword(ctx, error, KW.ON, "Expected 'on' after 'depends'");
-    if (!ctx.at(TokenKind.LBRACKET)) error("Expected '[' after 'depends on'");
+    expectKeyword(ctx, error, KW.ON, `Expected ${kwq(ctx, KW.ON)} after ${kwq(ctx, KW.DEPENDS)}`);
+    if (!ctx.at(TokenKind.LBRACKET)) error(`Expected '[' after '${kw(ctx, KW.DEPENDS)} ${kw(ctx, KW.ON)}'`);
     ctx.next();
     if (!ctx.at(TokenKind.RBRACKET)) {
       while (true) {
@@ -694,7 +695,7 @@ function parseStep(
   let compensate: Block | undefined;
   if (ctx.isKeyword(KW.COMPENSATE)) {
     ctx.nextWord();
-    if (!ctx.at(TokenKind.COLON)) error("Expected ':' after 'compensate'");
+    if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.COMPENSATE)}`);
     ctx.next();
     expectNewline(ctx, error);
     compensate = parseBlock(ctx, error);
@@ -710,8 +711,8 @@ function parseRetryPolicy(
   ctx: ParserContext,
   error: (msg: string) => never
 ): RetryPolicy {
-  expectKeyword(ctx, error, KW.RETRY, "Expected 'retry'");
-  if (!ctx.at(TokenKind.COLON)) error("Expected ':' after 'retry'");
+  expectKeyword(ctx, error, KW.RETRY, `Expected ${kwq(ctx, KW.RETRY)}`);
+  if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.RETRY)}`);
   ctx.next();
   expectNewline(ctx, error);
   if (!ctx.at(TokenKind.INDENT)) error('Expected indent for retry policy');
@@ -722,16 +723,16 @@ function parseRetryPolicy(
   while (!ctx.at(TokenKind.DEDENT)) {
     if (ctx.isKeywordSeq(MAX_ATTEMPTS_PARTS)) {
       ctx.nextWords(MAX_ATTEMPTS_PARTS);
-      if (!ctx.at(TokenKind.COLON)) error("Expected ':' after 'max attempts'");
+      if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.MAX_ATTEMPTS)}`);
       ctx.next();
-      if (!ctx.at(TokenKind.INT)) error("Expected integer after 'max attempts'");
+      if (!ctx.at(TokenKind.INT)) error(`Expected integer after ${kwq(ctx, KW.MAX_ATTEMPTS)}`);
       const attempts = ctx.next().value as number;
-      if (attempts <= 0) error("'max attempts' must be greater than zero");
+      if (attempts <= 0) error(`${kwq(ctx, KW.MAX_ATTEMPTS)} must be greater than zero`);
       maxAttempts = attempts;
       expectPeriodEnd(ctx, error);
     } else if (ctx.isKeyword(KW.BACKOFF)) {
       ctx.nextWord();
-      if (!ctx.at(TokenKind.COLON)) error("Expected ':' after 'backoff'");
+      if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.BACKOFF)}`);
       ctx.next();
       const modeTok = ctx.nextWord();
       const mode = String(modeTok.value ?? '').toLowerCase();
@@ -746,8 +747,8 @@ function parseRetryPolicy(
     ctx.consumeNewlines();
   }
   ctx.next();
-  if (maxAttempts === null) error("Retry section must include 'max attempts'");
-  if (backoff === null) error("Retry section must include 'backoff'");
+  if (maxAttempts === null) error(`Retry section must include ${kwq(ctx, KW.MAX_ATTEMPTS)}`);
+  if (backoff === null) error(`Retry section must include ${kwq(ctx, KW.BACKOFF)}`);
   return { maxAttempts, backoff };
 }
 
@@ -755,8 +756,8 @@ function parseTimeout(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Timeout {
-  expectKeyword(ctx, error, KW.TIMEOUT, "Expected 'timeout'");
-  if (!ctx.at(TokenKind.COLON)) error("Expected ':' after 'timeout'");
+  expectKeyword(ctx, error, KW.TIMEOUT, `Expected ${kwq(ctx, KW.TIMEOUT)}`);
+  if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.TIMEOUT)}`);
   ctx.next();
   if (!ctx.at(TokenKind.INT)) error('Expected integer timeout value');
   const secondsTok = ctx.next();
@@ -875,7 +876,7 @@ function parseIfExpr(
   ctx.nextWord(); // 消费 IF
   const cond = parseOr(ctx, error);
   skipInlineThenLayout(ctx);
-  if (!ctx.isKeyword(KW.THEN)) error("Expected 'then' in if-expression");
+  if (!ctx.isKeyword(KW.THEN)) error(`Expected ${kwq(ctx, KW.THEN)} in if-expression`);
   ctx.nextWord(); // 消费 THEN
   const thenE = parseExpr(ctx, error);
   skipInlineElseLayout(ctx);
@@ -1369,7 +1370,7 @@ function parseApplyOrPrimary(
   if (ctx.isKeyword(KW.APPLY) && applyLooksLikeCall(ctx)) {
     const applyTok = ctx.nextWord();
     const fn = parseCallTargetName(ctx, error);
-    expectKeyword(ctx, error, KW.TO_WORD, "Use 'apply <fn> to <arg>' (expected 'to').");
+    expectKeyword(ctx, error, KW.TO_WORD, `Use '${kw(ctx, KW.APPLY)} <fn> ${kw(ctx, KW.TO_WORD)} <arg>' (expected ${kwq(ctx, KW.TO_WORD)}).`);
     const arg = parseExpr(ctx, error);
     const call = Node.Call(fn, [arg]);
     assignSpan(call, spanFromSources(applyTok, arg));
@@ -1410,7 +1411,7 @@ function parseCallTargetName(
 ): Expression {
   const startTok = ctx.peek();
   if (!ctx.at(TokenKind.IDENT) && !ctx.at(TokenKind.TYPE_IDENT)) {
-    error("Expected a function name after 'apply'.");
+    error(`Expected a function name after ${kwq(ctx, KW.APPLY)}.`);
   }
   const consumed: Token[] = [ctx.peek()];
   let full = ctx.at(TokenKind.IDENT) ? parseIdent(ctx, error) : (ctx.next().value as string);
@@ -1491,7 +1492,7 @@ function parseOperatorWordCall(
 ): Expression {
   const symbol = english ? null : OPERATOR_WORD_SYMBOLS.get(word);
   if (!symbol) {
-    error(`运算符词 '${word}' 不能用作前缀调用；只有符号运算符 ${PREFIX_SYMBOL_LIST} 可以写成 op(a, b)`);
+    error(`运算符词 ${kwq(ctx, word)} 不能用作前缀调用；只有符号运算符 ${PREFIX_SYMBOL_LIST} 可以写成 op(a, b)`);
   }
   return parsePrefixOperatorCall(ctx, error, symbol, kwParts(word).length);
 }
@@ -1531,7 +1532,7 @@ function parsePrimary(
     const functionTok = ctx.nextWord(); // 'function'
     const params = parseParamList(ctx, error);
     expectCommaOr(ctx);
-    expectKeyword(ctx, error, KW.PRODUCE, "Expected 'produce' and return type");
+    expectKeyword(ctx, error, KW.PRODUCE, `Expected ${kwq(ctx, KW.PRODUCE)} and return type`);
     let retType: Type;
     if (ctx.at(TokenKind.COLON)) {
       retType = Node.TypeName('Unknown');
@@ -1748,10 +1749,10 @@ function parsePrimary(
       while (hasMore) {
         const nameTok = ctx.peek();
         const name = parseIdent(ctx, error);
-        if (!ctx.isKeyword(KW.SET)) error("Expected 'set to' in construction");
+        if (!ctx.isKeyword(KW.SET)) error(`Expected '${kw(ctx, KW.SET)} ${kw(ctx, KW.TO_WORD)}' in construction`);
         const equalsTok = ctx.peek();
         ctx.nextWord();
-        if (!ctx.isKeyword(KW.TO_WORD)) error("Expected 'to' after 'set' in construction");
+        if (!ctx.isKeyword(KW.TO_WORD)) error(`Expected ${kwq(ctx, KW.TO_WORD)} after ${kwq(ctx, KW.SET)} in construction`);
         ctx.nextWord();
         const e = parseExpr(ctx, error);
         const fld: ConstructField = {
@@ -1808,7 +1809,7 @@ function parsePrimary(
       if (full === typeName && ctx.declaredRecordTypes.has(typeName)) {
         error(
           `Cannot construct '${typeName}' with positional arguments. ` +
-          `Use named fields instead: '${typeName} with <field> set to <value> and ...'`,
+          `Use named fields instead: '${typeName} ${kw(ctx, KW.WITH)} <field> ${kw(ctx, KW.SET)} ${kw(ctx, KW.TO_WORD)} <value> ${kw(ctx, KW.AND)} ...'`,
         );
       }
       const args = parseArgList(ctx, error);
@@ -1850,7 +1851,7 @@ function parsePrimary(
       if (full === name && ctx.declaredRecordTypes.has(name)) {
         error(
           `Cannot construct '${name}' with positional arguments. ` +
-          `Use named fields instead: '${name} with <field> set to <value> and ...'`,
+          `Use named fields instead: '${name} ${kw(ctx, KW.WITH)} <field> ${kw(ctx, KW.SET)} ${kw(ctx, KW.TO_WORD)} <value> ${kw(ctx, KW.AND)} ...'`,
         );
       }
       const args = parseArgList(ctx, error);

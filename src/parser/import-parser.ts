@@ -4,6 +4,7 @@
  */
 
 import { KW, TokenKind } from '../frontend/tokens.js';
+import { kwq } from './keyword-display.js';
 import type { Token } from '../types.js';
 import type { ParserContext } from './context.js';
 import { kwParts } from './context.js';
@@ -136,7 +137,7 @@ export function parseImport(
   if (ctx.isKeyword(KW.VERSION)) {
     ctx.nextWord();
     if (!ctx.at(TokenKind.INT)) {
-      error("Expected integer after 'version'", ctx.peek());
+      error(`Expected integer after ${kwq(ctx, KW.VERSION)}`, ctx.peek());
     }
     version = ctx.next().value as number;
   }

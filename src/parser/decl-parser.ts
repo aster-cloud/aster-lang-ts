@@ -4,6 +4,7 @@
  */
 
 import { KW, TokenKind } from '../frontend/tokens.js';
+import { kwq } from './keyword-display.js';
 import { Node } from '../ast/ast.js';
 import type { Annotation, AnnotationArg, AnnotationValue, Block, Declaration, Token, Type } from '../types.js';
 import type { Diagnostic } from '../diagnostics/diagnostics.js';
@@ -182,7 +183,7 @@ export function parseDataDecl(
 
   // 期望: with / has
   if (!ctx.isKeywordSeq(KW.WITH) && !ctx.isKeywordSeq(KW.HAS)) {
-    error("Expected 'has' after type name in data definition");
+    error(`Expected ${kwq(ctx, KW.HAS)} after type name in data definition`);
   }
   ctx.nextWord();
 
@@ -229,7 +230,7 @@ export function parseEnumDecl(
 
   // 期望: as one of
   if (!ctx.isKeywordSeq(KW.ONE_OF)) {
-    error("Expected 'as one of' after type name in enum definition");
+    error(`Expected ${kwq(ctx, KW.ONE_OF)} after type name in enum definition`);
   }
   ctx.nextWords(kwParts(KW.ONE_OF));
 
@@ -734,7 +735,7 @@ export function collectTopLevelDecls(
           ctx.declaredTypes.add(typeName);
           decls.push(en);
         } else {
-          tools.error("Expected 'has' or 'as one of' after type name");
+          tools.error(`Expected ${kwq(ctx, KW.HAS)} or ${kwq(ctx, KW.ONE_OF)} after type name`);
         }
       }
       // 解析类型别名: Type Score as Int.
@@ -745,7 +746,7 @@ export function collectTopLevelDecls(
       else if (ctx.isKeyword(KW.TYPE)) {
         ctx.nextWord(); // 消费 'Type'
         const aliasName = tools.parseTypeIdent();
-        tools.expectKeyword(KW.AS, "Expected 'as' after type alias name");
+        tools.expectKeyword(KW.AS, `Expected ${kwq(ctx, KW.AS)} after type alias name`);
         parseType(ctx, tools.error); // 消费别名目标类型（值被丢弃）
         tools.expectDot();
         ctx.declaredTypes.add(aliasName);
@@ -754,7 +755,7 @@ export function collectTopLevelDecls(
       else if (ctx.at(TokenKind.AT)) {
         const { annotations, startTok } = parseDeclAnnotations(ctx, tools.error);
         if (!ctx.isKeyword(KW.RULE)) {
-          tools.error("Expected 'Rule' after declaration annotations");
+          tools.error(`Expected ${kwq(ctx, KW.RULE, 'Rule')} after declaration annotations`);
         }
         decls.push(parseFuncDecl(ctx, tools.error, tools.expectCommaOr, tools.expectKeyword, tools.expectNewline, tools.parseIdent, annotations, startTok));
       }
