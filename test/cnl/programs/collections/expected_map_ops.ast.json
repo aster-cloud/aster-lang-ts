@@ -42,16 +42,29 @@
               "kind": "Call",
               "target": {
                 "kind": "Name",
-                "name": "Map.get"
+                "name": "Maybe.withDefault"
               },
               "args": [
                 {
-                  "kind": "Name",
-                  "name": "m"
+                  "kind": "Call",
+                  "target": {
+                    "kind": "Name",
+                    "name": "Map.get"
+                  },
+                  "args": [
+                    {
+                      "kind": "Name",
+                      "name": "m"
+                    },
+                    {
+                      "kind": "Name",
+                      "name": "k"
+                    }
+                  ]
                 },
                 {
-                  "kind": "Name",
-                  "name": "k"
+                  "kind": "Int",
+                  "value": 0
                 }
               ]
             }
@@ -100,16 +113,29 @@
               "kind": "Call",
               "target": {
                 "kind": "Name",
-                "name": "Map.get"
+                "name": "Maybe.withDefault"
               },
               "args": [
                 {
-                  "kind": "Name",
-                  "name": "m"
+                  "kind": "Call",
+                  "target": {
+                    "kind": "Name",
+                    "name": "Map.get"
+                  },
+                  "args": [
+                    {
+                      "kind": "Name",
+                      "name": "m"
+                    },
+                    {
+                      "kind": "Name",
+                      "name": "k"
+                    }
+                  ]
                 },
                 {
-                  "kind": "Name",
-                  "name": "k"
+                  "kind": "Int",
+                  "value": 0
                 }
               ]
             }

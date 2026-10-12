@@ -231,6 +231,7 @@ it('应该匹配预期 JSON', async () => {
 - 单元测试：`npm run test:unit`
 - 集成测试：`npm run test:integration`
 - E2E（含 Golden）：`npm run test:e2e` / `npm run test:golden`
+  - Golden 的输入语料依次取 `ASTER_LANG_TEST_PATH`、兄弟 checkout（`../aster-lang-test` 或 `./aster-lang-test`）、npm 包 `@aster-cloud/aster-lang-test`；期望跟随 aster-lang-test main。兄弟仓需先在 `packages/js` 执行 `pnpm install && pnpm run build`，未构建会直接报错。
 - 回归套件：`npm run test:regression`
 - 仅更新 Golden：`npm run test:golden -- --update`
 - Java 侧测试：`./gradlew :aster-core:test`

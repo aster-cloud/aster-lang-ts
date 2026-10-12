@@ -4,10 +4,19 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertCorpusFrom, loadCorpus, corpusLoaderPath, CORPUS_PATH_ENV } from '../../../scripts/corpus-loader.js';
+import { assertCorpusFrom, loadCorpus, corpusLoaderPath, siblingCorpusCandidates, CORPUS_PATH_ENV } from '../../../scripts/corpus-loader.js';
 
 // ★issue #194：corpus-regression 工作流设置 ASTER_LANG_TEST_PATH，golden.ts 却静态
 //   import npm 包，变量零读取。这里守住两件事：变量生效、生效与否可被察觉。
+/** 按 issue 复现步骤：把 npm 包的 loader 与语料复制成 checkout 布局。 */
+function makeCheckout(root: string): string {
+  const pkgRoot = path.resolve(path.dirname(fileURLToPath(import.meta.resolve('@aster-cloud/aster-lang-test'))), '..');
+  fs.cpSync(path.join(pkgRoot, 'corpus'), path.join(root, 'corpus'), { recursive: true });
+  fs.mkdirSync(path.dirname(corpusLoaderPath(root)), { recursive: true });
+  fs.copyFileSync(path.join(pkgRoot, 'dist', 'loader.js'), corpusLoaderPath(root));
+  return root;
+}
+
 describe('corpus-loader：ASTER_LANG_TEST_PATH 必须生效且可验证', () => {
   const sample = (absPath: string) => ({ absPath, meta: { tier: 1 } });
 
@@ -55,14 +64,9 @@ describe('corpus-loader：ASTER_LANG_TEST_PATH 必须生效且可验证', () => 
   });
 
   it('★loadCorpus：变量指向符号链接的 checkout → 生效，样本来自该 checkout', async () => {
-    // 按 issue 复现步骤：把 npm 包的 loader 与语料复制成 checkout 布局，再经软链加载。
-    const pkgRoot = path.resolve(path.dirname(fileURLToPath(import.meta.resolve('@aster-cloud/aster-lang-test'))), '..');
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'aster-corpus-checkout-'));
     try {
-      const real = path.join(base, 'real');
-      fs.cpSync(path.join(pkgRoot, 'corpus'), path.join(real, 'corpus'), { recursive: true });
-      fs.mkdirSync(path.dirname(corpusLoaderPath(real)), { recursive: true });
-      fs.copyFileSync(path.join(pkgRoot, 'dist', 'loader.js'), corpusLoaderPath(real));
+      const real = makeCheckout(path.join(base, 'real'));
       const link = path.join(base, 'link');
       fs.symlinkSync(real, link);
       const mod = await loadCorpus({ [CORPUS_PATH_ENV]: link });
@@ -74,9 +78,42 @@ describe('corpus-loader：ASTER_LANG_TEST_PATH 必须生效且可验证', () => 
     }
   });
 
-  it('未设置变量 → 回退到 npm 依赖', async () => {
-    const mod = await loadCorpus({});
+  it('未设置变量且无兄弟 checkout → 回退到 npm 依赖', async () => {
+    const mod = await loadCorpus({}, []);
     assert.equal(typeof mod.listSamples, 'function');
+  });
+
+  // ★golden 期望跟随 aster-lang-test main（corpus-regression 工作流的口径）；npm 快照
+  //   长期不发版，未设变量时若仍读它，PR CI 与本地 golden 校验的就是陈旧语料。
+  it('★未设置变量、兄弟 checkout 已构建 → 从兄弟仓加载', async () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'aster-corpus-sibling-'));
+    try {
+      const sibling = makeCheckout(path.join(base, 'aster-lang-test'));
+      const mod = await loadCorpus({}, [path.join(base, 'missing'), sibling]);
+      const samples = mod.listSamples();
+      assert.ok(samples.length > 0);
+      assert.ok(samples[0]!.absPath.startsWith(fs.realpathSync.native(sibling) + path.sep));
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it('★兄弟 checkout 存在但 loader 未构建 → 失败并提示构建，不静默退回 npm', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aster-corpus-unbuilt-'));
+    try {
+      fs.mkdirSync(path.join(dir, 'corpus'));
+      await assert.rejects(loadCorpus({}, [dir]), /pnpm run build/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('默认兄弟候选：本地 ../aster-lang-test 与 CI 工作区内 ./aster-lang-test', () => {
+    const cwd = path.join(os.tmpdir(), 'ws', 'aster-lang-ts');
+    assert.deepEqual(siblingCorpusCandidates(cwd), [
+      path.join(os.tmpdir(), 'ws', 'aster-lang-test'),
+      path.join(cwd, 'aster-lang-test'),
+    ]);
   });
 
   it('★变量指向没有 loader 产物的目录 → 失败并提示构建', async () => {

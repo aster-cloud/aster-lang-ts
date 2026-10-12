@@ -170,6 +170,157 @@
         ]
       },
       "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "maxOf",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "xs",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.max"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "xs"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "minOf",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "xs",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.min"
+              },
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "xs"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
+    },
+    {
+      "kind": "Func",
+      "name": "combosCount",
+      "typeParams": [
+        "Unknown"
+      ],
+      "params": [
+        {
+          "name": "xs",
+          "type": {
+            "kind": "TypeName",
+            "name": "Text"
+          },
+          "typeInferred": true
+        }
+      ],
+      "retType": {
+        "kind": "TypeName",
+        "name": "Unknown"
+      },
+      "effects": [],
+      "effectCaps": [],
+      "effectCapsExplicit": false,
+      "body": {
+        "kind": "Block",
+        "statements": [
+          {
+            "kind": "Return",
+            "expr": {
+              "kind": "Call",
+              "target": {
+                "kind": "Name",
+                "name": "List.length"
+              },
+              "args": [
+                {
+                  "kind": "Call",
+                  "target": {
+                    "kind": "Name",
+                    "name": "List.combinations"
+                  },
+                  "args": [
+                    {
+                      "kind": "Name",
+                      "name": "xs"
+                    },
+                    {
+                      "kind": "Int",
+                      "value": 2
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "retTypeInferred": true
     }
   ]
 }
