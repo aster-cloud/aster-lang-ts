@@ -86,6 +86,11 @@ export const enum ErrorCode {
   GOV_PROFILE_UNKNOWN = "E705",
   GOV_PROFILE_VIOLATION = "E706",
   GOV_CHECK_UNAVAILABLE = "E707",
+  CEDAR_NOT_EXPORTABLE_SHAPE = "E720",
+  CEDAR_UNSUPPORTED_CONSTRUCT = "E721",
+  CEDAR_UNTYPED_CONTEXT_KEY = "E722",
+  CEDAR_EQUIVALENCE_MISMATCH = "E723",
+  CEDAR_SCHEMA_INVALID = "E724",
 }
 
 export interface ErrorMetadata {
@@ -177,6 +182,11 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.GOV_PROFILE_UNKNOWN]: "Module '{module}' declares unknown profile '{profile}' (controls registry {version})",
   [ErrorCode.GOV_PROFILE_VIOLATION]: "Rule '{rule}' violates profile '{profile}': {requirement}",
   [ErrorCode.GOV_CHECK_UNAVAILABLE]: "Governance check could not run for module '{module}' (profile '{profile}'); saving is blocked until it succeeds",
+  [ErrorCode.CEDAR_NOT_EXPORTABLE_SHAPE]: "Rule '{rule}' cannot be exported to Cedar: {reason}",
+  [ErrorCode.CEDAR_UNSUPPORTED_CONSTRUCT]: "Rule '{rule}' uses {construct}, which has no Cedar translation",
+  [ErrorCode.CEDAR_UNTYPED_CONTEXT_KEY]: "Context key '{key}' in rule '{rule}' is used as both {first} and {second}",
+  [ErrorCode.CEDAR_EQUIVALENCE_MISMATCH]: "Cedar export of rule '{rule}' disagrees with Aster on probe {probe}: Aster {aster}, Cedar {cedar}",
+  [ErrorCode.CEDAR_SCHEMA_INVALID]: "Generated Cedar for rule '{rule}' failed schema validation: {detail}",
 };
 
 export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
@@ -739,6 +749,40 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     severity: 'error',
     message: "Governance check could not run for module '{module}' (profile '{profile}'); saving is blocked until it succeeds",
     help: "Retry later; this is a service fault, not a policy violation.",
+  },  [ErrorCode.CEDAR_NOT_EXPORTABLE_SHAPE]: {
+    code: ErrorCode.CEDAR_NOT_EXPORTABLE_SHAPE,
+    category: 'governance',
+    severity: 'error',
+    message: "Rule '{rule}' cannot be exported to Cedar: {reason}",
+    help: "Exportable rules need @id, one parameter with the guard request fields (principal_id, principal_type, principal_roles, action, resource_type, resource_id, context, agent_model) and a Verdict result.",
+  },
+  [ErrorCode.CEDAR_UNSUPPORTED_CONSTRUCT]: {
+    code: ErrorCode.CEDAR_UNSUPPORTED_CONSTRUCT,
+    category: 'governance',
+    severity: 'error',
+    message: "Rule '{rule}' uses {construct}, which has no Cedar translation",
+    help: "Use comparisons, and/or/not, List.contains on principal_roles and integer arithmetic with literals, or keep this rule Aster-only.",
+  },
+  [ErrorCode.CEDAR_UNTYPED_CONTEXT_KEY]: {
+    code: ErrorCode.CEDAR_UNTYPED_CONTEXT_KEY,
+    category: 'governance',
+    severity: 'error',
+    message: "Context key '{key}' in rule '{rule}' is used as both {first} and {second}",
+    help: "Use each context key with a single type (number, text or boolean).",
+  },
+  [ErrorCode.CEDAR_EQUIVALENCE_MISMATCH]: {
+    code: ErrorCode.CEDAR_EQUIVALENCE_MISMATCH,
+    category: 'governance',
+    severity: 'error',
+    message: "Cedar export of rule '{rule}' disagrees with Aster on probe {probe}: Aster {aster}, Cedar {cedar}",
+    help: "This is an exporter defect; the export was withheld. Please report it.",
+  },
+  [ErrorCode.CEDAR_SCHEMA_INVALID]: {
+    code: ErrorCode.CEDAR_SCHEMA_INVALID,
+    category: 'governance',
+    severity: 'error',
+    message: "Generated Cedar for rule '{rule}' failed schema validation: {detail}",
+    help: "This is an exporter defect; the export was withheld. Please report it.",
   },
 };
 
