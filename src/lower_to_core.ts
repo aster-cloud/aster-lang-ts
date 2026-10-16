@@ -18,6 +18,7 @@
  */
 
 import { Core } from './core/core_ir.js';
+import { markFieldTypeInferred } from './core/inferred_fields.js';
 import { parseEffect, getAllEffects, inferCapabilityFromName } from './config/semantic.js';
 import type { Effect } from './config/semantic.js';
 import { Diagnostics } from './diagnostics/diagnostics.js';
@@ -273,11 +274,16 @@ function lowerDecl(d: Declaration): import('./types.js').Core.Declaration {
       return withOrigin(
         Core.Data(
           d.name,
-          d.fields.map(f => ({
-            name: f.name,
-            type: lowerType(f.type),
-            constraints: lowerConstraints(f.constraints),
-          }))
+          d.fields.map(f => {
+            const field: import('./types.js').Core.Field = {
+              name: f.name,
+              type: lowerType(f.type),
+              constraints: lowerConstraints(f.constraints),
+            };
+            // 无类型字段记入旁路表而非 Core IR，保持 IR/golden/跨引擎指纹不变
+            if (f.typeInferred) markFieldTypeInferred(field);
+            return field;
+          })
         ),
         d
       );
