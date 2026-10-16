@@ -13,6 +13,11 @@ import type { Core } from '../types.js';
  * - 不参与 JSON 序列化，IR、golden、指纹均不变；
  * - WeakSet 不阻止 GC，Core 模块释放后条目自动消失；
  * - 不经过 lowerModule 的 Core（如从 JSON 反序列化）查不到标记，退回按 `type` 检查的既有行为。
+ *
+ * 作用范围仅限点号成员访问（typecheck/expression.ts）。以下两处仍使用按命名推断的 `type`（如 Text），
+ * 不查询本表：
+ * - `buildFieldTypeMap`（typecheck/pure.ts）：为返回类型推断提供「字段名 → 类型」映射；
+ * - Data 构造器模式解构（typecheck/pattern.ts 的 `bindPattern`）：解构出的绑定沿用字段的推断类型。
  */
 const inferredFields = new WeakSet<Core.Field>();
 

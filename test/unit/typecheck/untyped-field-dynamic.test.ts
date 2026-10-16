@@ -11,7 +11,13 @@ import { typecheckModule } from '../../../src/typecheck.js';
 import { compile } from '../../../src/browser.js';
 import { evaluate } from '../../../src/core/interpreter.js';
 import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
-import type { TypecheckDiagnostic } from '../../../src/types.js';
+import type { Core as CoreTypes, TypecheckDiagnostic } from '../../../src/types.js';
+import { Core } from '../../../src/core/core_ir.js';
+import { typeOfExpr } from '../../../src/typecheck/expression.js';
+import { SymbolTable } from '../../../src/typecheck/symbol_table.js';
+import { DiagnosticBuilder } from '../../../src/typecheck/diagnostics.js';
+import { isUnknown } from '../../../src/typecheck/pure.js';
+import type { ModuleContext } from '../../../src/typecheck/context.js';
 
 /**
  * 未声明类型的 data 字段（`Define X has a, b.`，没有 `as <Type>`）在成员访问时按动态类型处理。
@@ -28,6 +34,29 @@ const sample = readFileSync(join(repoRoot, 'test', 'fixtures', 'untyped-field', 
 function runTypecheck(source: string): TypecheckDiagnostic[] {
   const core = lowerModule(parse(lex(canonicalize(source))).ast);
   return typecheckModule(core);
+}
+
+/** 在只含 `req: GuardRequest` 的作用域里求表达式类型，用于直接断言推断结果。 */
+function typeOfDotted(core: CoreTypes.Module, dotted: string): { type: CoreTypes.Type; diags: TypecheckDiagnostic[] } {
+  const datas = new Map<string, CoreTypes.Data>();
+  for (const d of core.decls) if (d.kind === 'Data') datas.set(d.name, d);
+  const ctx: ModuleContext = {
+    datas,
+    enums: new Map(),
+    imports: new Map(),
+    funcSignatures: new Map(),
+    importedEffects: new Map(),
+    moduleSearchPaths: [],
+  };
+  const symbols = new SymbolTable();
+  symbols.define('req', Core.TypeName('GuardRequest'), 'param');
+  const diagnostics = new DiagnosticBuilder();
+  const type = typeOfExpr(ctx, symbols, Core.Name(dotted), diagnostics);
+  return { type, diags: diagnostics.getDiagnostics() };
+}
+
+function lowerSample(): CoreTypes.Module {
+  return lowerModule(parse(lex(canonicalize(sample))).ast);
 }
 
 function errors(diags: readonly TypecheckDiagnostic[]): TypecheckDiagnostic[] {
@@ -67,6 +96,44 @@ Rule decide given req as Req, produce Bool:
   test('无类型标记不进入 Core IR（golden 与 TS↔Java 指纹不变）', () => {
     const core = lowerModule(parse(lex(canonicalize(sample))).ast);
     assert.equal(JSON.stringify(core).includes('typeInferred'), false);
+  });
+
+  test('req.context.amount 推断为 Unknown（钉住类型而非仅无诊断）', () => {
+    const { type, diags } = typeOfDotted(lowerSample(), 'req.context.amount');
+    assert.equal(isUnknown(type), true, JSON.stringify(type));
+    assert.deepEqual(diags, []);
+  });
+
+  test('无类型字段作为 Int 规则的返回值不报 E003', () => {
+    const diags = runTypecheck(`
+Module test.typecheck.untyped_return.
+
+Define Req has action, context.
+
+Rule decide given req as Req, produce Int:
+  Return req.action.
+`);
+    assert.deepEqual(errors(diags).map(d => `${d.code}: ${d.message}`), []);
+  });
+
+  test('无类型字段的成员访问作为 If 条件不报 E011', () => {
+    const diags = runTypecheck(`
+Module test.typecheck.untyped_condition.
+
+Define Req has action, context.
+
+Rule decide given req as Req, produce Bool:
+  If req.context.flag:
+    Return true.
+  Return false.
+`);
+    assert.deepEqual(errors(diags).map(d => `${d.code}: ${d.message}`), []);
+  });
+
+  test('JSON 往返后标记丢失，退回按推断类型检查（身份索引设计的已知局限）', () => {
+    const roundTripped = JSON.parse(JSON.stringify(lowerSample())) as CoreTypes.Module;
+    const { diags } = typeOfDotted(roundTripped, 'req.context.amount');
+    assert.equal(diags.some(d => d.code === ErrorCode.UNKNOWN_FIELD), true);
   });
 
   test('无类型字段用于比较、算术与 List.contains 均无错误', () => {
