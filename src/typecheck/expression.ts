@@ -2,6 +2,7 @@ import type { Core } from '../types.js';
 import { DefaultCoreVisitor } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { TypeSystem } from './type_system.js';
+import { isFieldTypeInferred } from '../core/inferred_fields.js';
 import type { ModuleContext, TypecheckWalkerContext } from './context.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
@@ -36,6 +37,8 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           }
           let currentType = baseSymbol.type;
           for (const fieldName of fieldPath) {
+            // 动态值（Unknown，例如无类型字段）上的成员访问结果仍为 Unknown，不报 E011（与 Java 对齐）
+            if (isUnknown(currentType)) break;
             const expanded = TypeSystem.expand(currentType, symbols.getTypeAliases());
             // Verdict 内置字段 outcome/role/reason 一律为 Text（ADR 0039 §2.1，与 Java 对齐）
             if (isVerdictType(expanded) && isVerdictField(fieldName)) {
@@ -65,7 +68,8 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
                 this.handled = true;
                 return;
               }
-              currentType = field.type as Core.Type;
+              // 未声明类型的字段是动态值（ADR 0040 §2.2 的 Action Guard context 即无类型 map）
+              currentType = isFieldTypeInferred(field) ? unknownType() : (field.type as Core.Type);
             } else {
               diagnostics.error(ErrorCode.UNKNOWN_FIELD, originToSpan(expression.origin), {
                 field: fieldName,
