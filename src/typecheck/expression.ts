@@ -37,6 +37,10 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           let currentType = baseSymbol.type;
           for (const fieldName of fieldPath) {
             const expanded = TypeSystem.expand(currentType, symbols.getTypeAliases());
+            if (expanded.kind === 'Map') {
+              currentType = expanded.val as Core.Type;
+              continue;
+            }
             // Verdict 内置字段 outcome/role/reason 一律为 Text（ADR 0039 §2.1，与 Java 对齐）
             if (isVerdictType(expanded) && isVerdictField(fieldName)) {
               currentType = { kind: 'TypeName', name: 'Text' } as Core.TypeName;

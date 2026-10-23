@@ -20,6 +20,7 @@ import { inferFieldType, refineInferredType } from './type-inference.js';
  * 2. 推断类型: `field1 [constraints]` - CNL 语法，根据字段名和约束推断类型
  *
  * 类型推断规则：
+ * - `context`, `metadata`, `*Context`, `*Metadata` → Map<Text, Unknown>
  * - `*Id`, `*ID` → Text
  * - `*Amount`, `*Price` → Float
  * - `*Count`, `*Age`, `*Months` → Int

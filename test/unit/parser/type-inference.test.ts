@@ -178,7 +178,20 @@ describe('类型推断引擎', () => {
       });
     });
 
-    describe('默认类型推断', () => {
+  describe('默认类型推断', () => {
+    it('应该将 context 与 metadata 字段推断为 Map<Text, Unknown>', () => {
+      for (const name of ['context', 'metadata', 'requestContext', 'eventMetadata']) {
+        const inferred = inferFieldType(name);
+        assert.equal(inferred.kind, 'Map');
+        if (inferred.kind === 'Map') {
+          assert.equal(getTypeName(inferred.key), 'Text');
+          assert.equal(getTypeName(inferred.val), 'Unknown');
+        }
+      }
+      assert.strictEqual(getTypeName(inferFieldType('contextual')), 'Text');
+      assert.strictEqual(getTypeName(inferFieldType('metadataId')), 'Text');
+    });
+
       it('无法匹配规则时应该返回 Text', () => {
         assert.strictEqual(getTypeName(inferFieldType('data')), 'Text');
         assert.strictEqual(getTypeName(inferFieldType('xyz')), 'Text');

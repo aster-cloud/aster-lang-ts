@@ -49,6 +49,9 @@ export type { TypeInferenceRule, PrimitiveTypeName };
  * 已拆分至 config/lexicons/type-inference-rules.ts（overlay 模式）。
  */
 export const BASE_NAMING_RULES: readonly TypeInferenceRule[] = [
+  // 上下文容器（动态键包）：与 Java TypeInference 的 Map 规则同一正则，两侧 IR 必须一致
+  { pattern: /^(?:context|metadata)$/i, type: 'Map', priority: 12 },
+  { pattern: /(?<=[a-z0-9])(?:Context|Metadata)$/, type: 'Map', priority: 12 },
   // 明确文本
   { pattern: /(?:Message|Dosage)$/i, type: 'Text', priority: 11 },
   // ID/标识符（所有语言通用）
@@ -134,6 +137,9 @@ export function inferFieldType(
   if (constraintDriven) return createPrimitiveType(constraintDriven);
 
   const nameDriven = inferFromName(fieldName, lexicon);
+  if (nameDriven === 'Map') {
+    return Node.Map(Node.TypeName('Text'), Node.TypeName('Unknown'));
+  }
   if (nameDriven) return createPrimitiveType(nameDriven);
 
   return createPrimitiveType(DEFAULT_TYPE);
@@ -225,7 +231,7 @@ function getMergedRules(lexicon?: Lexicon): readonly TypeInferenceRule[] {
 /**
  * 从字段名推断类型
  */
-function inferFromName(fieldName: string, lexicon?: Lexicon): PrimitiveTypeName | null {
+function inferFromName(fieldName: string, lexicon?: Lexicon): TypeInferenceRule['type'] | null {
   const rules = getMergedRules(lexicon);
   let matchedRule: TypeInferenceRule | null = null;
 

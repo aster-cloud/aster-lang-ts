@@ -15,7 +15,7 @@ export interface TypeInferenceRule {
   /** 字段名匹配模式 */
   readonly pattern: RegExp;
   /** 推断的类型 */
-  readonly type: PrimitiveTypeName;
+  readonly type: PrimitiveTypeName | 'Map';
   /** 优先级（数值越大优先级越高） */
   readonly priority: number;
 }

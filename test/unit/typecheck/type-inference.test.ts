@@ -99,6 +99,36 @@ Rule buildUser, produce User:
     assert.equal(diagnostics.some(d => d.code === ErrorCode.UNKNOWN_FIELD), true);
   });
 
+  test('context 映射字段允许动态点访问且 List 点访问仍报错', () => {
+    const diagnostics = runTypecheck(`
+Module test.typecheck.context_map.
+
+Define GuardRequest has principal_id, principal_type, principal_roles, action, resource_type, resource_id, context, agent_model.
+Define Bag has tags as List<Text>.
+
+Rule decide given req as GuardRequest, produce Bool:
+  Let large be req.context.amount at least 10000.
+  Let enabled be req.context.flag equals to true.
+  Return large and enabled.
+
+Rule invalidList given bag as Bag, produce Text:
+  Return bag.tags.x.
+`);
+    assert.equal(diagnostics.filter(d => d.code === ErrorCode.UNKNOWN_FIELD).length, 1);
+  });
+
+  test('显式声明为 Text 的 context 不会变成动态 Map', () => {
+    const diagnostics = runTypecheck(`
+Module test.typecheck.explicit_context_text.
+
+Define Request has context as Text.
+
+Rule readAmount given req as Request, produce Int:
+  Return req.context.amount.
+`);
+    assert.equal(diagnostics.some(d => d.code === ErrorCode.UNKNOWN_FIELD), true);
+  });
+
   test('字段类型不匹配应该触发 FIELD_TYPE_MISMATCH', () => {
     const diagnostics = runTypecheck(`
 Module test.typecheck.field_type.
