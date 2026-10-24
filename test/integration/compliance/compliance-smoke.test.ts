@@ -34,6 +34,10 @@ const COMPLIANCE_DEMOS = [
     moduleName: 'examples.compliance.soc2_audit_demo',
     expectedFunctions: ['compute_hash', 'verify_record_integrity', 'verify_chain_link', 'verify_one_record', 'verify_audit_chain', 'generate_soc2_report', 'create_genesis_record', 'append_audit_record', 'demo_valid_chain', 'demo_tampered_chain'],
     expectedRecords: ['AuditRecord', 'ChainVerificationResult', 'ChainState'],
+    // 样本 L56 与 L59 两个兄弟 If 分支各 `Let msg`；Java 的 If 分支与函数体共享作用域，第二次定义处（L59）
+    // 报 E104，生产 aster-api 实测一致。TS 已按同一规则对齐（aster-lang-ts#231），故精确登记；样本修复后
+    // （aster-lang-test#164）本条会因「已知错误未出现」而失败，届时删除。
+    knownParityErrors: [{ code: 'E104', line: 59 }],
   },
   {
     name: 'HIPAA 访问控制验证',
@@ -63,11 +67,20 @@ const COMPLIANCE_DEMOS = [
  * @param source CNL 源代码
  * @returns 编译结果和诊断信息
  */
-function compileEnd2End(source: string): {
+type KnownParityError = { code: string; line: number };
+
+function isKnownParityError(
+  d: { code?: string; span?: { start: { line: number } } },
+  known: readonly KnownParityError[],
+): boolean {
+  return known.some((k) => k.code === d.code && k.line === d.span?.start.line);
+}
+
+function compileEnd2End(source: string, known: readonly KnownParityError[] = []): {
   success: boolean;
   ast: AstModule | null;
   core: Core.Module | null;
-  diagnostics: Array<{ severity: string; message: string; code?: string }>;
+  diagnostics: Array<{ severity: string; message: string; code?: string; span?: { start: { line: number } } }>;
   error: Error | null;
 } {
   try {
@@ -86,8 +99,8 @@ function compileEnd2End(source: string): {
     // 阶段 5: 类型检查
     const diagnostics = typecheckModule(core);
 
-    // 只有 error 级别的诊断才算失败
-    const errors = diagnostics.filter(d => d.severity === 'error');
+    // 只有 error 级别的诊断才算失败；已精确登记的跨引擎已知错误（code + 行号）不计入
+    const errors = diagnostics.filter(d => d.severity === 'error' && !isKnownParityError(d, known));
 
     return {
       success: errors.length === 0,
@@ -122,7 +135,7 @@ describe('合规示例冒烟测试', () => {
 
       before(() => {
         source = readDemoFile(demo.corpusPath);
-        result = compileEnd2End(source);
+        result = compileEnd2End(source, demo.knownParityErrors ?? []);
       });
 
       it('corpus 样本应该可被加载', () => {
@@ -140,6 +153,15 @@ describe('合规示例冒烟测试', () => {
           assert.fail(`编译失败，发现 ${errors.length} 个错误:\n${errorMessages}`);
         }
         assert.ok(result.success, '编译应该成功');
+      });
+
+      it('已登记的跨引擎已知错误必须仍然出现（样本修复后删除登记）', () => {
+        for (const k of demo.knownParityErrors ?? []) {
+          assert.ok(
+            result.diagnostics.some((d) => d.severity === 'error' && isKnownParityError(d, [k])),
+            `已知错误 ${k.code}@L${k.line} 未出现：样本可能已修复，请删除 knownParityErrors 登记`,
+          );
+        }
       });
 
       it('应该生成有效的 AST', () => {

@@ -1,0 +1,45 @@
+Modul versicherung.kfz.
+
+Definiere Fahrer hat
+  kennung,
+  alter,
+  fuehrerscheinJahre,
+  unfaelle,
+  verstoesse.
+
+Definiere Fahrzeug hat
+  fahrgestellnummer,
+  baujahr,
+  wert,
+  sicherheitsbewertung.
+
+Definiere Angebot hat
+  genehmigt as Boolesch,
+  praemie as Ganzzahl,
+  selbstbeteiligung as Ganzzahl,
+  begruendung.
+
+Regel angebotErstellen gegeben fahrer, fahrzeug, liefert:
+  wenn fahrer.alter kleiner als 18
+    gib zurueck Angebot mit genehmigt setze auf falsch, praemie setze auf 0, selbstbeteiligung setze auf 0, begruendung setze auf "Fahrer unter 18".
+  wenn fahrer.unfaelle groesser als 3
+    gib zurueck Angebot mit genehmigt setze auf falsch, praemie setze auf 0, selbstbeteiligung setze auf 0, begruendung setze auf "Zu viele Unfaelle".
+  sei basisPraemie gleich basisBerechnen(fahrer, fahrzeug).
+  sei risikoFaktor gleich risikoBerechnen(fahrer).
+  sei endPraemie gleich basisPraemie mal risikoFaktor geteilt durch 100.
+  gib zurueck Angebot mit genehmigt setze auf wahr, praemie setze auf endPraemie, selbstbeteiligung setze auf 500, begruendung setze auf "Genehmigt".
+
+Regel basisBerechnen gegeben fahrer, fahrzeug, liefert:
+  wenn fahrer.alter kleiner als 25
+    gib zurueck 300.
+  wenn fahrer.alter kleiner als 65
+    gib zurueck 200.
+  gib zurueck 250.
+
+Regel risikoBerechnen gegeben fahrer, liefert:
+  sei basis gleich 100.
+  wenn fahrer.unfaelle groesser als 0
+    sei basis gleich basis plus fahrer.unfaelle mal 20.
+  wenn fahrer.verstoesse groesser als 0
+    sei basis gleich basis plus fahrer.verstoesse mal 10.
+  gib zurueck basis.
