@@ -12,7 +12,9 @@
 /** 变换器接口：接收源代码行，返回变换后的行 */
 export interface SyntaxTransformer {
   readonly name: string;
-  transform(source: string): string;
+  /** 内置变换器自行按完整源码上下文保护字符串，避免切片改变正则锚点语义。 */
+  readonly stringSafe?: boolean;
+  transform(source: string, quotes?: { open: string; close: string }): string;
 }
 
 // ============================================================
@@ -63,8 +65,9 @@ const POSSESSIVE_RE = /(?<!\p{L})([\p{L}][\p{L}0-9_]*)'s[ \t]+(?=[\p{L}])/gu;
 
 const englishPossessive: SyntaxTransformer = {
   name: 'english-possessive',
-  transform(source: string): string {
-    return source.replace(POSSESSIVE_RE, '$1.');
+  stringSafe: true,
+  transform(source: string, quotes = { open: '"', close: '"' }): string {
+    return replaceOutsideStrings(source, POSSESSIVE_RE, match => `${match[1]}.`, quotes);
   },
 };
 
@@ -92,9 +95,9 @@ const SET_TO_RE = /^([ \t]*)Set\s+([\p{L}][\p{L}0-9_]*)\s+to\s+/gmu;
 
 const setTo: SyntaxTransformer = {
   name: 'set-to',
-  transform(source: string): string {
-    SET_TO_RE.lastIndex = 0;
-    return source.replace(SET_TO_RE, '$1Let $2 be ');
+  stringSafe: true,
+  transform(source: string, quotes = { open: '"', close: '"' }): string {
+    return replaceOutsideStrings(source, SET_TO_RE, match => `${match[1]}Let ${match[2]} be `, quotes);
   },
 };
 
@@ -114,9 +117,9 @@ const RESULT_IS_RE = /^([ \t]*)The result is\s+/gmu;
 
 const resultIs: SyntaxTransformer = {
   name: 'result-is',
-  transform(source: string): string {
-    RESULT_IS_RE.lastIndex = 0;
-    return source.replace(RESULT_IS_RE, '$1Return ');
+  stringSafe: true,
+  transform(source: string, quotes = { open: '"', close: '"' }): string {
+    return replaceOutsideStrings(source, RESULT_IS_RE, match => `${match[1]}Return `, quotes);
   },
 };
 
@@ -146,13 +149,116 @@ export function registerTransformer(transformer: SyntaxTransformer): void {
 /**
  * 按名称列表依次应用变换器到源代码。
  */
-export function applyTransformers(source: string, names: readonly string[]): string {
+export function applyTransformers(
+  source: string,
+  names: readonly string[],
+  quotes: { open: string; close: string } = { open: '"', close: '"' },
+): string {
   let result = source;
   for (const name of names) {
     const t = registry.get(name);
     if (t) {
-      result = t.transform(result);
+      result = t.stringSafe
+        ? t.transform(result, quotes)
+        : transformOutsideStrings(result, quotes, text => t.transform(text, quotes));
     }
   }
   return result;
+}
+
+/** 按 Java StringSegmenter.segment 的引号与转义规则变换字符串外片段。 */
+function transformOutsideStrings(
+  source: string,
+  quotes: { open: string; close: string },
+  transform: (text: string) => string,
+): string {
+  const quotePairs = new Map<string, string>([[quotes.open, quotes.close]]);
+  if (quotes.open !== '"') quotePairs.set('"', '"');
+  quotePairs.set('“', '”');
+
+  let output = '';
+  let current = '';
+  let inString = false;
+  let expectedClose = '';
+
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i]!;
+    current += ch;
+
+    if (inString) {
+      if (ch === expectedClose && !isEscaped(source, i)) {
+        output += current;
+        current = '';
+        inString = false;
+        expectedClose = '';
+      }
+      continue;
+    }
+
+    const close = quotePairs.get(ch);
+    if (close !== undefined && !isEscaped(source, i)) {
+      output += transform(current.slice(0, -1));
+      current = ch;
+      inString = true;
+      expectedClose = close;
+    }
+  }
+
+  output += inString ? current : transform(current);
+  return output;
+}
+
+function isEscaped(source: string, index: number): boolean {
+  let slashes = 0;
+  for (let i = index - 1; i >= 0 && source[i] === '\\'; i--) slashes++;
+  return slashes % 2 === 1;
+}
+
+/** 在完整源码上匹配正则，只忽略与字符串区间相交的匹配。 */
+function replaceOutsideStrings(
+  source: string,
+  pattern: RegExp,
+  replace: (match: RegExpExecArray) => string,
+  quotes: { open: string; close: string },
+): string {
+  const stringRanges: Array<[number, number]> = [];
+  let inString = false;
+  let start = -1;
+  let expectedClose = '';
+  const quotePairs = new Map<string, string>([[quotes.open, quotes.close]]);
+  if (quotes.open !== '"') quotePairs.set('"', '"');
+  quotePairs.set('“', '”');
+
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i]!;
+    if (inString) {
+      if (ch === expectedClose && !isEscaped(source, i)) {
+        stringRanges.push([start, i + 1]);
+        inString = false;
+      }
+    } else {
+      const close = quotePairs.get(ch);
+      if (close !== undefined && !isEscaped(source, i)) {
+        start = i;
+        expectedClose = close;
+        inString = true;
+      }
+    }
+  }
+  if (inString) stringRanges.push([start, source.length]);
+
+  pattern.lastIndex = 0;
+  let rangeIndex = 0;
+  return source.replace(pattern, (matched, ...args: unknown[]) => {
+    const offset = args[args.length - 2] as number;
+    const end = offset + matched.length;
+    while (rangeIndex < stringRanges.length && stringRanges[rangeIndex]![1] <= offset) rangeIndex++;
+    const range = stringRanges[rangeIndex];
+    const overlapsString = range !== undefined && offset < range[1] && end > range[0];
+    if (overlapsString) return matched;
+
+    const captures = args.slice(0, -2) as string[];
+    const groups = [matched, ...captures];
+    return replace(groups as unknown as RegExpExecArray);
+  });
 }
