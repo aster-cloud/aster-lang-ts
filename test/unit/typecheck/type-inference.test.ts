@@ -21,6 +21,30 @@ function codes(diags: readonly TypecheckDiagnostic[]): ErrorCode[] {
 }
 
 describe('类型推导与诊断', () => {
+  test('lambda 形参重名应该触发 DUPLICATE_SYMBOL', () => {
+    const diagnostics = runTypecheck(`
+Module test.typecheck.lambda.duplicate_param.
+
+Rule create, produce Int:
+  Let f be function with y as Int and y as Int, produce Int:
+    Return y.
+  Return 0.
+`);
+    assert.equal(diagnostics.filter(d => d.code === ErrorCode.DUPLICATE_SYMBOL).length, 1);
+  });
+
+  test('lambda 体内未定义变量应该触发 UNDEFINED_VARIABLE', () => {
+    const diagnostics = runTypecheck(`
+Module test.typecheck.lambda.undefined_name.
+
+Rule create, produce Int:
+  Let f be function with y as Int, produce Int:
+    Return missing.
+  Return 0.
+`);
+    assert.equal(diagnostics.some(d => d.code === ErrorCode.UNDEFINED_VARIABLE), true);
+  });
+
   test('泛型恒等函数应该无诊断', () => {
     const diagnostics = runTypecheck(`
 Module test.typecheck.identity.

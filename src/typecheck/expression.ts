@@ -4,8 +4,10 @@ import { ErrorCode } from '../diagnostics/error_codes.js';
 import { TypeSystem } from './type_system.js';
 import { isFieldTypeInferred } from '../core/inferred_fields.js';
 import type { ModuleContext, TypecheckWalkerContext } from './context.js';
+import { defineSymbol } from './context.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
+import { typecheckBlock } from './statement.js';
 import {
   formatType,
   isAssignable,
@@ -223,10 +225,33 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
       }
       case 'Lambda': {
         const params = expression.params.map(param => normalizeType(param.type as Core.Type)) as readonly Core.Type[];
+        const ret = normalizeType(expression.retType as Core.Type);
+        symbols.enterScope('lambda');
+        try {
+          expression.params.forEach((param, index) => {
+            defineSymbol(
+              { module, symbols, diagnostics },
+              param.name,
+              params[index]!,
+              'param',
+              // 形参节点不带位置信息：用 lambda 自身的 origin 定位 E104。
+              originToSpan(expression.origin),
+            );
+          });
+          const bodyType = typecheckBlock(module, symbols, expression.body, diagnostics);
+          if (!isUnknown(bodyType) && !isUnknown(ret) && !isAssignable(ret, bodyType)) {
+            diagnostics.error(ErrorCode.RETURN_TYPE_MISMATCH, originToSpan(expression.origin), {
+              expected: formatType(ret),
+              actual: formatType(bodyType),
+            });
+          }
+        } finally {
+          symbols.exitScope();
+        }
         const funcType: Core.FuncType = {
           kind: 'FuncType',
           params,
-          ret: normalizeType(expression.ret as Core.Type),
+          ret,
           effectParams: [],
           declaredEffects: [],
         };
