@@ -123,6 +123,65 @@ const resultIs: SyntaxTransformer = {
   },
 };
 
+/**
+ * 中文函数头变换器：`规则 名（参数）：` → `Rule 名 given 参数 ：`。
+ *
+ * 逐字移植 aster-lang-locales `ChineseFunctionSyntaxTransformer`：字符集按 Java 语义逐项写出
+ * （WS 为 Unicode White_Space，LT 为 Java 行终止符），参数 trim 同 Java `String.trim()`，
+ * 截断规则相同，因此任意输入的输出与 Java 字节相同（见 chinese-function-syntax-parity 夹具）。
+ * 输出英文 `Rule`/`given` 与 Java 同形；本引擎 zh-CN 词法同样识别这两个英文关键字。
+ * 参数须写成 `名 作为 类型`，`名: 类型` 会被重排但语法不接受。
+ *
+ * 运行于全角转半角之前，故括号两种宽度都要认；行尾 `：` 与参数间的 `，` 原样留给后续步骤。
+ * 不设 stringSafe：与 Java 侧一样经 segmenter 只改写字符串之外的片段。
+ */
+const WS = '\\t\\n\\u000B\\u000C\\r \\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000';
+const LT = '\\n\\r\\u0085\\u2028\\u2029';
+const HWS = '\\t\\u000B\\u000C \\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000';
+const RULE_FUNC_RE = new RegExp(
+  `(?<![^${LT}])([${HWS}]*)(?:规则|Rule)[${WS}]+([\\p{L}][\\p{L}0-9_]*)[${WS}]*` +
+    `[(（]([^)）]*?)[)）][${WS}]*([^${LT}]*)`,
+  'gu',
+);
+const WS_CHAR = new RegExp(`[${WS}]`, 'u');
+const LT_CHAR = new RegExp(`[${LT}]`, 'u');
+
+/**
+ * 截断点：最后一个右括号之后跳过空白，再到下一个行终止符（或片段末尾）；无右括号时为 0。
+ *
+ * 每个匹配都必须含右括号，且以右括号后的空白与该行剩余部分收尾，所以截断点之后不可能有匹配，
+ * 之前的匹配也不会越过截断点。不截断时，最后一个右括号之后每个 `规则 名(` 行首都会让惰性
+ * 参数组扫到片段末尾再失败，耗时随源码长度平方增长。
+ */
+function matchableEnd(s: string): number {
+  let i = Math.max(s.lastIndexOf(')'), s.lastIndexOf('）'));
+  if (i < 0) return 0;
+  i++;
+  while (i < s.length && WS_CHAR.test(s[i]!)) i++;
+  while (i < s.length && !LT_CHAR.test(s[i]!)) i++;
+  return i;
+}
+
+/** 同 Java String.trim()：只去掉 U+0000–U+0020，全角空格保留（JS trim 会多去一类）。 */
+function javaTrim(s: string): string {
+  return s.replace(/^[\u0000- ]+|[\u0000- ]+$/g, '');
+}
+
+export function rewriteRuleFunc(s: string): string {
+  const cut = matchableEnd(s);
+  if (cut === 0) return s;
+  const head = s.slice(0, cut).replace(RULE_FUNC_RE, (_m, indent: string, name: string, rawParams: string, rest: string) => {
+    const params = javaTrim(rawParams);
+    return params === '' ? `${indent}Rule ${name} ${rest}` : `${indent}Rule ${name} given ${params} ${rest}`;
+  });
+  return head + s.slice(cut);
+}
+
+const chineseFunctionSyntax: SyntaxTransformer = {
+  name: 'chinese-function-syntax',
+  transform: rewriteRuleFunc,
+};
+
 // ============================================================
 // 变换器注册表
 // ============================================================
@@ -131,6 +190,7 @@ const registry = new Map<string, SyntaxTransformer>();
 registry.set('english-possessive', englishPossessive);
 registry.set('set-to', setTo);
 registry.set('result-is', resultIs);
+registry.set('chinese-function-syntax', chineseFunctionSyntax);
 
 /**
  * 根据名称获取变换器。

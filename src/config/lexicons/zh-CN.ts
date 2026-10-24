@@ -135,6 +135,7 @@ export const ZH_CN: Lexicon = {
         closer: 'NEWLINE',
       },
     ],
+    preTranslationTransformers: ['chinese-function-syntax'],
   },
 
   messages: {

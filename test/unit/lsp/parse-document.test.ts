@@ -24,6 +24,46 @@ describe('parseDocumentText', () => {
     assert.deepEqual(funcs, ['twice']);
   });
 
+  it('★zh-CN 括号函数头（aster-lang-ts#236）：参数精确对齐原文，插入的关键字不盖住标识符', () => {
+    // 重排成 `Rule 折扣 given 甲 …` 后比原文长；参数须仍为 exact（重命名只基于 exact），
+    // 插入的 given 在原文没有对应文本，其区间不得覆盖紧随其后的 甲。
+    const zh = LexiconRegistry.get('zh-CN');
+    const text = '模块 测试。\n\n规则 折扣（甲 作为 整数，乙 作为 整数），产出 整数：\n  返回 甲。\n';
+    const header = text.split('\n')[2]!;
+    const r = parseDocumentText(text, zh, undefined, undefined);
+    assert.deepEqual(r.parseDiagnostics, []);
+    const onHeader = r.tokens.filter((t) => t.start?.line === 3 && t.end?.line === 3);
+    const at = (value: string): (typeof onHeader)[number] => onHeader.find((t) => t.value === value)!;
+    for (const name of ['折扣', '甲', '乙']) {
+      const t = at(name);
+      assert.equal(t.srcAlign, 'exact', `${name} 应精确对齐`);
+      assert.equal(header.slice(t.start!.col - 1, t.end!.col - 1), name);
+    }
+    for (let i = 0; i + 1 < onHeader.length; i++) {
+      assert.ok(onHeader[i]!.end!.col <= onHeader[i + 1]!.start!.col, `token ${i} 的区间与下一个重叠`);
+    }
+    const params = (r.ast as unknown as { decls: Array<{ params: Array<{ name: string; span: { start: { col: number } } }> }> })
+      .decls[0]!.params;
+    assert.deepEqual(params.map((p) => [p.name, header[p.span.start.col - 1]]), [['甲', '甲'], ['乙', '乙']]);
+  });
+
+  it('de-DE 转写关键字（zurueck → zurück）后的标识符仍精确对齐，所有 token 区间互不重叠', () => {
+    // 推算 token 的游标与区间截断对 en/de 同样生效，这里钉住 de 的典型推算场景。
+    const de = LexiconRegistry.get('de-DE');
+    const text = 'Modul demo.p.\n\nRegel helfer gegeben eine größe als Ganzzahl, liefert Ganzzahl:\n  gib zurueck größe plus 1.\n';
+    const body = text.split('\n')[3]!;
+    const r = parseDocumentText(text, de, undefined, undefined);
+    const onBody = r.tokens.filter((t) => t.start?.line === 4 && t.end?.line === 4);
+    const groesse = onBody.find((t) => t.value === 'größe')!;
+    assert.equal(groesse.srcAlign, 'exact');
+    assert.equal(body.slice(groesse.start!.col - 1, groesse.end!.col - 1), 'größe');
+    const sameLine = r.tokens.filter((t) => t.start && t.end && t.start.line === t.end.line);
+    for (let i = 0; i + 1 < sameLine.length; i++) {
+      const [a, b] = [sameLine[i]!, sameLine[i + 1]!];
+      if (a.start!.line === b.start!.line) assert.ok(a.end!.col <= b.start!.col, `第 ${a.start!.line} 行 token ${String(a.value)} 与下一个重叠`);
+    }
+  });
+
   it('en-US（无 lexicon）行为不变', () => {
     const text = 'Module demo.p.\n\nRule twice given x as Int, produce Int:\n  Return x times 2.\n';
     const r = parseDocumentText(text, undefined, undefined, undefined);
