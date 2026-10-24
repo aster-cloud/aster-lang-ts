@@ -768,6 +768,8 @@ class Interpreter {
   private steps = 0;
   /** 本次执行累计物化的集合元素数（见 MAX_ALLOCATION_BUDGET）。 */
   private allocated = 0;
+  /** 当前 builtin 已准入扣除的计量数，供结果记账时抵扣。 */
+  private prechargedAllocation = 0;
   /** 步数上限（默认 MAX_STEPS，可由受信调用方上调） */
   private readonly maxSteps: number;
   /** 调用深度计数器（防无限递归） */
@@ -1128,7 +1130,8 @@ class Interpreter {
         // 累计分配预算：在**唯一调用点**统一计量，而非 evalStdlibCall 内部 70+ 个
         // return 逐个补——逐个补必然漏掉新增的那个。与 truffle Builtins.call 同位置。
         // （本引擎这里确实是唯一调用点；truffle 侧则不是，内联特化会绕过 Builtins.call。）
-        this.chargeAllocation(stdlib);
+        this.chargeAllocation(stdlib, this.prechargedAllocation);
+        this.prechargedAllocation = 0;
         return stdlib;
       }
     }
@@ -1248,7 +1251,8 @@ class Interpreter {
       }
     }
     const text = (v: unknown): string => String(v);
-    const a = (): unknown[] => argExprs.map((e) => this.evalExpr(e, env));
+    let evaluatedArgs: unknown[] | undefined;
+    const a = (): unknown[] => evaluatedArgs ??= argExprs.map((e) => this.evalExpr(e, env));
     // 解析"可调用"参数：若是引用模块函数的裸 Name（非局部变量），返回函数名字符串
     // 供 applyCallable 按名调用（如 List.map(xs, id)）；否则正常求值（→ Closure）。
     const callableArg = (idx: number): unknown => {
@@ -1269,7 +1273,11 @@ class Interpreter {
       return l;
     };
     switch (name) {
-      case 'Text.concat': { const [x, y] = a(); return text(x) + text(y); }
+      case 'Text.concat': {
+        const [x, y] = a();
+        this.prechargeAllocation(text(x).length + text(y).length);
+        return text(x) + text(y);
+      }
       case 'Text.toUpper': return text(a()[0]).toUpperCase();
       case 'Text.toLower': return text(a()[0]).toLowerCase();
       case 'Text.length': return text(a()[0]).length;
@@ -1348,8 +1356,19 @@ class Interpreter {
         return list[idx];
       }
       case 'List.contains': { const [l, x] = a(); return reqList('List.contains', l).some((y) => valueEquals(y, x)); }
-      case 'List.append': { const [l, x] = a(); return [...reqList('List.append', l), x]; }
-      case 'List.concat': { const [l1, l2] = a(); return [...(Array.isArray(l1) ? l1 : []), ...(Array.isArray(l2) ? l2 : [])]; }
+      case 'List.append': {
+        const [l, x] = a();
+        const list = reqList('List.append', l);
+        this.prechargeAllocation(list.length + 1);
+        return [...list, x];
+      }
+      case 'List.concat': {
+        const [l1, l2] = a();
+        const left = Array.isArray(l1) ? l1 : [];
+        const right = Array.isArray(l2) ? l2 : [];
+        this.prechargeAllocation(left.length + right.length);
+        return [...left, ...right];
+      }
       // Map.* — guest map 以真正的 Map（GuestMap）作后端：防原型污染 / 链泄漏，
       // 且保留插入序（含数字样式键，对齐 JVM LinkedHashMap）。绝不用 key in obj / obj[key]。
       case 'Map.empty': return new GuestMap();
@@ -1514,6 +1533,7 @@ class Interpreter {
         if (size > MAX_RANGE_SIZE) {
           throw new InterpreterError(`List.range: 长度过大（${size} > ${MAX_RANGE_SIZE}），拒绝以防内存耗尽 DoS`);
         }
+        this.prechargeAllocation(Math.max(0, size));
         const out: number[] = [];
         for (let i = start; i < end; i++) out.push(i);
         return out;
@@ -1930,8 +1950,12 @@ class Interpreter {
    * Collection、会被计量；TS 的 Set 不是 Array、不会被计量），就是 parity 分叉。
    * 现已确认两侧均无 builtin 返回 Set。
    */
-  private chargeAllocation(result: unknown): void {
-    const count = this.countElements(result, 0);
+  private chargeAllocation(result: unknown, precharged = 0): void {
+    const count = Math.max(0, this.countElements(result, 0) - precharged);
+    this.chargeAllocationCount(count);
+  }
+
+  private chargeAllocationCount(count: number): void {
     if (count <= 0) return;
     // 先判溢出再累加，与 truffle AllocationBudget.charge 同形。
     if (
@@ -1944,6 +1968,12 @@ class Interpreter {
       );
     }
     this.allocated += count;
+  }
+
+  /** 在已知结果规模时先扣预算，避免超限结果先被物化。 */
+  private prechargeAllocation(count: number): void {
+    this.chargeAllocationCount(count);
+    this.prechargedAllocation = count;
   }
 
   /**

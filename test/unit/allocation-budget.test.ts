@@ -45,6 +45,33 @@ Rule main given seed as Int, produce Int:
     assert.match(String(ev.error), /分配预算耗尽/);
   });
 
+  it('拒绝最终 concat 前不迭代其输入，且预算内结果仍按原规模记账', () => {
+    const src = `Module p.
+Rule main given seed as Int, produce Int:
+  Let a be List.range(0, 1000000).
+  Let b be List.concat(a, a).
+  Let c be List.concat(b, b).
+  Return List.length(List.concat(c, c)).`;
+    const m = compile(src);
+    assert.ok(m.core);
+
+    const originalIterator = Array.prototype[Symbol.iterator];
+    let fourMillionElementIterations = 0;
+    Array.prototype[Symbol.iterator] = function <T>(this: T[]): ArrayIterator<T> {
+      if (this.length === 4_000_000) fourMillionElementIterations++;
+      return originalIterator.call(this);
+    };
+    try {
+      const ev = evaluate(m.core!, 'main', { seed: 0 }, { maxSteps: 5_000_000 });
+      assert.equal(ev.success, false);
+      assert.match(String(ev.error), /分配预算耗尽/);
+      // c 的既有结果记账会迭代一次；最终 concat 若先物化，会再迭代输入两次。
+      assert.equal(fourMillionElementIterations, 1, '超限的最终 concat 不得迭代/复制输入');
+    } finally {
+      Array.prototype[Symbol.iterator] = originalIterator;
+    }
+  });
+
   it('★攻击藏在 lambda 回调里也必须被拦住', () => {
     // 预算重置点若做成「每次 lambda 调用都清零」，List.map 的每次回调都会把额度
     // 清空 → 守护形同虚设，而上一个用例**依然全绿**（它不经过 lambda）。
@@ -148,6 +175,21 @@ Rule main given seed as Int, produce Int:
     const ev = evaluate(m.core!, 'main', { seed: 0 }, { maxSteps: 5_000_000 });
     assert.ok(ev.success, `合法用例不应被拒: ${ev.error ?? ''}`);
     assert.equal(ev.value, 2_000_000);
+  });
+
+  it('append、range 与 Text.concat 的正常结果不因准入记账而双计', () => {
+    const src = `Module p.
+Rule main given seed as Int, produce Int:
+  Let a be List.range(0, 100).
+  Let b be List.append(a, 100).
+  Let c be List.concat(a, b).
+  Let t be Text.concat("hello", "world").
+  Return List.length(c) plus Text.length(t).`;
+    const m = compile(src);
+    assert.ok(m.core);
+    const ev = evaluate(m.core!, 'main', { seed: 0 });
+    assert.ok(ev.success, `预算内结果不应被误拒: ${ev.error ?? ''}`);
+    assert.equal(ev.value, 211);
   });
 
   it('预算不跨执行残留（连续三次同一程序结果一致）', () => {
