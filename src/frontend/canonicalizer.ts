@@ -421,7 +421,7 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
 
   // 翻译前变换器（如英语所有格 driver's age → driver.age）
   if (effectiveLexicon.canonicalization.preTranslationTransformers?.length) {
-    s = applyTransformers(s, effectiveLexicon.canonicalization.preTranslationTransformers);
+    s = applyTransformers(s, effectiveLexicon.canonicalization.preTranslationTransformers, quotes);
   }
 
   // 全角转半角（如果配置启用）。传入引号对以保护字符串字面量——
@@ -501,7 +501,7 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   // Step 1.5: 翻译后变换器（如 "The result is X" → "Return X", "Set X to Y" → "Let X be Y"）
   // 必须在冠词移除之前执行，否则 "The" 会被先移除导致 result-is 无法匹配
   if (effectiveLexicon.canonicalization.postTranslationTransformers?.length) {
-    marked = applyTransformers(marked, effectiveLexicon.canonicalization.postTranslationTransformers);
+    marked = applyTransformers(marked, effectiveLexicon.canonicalization.postTranslationTransformers, quotes);
   }
 
   // Step 2: Remove articles in allowed contexts (lightweight; parser will enforce correctness)
