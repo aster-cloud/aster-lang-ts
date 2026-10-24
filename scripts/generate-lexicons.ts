@@ -14,6 +14,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { getTransformer } from '../src/frontend/transformers.js';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ─── JSON Schema ────────────────────────────────────────────
@@ -185,7 +187,13 @@ function generateLexiconFile(lex: ExportedLexicon, tokenKinds: string[]): string
     lines.push(`    ],`);
   }
 
-  // 丢弃 preTranslationTransformers / postTranslationTransformers（Java-only 概念）
+  // 变换器清单只保留本引擎已移植并对内置词法启用的条目，其余仍是 Java 侧概念。
+  for (const key of ['preTranslationTransformers', 'postTranslationTransformers'] as const) {
+    const enabled = (canon[key] ?? []).filter(name => TS_ENABLED_TRANSFORMERS.has(name));
+    if (enabled.length > 0) {
+      lines.push(`    ${key}: [${enabled.map(quote).join(', ')}],`);
+    }
+  }
 
   lines.push(`  },`);
   lines.push(``);
@@ -206,6 +214,12 @@ function generateLexiconFile(lex: ExportedLexicon, tokenKinds: string[]): string
   return lines.join('\n');
 }
 
+/**
+ * 内置词法中由本引擎执行的变换器（须已在 src/frontend/transformers.ts 注册）。
+ * english-possessive / set-to / result-is 虽有实现，但从未对内置词法启用，启用它们是另一项行为变更。
+ */
+const TS_ENABLED_TRANSFORMERS: ReadonlySet<string> = new Set(['chinese-function-syntax']);
+
 /** 安全引号：使用单引号，转义内部单引号和反斜杠 */
 function quote(s: string): string {
   const escaped = s
@@ -217,6 +231,9 @@ function quote(s: string): string {
 // ─── 主流程 ──────────────────────────────────────────────────
 
 function main(): void {
+  for (const name of TS_ENABLED_TRANSFORMERS) {
+    if (!getTransformer(name)) throw new Error(`TS_ENABLED_TRANSFORMERS 含未注册的变换器：${name}`);
+  }
   const args = process.argv.slice(2).filter(a => a !== '--');
   const jsonPath = args[0]
     ?? resolve(__dirname, '../../aster-lang-core/build/generated/lexicons/lexicons.json');

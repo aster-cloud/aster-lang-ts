@@ -5,7 +5,7 @@
  *   折叠多余空格、tab → 两个空格、仅对关键字生效的转写（de: zurueck → zurück）等。
  *   lexer 在规范化文本上给出的列号直接用于原文，会让重命名改错位置
  *   （`Let the total be helper(x).` 里改 helper 实际改掉了 ` be he`）、高亮偏移、
- *   跳转定义命中不到。zh 的规范化恰好等长，所以只在 en/de 暴露。
+ *   跳转定义命中不到。zh 的规范化多数等长，括号函数头重排（规则 名（参数）：）例外。
  *
  * 做法：规范化保持行数不变（注释行留空行占位）。逐行把 token 按顺序在原文该行里找对应
  * 文本（标识符按 Unicode 词边界），找到即精确映射；找不到（被转写的关键字、全角标点等）
@@ -70,7 +70,7 @@ export function alignTokensToSource<T extends TokenLike>(
     return Math.max(1, Math.min(len + 1, st.origEnd + (canCol - st.canEnd)));
   };
 
-  return tokens.map((t) => {
+  const aligned = tokens.map((t): AlignedToken<T> => {
     if (!t.start || !t.end) return t;
     const line = t.start.line;
     const st = state.get(line) ?? { cursor: 0, canEnd: 1, origEnd: 1 };
@@ -100,12 +100,29 @@ export function alignTokensToSource<T extends TokenLike>(
       srcAlign = 'guessed';
       start = { line, col: mapCol(line, t.start.col, st) };
       end = sameLine ? { line, col: mapCol(line, t.end.col, st) } : { ...t.end };
-      if (sameLine) st.cursor = Math.max(st.cursor, end.col - 1);
+      // 游标只推进到推算的起点：规范化插入的关键字（zh 括号函数头重排出的 Rule/given）比原文对应
+      // 片段长，若推进到推算终点会越过紧随其后的真实标识符，使其无法精确对齐（重命名会漏掉它）。
+      if (sameLine) st.cursor = Math.max(st.cursor, start.col - 1);
     }
     if (sameLine) {
       st.canEnd = t.end.col;
       st.origEnd = end.col;
     }
     return { ...t, start, end, srcAlign };
+  });
+  return clampGuessedSpans(aligned);
+}
+
+/**
+ * 推算的区间不得盖住同一行下一个 token：规范化插入的关键字（如 zh 括号函数头重排出的 given）
+ * 在原文里没有对应文本，按长度推算会覆盖紧随其后的标识符，造成高亮重叠。截到下一个 token 起点，
+ * 截完为空时退化为起点处的零宽区间。
+ */
+function clampGuessedSpans<T extends TokenLike>(tokens: AlignedToken<T>[]): AlignedToken<T>[] {
+  return tokens.map((t, i) => {
+    const next = tokens[i + 1];
+    if (t.srcAlign !== 'guessed' || !t.start || !t.end || !next?.start) return t;
+    if (t.end.line !== t.start.line || next.start.line !== t.start.line || next.start.col >= t.end.col) return t;
+    return { ...t, end: { line: t.start.line, col: Math.max(t.start.col, next.start.col) } };
   });
 }

@@ -311,6 +311,17 @@ function main(): void {
       canonErrors++;
     }
 
+    // 变换器：本引擎启用的每一项都须在 Java 同一阶段的清单中（反之不要求，Java 侧有未移植的）
+    for (const key of ['preTranslationTransformers', 'postTranslationTransformers'] as const) {
+      const javaNames = new Set(jc[key] ?? []);
+      const extra = (tc[key] ?? []).filter(name => !javaNames.has(name));
+      if (extra.length > 0) {
+        console.error(`  [ERROR] ${localeId}.${key}: TS 启用了 Java 未启用的变换器 ${JSON.stringify(extra)}`);
+        errors++;
+        canonErrors++;
+      }
+    }
+
     // allowedDuplicates
     const javaDups = (jc.allowedDuplicates ?? []).map(g => [...g].sort().join(',')).sort();
     const tsDups = (tc.allowedDuplicates ?? []).map(g => [...g].sort().join(',')).sort();
