@@ -3,6 +3,7 @@ import { DefaultCoreVisitor } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { ModuleContext, TypecheckWalkerContext } from './context.js';
 import { assignSymbol, defineSymbol } from './context.js';
+import { originToSpan } from './pure.js';
 import { SymbolTable } from './symbol_table.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
 import {
@@ -32,7 +33,8 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
     switch (statement.kind) {
       case 'Let': {
         const valueType = typeOfExpr(module, symbols, statement.expr, diagnostics);
-        defineSymbol(context, statement.name, valueType, 'var', statement.span);
+        // 降级后的 Let 节点只带 origin（无 span）：用 origin 定位，否则 E104 诊断没有行列，编辑器无法标红。
+        defineSymbol(context, statement.name, valueType, 'var', statement.span ?? originToSpan(statement.origin));
         this.result = valueType;
         return;
       }
@@ -151,7 +153,7 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
           statements: statement.statements,
           span: statement.span,
         } as Core.Block;
-        this.result = typecheckBlock(module, symbols, nested, diagnostics);
+        this.result = typecheckScopedBlock(module, symbols, nested, diagnostics);
         return;
       }
       case 'Start': {
@@ -171,7 +173,27 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
   }
 }
 
+/**
+ * 在**当前**作用域检查语句块，不另开作用域。
+ *
+ * 与 Java 端 BaseTypeChecker.checkBlock 对齐：If 分支、函数体、workflow step 都与外层共享作用域，
+ * 因此在分支里 `Let` 一个外层已有的名字、或 `Let` 一个与形参同名的变量，都报 E104 DUPLICATE_SYMBOL。
+ * 只有 Scope 语句、match 分支与 lambda 才开新作用域（见 typecheckScopedBlock / typecheckCase）。
+ * 两端规则不一致时，编辑器会对服务端保存门禁拒绝的源码显示「可编译」（aster-lang-ts#231）。
+ */
 export function typecheckBlock(
+  ctx: ModuleContext,
+  symbols: SymbolTable,
+  block: Core.Block,
+  diagnostics: DiagnosticBuilder
+): Core.Type {
+  const visitor = new TypecheckVisitor();
+  visitor.visitBlock(block, { module: ctx, symbols, diagnostics });
+  return visitor.result;
+}
+
+/** 在新的块作用域里检查语句块：用于显式的 Scope 语句（对应 Java 端 CoreModel.Scope 分支）。 */
+export function typecheckScopedBlock(
   ctx: ModuleContext,
   symbols: SymbolTable,
   block: Core.Block,
@@ -179,9 +201,7 @@ export function typecheckBlock(
 ): Core.Type {
   symbols.enterScope('block');
   try {
-    const visitor = new TypecheckVisitor();
-    visitor.visitBlock(block, { module: ctx, symbols, diagnostics });
-    return visitor.result;
+    return typecheckBlock(ctx, symbols, block, diagnostics);
   } finally {
     symbols.exitScope();
   }
