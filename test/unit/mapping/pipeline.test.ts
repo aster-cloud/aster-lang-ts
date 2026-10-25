@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { runSemanticBridge } from '../../../src/mapping/pipeline.js';
+import { BRIDGE_DIAGNOSTIC, runSemanticBridge } from '../../../src/mapping/pipeline.js';
 
 /**
  * 可验证语义桥的**端到端**门禁（ADR 0037 §7 接线）。
@@ -126,5 +126,31 @@ describe('语义桥端到端 — 任意文字（分层降级）', () => {
       assert.strictEqual(HUMAN_DOC.slice(q.span.start, q.span.end), q.text,
         `数量 ${JSON.stringify(q.text)} 的 span 与原文不符——双向导航会跳错位置。`);
     }
+  });
+});
+
+describe('语义桥端到端 — 坐标系与失败分类（aster-lang-ts#238）', () => {
+  it('★候选区间是原文坐标：英文冠词被 canonicalize 删除后仍指向原文里的字面量', () => {
+    const src = 'Module m.\n\nRule f, produce Int:\n  Let the total be 42.\n  Return the total.\n';
+    const r = runSemanticBridge(src);
+    assert.deepEqual(r.verified.map(v => [v.result.verdict, src.slice(v.mapping.span.start, v.mapping.span.end)]),
+      [['VERIFIED', '42']]);
+    // 复核接口要求 span 宽度等于 text 长度。
+    assert.ok(r.verified.every(v => v.mapping.span.end - v.mapping.span.start === v.mapping.text.length));
+  });
+
+  it('★语法错误不得在残缺树上生成候选，必须报告为语法错误', () => {
+    const r = runSemanticBridge('Module m.\n\nRule f, produce Int:\n  Return 42 +.\n');
+    assert.deepEqual(r.verified, []);
+    assert.ok(r.diagnostics.some(d => d.startsWith(BRIDGE_DIAGNOSTIC.syntaxError)), `实际：${JSON.stringify(r.diagnostics)}`);
+    assert.ok(!r.diagnostics.some(d => d.startsWith(BRIDGE_DIAGNOSTIC.internalError)));
+  });
+
+  it('★lex 失败归为编译失败，而不是内部错误', () => {
+    const r = runSemanticBridge('Module m.\n\nRule f, produce Int:\n  Return 1 § 2.\n');
+    assert.deepEqual(r.verified, []);
+    assert.ok(r.diagnostics.some(d => d.startsWith(BRIDGE_DIAGNOSTIC.compileFailed) || d.startsWith(BRIDGE_DIAGNOSTIC.syntaxError)),
+      `实际：${JSON.stringify(r.diagnostics)}`);
+    assert.ok(!r.diagnostics.some(d => d.startsWith(BRIDGE_DIAGNOSTIC.internalError)));
   });
 });

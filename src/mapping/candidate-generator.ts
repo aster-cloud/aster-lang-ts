@@ -1,4 +1,5 @@
 import type { CandidateMapping } from './mapping-ir.js';
+import { forEachIrNode } from '../nodeid/node-id-map.js';
 
 /**
  * 确定性候选映射生成器（ADR 0037 §3/§7）。
@@ -27,15 +28,13 @@ import type { CandidateMapping } from './mapping-ir.js';
  * 替代的地方——**非 `.aster` 的人类文本**（Policy / SOP / 合同），那里没有
  * `origin` 可读。
  *
- * <h2>★前提：canonical 文本与源码逐行逐列对齐</h2>
+ * <h2>★坐标系：先在 canonical 文本上切，再重定位回原文</h2>
  *
- * `origin` 记的是 **canonical 文本**的行列。本生成器直接按它切**原始源码**，
- * 前提是两者对齐——这由 ADR §4.0/§8 的一系列修复保证（运算符不再翻译成符号、
- * `is` 前缀不再改写、标点归一化不吃 `!=` 前空格），现 tier1 全语料
- * **223/223 逐行等长**。
- *
- * 若该前提被破坏，本模块会**产出错位的候选**且不报错——故
- * {@link generateCandidates} 内置了自检：切片必须非空，否则跳过并计入 `skipped`。
+ * `origin` 记的是 **canonical 文本**的行列。canonicalize 保持行数不变，但会改变行内长度
+ * （英文删冠词、de 转写关键字、zh 括号函数头重排等），所以 canonical 偏移不能直接当原文偏移用。
+ * {@link generateCandidates} 在 canonical 上切出文本，{@link relocateToSource} 再在原文同一行里
+ * 找到同一段文本（按该行内的出现序号对应），产出**原文坐标**的候选——调用方（复核面板、
+ * 双向导航）拿到的区间一律指向用户自己的文档。找不到就跳过并报告，绝不推算。
  */
 
 /** 生成器需要的最小节点信息（与 `NodeIdMap` 的输出对齐）。 */
@@ -64,7 +63,7 @@ export interface GenerationResult {
  * <p>★本函数**不做任何猜测**：它只是把 `origin` 翻译成字符偏移并切片。
  * 切不出东西就跳过并记录，绝不编造。
  *
- * @param source 原始源码（与 canonical 逐行逐列对齐，见模块说明）
+ * @param source canonical 文本（origin 的行列以它为准）；结果须再经 {@link relocateToSource}
  * @param nodes  带 origin 的节点（通常来自 Core IR 遍历）
  */
 export function generateCandidates(
@@ -76,8 +75,8 @@ export function generateCandidates(
   const skipped: { nodeId: string; why: string }[] = [];
 
   for (const node of nodes) {
-    const start = toOffset(lineStarts, source.length, node.origin.start.line, node.origin.start.col);
-    const end = toOffset(lineStarts, source.length, node.origin.end.line, node.origin.end.col);
+    const start = toOffset(lineStarts, source.length, node.origin.start.line, node.origin.start.col, false);
+    const end = toOffset(lineStarts, source.length, node.origin.end.line, node.origin.end.col, true);
 
     if (start === undefined || end === undefined) {
       skipped.push({ nodeId: node.nodeId, why: 'origin 的行列超出源码范围' });
@@ -116,17 +115,88 @@ function computeLineStarts(source: string): number[] {
 /**
  * 1-based 行列 → 字符偏移。越界返回 `undefined`（由调用方跳过并报告）。
  *
- * <p>★允许 `col` 指向行末之后一位（`end` 是开区间，可能正好落在行尾），
- * 但不允许越过整个源码长度。
+ * <p>★`end` 是开区间，允许正好落在行尾（`allowLineEnd`）；`start` 必须指向该行的真实字符。
+ * 二者都不允许越过**该行**的行尾——否则切片会静默跨进下一行。
  */
 function toOffset(lineStarts: readonly number[], sourceLength: number,
-                  line: number, col: number): number | undefined {
+                  line: number, col: number, allowLineEnd: boolean): number | undefined {
   if (!Number.isInteger(line) || !Number.isInteger(col) || line < 1 || col < 1) {
     return undefined;
   }
   if (line > lineStarts.length) return undefined;
-  const offset = lineStarts[line - 1]! + (col - 1);
-  return offset > sourceLength ? undefined : offset;
+  const lineStart = lineStarts[line - 1]!;
+  const lineEnd = line < lineStarts.length ? lineStarts[line]! - 1 : sourceLength;
+  const offset = lineStart + (col - 1);
+  return offset > lineEnd || (offset === lineEnd && !allowLineEnd) ? undefined : offset;
+}
+
+/**
+ * 把 canonical 坐标的候选重定位到原文坐标。
+ *
+ * <p>做法：候选起点所在行号在两边相同（canonicalize 保持行数）。数出候选文本在 canonical
+ * 该行内、起点之前出现了几次，再在原文同一行里取同序号的出现位置。字面量文本（数字、带引号的
+ * 字符串、布尔）不被 canonicalize 改写，所以序号一一对应。
+ *
+ * <p>★任何对不上的情况都跳过并报告：两边行数不同、该文本在两边同一行的出现次数不同
+ * （canonicalize 增删了同样的子串，如智能引号归一化后 `“x” plus "x"` 多出一个 `"x"`，
+ * 按序号配对会配错）、原文该行找不到该文本。宁可少一条候选，也不交出一条指错位置的。
+ */
+export function relocateToSource(
+  source: string,
+  canonical: string,
+  generated: GenerationResult,
+): GenerationResult {
+  const canStarts = computeLineStarts(canonical);
+  const srcStarts = computeLineStarts(source);
+  const skipped = [...generated.skipped];
+  if (canStarts.length !== srcStarts.length) {
+    for (const c of generated.candidates) {
+      skipped.push({ nodeId: c.nodeId, why: `原文与 canonical 行数不同（${srcStarts.length} ≠ ${canStarts.length}），无法定位原文位置` });
+    }
+    return { candidates: [], skipped };
+  }
+
+  const candidates: CandidateMapping[] = [];
+  for (const c of generated.candidates) {
+    const line = lineIndexOf(canStarts, c.span.start);
+    const canLineEnd = line + 1 < canStarts.length ? canStarts[line + 1]! - 1 : canonical.length;
+    const lineEnd = line + 1 < srcStarts.length ? srcStarts[line + 1]! - 1 : source.length;
+    const canCount = countOccurrences(canonical, c.text, canStarts[line]!, canLineEnd + 1);
+    const srcCount = countOccurrences(source, c.text, srcStarts[line]!, lineEnd + 1);
+    if (canCount !== srcCount) {
+      skipped.push({ nodeId: c.nodeId, why: `候选文本 ${JSON.stringify(c.text)} 在第 ${line + 1} 行的出现次数不同（原文 ${srcCount}，canonical ${canCount}），无法唯一定位` });
+      continue;
+    }
+    const ordinal = countOccurrences(canonical, c.text, canStarts[line]!, c.span.start);
+    // 两边次数相等且候选自身就是 canonical 该行的第 ordinal 次出现，故原文必有第 ordinal 次。
+    const start = nthOccurrence(source, c.text, srcStarts[line]!, lineEnd, ordinal)!;
+    candidates.push({ ...c, span: { start, end: start + c.text.length } });
+  }
+  return { candidates, skipped };
+}
+
+/** 偏移所在的行（0-based）。 */
+function lineIndexOf(lineStarts: readonly number[], offset: number): number {
+  let line = 0;
+  while (line + 1 < lineStarts.length && lineStarts[line + 1]! <= offset) line++;
+  return line;
+}
+
+/** `text` 在 `[from, to)` 内起始的出现次数（允许重叠，与 {@link nthOccurrence} 同口径）。 */
+function countOccurrences(s: string, text: string, from: number, to: number): number {
+  let n = 0;
+  for (let i = s.indexOf(text, from); i !== -1 && i < to; i = s.indexOf(text, i + 1)) n++;
+  return n;
+}
+
+/** 起点落在 `[from, lineEnd]` 内的第 `ordinal` 次（0-based）出现；没有则为 `undefined`。 */
+function nthOccurrence(s: string, text: string, from: number, lineEnd: number, ordinal: number): number | undefined {
+  let n = 0;
+  for (let i = s.indexOf(text, from); i !== -1 && i <= lineEnd; i = s.indexOf(text, i + 1)) {
+    if (n === ordinal) return i;
+    n++;
+  }
+  return undefined;
 }
 
 /**
@@ -138,38 +208,12 @@ function toOffset(lineStarts: readonly number[], sourceLength: number,
  */
 export function collectLiteralNodes(ir: unknown): OriginatedNode[] {
   const out: OriginatedNode[] = [];
-  walk(ir, '$', out);
-  return out;
-}
-
-function walk(node: unknown, path: string, out: OriginatedNode[]): void {
-  if (node === null || typeof node !== 'object' || Array.isArray(node)) return;
-  const obj = node as Record<string, unknown>;
-
-  if (typeof obj.kind === 'string' && 'value' in obj && isOrigin(obj.origin)) {
-    out.push({ nodeId: path, kind: obj.kind, origin: obj.origin });
-  }
-
-  for (const [field, value] of Object.entries(obj)) {
-    if (field === 'origin') continue;
-    if (Array.isArray(value)) {
-      value.forEach((el, i) => walk(el, `${path}.${field}${segmentOf(el, i)}`, out));
-    } else {
-      walk(value, `${path}.${field}`, out);
+  forEachIrNode(ir, (node, nodeId) => {
+    if ('value' in node && isOrigin(node.origin)) {
+      out.push({ nodeId, kind: node.kind as string, origin: node.origin });
     }
-  }
-}
-
-/** 与 `NodeIdMap.segmentOf` 同规则——路径必须与 nodeId 一致，否则两边对不上。 */
-function segmentOf(element: unknown, index: number): string {
-  if (element !== null && typeof element === 'object' && !Array.isArray(element)) {
-    const el = element as Record<string, unknown>;
-    // ★与 NodeIdMap 同规则：`_` 是占位符不是名字，必须退回下标，
-    //   否则同一函数体里的多条裸表达式语句会塌成同一个 nodeId。
-    if (typeof el.name === 'string' && el.name !== '_') return `{${el.name}}`;
-    if (typeof el.path === 'string') return `{${el.path}}`;
-  }
-  return `[${index}]`;
+  });
+  return out;
 }
 
 function isOrigin(v: unknown): v is OriginatedNode['origin'] {

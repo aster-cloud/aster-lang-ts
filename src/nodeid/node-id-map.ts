@@ -176,30 +176,46 @@ function segmentOf(element: unknown, index: number): string {
  */
 export function computeNodeIds(ir: unknown): ReadonlyMap<string, NodeIdentity> {
   const out = new Map<string, NodeIdentity>();
-  walk(ir, '$', out);
+  // 只有带 kind 的对象才是「IR 节点」；Field/Param 等无 kind 的结构体不单独发 ID，
+  // 它们随宿主节点的 contentHash 一起变化（与 Java 侧口径一致）。
+  forEachIrNode(ir, (node, path) => {
+    out.set(path, {
+      nodeId: path,
+      contentHash: canonicalHash(stripIdentityIrrelevant(node)),
+      kind: node.kind as string,
+    });
+  });
   return out;
 }
 
-function walk(node: unknown, path: string, out: Map<string, NodeIdentity>): void {
+/**
+ * 按 nodeId 的路径规则深度优先遍历 IR，对每个带 `kind` 的节点回调 `(节点, nodeId)`。
+ *
+ * <p>★候选生成、verifier 取值与本文件的 nodeId 必须用同一条路径规则，否则候选的 nodeId
+ * 与 resolve 的键对不上（表现为「节点不存在」）。各处一律走这个函数，不再各自复制遍历。
+ */
+export function forEachIrNode(
+  ir: unknown,
+  visit: (node: Readonly<Record<string, unknown>>, nodeId: string) => void,
+): void {
+  walk(ir, '$', visit);
+}
+
+function walk(
+  node: unknown,
+  path: string,
+  visit: (node: Readonly<Record<string, unknown>>, nodeId: string) => void,
+): void {
   if (node === null || typeof node !== 'object' || Array.isArray(node)) return;
   const obj = node as Record<string, unknown>;
-
-  // 只有带 kind 的对象才是「IR 节点」；Field/Param 等无 kind 的结构体不单独发 ID，
-  // 它们随宿主节点的 contentHash 一起变化（与 Java 侧口径一致）。
-  if (typeof obj.kind === 'string') {
-    out.set(path, {
-      nodeId: path,
-      contentHash: canonicalHash(stripIdentityIrrelevant(obj)),
-      kind: obj.kind,
-    });
-  }
+  if (typeof obj.kind === 'string') visit(obj, path);
 
   for (const [field, value] of Object.entries(obj)) {
     if (isIdentityIrrelevant(field)) continue;
     if (Array.isArray(value)) {
-      value.forEach((el, i) => walk(el, `${path}.${field}${segmentOf(el, i)}`, out));
+      value.forEach((el, i) => walk(el, `${path}.${field}${segmentOf(el, i)}`, visit));
     } else {
-      walk(value, `${path}.${field}`, out);
+      walk(value, `${path}.${field}`, visit);
     }
   }
 }

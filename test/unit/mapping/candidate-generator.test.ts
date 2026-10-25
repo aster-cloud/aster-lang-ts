@@ -10,7 +10,7 @@ import { parse } from '../../../src/parser.js';
 import { lowerModule } from '../../../src/lower_to_core.js';
 import type { Module as AstModule } from '../../../src/types.js';
 import { computeNodeIds } from '../../../src/nodeid/node-id-map.js';
-import { generateCandidates, collectLiteralNodes } from '../../../src/mapping/candidate-generator.js';
+import { generateCandidates, relocateToSource, collectLiteralNodes } from '../../../src/mapping/candidate-generator.js';
 import { verifyMapping } from '../../../src/mapping/mapping-ir.js';
 
 /**
@@ -114,6 +114,66 @@ describe('确定性候选生成器', () => {
       `零宽区间应由区间检查拦下（而非被「切片为空白」兜住）。实际：${zeroWidth?.why}`);
     const outOfBounds = r.skipped.find(s => s.nodeId === '$.oob');
     assert.match(outOfBounds?.why ?? '', /超出源码范围/, `实际：${outOfBounds?.why}`);
+  });
+
+  it('★列号越过该行行尾时跳过，不得切进下一行（aster-lang-ts#238）', () => {
+    const r = generateCandidates('ab\ncd\n', [
+      { nodeId: '$.overflow', kind: 'Int', origin: { start: { line: 1, col: 2 }, end: { line: 1, col: 5 } } },
+      { nodeId: '$.lineEnd', kind: 'Int', origin: { start: { line: 1, col: 2 }, end: { line: 1, col: 3 } } },
+    ]);
+    assert.deepEqual(r.candidates.map(c => [c.nodeId, c.text]), [['$.lineEnd', 'b']]);
+    assert.match(r.skipped.find(s => s.nodeId === '$.overflow')?.why ?? '', /超出源码范围/);
+  });
+
+  it('★重定位：canonical 删了冠词，候选区间仍指向原文里的同一段文本', () => {
+    const source = 'Let the total be 42 plus the 42.';
+    const canonical = 'Let total be 42 plus 42.';
+    const r = relocateToSource(source, canonical, {
+      candidates: [
+        { span: { start: 13, end: 15 }, text: '42', nodeId: '$.a' },
+        { span: { start: 21, end: 23 }, text: '42', nodeId: '$.b' },
+      ],
+      skipped: [],
+    });
+    assert.deepEqual(r.candidates.map(c => [c.nodeId, c.span, source.slice(c.span.start, c.span.end)]),
+      [['$.a', { start: 17, end: 19 }, '42'], ['$.b', { start: 29, end: 31 }, '42']]);
+    assert.deepEqual(r.skipped, []);
+  });
+
+  it('★重定位：canonicalize 增删了同样的子串时不按序号硬配，跳过并报告', () => {
+    // 智能引号归一化：原文只有一个直引号 "x"，canonical 有两个；按序号配对会把第一个字面量配到第二个上。
+    const r = relocateToSource('Return “x” plus "x".', 'Return "x" plus "x".', {
+      candidates: [
+        { span: { start: 7, end: 10 }, text: '"x"', nodeId: '$.a' },
+        { span: { start: 16, end: 19 }, text: '"x"', nodeId: '$.b' },
+      ],
+      skipped: [],
+    });
+    assert.deepEqual(r.candidates, []);
+    assert.deepEqual(r.skipped.map(s => s.nodeId), ['$.a', '$.b']);
+    assert.ok(r.skipped.every(s => /出现次数不同/.test(s.why)), JSON.stringify(r.skipped));
+  });
+
+  it('★起点不得落在行尾换行符上（终点可以，它是开区间）', () => {
+    const r = generateCandidates('ab\ncd\n', [
+      { nodeId: '$.startAtEol', kind: 'Int', origin: { start: { line: 1, col: 3 }, end: { line: 2, col: 2 } } },
+    ]);
+    assert.deepEqual(r.candidates, []);
+    assert.match(r.skipped[0]?.why ?? '', /超出源码范围/);
+  });
+
+  it('★重定位：原文同一行找不到候选文本、或行数不同，都跳过并报告', () => {
+    const notFound = relocateToSource('Return ４２.', 'Return 42.', {
+      candidates: [{ span: { start: 7, end: 9 }, text: '42', nodeId: '$.x' }], skipped: [],
+    });
+    assert.deepEqual(notFound.candidates, []);
+    assert.match(notFound.skipped[0]?.why ?? '', /出现次数不同（原文 0，canonical 1）/);
+
+    const lines = relocateToSource('a\nb', 'a', {
+      candidates: [{ span: { start: 0, end: 1 }, text: 'a', nodeId: '$.y' }], skipped: [],
+    });
+    assert.deepEqual(lines.candidates, []);
+    assert.match(lines.skipped[0]?.why ?? '', /行数不同/);
   });
 
   it('★全语料闭环：生成的候选必须能被 verifier 判定，且零 REJECTED', () => {
