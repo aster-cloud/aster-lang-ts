@@ -2,10 +2,10 @@ import { canonicalize } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
 import { parse } from '../parser.js';
 import { lowerModule } from '../lower_to_core.js';
-import { computeNodeIds } from '../nodeid/node-id-map.js';
+import { computeNodeIds, forEachIrNode } from '../nodeid/node-id-map.js';
 import { parseSourceIr, type SourceNode } from './source-ir.js';
 import { extractQuantities, type Quantity } from './quantity-ir.js';
-import { generateCandidates, collectLiteralNodes } from './candidate-generator.js';
+import { generateCandidates, collectLiteralNodes, relocateToSource } from './candidate-generator.js';
 import { verifyMapping, type CandidateMapping, type VerificationResult,
   type VerifiableNode } from './mapping-ir.js';
 
@@ -116,49 +116,7 @@ export function runSemanticBridge(source: string): BridgeResult {
   // ── 第 3 层：候选映射 + 验证（需要源码可编译）─────────────────
   // ★这一层**会失败**，且失败是常态（任意文字不是合法 Aster 源码）。
   //   失败时前两层的结果仍然有效——这正是分层降级的意义。
-  let verified: readonly VerifiedCandidate[] = [];
-  try {
-    const canonical = canonicalize(source);
-    const ir = lowerModule(parse(lex(canonical)).ast);
-
-    const identities = computeNodeIds(ir);
-    const nodes = collectLiteralNodes(ir);
-    if (nodes.length === 0) {
-      diagnostics.push('IR 里没有带 origin 的字面量节点——无候选可生成。');
-    }
-
-    const generated = generateCandidates(canonical, nodes);
-    for (const s of generated.skipped) {
-      diagnostics.push(`跳过节点 ${s.nodeId}：${s.why}`);
-    }
-
-    // ★`resolve` 的节点必须从 **IR 本身**取值，不能从 NodeIdentity 取。
-    //
-    //   我第一版从 `computeNodeIds` 的返回值里读 `value`/`name`——实测
-    //   `NodeIdentity` 只有 `{nodeId, contentHash, kind}`，**根本没有 value**，
-    //   于是 `verifyMapping` 拿不到值、把每条候选都判成 REJECTED。
-    //   端到端 demo 一跑就暴露了（2 条候选全 REJECTED，而它们本该 VERIFIED）。
-    //   ★这也说明"接线"本身必须端到端验证——单看两侧模块的单测都是绿的。
-    const byId = collectVerifiableNodes(ir);
-    // identities 仅用于校验路径口径一致（两边都由同一套 segmentOf 规则生成）。
-    for (const id of byId.keys()) {
-      if (!identities.has(id)) {
-        diagnostics.push(`节点 ${id} 不在 NodeIdMap 中——路径口径可能漂移。`);
-      }
-    }
-
-    verified = generated.candidates.map(mapping => ({
-      mapping,
-      result: verifyMapping(mapping, id => byId.get(id)),
-      contentHash: identities.get(mapping.nodeId)?.contentHash,
-    }));
-  } catch (e) {
-    // ★不把编译失败当成错误——"任意文字"本就编译不了。
-    //   如实记录，让调用方知道第 3 层没跑，而不是以为跑了但没结果。
-    diagnostics.push(
-      `源码无法编译成 Core IR，候选映射层已跳过：`
-      + `${e instanceof Error ? e.message : String(e)}`);
-  }
+  const verified = candidateLayer(source, diagnostics);
 
   let v = 0, r = 0, j = 0;
   for (const c of verified) {
@@ -176,52 +134,89 @@ export function runSemanticBridge(source: string): BridgeResult {
   };
 }
 
+/** 诊断前缀：两引擎一致，跨引擎语料按前缀断言（具体消息允许不同）。 */
+export const BRIDGE_DIAGNOSTIC = {
+  syntaxError: '源码有语法错误，无法编译成 Core IR，候选映射层已跳过：',
+  compileFailed: '源码无法编译成 Core IR，候选映射层已跳过：',
+  internalError: '候选映射层内部错误（不是源码问题）：',
+} as const;
+
 /**
- * 按与 {@link collectLiteralNodes} **完全相同**的路径规则遍历 IR，
- * 产出 `nodeId → VerifiableNode`（带 `value`/`name`）。
+ * 第 3 层：canonicalize → lex → parse → lower → 候选 → 重定位 → 验证。
+ *
+ * <p>失败分三类，各自如实报告：
+ * - 语法错误：解析器带错误恢复，照样会返回一棵残缺的树；在残缺树上生成的候选不可信，整层跳过。
+ * - 编译失败：lex / parse / lower 抛错，是源码本身的问题（任意文字本就编译不了）。
+ * - 内部错误：IR 已经得到之后的步骤抛错，是本链路的缺陷，不得伪装成「源码编译不了」。
+ */
+function candidateLayer(source: string, diagnostics: string[]): readonly VerifiedCandidate[] {
+  const message = (e: unknown): string => (e instanceof Error ? e.message || e.name : String(e));
+
+  let canonical: string;
+  let ir: unknown;
+  try {
+    canonical = canonicalize(source);
+    const parsed = parse(lex(canonical));
+    const syntaxErrors = parsed.diagnostics.filter(d => d.severity === 'error');
+    if (syntaxErrors.length > 0) {
+      const first = syntaxErrors[0]!;
+      diagnostics.push(`${BRIDGE_DIAGNOSTIC.syntaxError}L${first.span?.start.line ?? '?'}:${first.span?.start.col ?? '?'} ${first.message}`);
+      return [];
+    }
+    ir = lowerModule(parsed.ast);
+  } catch (e) {
+    diagnostics.push(BRIDGE_DIAGNOSTIC.compileFailed + message(e));
+    return [];
+  }
+
+  try {
+    const identities = computeNodeIds(ir);
+    const nodes = collectLiteralNodes(ir);
+    if (nodes.length === 0) {
+      diagnostics.push('IR 里没有带 origin 的字面量节点——无候选可生成。');
+    }
+
+    const generated = relocateToSource(source, canonical, generateCandidates(canonical, nodes));
+    for (const s of generated.skipped) {
+      diagnostics.push(`跳过节点 ${s.nodeId}：${s.why}`);
+    }
+
+    // ★`resolve` 的节点必须从 **IR 本身**取值，不能从 NodeIdentity 取。
+    //
+    //   我第一版从 `computeNodeIds` 的返回值里读 `value`/`name`——实测
+    //   `NodeIdentity` 只有 `{nodeId, contentHash, kind}`，**根本没有 value**，
+    //   于是 `verifyMapping` 拿不到值、把每条候选都判成 REJECTED。
+    //   端到端 demo 一跑就暴露了（2 条候选全 REJECTED，而它们本该 VERIFIED）。
+    //   ★这也说明"接线"本身必须端到端验证——单看两侧模块的单测都是绿的。
+    const byId = collectVerifiableNodes(ir);
+
+    return generated.candidates.map(mapping => ({
+      mapping,
+      result: verifyMapping(mapping, id => byId.get(id)),
+      contentHash: identities.get(mapping.nodeId)?.contentHash,
+    }));
+  } catch (e) {
+    diagnostics.push(BRIDGE_DIAGNOSTIC.internalError + message(e));
+    return [];
+  }
+}
+
+/**
+ * 按 nodeId 路径规则产出 `nodeId → VerifiableNode`（带 `value`/`name`）。
  *
  * <p>★为什么不复用 `computeNodeIds` 的返回值：`NodeIdentity` 只有
  * `{nodeId, contentHash, kind}`，**不含 value**。用它做 `resolve` 会让
- * `verifyMapping` 永远比不出值，把所有候选判成 REJECTED。
- *
- * <p>★路径规则必须与 `collectLiteralNodes` / `NodeIdMap` **三方一致**，
- * 否则候选的 nodeId 与这里的键对不上——那种错会表现为"节点不存在"，
- * 极易被误读成 IR 有问题。
+ * `verifyMapping` 永远比不出值，把所有候选判成 REJECTED。路径规则与 nodeId 共用
+ * {@link forEachIrNode}，不会漂移。
  */
 function collectVerifiableNodes(ir: unknown): Map<string, VerifiableNode> {
   const out = new Map<string, VerifiableNode>();
-  walkVerifiable(ir, '$', out);
-  return out;
-}
-
-function walkVerifiable(node: unknown, path: string, out: Map<string, VerifiableNode>): void {
-  if (node === null || typeof node !== 'object' || Array.isArray(node)) return;
-  const obj = node as Record<string, unknown>;
-
-  if (typeof obj.kind === 'string') {
-    out.set(path, {
-      kind: obj.kind,
-      ...(obj.value === undefined ? {} : { value: obj.value }),
-      ...(typeof obj.name === 'string' ? { name: obj.name } : {}),
+  forEachIrNode(ir, (node, nodeId) => {
+    out.set(nodeId, {
+      kind: node.kind as string,
+      ...(node.value === undefined ? {} : { value: node.value }),
+      ...(typeof node.name === 'string' ? { name: node.name } : {}),
     });
-  }
-
-  for (const [field, value] of Object.entries(obj)) {
-    if (field === 'origin') continue;
-    if (Array.isArray(value)) {
-      value.forEach((el, i) => walkVerifiable(el, `${path}.${field}${segmentOfPath(el, i)}`, out));
-    } else {
-      walkVerifiable(value, `${path}.${field}`, out);
-    }
-  }
-}
-
-/** 与 `collectLiteralNodes.segmentOf` / `NodeIdMap.segmentOf` 同规则（三方必须一致）。 */
-function segmentOfPath(element: unknown, index: number): string {
-  if (element !== null && typeof element === 'object' && !Array.isArray(element)) {
-    const el = element as Record<string, unknown>;
-    if (typeof el.name === 'string' && el.name !== '_') return `{${el.name}}`;
-    if (typeof el.path === 'string') return `{${el.path}}`;
-  }
-  return `[${index}]`;
+  });
+  return out;
 }
