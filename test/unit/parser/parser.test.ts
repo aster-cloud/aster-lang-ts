@@ -762,6 +762,23 @@ Rule broken, produce Int:
       assert.match(result.diagnostics[0]!.message, /Expected '.' at end of statement/);
     });
 
+    // #240：Return 与其他语句一样必须以句点收尾，换行/块末/文件末不能代替（对齐 Java returnStmt）
+    for (const [label, body, line] of [
+      ['块末', 'Return 7\n', 4],
+      ['文件末', 'Return 7', 4],
+      ['块中', 'Return 7\n  Return 8.\n', 4],
+      ['If 块内', 'If true:\n    Return 1\n  Return 2.\n', 5],
+    ] as const) {
+      test(`Return 缺少结尾句点（${label}）时应收集诊断`, () => {
+        const result = parseWithDiag(`Module test.parser.return.missing_period.\n\nRule f, produce Int:\n  ${body}`);
+        assert.ok(result.diagnostics.length > 0, '应有诊断信息');
+        const diag = result.diagnostics[0]!;
+        assert.equal(diag.code, 'P005');
+        assert.match(diag.message, /Expected '.' at end of statement/);
+        assert.equal(diag.span?.start.line, line);
+      });
+    }
+
     test('Set 语句不应被 canonicalizer 转换为 Let（回归测试）', () => {
       // 确保 set-to transformer 不会将 "Set x to y" 语句错误地转换为 "Let x be y"
       const module = parseSource(`

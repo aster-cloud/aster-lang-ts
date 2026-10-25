@@ -220,24 +220,6 @@ function expectPeriodEnd(
 }
 
 /**
- * 期望语句以句号或换行符结束
- * @param ctx Parser 上下文
- * @param error 错误报告函数
- */
-function expectPeriodEndOrLine(
-  ctx: ParserContext,
-  error: (msg: string) => never
-): void {
-  if (ctx.at(TokenKind.DOT)) {
-    ctx.next();
-    return;
-  }
-  // Tolerate newline/dedent/EOF terminators inside blocks for certain statements (e.g., Return)
-  if (ctx.at(TokenKind.NEWLINE) || ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.EOF)) return;
-  error("Expected '.' at end of statement");
-}
-
-/**
  * 解析语句
  * @param ctx Parser 上下文
  * @param error 错误报告函数
@@ -479,7 +461,8 @@ export function parseStatement(
     const retTok = ctx.peek();
     ctx.nextWord();
     const expr = parseExpr(ctx, error);
-    expectPeriodEndOrLine(ctx, error);
+    // 与 Java returnStmt（RETURN expr DOT）一致：句点必需，换行/块末/文件末都不能代替（#240）
+    expectPeriodEnd(ctx, error);
     // Allow trailing effect sentence immediately after a Return: 'It performs io.'
     // This attaches to the enclosing function's effects if present.
     if ((tokLowerAt(ctx, ctx.index) === 'it' && tokLowerAt(ctx, ctx.index + 1) === 'performs') || tokLowerAt(ctx, ctx.index) === 'performs') {
