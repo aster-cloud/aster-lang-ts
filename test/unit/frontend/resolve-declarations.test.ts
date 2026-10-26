@@ -333,6 +333,14 @@ describe('resolveDeclarations（R1）', () => {
       assert.deepEqual(codes(r), []);
     });
 
+    it('隐式参数在词汇中折叠歧义 → 报 E804 并保留为类型参数', () => {
+      const m = parse('Modul m.\n\nRegel f gegeben x als FaHrer, liefert Ganzzahl:\n  gib zurueck 1.\n');
+      assert.deepEqual(decl(m, 0, 'Func').typeParams, ['FaHrer'], '前提：解析器推断为类型参数');
+      const r = resolveDeclarations(m, ctxOf([struct('Driver', 'Fahrer'), struct('Pilot', 'FAHRER')]));
+      assert.deepEqual(codes(r), [ErrorCode.AMBIGUOUS_NAME]);
+      assert.deepEqual(decl(r.module, 0, 'Func').typeParams, ['FaHrer']);
+    });
+
     it('显式 of T → 保留，TypeVar 不查词汇', () => {
       const m = parse('Modul m.\n\nRegel f of Fahrer gegeben x als Fahrer, liefert Fahrer:\n  gib zurueck x.\n');
       const r = resolveDeclarations(m, ctxOf(DRIVER));
@@ -361,6 +369,20 @@ describe('resolveDeclarations（R1）', () => {
       const imports: ImportedDeclarations = { ...NO_IMPORTS, types: ['Konto'] };
       const r = resolveDeclarations(m, ctxOf([...DRIVER, ...LEVEL], imports));
       assert.deepEqual(codes(r), []);
+    });
+
+    it('DateTime 为内置类型，不报 E800', () => {
+      const m = parse('Modul m.\n\nDefiniere Fahrer hat seit als DateTime.\n');
+      assert.deepEqual(codes(resolveDeclarations(m, ctxOf(DRIVER))), []);
+    });
+
+    it('构造类型未解析（E800）时不再对字段逐个报 E801', () => {
+      const m = parse(
+        'Modul m.\n\nRegel f gegeben x als Ganzzahl, liefert Ganzzahl:\n' +
+          '  sei p gleich Unbekannt mit a setze auf x, b setze auf x.\n  gib zurueck x.\n'
+      );
+      const r = resolveDeclarations(m, ctxOf(DRIVER));
+      assert.deepEqual(codes(r), [ErrorCode.UNRESOLVED_TYPE]);
     });
 
     it('构造字段未命中 → E801', () => {

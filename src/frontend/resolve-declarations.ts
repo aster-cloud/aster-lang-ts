@@ -359,10 +359,16 @@ function reportUnresolved(r: Resolver, code: ErrorCode, written: string, role: R
 
 /** TYPE 位置：源码声明（含导入）→ 词汇 → 内置类型；全部未命中报 E800，规范名取原写法。 */
 function resolveTypeName(r: Resolver, written: string, span?: Span): Resolved {
+  return resolveTypeNameChecked(r, written, span).resolved;
+}
+
+/** 同 resolveTypeName，另返回是否已报 E800（供调用方抑制级联诊断）。 */
+function resolveTypeNameChecked(r: Resolver, written: string, span?: Span): { resolved: Resolved; unresolved: boolean } {
   const site: RefSite = { written, role: 'TYPE', span, ambiguous: ErrorCode.AMBIGUOUS_NAME };
   const { canonical, found } = resolveRef(r, site, r.table.types, vocabTypes(r));
-  if (!found && !isBuiltinType(canonical)) reportUnresolved(r, ErrorCode.UNRESOLVED_TYPE, written, 'TYPE', span);
-  return { canonical, role: 'TYPE', written };
+  const unresolved = !found && !isBuiltinType(canonical);
+  if (unresolved) reportUnresolved(r, ErrorCode.UNRESOLVED_TYPE, written, 'TYPE', span);
+  return { resolved: { canonical, role: 'TYPE', written }, unresolved };
 }
 
 /** 解析器在缺省返回类型等处合成的占位类型名，交由类型推断处理。 */
@@ -372,10 +378,14 @@ function isBuiltinType(name: string): boolean {
   return BUILTIN_TYPE_NAMES.has(name) || name === INFERRED_TYPE_PLACEHOLDER;
 }
 
-/** 不产生诊断地探测一个名字在 TYPE 位置能否命中源码声明或词汇。 */
-function probeType(r: Resolver, written: string): string | undefined {
+/** 不产生诊断地探测一个名字在 TYPE 位置对源码声明或词汇的命中情况。 */
+function probeTypeChoice(r: Resolver, written: string): Choice {
   const fromDecl = chooseDecl(r.table.types, written);
-  const picked = fromDecl.kind === 'miss' ? chooseVocab(vocabTypes(r), written) : fromDecl;
+  return fromDecl.kind === 'miss' ? chooseVocab(vocabTypes(r), written) : fromDecl;
+}
+
+function probeType(r: Resolver, written: string): string | undefined {
+  const picked = probeTypeChoice(r, written);
   return picked.kind === 'hit' ? picked.entry.canonical : undefined;
 }
 
@@ -514,7 +524,12 @@ function resolveExpr(r: Resolver, scope: Scope, e: AST.Expression): AST.Expressi
 
 /** `X with f = …`：X 按 TYPE 解析，字段按已解析的 X 查 fields[X]。 */
 function resolveConstruct(r: Resolver, scope: Scope, e: AST.Construct): AST.Construct {
-  const type = resolveTypeName(r, e.typeName, leadingSpan(e.span, e.typeName));
+  const { resolved: type, unresolved } = resolveTypeNameChecked(r, e.typeName, leadingSpan(e.span, e.typeName));
+  if (unresolved) {
+    // 类型已报 E800：字段无从查找，不再逐个报 E801，只解析字段值表达式
+    const fields = e.fields.map((f) => ({ ...f, expr: resolveExpr(r, scope, f.expr) }));
+    return { ...e, fields, resolved: type };
+  }
   const maps = scopedVocab(r, (s) => s.fields, type.canonical, 'FIELD_REF');
   const decls = r.table.fields.get(type.canonical) ?? [];
   const fields = e.fields.map((f) => {
@@ -730,7 +745,14 @@ function rewriteFunc(r: Resolver, d: AST.Func, resolved: Resolved): AST.Func {
 function keptTypeParams(r: Resolver, d: AST.Func): readonly string[] {
   const explicit = new Set<string>();
   for (const t of [...d.params.map((p) => p.type), d.retType]) collectTypeVars(t, explicit);
-  return d.typeParams.filter((name) => explicit.has(name) || probeType(r, name) === undefined);
+  return d.typeParams.filter((name) => explicit.has(name) || !isImplicitTypeName(r, name, d.span));
+}
+
+/** 隐式参数命中类型 → true（应移除）；折叠歧义时报 E804 并保留为类型参数，使编译失败而非静默当作泛型。 */
+function isImplicitTypeName(r: Resolver, name: string, span?: Span): boolean {
+  const picked = probeTypeChoice(r, name);
+  if (picked.kind === 'ambiguous') reportAmbiguous(r, name, 'TYPE', picked.candidates, span);
+  return picked.kind === 'hit';
 }
 
 function collectTypeVars(t: AST.Type, out: Set<string>): void {

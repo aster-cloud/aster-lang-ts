@@ -142,6 +142,8 @@ export const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set([
   'Text', 'Int', 'Bool', 'Float', 'Long', 'Double', 'Unit',
   // ADR 0025：Decimal 为内置标量
   'Decimal',
+  // 与 PrimitiveTypeName（types/type-inference.ts）对齐：DateTime 为内置基础类型
+  'DateTime',
   'Result', 'Option', 'List', 'Map', 'Set', 'Workflow',
   // ADR 0039：Verdict 为内置类型，不是疑似类型变量
   VERDICT_TYPE_NAME,
