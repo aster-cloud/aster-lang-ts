@@ -14,6 +14,7 @@ import { lookup } from '../config/lexicons/identifiers/scopes.js';
 import type { Candidate, VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { DiagnosticBuilder } from '../typecheck/diagnostics.js';
+import { BUILTIN_TYPE_NAMES } from '../typecheck/generics.js';
 import type * as AST from '../types.js';
 import type { Resolved, ResolvedRole, Span, TypecheckDiagnostic } from '../types.js';
 import type { ResolutionContext } from './resolution-context.js';
@@ -119,6 +120,8 @@ interface Resolver {
 interface Scope {
   readonly parent: Scope | undefined;
   readonly locals: Local[];
+  /** 所在函数保留下来的类型参数名（TYPE_PARAM，不查词汇） */
+  readonly typeParams: ReadonlySet<string>;
 }
 
 /** 源码局部名；typeName 为其声明类型（已解析的规范名），未知时缺省。 */
@@ -128,7 +131,7 @@ interface Local {
 }
 
 function childScope(parent: Scope): Scope {
-  return { parent, locals: [] };
+  return { parent, locals: [], typeParams: parent.typeParams };
 }
 
 function visibleLocals(scope: Scope | undefined): Local[] {
@@ -313,28 +316,59 @@ function registerImports(table: ModuleTable, ctx: ResolutionContext): void {
 
 // ---- 引用（§6.2 第 1、2、4、5 步） ----
 
-/** 源码声明 → 词汇 → 原写法（类型名、构造字段名、枚举成员共用）。 */
-function resolveRef(
-  r: Resolver,
-  ref: { readonly written: string; readonly role: ResolvedRole; readonly span: Span | undefined },
-  decls: readonly Entry[],
-  maps: readonly VocabMap[]
-): string {
+/** 引用位置的解析结果：found=false 表示 §6.2 第 1–5 步全部未命中（由调用方按位置报 E80x）。 */
+interface RefResult {
+  readonly canonical: string;
+  readonly found: boolean;
+}
+
+interface RefSite {
+  readonly written: string;
+  readonly role: ResolvedRole;
+  readonly span: Span | undefined;
+  /** 折叠歧义时使用的诊断码（字段为 E805，其余为 E804） */
+  readonly ambiguous: ErrorCode;
+}
+
+/** 源码声明 → 词汇 → 规范名直写；歧义在此报告并视为已处理，未命中交给调用方。 */
+function resolveRef(r: Resolver, ref: RefSite, decls: readonly Entry[], maps: readonly VocabMap[]): RefResult {
   const { written, role, span } = ref;
   const fromDecl = chooseDecl(decls, written);
   if (fromDecl.kind === 'hit') {
     warnShadow(r, written, { ...fromDecl.entry, role }, maps, span);
-    return fromDecl.entry.canonical;
+    return { canonical: fromDecl.entry.canonical, found: true };
   }
   const picked = fromDecl.kind === 'miss' ? chooseVocab(maps, written) : fromDecl;
-  if (picked.kind === 'hit') return picked.entry.canonical;
-  if (picked.kind === 'ambiguous') reportAmbiguous(r, written, role, picked.candidates, span);
-  return nfc(written);
+  if (picked.kind === 'hit') return { canonical: picked.entry.canonical, found: true };
+  if (picked.kind === 'miss') return { canonical: nfc(written), found: false };
+  r.diags.error(ref.ambiguous, span ?? SPAN0, { written, role, candidates: formatCandidates(picked.candidates) });
+  return { canonical: nfc(written), found: true };
 }
 
+function reportUnresolved(r: Resolver, code: ErrorCode, written: string, role: ResolvedRole, span?: Span): void {
+  r.diags.error(code, span ?? SPAN0, { written, role, candidates: '' });
+}
+
+/** TYPE 位置：源码声明（含导入）→ 词汇 → 内置类型；全部未命中报 E800，规范名取原写法。 */
 function resolveTypeName(r: Resolver, written: string, span?: Span): Resolved {
-  const canonical = resolveRef(r, { written, role: 'TYPE', span }, r.table.types, vocabTypes(r));
+  const site: RefSite = { written, role: 'TYPE', span, ambiguous: ErrorCode.AMBIGUOUS_NAME };
+  const { canonical, found } = resolveRef(r, site, r.table.types, vocabTypes(r));
+  if (!found && !isBuiltinType(canonical)) reportUnresolved(r, ErrorCode.UNRESOLVED_TYPE, written, 'TYPE', span);
   return { canonical, role: 'TYPE', written };
+}
+
+/** 解析器在缺省返回类型等处合成的占位类型名，交由类型推断处理。 */
+const INFERRED_TYPE_PLACEHOLDER = 'Unknown';
+
+function isBuiltinType(name: string): boolean {
+  return BUILTIN_TYPE_NAMES.has(name) || name === INFERRED_TYPE_PLACEHOLDER;
+}
+
+/** 不产生诊断地探测一个名字在 TYPE 位置能否命中源码声明或词汇。 */
+function probeType(r: Resolver, written: string): string | undefined {
+  const fromDecl = chooseDecl(r.table.types, written);
+  const picked = fromDecl.kind === 'miss' ? chooseVocab(vocabTypes(r), written) : fromDecl;
+  return picked.kind === 'hit' ? picked.entry.canonical : undefined;
 }
 
 /** 值位置单段名：LOCAL → 模块函数/类型 → 词汇函数/类型 → 规范名直写；全部失败留给 R2。 */
@@ -350,22 +384,35 @@ function resolveValueName(r: Resolver, scope: Scope, written: string, span?: Spa
   return resolvedOf(picked.entry, written);
 }
 
-/** `E.M`：首段非局部名、非函数且解析为枚举类型时，按 enumMembers[E] 解析成员。 */
+function isEnum(r: Resolver, name: string): boolean {
+  return r.table.enums.has(name) || (r.scopes?.enumMembers.has(name) ?? false);
+}
+
+/** 首段是否为局部名或函数（源码 / 词汇）：是则不是 `E.M` 形式，整体留给 R2。 */
+function headIsValue(r: Resolver, scope: Scope, head: string): boolean {
+  if (findLocal(scope, head).kind !== 'miss') return true;
+  if (chooseDecl(r.table.functions, head).kind !== 'miss') return true;
+  return chooseVocab(vocabFunctions(r), head).kind !== 'miss';
+}
+
+/** `E.M`：首段非局部名、非函数且（静默探测）为枚举类型时，才正式解析并按 enumMembers[E] 解析成员。 */
 function resolveQualified(r: Resolver, scope: Scope, written: string, span?: Span): Resolved | undefined {
   const parts = written.split('.');
   if (parts.length !== 2) return undefined;
   const [head, tail] = parts as [string, string];
-  if (findLocal(scope, head).kind !== 'miss') return undefined;
-  if (chooseDecl(r.table.functions, head).kind !== 'miss') return undefined;
+  if (headIsValue(r, scope, head)) return undefined;
+  const probed = probeType(r, head) ?? nfc(head);
+  if (!isEnum(r, probed)) return undefined;
   const enumName = resolveTypeName(r, head, span).canonical;
-  if (!r.table.enums.has(enumName) && !r.scopes?.enumMembers.has(enumName)) return undefined;
   const member = resolveMember(r, enumName, tail, span);
-  return { canonical: `${enumName}.${member}`, role: 'MEMBER_REF', written };
+  if (!member.found) reportUnresolved(r, ErrorCode.UNRESOLVED_NAME, tail, 'MEMBER_REF', span);
+  return { canonical: `${enumName}.${member.canonical}`, role: 'MEMBER_REF', written };
 }
 
-function resolveMember(r: Resolver, enumName: string, written: string, span?: Span): string {
+function resolveMember(r: Resolver, enumName: string, written: string, span?: Span): RefResult {
   const maps = scopedVocab(r, (s) => s.enumMembers, enumName, 'MEMBER_REF');
-  return resolveRef(r, { written, role: 'MEMBER_REF', span }, r.table.members.get(enumName) ?? [], maps);
+  const site: RefSite = { written, role: 'MEMBER_REF', span, ambiguous: ErrorCode.AMBIGUOUS_NAME };
+  return resolveRef(r, site, r.table.members.get(enumName) ?? [], maps);
 }
 
 function resolveName(r: Resolver, scope: Scope, n: AST.Name): AST.Name {
@@ -381,9 +428,8 @@ function resolveType(r: Resolver, scope: Scope, t: AST.Type): AST.Type {
   const sub = (x: AST.Type): AST.Type => resolveType(r, scope, x);
   switch (t.kind) {
     case 'TypeName':
-      // TS 解析器把类型参数的使用也表示为 TypeName（并把未声明的大写类型名推断为类型参数），
-      // 按 §5 一律作 TYPE 位置解析：源码声明 → 词汇 → 原写法
-      return { ...t, resolved: resolveTypeName(r, t.name, t.span) };
+      // 隐式推断的类型参数在 TS AST 中仍是 TypeName；经 R13 筛选后仍保留的类型参数不查词汇
+      return scope.typeParams.has(t.name) ? t : { ...t, resolved: resolveTypeName(r, t.name, t.span) };
     case 'TypeApp':
       return { ...t, args: t.args.map(sub), resolved: resolveTypeName(r, t.base, t.span) };
     case 'Maybe':
@@ -460,15 +506,23 @@ function resolveExpr(r: Resolver, scope: Scope, e: AST.Expression): AST.Expressi
 
 /** `X with f = …`：X 按 TYPE 解析，字段按已解析的 X 查 fields[X]。 */
 function resolveConstruct(r: Resolver, scope: Scope, e: AST.Construct): AST.Construct {
-  const type = resolveTypeName(r, e.typeName, e.span);
+  const type = resolveTypeName(r, e.typeName, leadingSpan(e.span, e.typeName));
   const maps = scopedVocab(r, (s) => s.fields, type.canonical, 'FIELD_REF');
   const decls = r.table.fields.get(type.canonical) ?? [];
   const fields = e.fields.map((f) => {
-    const canonical = resolveRef(r, { written: f.name, role: 'FIELD_REF', span: f.span }, decls, maps);
+    const site: RefSite = { written: f.name, role: 'FIELD_REF', span: f.span, ambiguous: ErrorCode.AMBIGUOUS_FIELD };
+    const { canonical, found } = resolveRef(r, site, decls, maps);
+    if (!found) reportUnresolved(r, ErrorCode.UNRESOLVED_FIELD, f.name, 'FIELD_REF', f.span);
     const resolved: Resolved = { canonical, role: 'FIELD_REF', written: f.name };
     return { ...f, expr: resolveExpr(r, scope, f.expr), resolved };
   });
   return { ...e, fields, resolved: type };
+}
+
+/** 构造表达式不单独记录类型名 span：取表达式起点加类型名长度（类型名为单个 token）。 */
+function leadingSpan(span: Span | undefined, text: string): Span | undefined {
+  if (!span) return undefined;
+  return { start: span.start, end: { line: span.start.line, col: span.start.col + text.length } };
 }
 
 function resolveLambda(r: Resolver, scope: Scope, e: AST.Lambda): AST.Lambda {
@@ -615,10 +669,10 @@ function resolvePatternCtor(r: Resolver, scope: Scope, p: AST.PatternCtor, subje
 
 function ctorResolution(r: Resolver, p: AST.PatternCtor, subject: string | undefined): Resolved | undefined {
   if (subject === undefined || KEYWORD_CTORS.has(p.typeName)) return undefined;
-  if (r.table.enums.has(subject) || r.scopes?.enumMembers.has(subject)) {
-    return { canonical: resolveMember(r, subject, p.typeName, p.span), role: 'MEMBER_REF', written: p.typeName };
-  }
-  return resolveTypeName(r, p.typeName, p.span);
+  if (!isEnum(r, subject)) return resolveTypeName(r, p.typeName, p.span);
+  const member = resolveMember(r, subject, p.typeName, p.span);
+  if (!member.found) reportUnresolved(r, ErrorCode.UNRESOLVED_PATTERN, p.typeName, 'MEMBER_REF', p.span);
+  return { canonical: member.canonical, role: 'MEMBER_REF', written: p.typeName };
 }
 
 // ---- 声明节点改写 ----
@@ -641,8 +695,8 @@ function rewriteDecl(r: Resolver, names: DeclNames, d: AST.Declaration): AST.Dec
   }
 }
 
-function rootScope(): Scope {
-  return { parent: undefined, locals: [] };
+function rootScope(typeParams: readonly string[] = []): Scope {
+  return { parent: undefined, locals: [], typeParams: new Set(typeParams) };
 }
 
 function rewriteData(r: Resolver, d: AST.Data, resolved: Resolved, fieldNames: readonly Resolved[]): AST.Data {
@@ -652,18 +706,61 @@ function rewriteData(r: Resolver, d: AST.Data, resolved: Resolved, fieldNames: r
 }
 
 function rewriteFunc(r: Resolver, d: AST.Func, resolved: Resolved): AST.Func {
-  const scope = rootScope();
+  const typeParams = keptTypeParams(r, d);
+  const scope = rootScope(typeParams);
   const params = d.params.map((p) => resolveParam(r, scope, p));
   const retType = resolveType(r, scope, d.retType);
   const body = d.body ? resolveBlock(r, scope, d.body) : null;
-  return { ...d, params, retType, body, resolved };
+  return { ...d, typeParams, params, retType, body, resolved };
+}
+
+/**
+ * 裁决 R13：TS 解析器把签名中未声明的大写类型名推断为隐式类型参数（其使用仍为 TypeName）；
+ * 显式 `of T` 的使用则解析为 TypeVar。隐式参数若能作为 TYPE 命中源码声明 / 导入 / 词汇，
+ * 说明它其实是类型名，从 typeParams 中移除；全部未命中的保留为类型参数。
+ */
+function keptTypeParams(r: Resolver, d: AST.Func): readonly string[] {
+  const explicit = new Set<string>();
+  for (const t of [...d.params.map((p) => p.type), d.retType]) collectTypeVars(t, explicit);
+  return d.typeParams.filter((name) => explicit.has(name) || probeType(r, name) === undefined);
+}
+
+function collectTypeVars(t: AST.Type, out: Set<string>): void {
+  const each = (xs: readonly AST.Type[]): void => xs.forEach((x) => collectTypeVars(x, out));
+  switch (t.kind) {
+    case 'TypeVar':
+      out.add(t.name);
+      return;
+    case 'TypeApp':
+      return each(t.args);
+    case 'Maybe':
+    case 'Option':
+    case 'List':
+      return each([t.type]);
+    case 'Result':
+      return each([t.ok, t.err]);
+    case 'Map':
+      return each([t.key, t.val]);
+    case 'FuncType':
+      return each([...t.params, t.ret]);
+    case 'TypePii':
+      return each([t.baseType]);
+    case 'TypeName':
+    case 'EffectVar':
+      return;
+    default: {
+      const never: never = t;
+      throw new Error(`未处理的类型节点：${JSON.stringify(never)}`);
+    }
+  }
 }
 
 // ---- 入口 ----
 
 /**
- * R1：解析声明与类型位置。返回新的 AST（输入不变）与诊断
- * （E804 歧义、E807 重复声明、W800 遮蔽词汇）。
+ * R1：解析声明与类型位置。返回新的 AST（输入不变）与诊断（E800/E801/E802/E803 未解析、
+ * E804/E805 歧义、E807 重复声明、W800 遮蔽词汇）。ctx.imports 须由调用方填充，
+ * 否则引用导入类型的位置会报 E800。
  */
 export function resolveDeclarations(
   module: AST.Module,

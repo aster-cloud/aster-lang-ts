@@ -285,12 +285,6 @@ describe('resolveDeclarations（R1）', () => {
     assert.equal(wf.steps[0]!.name, 'pruefe');
     assert.equal('resolved' in wf.steps[0]!, false);
 
-    const tv = Node.Module('m', null, [
-      Node.Func('g', ['Fahrer'], [{ name: 'x', type: Node.TypeVar('Fahrer'), span: Node.TypeName('x').span }],
-        Node.TypeName('Fahrer'), [], [], false, null),
-    ]);
-    const g = decl(resolveDeclarations(tv, ctx).module, 0, 'Func');
-    assert.deepEqual(g.params[0]!.type, Node.TypeVar('Fahrer'), 'TypeVar 不查词汇');
   });
 
   it('主语为已知 Data 类型参数时 PatternCtor 按 TYPE 解析，绑定名为局部名', () => {
@@ -316,6 +310,116 @@ describe('resolveDeclarations（R1）', () => {
     const ret = bodyStmt(decl(r.module, 1, 'Func'), 0) as AST.Return;
     assert.equal('resolved' in ret.expr, false);
     assert.deepEqual(codes(r), []);
+  });
+
+  describe('隐式类型参数（裁决 R13）', () => {
+    it('隐式推断的类型参数命中词汇 → 从 typeParams 移除并按 TYPE 解析', () => {
+      const m = parse('Modul m.\n\nRegel f gegeben x als Fahrer, liefert Fahrer:\n  gib zurueck x.\n');
+      assert.deepEqual(decl(m, 0, 'Func').typeParams, ['Fahrer'], '前提：解析器把 Fahrer 推断为类型参数');
+      const r = resolveDeclarations(m, ctxOf(DRIVER));
+      const f = decl(r.module, 0, 'Func');
+      assert.deepEqual(f.typeParams, []);
+      assert.equal((f.params[0]!.type as AST.TypeName).resolved?.canonical, 'Driver');
+      assert.deepEqual(codes(r), []);
+    });
+
+    it('隐式推断且全部未命中 → 保留为类型参数，使用处不写 TYPE resolved、不报 E800', () => {
+      const m = parse('Modul m.\n\nRegel f gegeben x als Element, liefert Element:\n  gib zurueck x.\n');
+      const r = resolveDeclarations(m, ctxOf(DRIVER));
+      const f = decl(r.module, 0, 'Func');
+      assert.deepEqual(f.typeParams, ['Element']);
+      assert.equal('resolved' in f.params[0]!.type, false);
+      assert.equal('resolved' in f.retType, false);
+      assert.deepEqual(codes(r), []);
+    });
+
+    it('显式 of T → 保留，TypeVar 不查词汇', () => {
+      const m = parse('Modul m.\n\nRegel f of Fahrer gegeben x als Fahrer, liefert Fahrer:\n  gib zurueck x.\n');
+      const r = resolveDeclarations(m, ctxOf(DRIVER));
+      const f = decl(r.module, 0, 'Func');
+      assert.deepEqual(f.typeParams, ['Fahrer']);
+      assert.deepEqual(f.params[0]!.type, decl(m, 0, 'Func').params[0]!.type);
+      assert.equal(f.params[0]!.type.kind, 'TypeVar');
+      assert.deepEqual(codes(r), []);
+    });
+  });
+
+  describe('未解析诊断（裁决 R14）', () => {
+    it('TYPE 位置在声明 / 导入 / 词汇 / 内置中均未命中 → E800', () => {
+      const m = parse('Modul m.\n\nDefiniere Fahrer hat alter als Unbekannt.\n');
+      const r = resolveDeclarations(m, ctxOf(DRIVER));
+      assert.deepEqual(codes(r), [ErrorCode.UNRESOLVED_TYPE]);
+      assert.match(r.diagnostics[0]!.message, /Unbekannt/);
+    });
+
+    it('已声明、内置、导入、词汇类型不报 E800', () => {
+      const m = parse(
+        'Modul m.\n\nDefiniere Stufe als eines von Hoch, Niedrig.\n\n' +
+          'Definiere Fahrer hat alter als Ganzzahl, stufe als Stufe, konto als Konto, name als Text, ' +
+          'betrag als Decimal, frei als Boolesch, freund als Driver.\n'
+      );
+      const imports: ImportedDeclarations = { ...NO_IMPORTS, types: ['Konto'] };
+      const r = resolveDeclarations(m, ctxOf([...DRIVER, ...LEVEL], imports));
+      assert.deepEqual(codes(r), []);
+    });
+
+    it('构造字段未命中 → E801', () => {
+      const m = parse(
+        'Modul m.\n\nDefiniere Fahrer hat alter als Ganzzahl.\n\n' +
+          'Regel f gegeben x als Ganzzahl, liefert Fahrer:\n  gib zurueck Fahrer mit gewicht setze auf x.\n'
+      );
+      const r = resolveDeclarations(m, ctxOf(DRIVER));
+      assert.deepEqual(codes(r), [ErrorCode.UNRESOLVED_FIELD]);
+      assert.match(r.diagnostics[0]!.message, /gewicht/);
+    });
+
+    it('构造字段折叠后多候选 → E805', () => {
+      const m = parse(
+        'Modul m.\n\nRegel f gegeben x als Ganzzahl, liefert Driver:\n  gib zurueck Driver mit alter setze auf x.\n'
+      );
+      const imports: ImportedDeclarations = { ...NO_IMPORTS, types: ['Driver'], fields: new Map([['Driver', ['age']]]) };
+      const vocab = [struct('Driver', 'Fahrer'), field('Driver', 'ageGroup', 'Alter'), field('Driver', 'maxAge', 'ALTER')];
+      const r = resolveDeclarations(m, ctxOf(vocab, imports));
+      assert.deepEqual(codes(r), [ErrorCode.AMBIGUOUS_FIELD]);
+    });
+
+    it('E.M 成员未命中 → E802（MEMBER_REF）', () => {
+      const m = parse(
+        'Modul m.\n\nDefiniere Stufe als eines von Hoch, Niedrig.\n\n' +
+          'Regel f gegeben x als Ganzzahl, liefert Stufe:\n  gib zurueck Stufe.Mittel.\n'
+      );
+      const r = resolveDeclarations(m, ctxOf(LEVEL));
+      assert.deepEqual(codes(r), [ErrorCode.UNRESOLVED_NAME]);
+      assert.match(r.diagnostics[0]!.message, /Mittel/);
+      assert.match(r.diagnostics[0]!.message, /MEMBER_REF/);
+    });
+
+    it('主语为已知枚举时 PatternCtor 成员未命中 → E803', () => {
+      const span = Node.TypeName('x').span;
+      const m = Node.Module('m', null, [
+        Node.Enum('Stufe', ['Hoch']),
+        Node.Func('f', [], [{ name: 's', type: Node.TypeName('Stufe'), span }], Node.TypeName('Int'), [], [], false,
+          Node.Block([Node.Match(Node.Name('s'), [Node.Case(Node.PatternCtor('Mittel', []), Node.Return(Node.Int(1)))])])),
+      ]);
+      const r = resolveDeclarations(m, ctxOf(LEVEL));
+      assert.deepEqual(codes(r), [ErrorCode.UNRESOLVED_PATTERN]);
+    });
+
+    it('值位置未命中的单段名不报 E802（留给 R2）', () => {
+      const m = parse('Modul m.\n\nRegel f gegeben x als Ganzzahl, liefert Ganzzahl:\n  gib zurueck unbekannt.\n');
+      assert.deepEqual(codes(resolveDeclarations(m, ctxOf(DRIVER))), []);
+    });
+
+    it('点分首段静默探测：非枚举首段不产生诊断；词汇函数首段不按 E.M 解析', () => {
+      const src =
+        'Modul m.\n\nDefiniere Stufe als eines von Hoch, Niedrig.\n\n' +
+        'Regel f gegeben x als Text, liefert Stufe:\n  sei n gleich Unbekannt.laenge.\n  gib zurueck Stufe.Hoch.\n';
+      const r = resolveDeclarations(parse(src), ctxOf([...LEVEL, fn('grade', 'Stufe')]));
+      assert.deepEqual(codes(r), []);
+      const f = decl(r.module, 1, 'Func');
+      assert.equal('resolved' in ((bodyStmt(f, 0) as AST.Let).expr), false);
+      assert.equal('resolved' in ((bodyStmt(f, 1) as AST.Return).expr), false);
+    });
   });
 
   it('不修改输入 AST', () => {
