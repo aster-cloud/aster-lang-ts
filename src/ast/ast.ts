@@ -1,6 +1,9 @@
 // Simple AST node constructors
 import type * as AST from '../types.js';
 
+// ADR 0051：名称解析结果类型（定义于 types.ts，与 AST 节点接口同处）
+export type { Resolved, ResolvedRole } from '../types.js';
+
 function createEmptySpan(): AST.Span {
   return {
     start: { line: 0, col: 0 },
