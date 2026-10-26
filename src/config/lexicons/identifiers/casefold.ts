@@ -11,7 +11,7 @@ export function nfc(s: string): string {
   return s.normalize('NFC');
 }
 
-/** 折叠键：NFC 后对每个码点查表替换（未命中保持不变）。 */
+/** 折叠键：NFC(逐码点折叠(NFC(s)))。末尾再做 NFC，使折叠键对 NFC 闭合，可直接作为规范 JSON 的键。 */
 export function foldKey(s: string): string {
   let out = '';
   for (const ch of nfc(s)) {
@@ -19,7 +19,7 @@ export function foldKey(s: string): string {
     const mapped = CASEFOLD_TABLE.get(cp);
     out += mapped === undefined ? ch : String.fromCodePoint(mapped);
   }
-  return out;
+  return nfc(out);
 }
 
 /** 按码点（等价于 UTF-8 字节序）比较字符串；JS 默认比较按 UTF-16 单元，对增补平面字符不正确。 */

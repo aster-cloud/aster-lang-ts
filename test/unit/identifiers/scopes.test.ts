@@ -111,3 +111,24 @@ describe('canonicalScopesJson', () => {
     assert.ok(expected.indexOf('"canonical":"Alter"') < expected.indexOf('"canonical":"alter"'));
   });
 });
+
+describe('折叠键 NFC 闭包与转义', () => {
+  it('Ϊ́ 与 ΐ 同桶，两个候选都保留', () => {
+    const v = base({
+      functions: [
+        { canonical: 'a', localized: '\u03AA\u0301', kind: IdentifierKind.FUNCTION },
+        { canonical: 'b', localized: '\u0390', kind: IdentifierKind.FUNCTION },
+      ],
+    });
+    const json = canonicalScopesJson(buildVocabularyScopes(v));
+    assert.strictEqual(Object.keys(JSON.parse(json).functions).length, 1);
+    assert.ok(json.includes('"canonical":"a"') && json.includes('"canonical":"b"'));
+  });
+
+  it('制表符转义为 \\t，U+2028 原样输出', () => {
+    const v = base({ functions: [{ canonical: 'c', localized: 'a\tb\u2028c', kind: IdentifierKind.FUNCTION }] });
+    const json = canonicalScopesJson(buildVocabularyScopes(v));
+    assert.ok(json.includes('"written":"a\\tb\u2028c"'));
+    assert.ok(json.includes('"a\\tb\u2028c":['));
+  });
+});

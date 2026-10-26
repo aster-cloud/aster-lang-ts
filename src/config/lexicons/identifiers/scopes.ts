@@ -172,7 +172,7 @@ function candidateJson(c: Candidate): Json {
 
 function bucketsJson(map: ReadonlyMap<string, Candidate[]>): Json {
   const o = new Map<string, Json>();
-  for (const [k, list] of map) o.set(nfc(k), [...list].sort(compareCandidates).map(candidateJson));
+  for (const [k, list] of map) o.set(k, [...list].sort(compareCandidates).map(candidateJson));
   return o;
 }
 
@@ -191,12 +191,21 @@ function serialize(v: Json): string {
 }
 
 /**
- * 规范 JSON：无空白、对象键按码点排序、候选数组按 (canonical, written) 排序、字符串 NFC、
- * 含 schemaVersion。字符串转义与 JSON.stringify 一致（仅 " \ 与 U+0000-U+001F 转义，其余原样 UTF-8）。
+ * 规范 JSON 契约（TS 与 Java 须逐字节一致）：
+ * - 顶层对象键依次为 enumMembers、fields、functions、literals、schemaVersion、types（即码点序），schemaVersion 固定为 1。
+ * - 全文无任何空白；所有对象的键按码点序（等价 UTF-8 字节序）排序，不按 UTF-16 单元序。
+ * - types/functions：{foldKey: [候选...]}；fields/enumMembers：{规范父名: {foldKey: [候选...]}}；
+ *   literals：{foldKey: 字面量内容字符串}。foldKey 已对 NFC 闭合，不再二次规范化。
+ * - 候选对象键序 canonical、kind、parent（仅存在时输出）、source、written；kind 取枚举字符串值
+ *   （struct/field/function/enum_value/literal），source 为 term 或 synonym。
+ * - 候选数组按 (canonical, written, kind, source, parent) 逐项按码点比较，缺失的 parent 视为空串。
+ * - 所有字符串值均 NFC。
+ * - 字符串转义同 JSON.stringify：\" \\ \b \f \n \r \t；其余小于 U+0020 的字符写作 \u00xx（小写十六进制）；
+ *   孤立代理项写作小写 \udxxx；U+007F、U+2028、U+2029 及所有其它字符原样以 UTF-8 输出。
  */
 export function canonicalScopesJson(scopes: VocabularyScopes): string {
   const literals = new Map<string, Json>();
-  for (const [k, v] of scopes.literals) literals.set(nfc(k), nfc(v));
+  for (const [k, v] of scopes.literals) literals.set(k, nfc(v));
   return serialize(
     new Map<string, Json>([
       ['enumMembers', scopedJson(scopes.enumMembers)],

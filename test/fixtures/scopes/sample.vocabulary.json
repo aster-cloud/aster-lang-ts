@@ -18,7 +18,8 @@
   ],
   "functions": [
     { "canonical": "total", "localized": "Gesamt", "kind": "function" },
-    { "canonical": "emoji", "localized": "𝒜bc", "kind": "function" }
+    { "canonical": "emoji", "localized": "𝒜bc", "kind": "function" },
+    { "canonical": "ctrl", "localized": "Tab\tX\u2028Y", "kind": "function" }
   ],
   "enumValues": [
     { "canonical": "High", "localized": "Hoch", "kind": "enum_value", "parent": "Level" },

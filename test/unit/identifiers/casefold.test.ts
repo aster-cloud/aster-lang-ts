@@ -6,7 +6,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compareCodePoints, foldKey, nfc } from '../../../src/config/lexicons/identifiers/casefold.js';
@@ -63,5 +63,29 @@ describe('foldKey / compareCodePoints', () => {
     assert.ok('～' > '\u{10000}'); // UTF-16 单元序相反，证明确有差异
     assert.strictEqual(compareCodePoints('abc', 'abc'), 0);
     assert.ok(compareCodePoints('ab', 'abc') < 0);
+  });
+});
+
+describe('foldKey NFC 闭包', () => {
+  const GREEK_A = 'Ϊ́'; // Ϊ + 组合锐音
+  const GREEK_B = 'ΐ'; // ΐ
+  it('Ϊ́ 与 ΐ 折叠相等', () => {
+    assert.strictEqual(foldKey(GREEK_A), foldKey(GREEK_B));
+  });
+  it('折叠结果恒为 NFC（测试向量与希腊文用例）', () => {
+    const vectors = JSON.parse(readFileSync(vectorsPath, 'utf8')) as Vector[];
+    const inputs = [GREEK_A, GREEK_B, ...vectors.flatMap((v) => [v.a, v.b])];
+    for (const s of inputs) assert.strictEqual(foldKey(s), nfc(foldKey(s)));
+  });
+});
+
+describe('折叠表与 locales 数据一致', () => {
+  it('生成表等于 casefold-15.1.json', async (t) => {
+    const src = join(repoRoot, '..', 'aster-lang-locales', 'casefold', 'casefold-15.1.json');
+    if (!existsSync(src)) return t.skip('兄弟仓库 aster-lang-locales 不存在');
+    const { CASEFOLD_TABLE } = await import('../../../src/config/lexicons/identifiers/casefold-table.generated.js');
+    const map = (JSON.parse(readFileSync(src, 'utf8')) as { map: Record<string, string> }).map;
+    const expected = Object.entries(map).map(([k, v]) => [parseInt(k, 16), parseInt(v, 16)]).sort((a, b) => a[0]! - b[0]!);
+    assert.deepStrictEqual([...CASEFOLD_TABLE].sort((a, b) => a[0] - b[0]), expected);
   });
 });
