@@ -236,15 +236,23 @@ function checkDuplicates(r: Resolver, sites: readonly DeclaredSite[]): void {
 /** 预先解析全部声明名，建立模块符号表（含导入），供后续引用位置使用。 */
 interface DeclNames {
   readonly byDecl: Map<AST.Declaration, Resolved>;
+  readonly aliases: Resolved[];
   readonly fieldNames: Map<AST.Data, Resolved[]>;
   readonly variantNames: Map<AST.Enum, Resolved[]>;
 }
 
-function declareTopLevel(r: Resolver, decls: readonly AST.Declaration[]): DeclNames {
-  const names: DeclNames = { byDecl: new Map(), fieldNames: new Map(), variantNames: new Map() };
+function declareTopLevel(r: Resolver, module: AST.Module): DeclNames {
+  const names: DeclNames = { byDecl: new Map(), aliases: [], fieldNames: new Map(), variantNames: new Map() };
   const typeSites: DeclaredSite[] = [];
   const funcSites: DeclaredSite[] = [];
-  for (const d of decls) {
+  for (const alias of module.typeAliases ?? []) {
+    // 类型别名只以名字存在（无 Core 声明），按 TYPE_DECL 解析并与 Data/Enum 同组查重
+    const resolved = declare(r, alias, 'TYPE_DECL', vocabTypes(r), undefined);
+    names.aliases.push(resolved);
+    typeSites.push({ resolved, span: undefined });
+    r.table.types.push(refEntry(resolved, 'TYPE'));
+  }
+  for (const d of module.decls) {
     if (d.kind === 'Import') continue;
     const isFunc = d.kind === 'Func';
     const resolved = isFunc
@@ -768,8 +776,9 @@ export function resolveDeclarations(
 ): { module: AST.Module; diagnostics: TypecheckDiagnostic[] } {
   const table: ModuleTable = { types: [], functions: [], enums: new Set(), members: new Map(), fields: new Map() };
   const r: Resolver = { scopes: ctx.scopes, table, diags: new DiagnosticBuilder() };
-  const names = declareTopLevel(r, module.decls);
+  const names = declareTopLevel(r, module);
   registerImports(table, ctx);
   const decls = module.decls.map((d) => rewriteDecl(r, names, d));
-  return { module: { ...module, decls }, diagnostics: r.diags.getDiagnostics() };
+  const aliases = names.aliases.length > 0 ? { resolvedTypeAliases: names.aliases } : {};
+  return { module: { ...module, decls, ...aliases }, diagnostics: r.diags.getDiagnostics() };
 }

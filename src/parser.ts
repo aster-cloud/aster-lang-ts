@@ -54,7 +54,9 @@ export function parse(tokens: readonly Token[], lexicon?: Lexicon): ParseResult 
   const ctx = createParserContext(tokens, lexicon);
   const tools = createParserTools(ctx);
   const { decls, diagnostics } = collectTopLevelDecls(ctx, tools);
-  const moduleNode = Node.Module(ctx.moduleName, ctx.moduleProfile, decls);
+  const parsed = Node.Module(ctx.moduleName, ctx.moduleProfile, decls);
+  // 无别名时不写该字段，保持既有 AST JSON 不变
+  const moduleNode: Module = ctx.typeAliases.length > 0 ? { ...parsed, typeAliases: ctx.typeAliases } : parsed;
   const moduleEnd = lastSignificantTokenInStream(tokens);
   assignSpan(moduleNode, spanFromTokens(moduleStart, moduleEnd));
   return { ast: moduleNode, diagnostics };

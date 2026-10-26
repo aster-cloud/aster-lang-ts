@@ -202,6 +202,13 @@ export interface Resolvable {
 
 export interface Module extends Base.BaseModule<Span, Declaration> {
   span: Span;
+  /**
+   * ADR 0051：`Type X as …` 类型别名的原写法名（按出现顺序）。仅存在于 AST，供名称解析
+   * 作为 TYPE_DECL；别名不产出 Core 声明（与 Java 一致）。无别名时省略。
+   */
+  readonly typeAliases?: readonly string[];
+  /** R1 对 typeAliases 的 TYPE_DECL 解析结果，与 typeAliases 同长（解析前缺省） */
+  readonly resolvedTypeAliases?: readonly Resolved[];
 }
 
 export interface Import extends Base.BaseImport<Span> {

@@ -422,6 +422,42 @@ describe('resolveDeclarations（R1）', () => {
     });
   });
 
+  describe('类型别名（裁决 R15）', () => {
+    it('引用类型别名不报 E800，按别名声明解析', () => {
+      const m = parse(
+        'Module m.\n\nType Score as Int.\n\nDefine Fahrer has punkte as Score.\n\n' +
+          'Rule f given s as Score, produce Score:\n  Return s.\n',
+        EN_US
+      );
+      const r = resolveDeclarations(m, ctxOf(DRIVER));
+      assert.deepEqual(codes(r), []);
+      assert.deepEqual(r.module.resolvedTypeAliases, [{ canonical: 'Score', role: 'TYPE_DECL', written: 'Score' }]);
+      const f = decl(r.module, 1, 'Func');
+      assert.deepEqual(f.typeParams, []);
+      assert.equal((f.params[0]!.type as AST.TypeName).resolved?.canonical, 'Score');
+      assert.equal((decl(r.module, 0, 'Data').fields[0]!.type as AST.TypeName).resolved?.canonical, 'Score');
+    });
+
+    it('别名声明命中词汇 → 取规范名，引用随之解析', () => {
+      const m = parse(
+        'Module m.\n\nType Punktzahl as Int.\n\nDefine Fahrer has punkte as Punktzahl.\n',
+        EN_US
+      );
+      const r = resolveDeclarations(m, ctxOf([...DRIVER, struct('Score', 'Punktzahl')]));
+      assert.deepEqual(codes(r), []);
+      assert.deepEqual(r.module.typeAliases, ['Punktzahl'], '原写法保留');
+      assert.deepEqual(r.module.resolvedTypeAliases, [{ canonical: 'Score', role: 'TYPE_DECL', written: 'Punktzahl' }]);
+      const t = decl(r.module, 0, 'Data').fields[0]!.type as AST.TypeName;
+      assert.deepEqual(t.resolved, { canonical: 'Score', role: 'TYPE', written: 'Punktzahl' });
+    });
+
+    it('别名与 Data 解析到同一规范名 → E807', () => {
+      const m = parse('Module m.\n\nType Fahrer as Int.\n\nDefine Driver has age as Int.\n', EN_US);
+      const r = resolveDeclarations(m, ctxOf(DRIVER));
+      assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
+    });
+  });
+
   it('不修改输入 AST', () => {
     const m = parse('Modul m.\n\nDefiniere Fahrer hat alter als Ganzzahl.\n');
     const before = JSON.stringify(m);
