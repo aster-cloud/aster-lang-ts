@@ -6,6 +6,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeDiagnostics } from '../../../src/lsp/diagnostics.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { EN_US } from '../../../src/config/lexicons/en-US.js';
+import { parseDocumentText } from '../../../src/lsp/parse-document.js';
+import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { DECLS, docOf, getOrParseWith } from './resolution-fixture.js';
 
 async function codesOf(lines: readonly string[]): Promise<string[]> {
@@ -63,6 +66,24 @@ describe('诊断：语法不完整时降级', () => {
     ]);
     assert.ok(codes.some((c) => !isResolution(c)), '夹具应含语法错误');
     assert.deepEqual(codes.filter(isResolution), [], `被丢弃的声明级联出了名称解析诊断：${codes}`);
+  });
+
+  it('★无词汇时语法错误不屏蔽其它声明的类型诊断（R2 跳过，R1 输出直接 lower 做检查）', async () => {
+    const doc = docOf([
+      'Module m.',
+      '',
+      'Rule f given x as Int, produce Text:',
+      '  Return x.',
+      '',
+      'Rule g given z as Int, produce Int:',
+      '  Return z plus',
+      '',
+    ]);
+    const plain = (d: TextDocument) => ({ ...parseDocumentText(d.getText(), EN_US, undefined, undefined), text: d.getText() });
+    const codes = (await computeDiagnostics(doc.document, plain as never, EN_US)).map((d) => String(d.code ?? ''));
+    assert.ok(codes.some((c) => c.startsWith('P')), `夹具应含语法错误：${codes}`);
+    assert.ok(codes.includes('E003'), `返回类型不匹配应仍被报告：${codes}`);
+    assert.deepEqual(codes.filter(isResolution), []);
   });
 
   it('语法完整时 R2 照常报告：未知字段 E801', async () => {

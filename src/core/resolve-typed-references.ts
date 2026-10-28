@@ -343,8 +343,14 @@ interface PathResult {
   readonly type: Static;
 }
 
-function observeSite(r: Resolver, site: ScopedResolutionSite): void {
-  r.observer?.onScopedSite?.(site);
+/** 仅在有观察者时才构造位置（含父名计算）：编译路径零开销。 */
+function observeSite(r: Resolver, make: () => ScopedResolutionSite): void {
+  const onSite = r.observer?.onScopedSite;
+  if (onSite) onSite(make());
+}
+
+function withParent(parent: string | undefined): { parent?: string } {
+  return parent === undefined ? {} : { parent };
 }
 
 /** 写法本身即某个已声明字段的规范名（§6.2 第 5 步）：接收者类型未知时直接接受，不告警。 */
@@ -388,10 +394,11 @@ function resolvePath(r: Resolver, scope: Scope, written: string, at: Span | unde
     // 类型参数没有字段：其上的字段段一定无法解析（类型检查同样拒绝），不让原写法进入 IR
     if (type !== DYNAMIC && type?.kind === 'TypeVar') report(r, ErrorCode.UNRESOLVED_FIELD, at, seg, 'FIELD_REF');
     if (isOpaque(r, type)) return { name: [...parts, ...tail.slice(i)].join('.'), type: DYNAMIC };
-    const owner = dataOf(r, type);
     const next = resolveSegment(r, type, seg, at);
-    const parent = owner === undefined ? {} : { parent: owner };
-    observeSite(r, { span: at, segment: { path: written, index: i + 1 }, written: seg, canonical: next.name, role: 'FIELD_REF', ...parent });
+    const owner = type;
+    observeSite(r, () => ({
+      span: at, segment: { path: written, index: i + 1 }, written: seg, canonical: next.name, role: 'FIELD_REF', ...withParent(dataOf(r, owner)),
+    }));
     parts.push(next.name);
     type = next.type;
   }
@@ -452,7 +459,7 @@ function resolveUnderEnum(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionM
   }
   // 保持写法形态：裸名得裸成员规范名，使本地化源码与规范名拼写的同一程序产出相同 IR
   const canonical = member.entry.canonical;
-  observeSite(r, { span: at, written: mark.written, canonical, role: 'MEMBER_REF', parent: e });
+  observeSite(r, () => ({ span: at, written: mark.written, canonical, role: 'MEMBER_REF', parent: e }));
   return renamed(n, { name: canonical }, mark.written, canonical, 'MEMBER_REF');
 }
 
@@ -719,7 +726,7 @@ function patNameUnderEnum(r: Resolver, p: Core.PatName, mark: ResolutionMark, e:
     return p;
   }
   const canonical = member.entry.canonical;
-  observeSite(r, { span: spanOf(p), written: mark.written, canonical, role: 'MEMBER_REF', parent: e });
+  observeSite(r, () => ({ span: spanOf(p), written: mark.written, canonical, role: 'MEMBER_REF', parent: e }));
   return renamed(p, { name: canonical }, mark.written, canonical, 'MEMBER_REF');
 }
 
@@ -772,8 +779,7 @@ function ctorResolution(r: Resolver, p: Core.PatCtor, mark: ResolutionMark, subj
   if (rule.choice.kind === 'hit') {
     const { canonical, role } = rule.choice.entry;
     if (!rule.typed && canonical !== nfc(mark.written)) warn(r, ErrorCode.RESOLVED_WITHOUT_TYPE, at, mark.written, role, [rule.choice.entry]);
-    const e = role === 'MEMBER_REF' ? enumOf(r, subject) : undefined;
-    observeSite(r, { span: at, written: mark.written, canonical, role, ...(e === undefined ? {} : { parent: e }) });
+    observeSite(r, () => ({ span: at, written: mark.written, canonical, role, ...withParent(role === 'MEMBER_REF' ? enumOf(r, subject) : undefined) }));
     return renamed(p, { typeName: canonical }, mark.written, canonical, role);
   }
   if (rule.choice.kind === 'ambiguous') report(r, rule.ambiguous, at, mark.written, rule.role, rule.choice.candidates);

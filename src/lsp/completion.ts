@@ -66,6 +66,7 @@ export function fieldCompletions(entry: CompletionDocument, pos: { line: number;
   const receiver = receiverBeforeDot(entry.tokens, pos);
   if (!receiver) return null;
   const res = resolveDocument(entry);
+  if (!res.complete) return null;
   const typed = res.typedNames.find((t) => sameCoord(t.span.start, receiver.start) && sameCoord(t.span.end, receiver.end));
   const typeName = typed?.type.kind === 'TypeName' ? typed.type.name : undefined;
   const data = res.core?.decls.find((d): d is Core.Data => d.kind === 'Data' && d.name === typeName);

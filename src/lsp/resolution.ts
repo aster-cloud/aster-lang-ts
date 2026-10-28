@@ -10,7 +10,8 @@
  */
 import { nfc } from '../config/lexicons/identifiers/casefold.js';
 import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
-import { resolveAndLower, resolveDeclarationsOnly } from '../compile-pipeline.js';
+import { hasErrors, resolveAndLower, resolveDeclarationsOnly } from '../compile-pipeline.js';
+import { lowerModule } from '../lower_to_core.js';
 import type { ScopedResolutionSite, TypedReferenceObserver } from '../core/resolve-typed-references.js';
 import { originToSpan } from '../typecheck/pure.js';
 import type { Core, Module as AstModule, ResolvedRole, Span, TypecheckDiagnostic } from '../types.js';
@@ -36,7 +37,7 @@ export interface DocumentResolution {
   readonly complete: boolean;
   readonly sites: readonly ResolutionSite[];
   readonly typedNames: readonly TypedName[];
-  /** R2 输出的 Core；仅语法完整时存在 */
+  /** 可做语义检查的 Core：语法完整时为 R2 输出；语法不完整时仅在无词汇且 R1 无 error 时为 R1 的 lower 结果 */
   readonly core?: Core.Module;
   readonly diagnostics: readonly TypecheckDiagnostic[];
 }
@@ -71,9 +72,21 @@ function safely(run: () => DocumentResolution): DocumentResolution {
   }
 }
 
+/**
+ * 语法不完整：只运行 R1，R2 跳过。R1 无 error 且没有词汇时，R1 输出 lower 后就是可信的 Core
+ * （此时无本地化写法需要 R2 改写），仍交给语义 / 类型检查，避免编辑时这些诊断全部消失；
+ * 有词汇（Core 中残留未解析的本地化名）或 R1 报错（多为被丢弃声明的级联）时不提供 Core。
+ */
 function resolvePartial(ast: AstModule, vocabulary: VocabularyScopes | undefined): DocumentResolution {
   const r1 = resolveDeclarationsOnly(ast, vocabulary);
-  return { complete: false, sites: collectR1Sites(r1.ast), typedNames: [], diagnostics: r1.diagnostics };
+  const base = { complete: false, sites: collectR1Sites(r1.ast), typedNames: [], diagnostics: r1.diagnostics };
+  if (hasErrors(r1.diagnostics) || !isEmptyVocabulary(vocabulary)) return base;
+  return { ...base, core: lowerModule(r1.ast) };
+}
+
+function isEmptyVocabulary(v: VocabularyScopes | undefined): boolean {
+  if (!v) return true;
+  return v.types.size === 0 && v.fields.size === 0 && v.enumMembers.size === 0 && v.functions.size === 0;
 }
 
 function resolveComplete(ast: AstModule, vocabulary: VocabularyScopes | undefined): DocumentResolution {

@@ -433,8 +433,9 @@ export async function computeDiagnostics(
     try {
       // 名称解析（ADR 0051，带租户词汇），与悬停 / 补全共用同一视图：
       // - 语法完整：R1 → lower → R2；E8xx 时没有可信的 Core，不再做语义与类型检查。
-      // - 语法不完整：解析器按声明丢弃未完成部分，其余部分对它的引用会级联出 E800/E802；
-      //   R2 已跳过、Core 未解析，因此不发布名称解析诊断，也不做语义与类型检查，只留语法错误。
+      // - 语法不完整：解析器按声明丢弃未完成部分，其余部分对它的引用会级联出 E800/E802，
+      //   因此不发布名称解析诊断；无词汇且 R1 无 error 时 Core 仍可信，照常做语义与类型检查，
+      //   否则只留语法错误（见 resolution.ts resolvePartial）。
       const resolution = resolveDocument({ ast: parsed, parseDiagnostics: parseDiagnostics ?? [], ...(vocabulary ? { vocabulary } : {}) });
       if (resolution.complete) diagnostics.push(...resolution.diagnostics.map(typecheckDiagToLspDiag));
       if (resolution.core && !hasErrors(resolution.diagnostics)) {
