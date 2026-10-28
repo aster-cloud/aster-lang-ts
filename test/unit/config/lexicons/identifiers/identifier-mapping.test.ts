@@ -252,10 +252,23 @@ describe('标识符映射模块', () => {
       assert.strictEqual(lookup(scopes.enumMembers.get('Level')!, '高').exact[0]?.canonical, 'High');
     });
 
-    it('内置词汇（枚举成员无所属类型）可构建作用域', () => {
-      const scopes = scopesOf('insurance.auto');
-      assert.strictEqual(scopes.enumMembers.size, 0);
-      assert.deepStrictEqual(canonicalsOf(scopes, '驾驶员'), ['Driver']);
+    it('内置词汇的枚举成员归属到各自的枚举（14 个成员）', () => {
+      const members = (domain: string): Record<string, string[]> =>
+        Object.fromEntries(
+          [...scopesOf(domain).enumMembers.entries()].map(([parent, byKey]) => [
+            parent,
+            [...new Set([...byKey.values()].flatMap((cs) => cs.map((c) => c.canonical)))].sort(),
+          ])
+        );
+      assert.deepStrictEqual(members('finance.loan'), {
+        CreditLevel: ['Excellent', 'Fair', 'Good', 'Poor'],
+        LoanType: ['Auto', 'Business', 'Mortgage', 'Personal'],
+      });
+      assert.deepStrictEqual(members('insurance.auto'), {
+        QuoteStatus: ['Approved', 'Pending', 'Rejected'],
+        RiskLevel: ['HighRisk', 'LowRisk', 'MediumRisk'],
+      });
+      assert.deepStrictEqual(canonicalsOf(scopesOf('insurance.auto'), '驾驶员'), ['Driver']);
     });
   });
 
