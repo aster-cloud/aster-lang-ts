@@ -21,6 +21,7 @@ import { resolveDeclarations } from './frontend/resolve-declarations.js';
 import { NO_IMPORTS } from './frontend/resolution-context.js';
 import type { ResolutionContext } from './frontend/resolution-context.js';
 import { resolveTypedReferences } from './core/resolve-typed-references.js';
+import type { TypedReferenceObserver } from './core/resolve-typed-references.js';
 import type { Lexicon } from './config/lexicons/types.js';
 import type { VocabularyScopes } from './config/lexicons/identifiers/scopes.js';
 import type { Diagnostic } from './diagnostics/diagnostics.js';
@@ -67,11 +68,14 @@ function contextOf(scopes: VocabularyScopes | undefined): ResolutionContext {
   return scopes ? { scopes, imports: NO_IMPORTS } : { imports: NO_IMPORTS };
 }
 
-/** R1 → lower → R2（ADR 0051 §4）。任一 error 级诊断时调用方不得发出 core。 */
-export function resolveAndLower(ast: AstModule, scopes?: VocabularyScopes): ResolvedCore {
+/**
+ * R1 → lower → R2（ADR 0051 §4）。任一 error 级诊断时调用方不得发出 core。
+ * observer 只读接收 R2 的解析位置与静态类型（LSP 悬停 / 补全用）。
+ */
+export function resolveAndLower(ast: AstModule, scopes?: VocabularyScopes, observer?: TypedReferenceObserver): ResolvedCore {
   const ctx = contextOf(scopes);
   const r1 = resolveDeclarations(ast, ctx);
-  const r2 = resolveTypedReferences(lowerModule(r1.module), ctx);
+  const r2 = resolveTypedReferences(lowerModule(r1.module), ctx, observer);
   return { ast: r1.module, core: r2.module, diagnostics: [...r1.diagnostics, ...r2.diagnostics] };
 }
 
@@ -95,6 +99,12 @@ export class NameResolutionError extends Error {
 export function formatResolutionDiagnostic(d: TypecheckDiagnostic): string {
   const at = d.span ? ` ${d.span.start.line}:${d.span.start.col}` : '';
   return `${d.code}${at} ${d.message}`;
+}
+
+/** 仅 R1（语法不完整时的降级）：输出带 resolved 的 AST 与 R1 诊断，不 lower、不运行 R2。 */
+export function resolveDeclarationsOnly(ast: AstModule, scopes?: VocabularyScopes): { ast: AstModule; diagnostics: readonly TypecheckDiagnostic[] } {
+  const r1 = resolveDeclarations(ast, contextOf(scopes));
+  return { ast: r1.module, diagnostics: r1.diagnostics };
 }
 
 /** 同 resolveAndLower，但任一 E8xx 时抛出 NameResolutionError（供只需要 IR 的入口使用）。 */

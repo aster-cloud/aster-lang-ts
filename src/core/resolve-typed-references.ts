@@ -65,6 +65,30 @@ interface Resolver {
   readonly scopes: VocabularyScopes | undefined;
   readonly t: Tables;
   readonly diags: DiagnosticBuilder;
+  readonly observer: TypedReferenceObserver | undefined;
+}
+
+/** 一个按父作用域解析的写法：字段段（父为接收者 Data）或期望枚举下的成员（父为枚举）。 */
+export interface ScopedResolutionSite {
+  /** 所在节点的位置（点分路径为整条路径） */
+  readonly span: Span | undefined;
+  /** 点分路径位置：整条原写法与段序号（首段为 0）；非路径位置缺省 */
+  readonly segment?: { readonly path: string; readonly index: number };
+  readonly written: string;
+  readonly canonical: string;
+  readonly role: ResolvedRole;
+  /** 所属规范父名；接收者类型未知时缺省 */
+  readonly parent?: string;
+}
+
+/**
+ * R2 只读观察者（供 LSP 悬停与补全）：报告解析结果与 §4 静态类型，不影响输出与诊断。
+ */
+export interface TypedReferenceObserver {
+  /** 字段段与成员位置的解析结果 */
+  readonly onScopedSite?: (site: ScopedResolutionSite) => void;
+  /** 值位置名字（含点分路径）解析后的静态类型；未知、动态或不透明时为 undefined */
+  readonly onTypedName?: (name: Core.Name, type: Core.Type | undefined) => void;
 }
 
 function declEntry(d: Core.Data | Core.Enum | Core.Func, role: ResolvedRole): Entry {
@@ -319,6 +343,10 @@ interface PathResult {
   readonly type: Static;
 }
 
+function observeSite(r: Resolver, site: ScopedResolutionSite): void {
+  r.observer?.onScopedSite?.(site);
+}
+
 /** 写法本身即某个已声明字段的规范名（§6.2 第 5 步）：接收者类型未知时直接接受，不告警。 */
 function isCanonicalField(r: Resolver, seg: string): boolean {
   const w = nfc(seg);
@@ -360,7 +388,10 @@ function resolvePath(r: Resolver, scope: Scope, written: string, at: Span | unde
     // 类型参数没有字段：其上的字段段一定无法解析（类型检查同样拒绝），不让原写法进入 IR
     if (type !== DYNAMIC && type?.kind === 'TypeVar') report(r, ErrorCode.UNRESOLVED_FIELD, at, seg, 'FIELD_REF');
     if (isOpaque(r, type)) return { name: [...parts, ...tail.slice(i)].join('.'), type: DYNAMIC };
+    const owner = dataOf(r, type);
     const next = resolveSegment(r, type, seg, at);
+    const parent = owner === undefined ? {} : { parent: owner };
+    observeSite(r, { span: at, segment: { path: written, index: i + 1 }, written: seg, canonical: next.name, role: 'FIELD_REF', ...parent });
     parts.push(next.name);
     type = next.type;
   }
@@ -421,6 +452,7 @@ function resolveUnderEnum(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionM
   }
   // 保持写法形态：裸名得裸成员规范名，使本地化源码与规范名拼写的同一程序产出相同 IR
   const canonical = member.entry.canonical;
+  observeSite(r, { span: at, written: mark.written, canonical, role: 'MEMBER_REF', parent: e });
   return renamed(n, { name: canonical }, mark.written, canonical, 'MEMBER_REF');
 }
 
@@ -472,7 +504,7 @@ function resolveExpr(r: Resolver, f: Frame, e: Core.Expression, expected?: Core.
   const sub = (x: Core.Expression): Core.Expression => resolveExpr(r, f, x);
   switch (e.kind) {
     case 'Name':
-      return resolveName(r, f, e, expected);
+      return observeTyped(r, f, resolveName(r, f, e, expected));
     case 'Call':
       return resolveCall(r, f, e);
     case 'Construct':
@@ -502,6 +534,13 @@ function resolveExpr(r: Resolver, f: Frame, e: Core.Expression, expected?: Core.
       throw new Error(`未处理的表达式节点：${JSON.stringify(never)}`);
     }
   }
+}
+
+/** 向观察者报告已解析名字的 §4 静态类型（不透明 / 动态视为未知）。 */
+function observeTyped(r: Resolver, f: Frame, n: Core.Name): Core.Name {
+  const onTyped = r.observer?.onTypedName;
+  if (onTyped) onTyped(n, asType(typeOf(r, f.scope, n)));
+  return n;
 }
 
 /**
@@ -680,6 +719,7 @@ function patNameUnderEnum(r: Resolver, p: Core.PatName, mark: ResolutionMark, e:
     return p;
   }
   const canonical = member.entry.canonical;
+  observeSite(r, { span: spanOf(p), written: mark.written, canonical, role: 'MEMBER_REF', parent: e });
   return renamed(p, { name: canonical }, mark.written, canonical, 'MEMBER_REF');
 }
 
@@ -732,6 +772,8 @@ function ctorResolution(r: Resolver, p: Core.PatCtor, mark: ResolutionMark, subj
   if (rule.choice.kind === 'hit') {
     const { canonical, role } = rule.choice.entry;
     if (!rule.typed && canonical !== nfc(mark.written)) warn(r, ErrorCode.RESOLVED_WITHOUT_TYPE, at, mark.written, role, [rule.choice.entry]);
+    const e = role === 'MEMBER_REF' ? enumOf(r, subject) : undefined;
+    observeSite(r, { span: at, written: mark.written, canonical, role, ...(e === undefined ? {} : { parent: e }) });
     return renamed(p, { typeName: canonical }, mark.written, canonical, role);
   }
   if (rule.choice.kind === 'ambiguous') report(r, rule.ambiguous, at, mark.written, rule.role, rule.choice.candidates);
@@ -751,13 +793,14 @@ function resolveDecl(r: Resolver, d: Core.Declaration): Core.Declaration {
 /**
  * R2：解析依赖类型的名字位置。返回新的 Core（只含规范名，原写法记在 origin.written）与诊断
  * （E801/E805 字段、E802 值名、E803/E806 模式、E804 期望枚举下的歧义、W800 遮蔽、W801 无类型采用）。
- * 任一 error 时调用方不得发出 IR。
+ * 任一 error 时调用方不得发出 IR。observer 只读接收解析结果（LSP 用），不改变输出。
  */
 export function resolveTypedReferences(
   core: Core.Module,
-  ctx: ResolutionContext
+  ctx: ResolutionContext,
+  observer?: TypedReferenceObserver
 ): { module: Core.Module; diagnostics: TypecheckDiagnostic[] } {
-  const r: Resolver = { scopes: ctx.scopes, t: buildTables(core, ctx), diags: new DiagnosticBuilder() };
+  const r: Resolver = { scopes: ctx.scopes, t: buildTables(core, ctx), diags: new DiagnosticBuilder(), observer };
   const decls = core.decls.map((d) => resolveDecl(r, d));
   return { module: { ...core, decls }, diagnostics: r.diags.getDiagnostics() };
 }

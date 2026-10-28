@@ -18,7 +18,8 @@ import {
   type TypecheckDiagnostic,
 } from '../typecheck.js';
 import { parse } from '../parser.js';
-import { resolveAndLower, hasErrors } from '../compile-pipeline.js';
+import { hasErrors } from '../compile-pipeline.js';
+import { resolveDocument } from './resolution.js';
 import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
@@ -430,11 +431,14 @@ export async function computeDiagnostics(
 
     // 运行语义检查（包含互操作、空值和 PII 流检查）
     try {
-      // 名称解析 R1 → lower → R2（ADR 0051，带租户词汇）；E8xx 时没有可信的 Core，不再做语义与类型检查
-      const resolved = resolveAndLower(parsed, vocabulary);
-      diagnostics.push(...resolved.diagnostics.map(typecheckDiagToLspDiag));
-      if (!hasErrors(resolved.diagnostics)) {
-        diagnostics.push(...(await coreDiagnostics(resolved.core, (parsed as any).name || '', tokens, textDocument, lexicon)));
+      // 名称解析（ADR 0051，带租户词汇），与悬停 / 补全共用同一视图：
+      // - 语法完整：R1 → lower → R2；E8xx 时没有可信的 Core，不再做语义与类型检查。
+      // - 语法不完整：解析器按声明丢弃未完成部分，其余部分对它的引用会级联出 E800/E802；
+      //   R2 已跳过、Core 未解析，因此不发布名称解析诊断，也不做语义与类型检查，只留语法错误。
+      const resolution = resolveDocument({ ast: parsed, parseDiagnostics: parseDiagnostics ?? [], ...(vocabulary ? { vocabulary } : {}) });
+      if (resolution.complete) diagnostics.push(...resolution.diagnostics.map(typecheckDiagToLspDiag));
+      if (resolution.core && !hasErrors(resolution.diagnostics)) {
+        diagnostics.push(...(await coreDiagnostics(resolution.core, (parsed as any).name || '', tokens, textDocument, lexicon)));
       }
     } catch {
       // 忽略类型检查失败；解析错误在下方处理
