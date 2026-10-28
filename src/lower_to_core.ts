@@ -917,12 +917,26 @@ function lowerType(t: Type): import('./types.js').Core.Type {
   }
 }
 
+/**
+ * 函数签名类型名的解析记录（ADR 0051 §4，与 Java 对齐）：签名类型平时不带 origin，
+ * 仅当写法被改写（written !== canonical）时才附加带 written/role 的 origin，
+ * 因此无词汇或规范名直写的签名 IR 保持逐字节不变。
+ */
+function withSignatureResolution<T extends { origin?: Origin }>(
+  coreNode: T,
+  astNode: Type,
+  resolved: Resolved | undefined
+): T {
+  if (!resolved || resolved.written === resolved.canonical) return coreNode;
+  return withResolution(withOrigin(coreNode, astNode), resolved);
+}
+
 function lowerTypeWithVars(t: Type, vars: Set<string>): import('./types.js').Core.Type {
   switch (t.kind) {
     case 'TypeName':
       return vars.has(t.name)
         ? ({ kind: 'TypeVar', name: t.name } as import('./types.js').Core.TypeVar)
-        : Core.TypeName(canonicalOf(t.name, t.resolved));
+        : withSignatureResolution(Core.TypeName(canonicalOf(t.name, t.resolved)), t, t.resolved);
     case 'EffectVar':
       return { kind: 'EffectVar', name: t.name } as import('./types.js').Core.EffectVar;
     case 'Maybe':
@@ -936,11 +950,11 @@ function lowerTypeWithVars(t: Type, vars: Set<string>): import('./types.js').Cor
     case 'Map':
       return Core.Map(lowerTypeWithVars(t.key, vars), lowerTypeWithVars(t.val, vars));
     case 'TypeApp':
-      return {
+      return withSignatureResolution({
         kind: 'TypeApp',
         base: canonicalOf(t.base, t.resolved),
         args: t.args.map(tt => lowerTypeWithVars(tt, vars)),
-      } as import('./types.js').Core.Type;
+      } as import('./types.js').Core.TypeApp, t, t.resolved);
     case 'TypeVar':
       return { kind: 'TypeVar', name: t.name } as import('./types.js').Core.TypeVar;
     case 'TypePii':

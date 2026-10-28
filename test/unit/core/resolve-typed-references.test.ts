@@ -509,6 +509,31 @@ describe('resolveTypedReferences（R2）', () => {
       assert.equal(let0.origin?.written, undefined);
     });
 
+    it('函数签名的参数 / 返回类型名记录 written/role（与 Java 对齐）', () => {
+      const { module, r1, r2 } = run(SOURCE, VOCAB);
+      assert.deepEqual([...codes(r1), ...codes(r2)], []);
+      const f = func(module, 'check');
+      const paramType = f.params[0]!.type as Core.TypeName;
+      assert.equal(paramType.name, 'Driver');
+      assert.equal(paramType.origin?.written, 'Fahrer');
+      assert.equal(paramType.origin?.role, 'TYPE');
+      const ret = f.ret as Core.TypeName;
+      assert.equal(ret.name, 'Level');
+      assert.equal(ret.origin?.written, 'Stufe');
+      assert.equal(ret.origin?.role, 'TYPE');
+    });
+
+    it('函数签名中未改写的类型名不新增 origin（无词汇 IR 不变）', () => {
+      const { module } = run(
+        'Module m.\n\nDefine Driver has age as Int.\n\nRule f given d as Driver, produce Int:\n  Return d.age.\n',
+        DRIVER,
+        EN_US
+      );
+      const f = func(module, 'f');
+      assert.equal(f.params[0]!.type.origin, undefined);
+      assert.equal(f.ret.origin, undefined);
+    });
+
     it('规范名直写的源码：origin 不带 written/role', () => {
       const { module, r2 } = run(
         'Module m.\n\nDefine Driver has age as Int.\n\nRule f given d as Driver, produce Int:\n  Return d.age.\n',
