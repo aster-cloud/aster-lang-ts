@@ -19,6 +19,10 @@ export interface Origin {
   readonly file?: string;
   readonly start: Position;
   readonly end: Position;
+  /** ADR 0051：源码原写法，仅在与规范名不同时写入 */
+  readonly written?: string;
+  /** ADR 0051：该写法按哪种角色解析，与 written 同时出现 */
+  readonly role?: ResolvedRole;
 }
 
 /**
