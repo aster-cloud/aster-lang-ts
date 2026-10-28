@@ -23,7 +23,7 @@ import { BUILTIN_TYPE_NAMES } from '../typecheck/generics.js';
 import { originToSpan } from '../typecheck/pure.js';
 import { VERDICT_FIELDS, VERDICT_TYPE_NAME } from '../typecheck/verdict_signatures.js';
 import type { Core, ResolvedRole, Span, TypecheckDiagnostic } from '../types.js';
-import { isFieldTypeInferred } from './inferred_fields.js';
+import { isFieldTypeInferred, isLambdaParamTypeInferred } from './inferred_fields.js';
 import { resolutionMarkOf, withResolvedOrigin } from './resolution-mark.js';
 import type { MarkableNode, ResolutionMark } from './resolution-mark.js';
 
@@ -582,7 +582,8 @@ function resolveConstruct(r: Resolver, f: Frame, e: Core.Construct): Core.Constr
 function resolveLambda(r: Resolver, f: Frame, e: Core.Lambda): Core.Lambda {
   const renames = new Map<string, Set<string>>();
   const inner: Frame = { scope: { parent: f.scope, locals: [] }, ret: e.ret, captures: [...f.captures, renames] };
-  for (const p of e.params) declare(inner, p.name, p.type);
+  // 只有声明类型是类型来源（§4、裁决 R31）：未标注类型的参数视为未知
+  for (const p of e.params) declare(inner, p.name, isLambdaParamTypeInferred(p) ? undefined : p.type);
   const body = resolveBlock(r, inner, e.body);
   return e.captures ? { ...e, body, captures: rewriteCaptures(e.captures, renames) } : { ...e, body };
 }

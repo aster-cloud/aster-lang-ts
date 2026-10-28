@@ -716,6 +716,28 @@ describe('resolveTypedReferences（R2）', () => {
       assert.equal((stmt(func(module, 'f'), 0, 'Match').cases[0]!.pattern as Core.PatName).name, 'High');
     });
 
+    it('未注解 lambda 参数上的路径 → 全局候选采用 + W801（裁决 R31）', () => {
+      const { module, r2 } = run(
+        'Module m.\n\nDefine Fahrer has alter as Int.\n\n' +
+          'Rule f given x as Int, produce Int:\n  Let g be function with fahrer, produce Int:\n    Return fahrer.alter.\n  Return x.\n',
+        DRIVER,
+        EN_US
+      );
+      assert.deepEqual(codes(r2), [ErrorCode.RESOLVED_WITHOUT_TYPE]);
+      const lambda = stmt(func(module, 'f'), 0, 'Let').expr as Core.Lambda;
+      assert.equal(nameOf((lambda.body.statements[0] as Core.Return).expr).name, 'fahrer.age');
+    });
+
+    it('未注解 lambda 参数上的未知字段 → E801（裁决 R31）', () => {
+      const { r2 } = run(
+        'Module m.\n\nDefine Fahrer has alter as Int.\n\n' +
+          'Rule f given x as Int, produce Int:\n  Let g be function with y, produce Int:\n    Return y.foo.\n  Return x.\n',
+        DRIVER,
+        EN_US
+      );
+      assert.deepEqual(codes(r2), [ErrorCode.UNRESOLVED_FIELD]);
+    });
+
     it('未注解参数上的未知字段 → E801', () => {
       const { r2 } = run(MODULE + DRIVER_DECL + 'Regel f gegeben x, liefert Ganzzahl:\n  gib zurueck x.foo.\n', DRIVER);
       assert.deepEqual(codes(r2), [ErrorCode.UNRESOLVED_FIELD]);

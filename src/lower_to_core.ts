@@ -18,7 +18,7 @@
  */
 
 import { Core } from './core/core_ir.js';
-import { markFieldTypeInferred } from './core/inferred_fields.js';
+import { markFieldTypeInferred, markLambdaParamTypeInferred } from './core/inferred_fields.js';
 import { markForResolution, withResolvedOrigin } from './core/resolution-mark.js';
 import { KEYWORD_CTORS } from './frontend/resolution-choice.js';
 import { parseEffect, getAllEffects, inferCapabilityFromName } from './config/semantic.js';
@@ -802,7 +802,12 @@ function lowerExpr(e: Expression): import('./types.js').Core.Expression {
       }
       new CaptureVisitor().visitBlock(e.body, undefined as unknown as void);
       const captures = Array.from(names);
-      const coreParams = e.params.map(p => ({ name: p.name, type: lowerType(p.type) }));
+      const coreParams = e.params.map(p => {
+        const param = { name: p.name, type: lowerType(p.type) };
+        // 解析器对未标注类型的 lambda 参数同样写入 typeInferred（Parameter），BaseParameter 未声明该字段
+        if ((p as { typeInferred?: boolean }).typeInferred) markLambdaParamTypeInferred(param);
+        return param;
+      });
       const ret = lowerType(e.retType);
       const lambda: import('./types.js').Core.Lambda = {
         kind: 'Lambda',
