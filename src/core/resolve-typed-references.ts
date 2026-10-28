@@ -391,9 +391,8 @@ function resolveUnderEnum(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionM
     report(r, ErrorCode.AMBIGUOUS_NAME, at, mark.written, 'MEMBER_REF', [member.entry, ...others]);
     return n;
   }
-  // 写法即成员规范名（§6.2 第 5 步）：保持原样，与未本地化源码的既有 IR 一致
-  if (member.entry.canonical === nfc(mark.written)) return n;
-  const canonical = `${e}.${member.entry.canonical}`;
+  // 裁决 R18：保持写法形态——裸名得裸成员规范名，与规范名拼写的同一程序 IR 相同
+  const canonical = member.entry.canonical;
   return renamed(n, { name: canonical }, mark.written, canonical, 'MEMBER_REF');
 }
 
@@ -401,7 +400,7 @@ function resolveUnderEnum(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionM
  * 无期望类型：沿用 R1 结果；R1 未命中时按值位置规则（歧义已由 R1 报告）。仍未命中时，
  * 写法恰为某一个源码 / 导入枚举成员的规范名则原样接受（多个枚举 → E804），否则 E802。
  */
-function resolveValue(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionMark): Core.Name {
+function resolveValue(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionMark, callee: boolean): Core.Name {
   if (mark.r1Role !== undefined || isBuiltinValue(n.name)) return n;
   const picked = chooseValue(r, f.scope, mark.written);
   if (picked.kind === 'hit') return renamed(n, { name: picked.entry.canonical }, mark.written, picked.entry.canonical, picked.entry.role);
@@ -412,11 +411,12 @@ function resolveValue(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionMark)
     const cands = owners.map(([e]) => ({ written: mark.written, canonical: `${e}.${nfc(mark.written)}`, role: 'MEMBER_REF' as const }));
     report(r, ErrorCode.AMBIGUOUS_NAME, spanOf(n), mark.written, 'MEMBER_REF', cands);
   }
-  if (owners.length === 0) report(r, ErrorCode.UNRESOLVED_NAME, spanOf(n), mark.written, 'FUNC_REF');
+  // 裁决 R19：调用目标全无候选时保留原写法，由类型检查的未定义函数诊断负责
+  if (owners.length === 0 && !callee) report(r, ErrorCode.UNRESOLVED_NAME, spanOf(n), mark.written, 'FUNC_REF');
   return n;
 }
 
-function resolveName(r: Resolver, f: Frame, n: Core.Name, expected: Core.Type | undefined): Core.Name {
+function resolveName(r: Resolver, f: Frame, n: Core.Name, expected: Core.Type | undefined, callee = false): Core.Name {
   const mark = consume(n);
   if (!mark) return n;
   if (mark.written.includes('.')) {
@@ -424,7 +424,7 @@ function resolveName(r: Resolver, f: Frame, n: Core.Name, expected: Core.Type | 
     return path ? renamed(n, { name: path.name }, mark.written, path.name, 'FIELD_REF') : n;
   }
   const e = enumOf(r, expected);
-  const out = (e === undefined ? undefined : resolveUnderEnum(r, f, n, mark, e)) ?? resolveValue(r, f, n, mark);
+  const out = (e === undefined ? undefined : resolveUnderEnum(r, f, n, mark, e)) ?? resolveValue(r, f, n, mark, callee);
   recordCapture(f, n.name, out.name);
   return out;
 }
@@ -488,7 +488,11 @@ function isQualifiedCall(target: Core.Expression): boolean {
 
 /** 调用实参的期望类型取被调源码函数对应参数的声明类型。 */
 function resolveCall(r: Resolver, f: Frame, e: Core.Call): Core.Call {
-  const target = isQualifiedCall(e.target) ? e.target : resolveExpr(r, f, e.target);
+  const target = isQualifiedCall(e.target)
+    ? e.target
+    : e.target.kind === 'Name'
+      ? resolveName(r, f, e.target, undefined, true)
+      : resolveExpr(r, f, e.target);
   const params = calleeOf(r, target)?.params ?? [];
   const expectedAt = (i: number): Core.Type | undefined => {
     const p = params[i];

@@ -240,16 +240,35 @@ describe('resolveTypedReferences（R2）', () => {
   });
 
   describe('期望类型为枚举时的裸单段名', () => {
-    it('Return Hoch（返回类型 Stufe）→ Level.High', () => {
+    it('Return Hoch（返回类型 Stufe）→ High（裸名保持裸形态，R18）', () => {
       const { module, r1, r2 } = run(
         MODULE + LEVEL_DECL + 'Regel f gegeben x als Ganzzahl, liefert Stufe:\n  gib zurueck Hoch.\n',
         LEVEL
       );
       assert.deepEqual([...codes(r1), ...codes(r2)], []);
       const n = nameOf(returned(func(module, 'f'), 0));
-      assert.equal(n.name, 'Level.High');
+      assert.equal(n.name, 'High');
       assert.equal(n.origin?.written, 'Hoch');
       assert.equal(n.origin?.role, 'MEMBER_REF');
+    });
+
+    it('R18：本地化源码与规范名拼写的同一程序产出相同 Core（去 origin 比较）；限定写法保持限定', () => {
+      const strip = (m: Core.Module): string => JSON.stringify(m, (k, v) => (k === 'origin' ? undefined : v));
+      const de = run(
+        MODULE + LEVEL_DECL + 'Regel f gegeben x als Stufe, liefert Stufe:\n  gib zurueck Hoch.\n\n' +
+          'Regel g gegeben x als Stufe, liefert Stufe:\n  gib zurueck Stufe.Niedrig.\n',
+        LEVEL
+      );
+      const en = run(
+        'Module m.\n\nDefine Level as one of High, Low.\n\n' +
+          'Rule f given x as Level, produce Level:\n  Return High.\n\n' +
+          'Rule g given x as Level, produce Level:\n  Return Level.Low.\n',
+        [],
+        EN_US
+      );
+      assert.deepEqual([...codes(de.r1), ...codes(de.r2), ...codes(en.r1), ...codes(en.r2)], []);
+      assert.equal(strip(de.module), strip(en.module));
+      assert.equal(nameOf(returned(func(de.module, 'g'), 0)).name, 'Level.Low');
     });
 
     it('规则 hoch 同时存在 → E804（不静默择一）', () => {
@@ -289,7 +308,7 @@ describe('resolveTypedReferences（R2）', () => {
       );
       assert.deepEqual(codes(r2), []);
       const call = returned(func(module, 'f'), 0) as Core.Call;
-      assert.equal(nameOf(call.args[0]!).name, 'Level.Low');
+      assert.equal(nameOf(call.args[0]!).name, 'Low');
     });
 
     it('ConstructField 按字段声明类型解析', () => {
@@ -302,7 +321,7 @@ describe('resolveTypedReferences（R2）', () => {
       const c = returned(func(module, 'f'), 0) as Core.Construct;
       assert.equal(c.typeName, 'Driver');
       assert.equal(c.fields[0]!.name, 'level');
-      assert.equal(nameOf(c.fields[0]!.expr).name, 'Level.High');
+      assert.equal(nameOf(c.fields[0]!.expr).name, 'High');
     });
 
     it('无期望类型的裸成员名不按枚举解析 → E802', () => {
@@ -430,8 +449,21 @@ describe('resolveTypedReferences（R2）', () => {
       assert.deepEqual(codes(r2), []);
       const lambda = stmt(func(module, 'f'), 0, 'Let').expr as Core.Lambda;
       const ret = lambda.body.statements[1] as Core.Return;
-      assert.equal(nameOf(ret.expr).name, 'Level.High');
-      assert.deepEqual(lambda.captures, ['outer']);
+      assert.equal(nameOf(ret.expr).name, 'High');
+      assert.deepEqual(lambda.captures, ['outer', 'High']);
+    });
+  });
+
+  describe('裁决 R19：未知调用目标交由类型检查', () => {
+    it('调用目标在声明、导入、内置、词汇中均无候选 → 保留原写法，不报 E802；值位置仍报', () => {
+      const { module, r2 } = run(
+        MODULE + 'Regel f gegeben x als Ganzzahl, liefert Ganzzahl:\n  gib zurueck unbekannt(x).\n\n' +
+          'Regel g gegeben x als Ganzzahl, liefert Ganzzahl:\n  gib zurueck fehlend.\n',
+        []
+      );
+      assert.deepEqual(codes(r2), [ErrorCode.UNRESOLVED_NAME]);
+      assert.match(r2[0]!.message, /fehlend/);
+      assert.equal(nameOf((returned(func(module, 'f'), 0) as Core.Call).target).name, 'unbekannt');
     });
   });
 
