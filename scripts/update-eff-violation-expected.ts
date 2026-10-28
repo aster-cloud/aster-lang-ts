@@ -29,7 +29,7 @@ const tests = [
 ];
 
 async function updateExpectedFiles(): Promise<void> {
-  const { lowerModule } = await import('../src/lower_to_core.js');
+  const { hasErrors, resolveAndLower } = await import('../src/compile-pipeline.js');
   const { typecheckModule } = await import('../src/typecheck.js');
 
   for (const test of tests) {
@@ -39,11 +39,11 @@ async function updateExpectedFiles(): Promise<void> {
     console.log(`更新 ${test}...`);
     try {
       const src = fs.readFileSync(inputFile, 'utf8');
-      const can = canonicalize(src);
-      const toks = lex(can);
-      const { ast } = parse(toks);
-      const core = lowerModule(ast);
-      const diags = typecheckModule(core);
+      // 与 golden 相同：名称解析诊断在前，E8xx 时不做类型检查
+      const resolved = resolveAndLower(parse(lex(canonicalize(src))).ast);
+      const diags = hasErrors(resolved.diagnostics)
+        ? [...resolved.diagnostics]
+        : [...resolved.diagnostics, ...typecheckModule(resolved.core)];
       const actualLines = Array.from(
         new Set(diags.map(d => `${d.severity.toUpperCase()}: ${d.message}`))
       );

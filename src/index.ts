@@ -32,7 +32,7 @@ export type { ParseResult } from './parser.js';
 export { lowerModule } from './lower_to_core.js';
 
 // 名称解析接入后的前端（ADR 0051）：parse → R1 → lower → R2
-export { parseSource, resolveAndLower } from './compile-pipeline.js';
+export { parseSource, resolveAndLower, resolveAndLowerChecked, NameResolutionError } from './compile-pipeline.js';
 export type { ParsedSource, ResolvedCore } from './compile-pipeline.js';
 
 // 领域词汇按位置解析（ADR 0051）

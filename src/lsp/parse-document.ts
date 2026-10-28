@@ -18,12 +18,15 @@ import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { buildCanonicalizeOptions } from './canonicalize-options.js';
 import { alignTokensToSource } from './source-positions.js';
+import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
 
 export interface ParsedDocument {
   readonly can: string;
   readonly tokens: readonly any[];
   readonly ast: AstModule | null;
   readonly parseDiagnostics: readonly Diagnostic[];
+  /** 本文档使用的租户词汇作用域（名称解析 R1/R2 用）；无租户词汇时缺省 */
+  readonly vocabulary?: VocabularyScopes;
 }
 
 export function parseDocumentText(
@@ -32,7 +35,9 @@ export function parseDocumentText(
   tenantId: string | undefined,
   domain: string | undefined,
 ): ParsedDocument {
-  const can = canonicalize(text, buildCanonicalizeOptions(lexicon, tenantId, domain));
+  const options = buildCanonicalizeOptions(lexicon, tenantId, domain);
+  const vocabulary = options && 'vocabulary' in options ? options.vocabulary : undefined;
+  const can = canonicalize(text, options);
   // ★token 位置改为原文坐标后再解析：AST span 由 token 派生，于是高亮/跳转/hover/重命名/
   //   诊断的位置都对应原文（canonicalize 删冠词等会改变行内长度，见 source-positions.ts）。
   const tokens = alignTokensToSource(text, can, lex(can, lexicon));
@@ -47,5 +52,5 @@ export function parseDocumentText(
   } catch {
     ast = null;
   }
-  return { can, tokens, ast, parseDiagnostics };
+  return vocabulary ? { can, tokens, ast, parseDiagnostics, vocabulary } : { can, tokens, ast, parseDiagnostics };
 }

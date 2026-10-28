@@ -92,7 +92,7 @@ async function main(): Promise<void> {
       const { ast } = parse(tokens);
       parseTimings.push(performance.now() - parseStart);
 
-      // Phase 4: Lower to Core IR
+      // Phase 4: Lower to Core IR（只计 lower 阶段耗时、不产出 IR，故不经名称解析）
       const lowerStart = performance.now();
       const core = lowerModule(ast);
       lowerTimings.push(performance.now() - lowerStart);

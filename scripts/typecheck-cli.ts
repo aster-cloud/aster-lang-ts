@@ -1,10 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import process from 'node:process';
-import { canonicalize } from '../src/frontend/canonicalizer.js';
-import { lex } from '../src/frontend/lexer.js';
-import { parse } from '../src/parser.js';
-import { lowerModule } from '../src/lower_to_core.js';
+import { hasErrors, parseSource, resolveAndLower } from '../src/compile-pipeline.js';
 import { typecheckModule, typecheckModuleWithCapabilities } from '../src/typecheck.js';
 import type { CapabilityManifest } from '../src/effects/capabilities.js';
 import type { TypecheckDiagnostic } from '../src/types.js';
@@ -108,12 +105,16 @@ function main(): void {
     process.exit(1);
   }
 
-  const canonical = canonicalize(input);
-  const tokens = lex(canonical);
-  const { ast } = parse(tokens);
-  const core = lowerModule(ast);
+  const { ast } = parseSource(input);
+  // 名称解析 R1 → lower → R2（ADR 0051）：E8xx 时没有可信的 Core，只报告名称解析诊断
+  const resolved = resolveAndLower(ast);
   const manifest = readManifest();
-  const diagnostics = manifest ? typecheckModuleWithCapabilities(core, manifest) : typecheckModule(core);
+  const diagnostics = hasErrors(resolved.diagnostics)
+    ? [...resolved.diagnostics]
+    : [
+        ...resolved.diagnostics,
+        ...(manifest ? typecheckModuleWithCapabilities(resolved.core, manifest) : typecheckModule(resolved.core)),
+      ];
 
   const payload = buildPayload(file, diagnostics, args.filterCodes);
   console.log(JSON.stringify(payload, null, 2));

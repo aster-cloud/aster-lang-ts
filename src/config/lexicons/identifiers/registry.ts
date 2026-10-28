@@ -78,7 +78,8 @@ class VocabularyRegistry {
    * 注册领域词汇表。
    *
    * @param vocabulary - 领域词汇表
-   * @throws 如果词汇表验证失败
+   * @throws 如果词汇表验证失败，或 buildVocabularyScopes 拒绝该词汇
+   *   （如字面量宏触发词对应多个内容 literal_conflict）
    */
   register(vocabulary: DomainVocabulary): void {
     const validation = validateVocabulary(vocabulary);
@@ -103,6 +104,8 @@ class VocabularyRegistry {
    *
    * @param tenantId - 租户标识符
    * @param vocabulary - 领域词汇表
+   * @throws 如果词汇表验证失败，或 buildVocabularyScopes 拒绝该词汇
+   *   （如字面量宏触发词对应多个内容 literal_conflict）；无 parent 的字段 / 枚举成员不会导致失败
    */
   registerCustom(tenantId: string, vocabulary: DomainVocabulary): void {
     const validation = validateVocabulary(vocabulary);

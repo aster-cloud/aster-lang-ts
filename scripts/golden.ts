@@ -187,7 +187,10 @@ async function runOneTypecheckWithCaps(
   inputPath = resolveInputPath(inputPath);
   try {
     const src = fs.readFileSync(inputPath, 'utf8');
-    const { core } = coreOf(src);
+    const { core, diagnostics: resolution } = coreOf(src);
+    if (resolution.some(d => d.severity === 'error')) {
+      throw new Error(`名称解析失败：${resolution.map(d => `${d.code} ${d.message}`).join('; ')}`);
+    }
     const { typecheckModuleWithCapabilities } = await import('../src/typecheck.js');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     const diags = typecheckModuleWithCapabilities(core, manifest);

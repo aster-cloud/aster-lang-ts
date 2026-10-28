@@ -78,3 +78,28 @@ export function resolveAndLower(ast: AstModule, scopes?: VocabularyScopes): Reso
 export function hasErrors(diagnostics: readonly { readonly severity: string }[]): boolean {
   return diagnostics.some((d) => d.severity === 'error');
 }
+
+/** 名称解析存在 error 级诊断：调用方不得发出 IR。diagnostics 只含 error 级诊断。 */
+export class NameResolutionError extends Error {
+  readonly diagnostics: readonly TypecheckDiagnostic[];
+
+  constructor(diagnostics: readonly TypecheckDiagnostic[]) {
+    const errors = diagnostics.filter((d) => d.severity === 'error');
+    super(errors.map(formatResolutionDiagnostic).join('\n'));
+    this.name = 'NameResolutionError';
+    this.diagnostics = errors;
+  }
+}
+
+/** `<code> <行>:<列> <消息>`，供命令行与日志输出。 */
+export function formatResolutionDiagnostic(d: TypecheckDiagnostic): string {
+  const at = d.span ? ` ${d.span.start.line}:${d.span.start.col}` : '';
+  return `${d.code}${at} ${d.message}`;
+}
+
+/** 同 resolveAndLower，但任一 E8xx 时抛出 NameResolutionError（供只需要 IR 的入口使用）。 */
+export function resolveAndLowerChecked(ast: AstModule, scopes?: VocabularyScopes): ResolvedCore {
+  const resolved = resolveAndLower(ast, scopes);
+  if (hasErrors(resolved.diagnostics)) throw new NameResolutionError(resolved.diagnostics);
+  return resolved;
+}

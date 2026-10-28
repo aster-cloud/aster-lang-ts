@@ -3,7 +3,7 @@ import { computeNodeIds } from '../nodeid/node-id-map.js';
 import { canonicalize } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
 import { parse } from '../parser.js';
-import { lowerModule } from '../lower_to_core.js';
+import { resolveAndLowerChecked } from '../compile-pipeline.js';
 import { proposeEntities, verifyEntityCandidate } from './entity-proposer.js';
 import type { Proof, ProofSubject } from './proof-ir.js';
 import { runSemanticBridge, type BridgeResult } from './pipeline.js';
@@ -161,7 +161,8 @@ export function recordHumanProof(
     throw new Error('复核理由不得为空：没有理由的批准等于没有复核。');
   }
 
-  const ir = lowerModule(parse(lex(canonicalize(document))).ast);
+  // 名称解析 R1 → lower → R2（ADR 0051）；E8xx 时抛错，不对无法编译的文档记录 proof
+  const ir = resolveAndLowerChecked(parse(lex(canonicalize(document))).ast).core;
   const identity = computeNodeIds(ir).get(nodeId);
   if (identity === undefined) {
     throw new Error(

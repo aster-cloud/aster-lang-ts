@@ -9,7 +9,7 @@
  *
  * **Compilation Pipeline**:
  * ```
- * CNL Source → canonicalize → lex → parse → AST → R1 名称解析 → lowerModule → R2 名称解析 → Core IR → typecheck
+ * CNL 源码 → canonicalize → lex → parse → AST → R1 名称解析 → lowerModule → R2 名称解析 → Core IR → typecheck
  * ```
  *
  * @example Basic compilation
@@ -126,7 +126,7 @@ export type {
   ResolvePolicyTypesResult,
   TypeRef,
 } from './frontend/resolve-policy-types.js';
-export { parseSource, resolveAndLower } from './compile-pipeline.js';
+export { parseSource, resolveAndLower, resolveAndLowerChecked, NameResolutionError } from './compile-pipeline.js';
 export type { ParsedSource, ResolvedCore } from './compile-pipeline.js';
 
 // ============================================================================
@@ -177,11 +177,13 @@ export interface CompileResult {
   /**
    * 名称解析诊断（ADR 0051 E800–E807 / W800–W801），仅在非空时出现。
    * 含 error 时 success 为 false 且不产出 core；只有 warning 时编译成功。
+   * E8xx 失败只出现在这里：此时 parseErrors 为空或只含 warning，
+   * compileAndTypecheck 的 typeErrors 为空（不对未通过名称解析的程序做类型检查）。
    */
   resolutionDiagnostics?: TypecheckDiagnostic[];
   /** Raw tokens from lexer (only when includeIntermediates is true) */
   tokens?: Token[];
-  /** AST after R1 name resolution, identifiers carry `resolved` (only when includeIntermediates is true) */
+  /** R1 名称解析后的 AST，标识符节点带 `resolved`（仅 includeIntermediates 为 true 时返回） */
   ast?: AstModule;
 }
 
@@ -223,9 +225,8 @@ function vocabularyScopesOf(options: CompileOptions | undefined): VocabularyScop
  * Compile CNL source code to Core IR
  *
  * This is the main compilation function for browser/edge use.
- * It runs the full compilation pipeline (including name resolution R1/R2,
- * ADR 0051) without type checking. Any name-resolution error yields
- * `success: false` and no `core`.
+ * 运行完整编译流水线（含 ADR 0051 名称解析 R1/R2），不做类型检查。
+ * 任一名称解析 error（E8xx）时 `success: false` 且不产出 `core`。
  *
  * @param source - CNL source code
  * @param options - Compilation options

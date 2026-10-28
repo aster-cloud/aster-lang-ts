@@ -8,10 +8,7 @@
  */
 
 import * as fs from 'fs';
-import { parse } from '../parser.js';
-import { lex } from '../frontend/lexer.js';
-import { canonicalize } from '../frontend/canonicalizer.js';
-import { lowerModule } from '../lower_to_core.js';
+import { parseSource, resolveAndLowerChecked } from '../compile-pipeline.js';
 import { formatModule } from '../core/pretty_core.js';
 import { serializeCoreIR, deserializeCoreIR } from '../core/core_ir_json.js';
 
@@ -42,10 +39,8 @@ function compileToJson(inputPath: string, outputPath?: string): void {
   try {
     const source = readInput(inputPath);
 
-    // 编译管线：CNL → Canonical → Tokens → AST → Core IR
-    const canonical = canonicalize(source);
-    const tokens = lex(canonical);
-    const { ast, diagnostics } = parse(tokens);
+    // 编译管线：CNL → Canonical → Tokens → AST → R1 → Core IR → R2（ADR 0051）
+    const { ast, diagnostics } = parseSource(source);
     // CLI 转换必须严格：解析错误不应被 silently 忽略，否则会生成 Core IR
     // 缺失片段的 JSON 文件。warning/info/hint 允许通过。
     const parseErrors = diagnostics.filter(d => d.severity === 'error');
@@ -55,7 +50,8 @@ function compileToJson(inputPath: string, outputPath?: string): void {
         parseErrors.map(d => `  - ${d.message} (line ${d.span.start.line}, col ${d.span.start.col})`).join('\n')
       );
     }
-    const coreIR = lowerModule(ast);
+    // 名称解析任一 E8xx 抛出 NameResolutionError，不写出 IR
+    const coreIR = resolveAndLowerChecked(ast).core;
 
     // 序列化为 JSON
     const metadata = {
