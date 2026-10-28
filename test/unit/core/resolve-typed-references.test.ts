@@ -700,6 +700,28 @@ describe('resolveTypedReferences（R2）', () => {
     });
   });
 
+  describe('裁决 R30：未注解参数类型未知', () => {
+    it('未注解参数上的路径 → 全局候选采用 + W801', () => {
+      const { module, r2 } = run(MODULE + DRIVER_DECL + 'Regel f gegeben fahrer, liefert Ganzzahl:\n  gib zurueck fahrer.alter.\n', DRIVER);
+      assert.deepEqual(codes(r2), [ErrorCode.RESOLVED_WITHOUT_TYPE]);
+      assert.equal(nameOf(returned(func(module, 'f'), 0)).name, 'fahrer.age');
+    });
+
+    it('未注解主语上的裸成员模式 → 采用 + W801', () => {
+      const { module, r2 } = run(
+        MODULE + LEVEL_DECL + 'Regel f gegeben s, liefert Ganzzahl:\n  pruefe s:\n    bei Hoch, gib zurueck 1.\n    bei andere, gib zurueck 2.\n',
+        LEVEL
+      );
+      assert.deepEqual(codes(r2), [ErrorCode.RESOLVED_WITHOUT_TYPE]);
+      assert.equal((stmt(func(module, 'f'), 0, 'Match').cases[0]!.pattern as Core.PatName).name, 'High');
+    });
+
+    it('未注解参数上的未知字段 → E801', () => {
+      const { r2 } = run(MODULE + DRIVER_DECL + 'Regel f gegeben x, liefert Ganzzahl:\n  gib zurueck x.foo.\n', DRIVER);
+      assert.deepEqual(codes(r2), [ErrorCode.UNRESOLVED_FIELD]);
+    });
+  });
+
   describe('lower 在未运行 R1 时行为不变', () => {
     it('无 resolved 的 AST：名字保持原写法，origin 不带 written/role', () => {
       const ast = parse(MODULE + DRIVER_DECL + 'Regel f gegeben x als Fahrer, liefert Ganzzahl:\n  gib zurueck x.alter.\n');
