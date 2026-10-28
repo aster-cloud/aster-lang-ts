@@ -2,7 +2,7 @@
  * @module core/resolution-mark
  *
  * R1 未定点的标记（ADR 0051 §4 ResolutionMark）。lower 对 R1 无法决定的位置保留原写法并登记标记，
- * R2 读取后消费（删除）。与 inferred_fields 相同，以对象身份为键的旁路表携带，不进入 Core IR，
+ * R2 只读取（不删除），因此同一 Core 上重复运行 R2 结果相同；R2 的输出由新节点构成，不再携带标记。与 inferred_fields 相同，以对象身份为键的旁路表携带，不进入 Core IR，
  * 因此未运行 R2 时 IR、golden 与跨引擎指纹均不变；反序列化得到的 Core 不带标记。
  */
 import type { Core, Origin, ResolvedRole } from '../types.js';
@@ -26,14 +26,7 @@ export function markForResolution(node: MarkableNode, mark: ResolutionMark): voi
   marks.set(node, mark);
 }
 
-/** 读取并删除标记：每个位置只由 R2 处理一次。 */
-export function consumeResolutionMark(node: MarkableNode): ResolutionMark | undefined {
-  const mark = marks.get(node);
-  marks.delete(node);
-  return mark;
-}
-
-/** 只读查询（测试与诊断用）。 */
+/** 读取标记（不删除）。 */
 export function resolutionMarkOf(node: MarkableNode): ResolutionMark | undefined {
   return marks.get(node);
 }

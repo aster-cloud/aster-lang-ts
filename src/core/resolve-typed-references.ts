@@ -3,13 +3,13 @@
  *
  * 名称解析阶段 R2（ADR 0051 §4、§6.2）：在 Core 上解析依赖类型的位置——
  * (a) 点分路径 `x.f.g` 的字段段与 `Set` 目标（FIELD_REF）；
- * (b) 期望类型为枚举时的裸单段名（含期望枚举下的模式名，裁决 R12）；
+ * (b) 期望类型为枚举时的裸单段名（含期望枚举下用作成员的模式名）；
  * (c) 主语类型在 R1 未知的 PatternCtor。
  * 另对 R1 未命中的无期望类型裸名报 E802。
  *
  * 只处理 lower 登记了 ResolutionMark 的位置。类型只来自 §4 的显式声明规则（参数 / lambda 参数、
  * 构造 `X with …`、对源码函数的直接调用、已知类型的点分路径），其余一律未知；不调用类型检查器。
- * 输入 Core 不被修改（标记被消费），返回新的 Core 与诊断。
+ * 输入 Core 不被修改（标记只读），返回新的 Core 与诊断；同一输入重复运行结果相同。
  */
 import { foldKey, nfc } from '../config/lexicons/identifiers/casefold.js';
 import type { Candidate, VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
@@ -19,11 +19,12 @@ import type { ResolutionContext } from '../frontend/resolution-context.js';
 import { KEYWORD_CTORS, choose, chooseDecl, chooseVocab, formatCandidates } from '../frontend/resolution-choice.js';
 import type { Choice, Entry, VocabMap } from '../frontend/resolution-choice.js';
 import { DiagnosticBuilder } from '../typecheck/diagnostics.js';
+import { BUILTIN_TYPE_NAMES } from '../typecheck/generics.js';
 import { originToSpan } from '../typecheck/pure.js';
 import { VERDICT_FIELDS, VERDICT_TYPE_NAME } from '../typecheck/verdict_signatures.js';
 import type { Core, ResolvedRole, Span, TypecheckDiagnostic } from '../types.js';
 import { isFieldTypeInferred } from './inferred_fields.js';
-import { consumeResolutionMark, withResolvedOrigin } from './resolution-mark.js';
+import { resolutionMarkOf, withResolvedOrigin } from './resolution-mark.js';
 import type { MarkableNode, ResolutionMark } from './resolution-mark.js';
 
 /** 内置运算符、await 与关键词构造器的调用形式：不是待解析的名字。 */
@@ -181,9 +182,26 @@ function fieldType(r: Resolver, s: string, field: string): Static {
   return isFieldTypeInferred(f) ? DYNAMIC : f.type;
 }
 
-/** 已知但不是 Data 的类型（动态值、Text、Map、类型变量等）：其后的点分段原样保留。 */
+/** 内置容器类型名：其元素类型才决定字段，自身不是可透传的不透明类型。 */
+const CONTAINER_TYPE_NAMES: ReadonlySet<string> = new Set(['Result', 'Option', 'List', 'Set', 'Workflow']);
+
+/** 无字段结构、点分段只能是动态键的类型名：内置标量与 Map / Json / Any。 */
+const OPAQUE_TYPE_NAMES: ReadonlySet<string> = new Set([
+  ...[...BUILTIN_TYPE_NAMES].filter((n) => !CONTAINER_TYPE_NAMES.has(n)),
+  'Map',
+  'Json',
+  'Any',
+]);
+
+/**
+ * 不透明类型（白名单）：动态值、类型变量、Map 及上述类型名。其后的点分段原样保留、不解析。
+ * 类型别名、Option / Maybe / List / TypeApp 等包装与未声明的类型名均不在其中，按未知处理。
+ */
 function isOpaque(r: Resolver, t: Static): boolean {
-  return t !== undefined && dataOf(r, t) === undefined;
+  if (t === DYNAMIC) return true;
+  if (t === undefined || dataOf(r, t) !== undefined) return false;
+  if (t.kind === 'TypeVar' || t.kind === 'Map') return true;
+  return t.kind === 'TypeName' && OPAQUE_TYPE_NAMES.has(t.name);
 }
 
 // ---- 作用域 ----
@@ -245,8 +263,10 @@ function pathType(r: Resolver, scope: Scope, name: string): Static {
   return type;
 }
 
-function calleeOf(r: Resolver, target: Core.Expression): Core.Func | undefined {
-  return target.kind === 'Name' ? r.t.funcs.get(target.name) : undefined;
+/** 被调源码函数；同名局部名（如 lambda 绑定）遮蔽模块函数。 */
+function calleeOf(r: Resolver, scope: Scope, target: Core.Expression): Core.Func | undefined {
+  if (target.kind !== 'Name' || visibleLocals(scope).some((l) => l.name === target.name)) return undefined;
+  return r.t.funcs.get(target.name);
 }
 
 function declaredRet(f: Core.Func | undefined): Core.Type | undefined {
@@ -261,7 +281,7 @@ function typeOf(r: Resolver, scope: Scope, e: Core.Expression): Static {
     case 'Construct':
       return { kind: 'TypeName', name: e.typeName };
     case 'Call':
-      return declaredRet(calleeOf(r, e.target));
+      return declaredRet(calleeOf(r, scope, e.target));
     default:
       return undefined;
   }
@@ -287,8 +307,9 @@ function renamed<T extends { origin?: Core.CoreNode['origin'] }>(node: T, patch:
   return origin ? { ...node, ...patch, origin } : { ...node, ...patch };
 }
 
+/** 只读标记：输入 Core 不被修改，同一 Core 上重复运行 R2 结果相同。 */
 function consume(node: MarkableNode): ResolutionMark | undefined {
-  return consumeResolutionMark(node);
+  return resolutionMarkOf(node);
 }
 
 // ---- FIELD_REF（点分路径与 Set 目标） ----
@@ -353,18 +374,15 @@ function chooseValue(r: Resolver, scope: Scope, written: string): Choice {
   return declThenVocab(r.t.valueDecls, vocabTypesAndFunctions(r), written);
 }
 
-/** 期望枚举 E 之外、与成员同写法的其它层候选（模块函数 / 类型 / 其它枚举成员、词汇函数 / 类型）。 */
-function otherLayers(r: Resolver, e: string, written: string, current: string, mark: ResolutionMark): Entry[] {
-  const others = [...r.t.enums].filter(([name]) => name !== e).flatMap(([, ms]) => entriesOf(ms, 'MEMBER_REF'));
-  const found = [
-    chooseDecl(r.t.valueDecls, written),
-    chooseDecl(others, written),
-    chooseVocab(vocabTypesAndFunctions(r), written),
-  ].flatMap(choiceEntries);
-  // R1 命中而 Core 中不可见的声明（如类型别名）同样计入
+/**
+ * 与期望枚举成员同写法的冲突层候选：模块函数 / 类型、词汇函数 / 类型，以及 R1 命中而 Core 中
+ * 不可见的声明（如类型别名）。其它枚举的成员不冲突——期望类型已经消歧。仅大小写不同的
+ * 函数同样冲突（ADR 0051 §14 第 1 条：`hoch` 与 `Hoch` 须写限定名）。
+ */
+function otherLayers(r: Resolver, written: string, current: string, mark: ResolutionMark): Entry[] {
+  const found = [chooseDecl(r.t.valueDecls, written), chooseVocab(vocabTypesAndFunctions(r), written)].flatMap(choiceEntries);
   const viaR1 = mark.r1Role === 'FUNC_REF' || mark.r1Role === 'TYPE';
-  if (found.length === 0 && viaR1) return [{ written, canonical: current, role: mark.r1Role! }];
-  return found;
+  return found.length === 0 && viaR1 ? [{ written, canonical: current, role: mark.r1Role! }] : found;
 }
 
 function choiceEntries(c: Choice): readonly Entry[] {
@@ -372,26 +390,34 @@ function choiceEntries(c: Choice): readonly Entry[] {
   return c.kind === 'ambiguous' ? c.candidates : [];
 }
 
+/** R1 对同一写法的值位置规则已歧义（并已在同一位置报 E804）：R2 不重复报告。 */
+function reportedByR1(r: Resolver, f: Frame, mark: ResolutionMark): boolean {
+  return mark.r1Role === undefined && chooseValue(r, f.scope, mark.written).kind === 'ambiguous';
+}
+
 /**
  * 期望枚举 E 下的裸名（§6.2 跨层裁决表）。成员未命中返回 undefined，交给无期望类型规则。
  */
 function resolveUnderEnum(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionMark, e: string): Core.Name | undefined {
   const member = chooseMember(r, e, mark.written);
-  if (member.kind === 'miss') return undefined;
+  const local = findLocal(f.scope, mark.written).choice;
   const at = spanOf(n);
+  if (local.kind !== 'miss') {
+    // LOCAL 层先于成员：命中即取局部名，成员同时命中时提示遮蔽
+    if (local.kind === 'hit' && member.kind === 'hit') warn(r, ErrorCode.SHADOWED_VOCABULARY, at, mark.written, 'LOCAL', [member.entry]);
+    return member.kind === 'miss' ? undefined : n;
+  }
+  if (member.kind === 'miss') return undefined;
   if (member.kind === 'ambiguous') {
     report(r, ErrorCode.AMBIGUOUS_NAME, at, mark.written, 'MEMBER_REF', member.candidates);
     return n;
   }
-  const local = findLocal(f.scope, mark.written).choice;
-  if (local.kind === 'hit') warn(r, ErrorCode.SHADOWED_VOCABULARY, at, mark.written, 'LOCAL', [member.entry]);
-  if (local.kind !== 'miss') return n;
-  const others = otherLayers(r, e, mark.written, n.name, mark);
+  const others = otherLayers(r, mark.written, n.name, mark);
   if (others.length > 0) {
-    report(r, ErrorCode.AMBIGUOUS_NAME, at, mark.written, 'MEMBER_REF', [member.entry, ...others]);
+    if (!reportedByR1(r, f, mark)) report(r, ErrorCode.AMBIGUOUS_NAME, at, mark.written, 'MEMBER_REF', [member.entry, ...others]);
     return n;
   }
-  // 裁决 R18：保持写法形态——裸名得裸成员规范名，与规范名拼写的同一程序 IR 相同
+  // 保持写法形态：裸名得裸成员规范名，使本地化源码与规范名拼写的同一程序产出相同 IR
   const canonical = member.entry.canonical;
   return renamed(n, { name: canonical }, mark.written, canonical, 'MEMBER_REF');
 }
@@ -411,7 +437,7 @@ function resolveValue(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionMark,
     const cands = owners.map(([e]) => ({ written: mark.written, canonical: `${e}.${nfc(mark.written)}`, role: 'MEMBER_REF' as const }));
     report(r, ErrorCode.AMBIGUOUS_NAME, spanOf(n), mark.written, 'MEMBER_REF', cands);
   }
-  // 裁决 R19：调用目标全无候选时保留原写法，由类型检查的未定义函数诊断负责
+  // 调用目标全无候选时保留原写法，由类型检查的未定义函数诊断负责
   if (owners.length === 0 && !callee) report(r, ErrorCode.UNRESOLVED_NAME, spanOf(n), mark.written, 'FUNC_REF');
   return n;
 }
@@ -478,12 +504,10 @@ function resolveExpr(r: Resolver, f: Frame, e: Core.Expression, expected?: Core.
 
 /**
  * 未被 UFCS 拆分的点分调用目标（`Text.concat(…)`、`Action.equals(…)`）是限定调用，
- * 首段为命名空间（§5 MODULE，不本地化），不按字段路径解析；消费其标记后原样保留。
+ * 首段为命名空间（§5 MODULE，不本地化），不按字段路径解析，原样保留。
  */
 function isQualifiedCall(target: Core.Expression): boolean {
-  if (target.kind !== 'Name' || !target.name.includes('.')) return false;
-  consume(target);
-  return true;
+  return target.kind === 'Name' && target.name.includes('.');
 }
 
 /** 调用实参的期望类型取被调源码函数对应参数的声明类型。 */
@@ -493,7 +517,7 @@ function resolveCall(r: Resolver, f: Frame, e: Core.Call): Core.Call {
     : e.target.kind === 'Name'
       ? resolveName(r, f, e.target, undefined, true)
       : resolveExpr(r, f, e.target);
-  const params = calleeOf(r, target)?.params ?? [];
+  const params = calleeOf(r, f.scope, target)?.params ?? [];
   const expectedAt = (i: number): Core.Type | undefined => {
     const p = params[i];
     return p && !p.typeInferred ? p.type : undefined;
@@ -648,7 +672,7 @@ function patNameMember(r: Resolver, p: Core.PatName, mark: ResolutionMark, subje
 function patNameUnderEnum(r: Resolver, p: Core.PatName, mark: ResolutionMark, e: string): Core.PatName | undefined {
   const member = chooseMember(r, e, mark.written);
   if (member.kind === 'miss') return undefined;
-  const conflicts = member.kind === 'hit' ? otherLayers(r, e, mark.written, p.name, mark) : [];
+  const conflicts = member.kind === 'hit' ? otherLayers(r, mark.written, p.name, mark) : [];
   if (member.kind === 'ambiguous' || conflicts.length > 0) {
     report(r, ErrorCode.AMBIGUOUS_NAME, spanOf(p), mark.written, 'MEMBER_REF', [...choiceEntries(member), ...conflicts]);
     return p;

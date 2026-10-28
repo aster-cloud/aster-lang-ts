@@ -529,7 +529,7 @@ describe('resolveTypedReferences（R2）', () => {
       assert.ok(r2.some((d) => d.severity === 'error' && d.code.startsWith('E80')));
     });
 
-    it('R2 消费标记：输出中不再携带 ResolutionMark，输入 Core 不被修改', () => {
+    it('R2 只读标记：输出中不再携带 ResolutionMark，输入 Core 不被修改', () => {
       const ctx = ctxOf(DRIVER);
       const r1 = resolveDeclarations(
         parse(MODULE + DRIVER_DECL + 'Regel f gegeben x als Fahrer, liefert Ganzzahl:\n  gib zurueck x.alter.\n'),
@@ -618,6 +618,80 @@ describe('resolveTypedReferences（R2）', () => {
         EN_US
       );
       assert.deepEqual([...codes(r1), ...codes(r2)], []);
+    });
+  });
+
+  describe('透传白名单、标记幂等与期望枚举裁决', () => {
+    const EN_DRIVER = 'Module m.\n\nDefine Fahrer has alter as Int.\n\n';
+
+    const receivers: Array<[string, string]> = [
+      ['类型别名', 'Type Fz as Fahrer.\n\nRule f given x as Fz, produce Int:\n  Return x.alter.\n'],
+      ['Option of', 'Rule f given x as Option of Fahrer, produce Int:\n  Return x.alter.\n'],
+      ['可空 ?', 'Rule f given x as Fahrer?, produce Int:\n  Return x.alter.\n'],
+      ['未声明类型名（Data 字段）', 'Define Halter has fz as Unbekannt.\n\nRule f given x as Halter, produce Int:\n  Return x.fz.alter.\n'],
+    ];
+    for (const [label, body] of receivers) {
+      it(`接收者类型为${label} → 不透传，按全局候选采用 + W801`, () => {
+        const { module, r2 } = run(EN_DRIVER + body, DRIVER, EN_US);
+        assert.deepEqual(codes(r2), [ErrorCode.RESOLVED_WITHOUT_TYPE]);
+        assert.match(nameOf(returned(func(module, 'f'), 0)).name, /\.age$/);
+      });
+    }
+
+    it('同一 Core 上连续两次 R2：模块与诊断相同', () => {
+      const ctx = ctxOf(DRIVER);
+      const r1 = resolveDeclarations(
+        parse(MODULE + DRIVER_DECL + 'Regel f gegeben x als Ganzzahl, liefert Ganzzahl:\n  sei y gleich 1.\n  sei z gleich hoch.\n  gib zurueck y.alter.\n'),
+        ctx
+      );
+      const core = lowerModule(r1.module);
+      const a = resolveTypedReferences(core, ctx);
+      const b = resolveTypedReferences(core, ctx);
+      assert.deepEqual(codes(a.diagnostics), [ErrorCode.UNRESOLVED_NAME, ErrorCode.RESOLVED_WITHOUT_TYPE]);
+      assert.deepEqual(b.diagnostics, a.diagnostics);
+      assert.equal(JSON.stringify(b.module), JSON.stringify(a.module));
+      assert.equal(nameOf(returned(func(b.module, 'f'), 2)).name, 'y.age');
+    });
+
+    it('期望枚举下其它枚举的同名成员不冲突', () => {
+      const { module, r1, r2 } = run(
+        'Module m.\n\nDefine Tier as one of Gold, Silver.\n\nDefine Medal as one of Gold, Bronze.\n\n' +
+          'Rule f given x as Int, produce Tier:\n  Return Gold.\n',
+        [],
+        EN_US
+      );
+      assert.deepEqual([...codes(r1), ...codes(r2)], []);
+      assert.equal(nameOf(returned(func(module, 'f'), 0)).name, 'Gold');
+    });
+
+    it('LOCAL 精确命中优先于成员的折叠歧义', () => {
+      const { module, r1, r2 } = run(
+        MODULE + 'Definiere Stufe als eines von Hoch, HOCH.\n\n' +
+          'Regel f gegeben hoch als Stufe, liefert Stufe:\n  gib zurueck hoch.\n',
+        [struct('Level', 'Stufe'), member('Level', 'High', 'Hoch'), member('Level', 'Top', 'HOCH')]
+      );
+      assert.deepEqual([...codes(r1), ...codes(r2)], []);
+      assert.equal(nameOf(returned(func(module, 'f'), 0)).name, 'hoch');
+    });
+
+    it('局部名遮蔽模块函数：调用不取模块函数的返回类型', () => {
+      const { r2 } = run(
+        EN_DRIVER + 'Rule make given x as Int, produce Fahrer:\n  Return Fahrer with alter set to x.\n\n' +
+          'Rule f given x as Int, produce Int:\n' +
+          '  Let make be function with v as Int, produce Int:\n    Return v.\n' +
+          '  Let y be make(x).\n  Return y.alter.\n',
+        DRIVER,
+        EN_US
+      );
+      assert.deepEqual(codes(r2), [ErrorCode.RESOLVED_WITHOUT_TYPE]);
+    });
+
+    it('R1 已在同一位置报 E804 时 R2 不重复报告', () => {
+      const { r1, r2 } = run(
+        MODULE + LEVEL_DECL + 'Regel f gegeben x als Ganzzahl, liefert Stufe:\n  gib zurueck hoch.\n',
+        [...LEVEL, fn('raise', 'HoCh'), fn('lift', 'HOCH')]
+      );
+      assert.deepEqual([...codes(r1), ...codes(r2)], [ErrorCode.AMBIGUOUS_NAME]);
     });
   });
 
