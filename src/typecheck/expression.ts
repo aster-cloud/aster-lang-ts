@@ -18,6 +18,13 @@ import {
 } from './pure.js';
 import { hasVerdictPrefix, isVerdictField, isVerdictType, verdictArity, VERDICT_TYPE_NAME } from './verdict_signatures.js';
 
+/** 限定枚举成员 `E.M`：与裸成员 `M` 同为枚举 E 的值；局部名优先，由调用方先查符号表。 */
+function qualifiedEnumOf(module: ModuleContext, parts: readonly string[]): Core.Enum | undefined {
+  if (parts.length !== 2) return undefined;
+  const en = module.enums.get(parts[0]!);
+  return en?.variants.includes(parts[1]!) ? en : undefined;
+}
+
 export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext> {
   public handled = false;
   public result: Core.Type = unknownType();
@@ -31,6 +38,12 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           const baseName = parts[0]!;
           const fieldPath = parts.slice(1);
           const baseSymbol = symbols.lookup(baseName);
+          const qualifiedEnum = baseSymbol ? undefined : qualifiedEnumOf(module, parts);
+          if (qualifiedEnum) {
+            this.result = { kind: 'TypeName', name: qualifiedEnum.name } as Core.TypeName;
+            this.handled = true;
+            return;
+          }
           if (!baseSymbol) {
             diagnostics.undefinedVariable(baseName, originToSpan(expression.origin));
             this.result = unknownType();

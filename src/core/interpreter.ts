@@ -756,6 +756,8 @@ class Interpreter {
   /** 枚举变体名 → 所属枚举名（如 Gold → Tier）。用于把裸变体引用 `return Gold`
    *  求值成枚举值——与 aster-lang-truffle 的 AsterEnumValue 序列化逐字节对齐。 */
   private readonly enumVariantToEnum: Map<string, string>;
+  /** 枚举名 → 成员集合，供限定成员引用 `E.M` 求值。 */
+  private readonly enumVariants: Map<string, ReadonlySet<string>>;
   /** 执行步数计数器（防无限循环） */
   private steps = 0;
   /** 本次执行累计物化的集合元素数（见 MAX_ALLOCATION_BUDGET）。 */
@@ -772,6 +774,7 @@ class Interpreter {
     this.funcs = new Map();
     this.dataDecls = new Map();
     this.enumVariantToEnum = new Map();
+    this.enumVariants = new Map();
 
     for (const decl of module.decls) {
       switch (decl.kind) {
@@ -786,6 +789,7 @@ class Interpreter {
           for (const variant of decl.variants) {
             this.enumVariantToEnum.set(variant, decl.name);
           }
+          this.enumVariants.set(decl.name, new Set(decl.variants));
           break;
       }
     }
@@ -1052,6 +1056,9 @@ class Interpreter {
       const parts = name.split('.');
       const root = parts[0]!;
       let current: unknown = env.get(root);
+      if (!env.has(root) && parts.length === 2 && this.enumVariants.get(root)?.has(parts[1]!)) {
+        return this.enumValue(root, parts[1]!);
+      }
       if (current === undefined && !env.has(root)) {
         throw new InterpreterError(`Undefined variable '${root}'`);
       }
@@ -1087,10 +1094,14 @@ class Interpreter {
     //   （{__type:"?", _enum, value, variant, args:[]}）——eval parity 按 JSON.stringify 全等比对。
     const enumName = this.enumVariantToEnum.get(name);
     if (enumName !== undefined) {
-      return { __type: '?', _enum: enumName, value: name, variant: name, args: [] };
+      return this.enumValue(enumName, name);
     }
 
     throw new InterpreterError(`Undefined variable '${name}'`);
+  }
+
+  private enumValue(enumName: string, variant: string): unknown {
+    return { __type: '?', _enum: enumName, value: variant, variant, args: [] };
   }
 
   /** 求值函数调用或运算符 */
