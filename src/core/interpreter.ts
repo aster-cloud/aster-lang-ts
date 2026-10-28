@@ -16,6 +16,7 @@
 
 import type { Core as CoreTypes } from '../types.js';
 import Decimal from 'decimal.js';
+import { BUILTIN_OPS } from '../config/semantic.js';
 
 // Decimal 精确十进制配置（ADR 0025）：锁死 precision/rounding，**不依赖默认**，避免环境差异
 // 与双引擎不一致。precision 设高（80）让 plus/minus/times 不被有效数字上下文截断（v1 输入
@@ -743,15 +744,6 @@ function dateToCivil(epochDay: unknown): { y: number; m: number; d: number } {
   return { y: m <= 2 ? y + 1 : y, m, d };
 }
 
-/** 内置运算符集合 */
-const BUILTIN_OPS = new Set([
-  '+', '-', '*', '/', '//', '%',
-  // 比较运算符必须与 evalBinaryOp 的 switch 分支一一对应。遗漏 '!='
-  // 会让 `not equal to`（降低为 Call(Name('!='), …)）越过内置分发、
-  // 落入用户函数查找，从而抛出 "Undefined function '!='"。
-  '>', '<', '>=', '<=', '==', '!=',
-  'and', 'or', 'not',
-]);
 
 /**
  * Core IR tree-walk 解释器

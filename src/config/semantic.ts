@@ -369,6 +369,19 @@ export function isKeyword(word: string, lexicon?: Lexicon): boolean {
 export const BUILTIN_AWAIT = 'await';
 
 /**
+ * 内置运算符集合：解析器降为 `Call(Name(op))` 的运算符名。解释器按此分派，
+ * 名称解析（R2）据此把它们排除在待解析名字之外。
+ */
+export const BUILTIN_OPS: ReadonlySet<string> = new Set([
+  '+', '-', '*', '/', '//', '%',
+  // 比较运算符必须与 evalBinaryOp 的 switch 分支一一对应。遗漏 '!='
+  // 会让 `not equal to`（降低为 Call(Name('!='), …)）越过内置分发、
+  // 落入用户函数查找，从而抛出 "Undefined function '!='"。
+  '>', '<', '>=', '<=', '==', '!=',
+  'and', 'or', 'not',
+]);
+
+/**
  * 验证是否为内置异步函数。
  *
  * @param name - 函数名

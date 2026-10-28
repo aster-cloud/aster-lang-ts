@@ -513,6 +513,82 @@ describe('resolveTypedReferences（R2）', () => {
     });
   });
 
+  describe('裁决 R16：规范名直写不告警、动态字段透传', () => {
+    const TIER = 'Module m.\n\nDefine Tier as one of Gold, Silver.\n\n';
+
+    it('1. 接收者类型未知、字段写法即规范名 → 无 W801；模式写法即成员规范名 → 无 W801', () => {
+      const { module, r1, r2 } = run(
+        TIER + 'Define Driver has age as Int.\n\n' +
+          'Rule f given x as Int, produce Int:\n  Let y be 1.\n  Let a be y.age.\n' +
+          '  Match y:\n    When Gold, Return 1.\n    When Silver(), Return a.\n',
+        [],
+        EN_US
+      );
+      assert.deepEqual([...codes(r1), ...codes(r2)], []);
+      assert.equal(nameOf(stmt(func(module, 'f'), 1, 'Let').expr).name, 'y.age');
+      const cases = stmt(func(module, 'f'), 2, 'Match').cases;
+      assert.equal((cases[0]!.pattern as Core.PatName).name, 'Gold');
+      assert.equal((cases[1]!.pattern as Core.PatCtor).typeName, 'Silver');
+    });
+
+    it('2. 无期望类型的裸成员规范名 → 原样接受；期望枚举下写法即规范名不改写', () => {
+      const { module, r1, r2 } = run(
+        TIER + 'Rule f given t as Text:\n  Return Gold.\n\n' +
+          'Rule g given t as Text, produce Bool:\n  Return Text.equals(t, Silver).\n\n' +
+          'Rule h given t as Text, produce Tier:\n  Return Gold.\n',
+        [],
+        EN_US
+      );
+      assert.deepEqual([...codes(r1), ...codes(r2)], []);
+      assert.equal(nameOf(returned(func(module, 'f'), 0)).name, 'Gold');
+      assert.equal(nameOf((returned(func(module, 'g'), 0) as Core.Call).args[1]!).name, 'Silver');
+      const h = nameOf(returned(func(module, 'h'), 0));
+      assert.equal(h.name, 'Gold');
+      assert.equal(h.origin?.written, undefined);
+    });
+
+    it('2. 成员规范名属于多个枚举且无期望类型 → E804', () => {
+      const { r2 } = run(
+        TIER + 'Define Medal as one of Gold, Bronze.\n\nRule f given t as Text:\n  Return Gold.\n',
+        [],
+        EN_US
+      );
+      assert.deepEqual(codes(r2), [ErrorCode.AMBIGUOUS_NAME]);
+    });
+
+    it('3. 未声明类型的字段之后的段为动态键（ADR 0040）：原样保留，不报错，经 Let 传递', () => {
+      const { module, r1, r2 } = run(
+        'Module m.\n\nDefine GuardRequest has action, context.\n\n' +
+          'Rule decide given req as GuardRequest, produce Int:\n' +
+          '  Let large be req.context.amount.\n  Let c be req.context.\n  Let b be c.limit.\n' +
+          '  Let n be req.action.size.\n  Return 1.\n',
+        [],
+        EN_US
+      );
+      assert.deepEqual([...codes(r1), ...codes(r2)], []);
+      const f = func(module, 'decide');
+      assert.equal(nameOf(stmt(f, 0, 'Let').expr).name, 'req.context.amount');
+      assert.equal(nameOf(stmt(f, 2, 'Let').expr).name, 'c.limit');
+      assert.equal(nameOf(stmt(f, 3, 'Let').expr).name, 'req.action.size');
+    });
+
+    it('3. 已知非 Data 类型（Text）之后的段原样保留', () => {
+      const { r2 } = run('Module m.\n\nRule f given t as Text, produce Int:\n  Let n be t.size.\n  Return 1.\n', [], EN_US);
+      assert.deepEqual(codes(r2), []);
+    });
+
+    it('4. lambda 绑定的局部名与内置运算符不报 E802', () => {
+      const { r1, r2 } = run(
+        'Module m.\n\nRule f given x as Int, produce Int:\n' +
+          '  Let inc be function with v as Int, produce Int:\n    Return v plus 1.\n' +
+          '  Return inc(x) times 2.\n',
+        [],
+        EN_US
+      );
+      assert.deepEqual([...codes(r1), ...codes(r2)], []);
+    });
+  });
+
   describe('lower 在未运行 R1 时行为不变', () => {
     it('无 resolved 的 AST：名字保持原写法，origin 不带 written/role', () => {
       const ast = parse(MODULE + DRIVER_DECL + 'Regel f gegeben x als Fahrer, liefert Ganzzahl:\n  gib zurueck x.alter.\n');

@@ -13,9 +13,10 @@
  */
 import { foldKey, nfc } from '../config/lexicons/identifiers/casefold.js';
 import type { Candidate, VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
+import { BUILTIN_AWAIT, BUILTIN_OPS } from '../config/semantic.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { ResolutionContext } from '../frontend/resolution-context.js';
-import { choose, chooseDecl, chooseVocab, formatCandidates } from '../frontend/resolution-choice.js';
+import { KEYWORD_CTORS, choose, chooseDecl, chooseVocab, formatCandidates } from '../frontend/resolution-choice.js';
 import type { Choice, Entry, VocabMap } from '../frontend/resolution-choice.js';
 import { DiagnosticBuilder } from '../typecheck/diagnostics.js';
 import { originToSpan } from '../typecheck/pure.js';
@@ -25,16 +26,23 @@ import { isFieldTypeInferred } from './inferred_fields.js';
 import { consumeResolutionMark, withResolvedOrigin } from './resolution-mark.js';
 import type { MarkableNode, ResolutionMark } from './resolution-mark.js';
 
+/** 内置运算符、await 与关键词构造器的调用形式：不是待解析的名字。 */
+function isBuiltinValue(name: string): boolean {
+  return BUILTIN_OPS.has(name) || name === BUILTIN_AWAIT || KEYWORD_CTORS.has(name);
+}
+
 /**
- * 解析器降为 Call(Name(op)) 的内置运算符与关键词构造器调用形式，
- * 与解释器 BUILTIN_OPS / evalCall 的分派一致；它们不是待解析的名字。
+ * 动态值：未声明类型的字段（ADR 0040，如 Guard 的 context 映射）。其后的点分段是动态键，
+ * 原样保留、不解析。与“未知”（undefined，按全局候选回退）区分。
  */
-const BUILTIN_VALUE_NAMES: ReadonlySet<string> = new Set([
-  '+', '-', '*', '/', '//', '%',
-  '>', '<', '>=', '<=', '==', '!=',
-  'and', 'or', 'not', 'await',
-  'Ok', 'Err', 'Some', 'None',
-]);
+const DYNAMIC = 'dynamic' as const;
+
+/** R2 静态类型：声明类型、动态值或未知。 */
+type Static = Core.Type | typeof DYNAMIC | undefined;
+
+function asType(t: Static): Core.Type | undefined {
+  return t === DYNAMIC ? undefined : t;
+}
 
 // ---- 模块表 ----
 
@@ -152,30 +160,37 @@ function isEnum(r: Resolver, name: string): boolean {
 }
 
 /** 已知类型名（TypeName）；类型变量、容器与推断类型均视为未知。 */
-function typeNameOf(t: Core.Type | undefined): string | undefined {
-  return t?.kind === 'TypeName' ? t.name : undefined;
+function typeNameOf(t: Static): string | undefined {
+  return typeof t === 'object' && t.kind === 'TypeName' ? t.name : undefined;
 }
 
-function enumOf(r: Resolver, t: Core.Type | undefined): string | undefined {
+function enumOf(r: Resolver, t: Static): string | undefined {
   const name = typeNameOf(t);
   return name !== undefined && isEnum(r, name) ? name : undefined;
 }
 
-function dataOf(r: Resolver, t: Core.Type | undefined): string | undefined {
+function dataOf(r: Resolver, t: Static): string | undefined {
   const name = typeNameOf(t);
   return name !== undefined && r.t.datas.has(name) ? name : undefined;
 }
 
-function fieldType(r: Resolver, s: string, field: string): Core.Type | undefined {
+/** 字段的静态类型：声明类型；未声明类型的字段为动态值；导入 Data 的字段未知。 */
+function fieldType(r: Resolver, s: string, field: string): Static {
   const f = r.t.datas.get(s)?.get(field);
-  return f && !isFieldTypeInferred(f) ? f.type : undefined;
+  if (!f) return undefined;
+  return isFieldTypeInferred(f) ? DYNAMIC : f.type;
+}
+
+/** 已知但不是 Data 的类型（动态值、Text、Map、类型变量等）：其后的点分段原样保留。 */
+function isOpaque(r: Resolver, t: Static): boolean {
+  return t !== undefined && dataOf(r, t) === undefined;
 }
 
 // ---- 作用域 ----
 
 interface Local {
   readonly name: string;
-  readonly type?: Core.Type;
+  readonly type?: Static;
 }
 
 interface Scope {
@@ -194,7 +209,7 @@ function child(f: Frame): Frame {
   return { ...f, scope: { parent: f.scope, locals: [] } };
 }
 
-function declare(f: Frame, name: string, type?: Core.Type): void {
+function declare(f: Frame, name: string, type?: Static): void {
   f.scope.locals.push(type === undefined ? { name } : { name, type });
 }
 
@@ -219,10 +234,11 @@ function findLocal(scope: Scope, written: string): { choice: Choice; local?: Loc
 // ---- 静态类型（§4 类型来源表） ----
 
 /** 规范名路径的类型：首段局部名的声明类型，逐段取字段声明类型；不产生诊断。 */
-function pathType(r: Resolver, scope: Scope, name: string): Core.Type | undefined {
+function pathType(r: Resolver, scope: Scope, name: string): Static {
   const [head, ...tail] = name.split('.');
   let type = visibleLocals(scope).find((l) => l.name === head)?.type;
   for (const seg of tail) {
+    if (isOpaque(r, type)) return DYNAMIC;
     const s = dataOf(r, type);
     type = s === undefined ? undefined : fieldType(r, s, seg);
   }
@@ -238,7 +254,7 @@ function declaredRet(f: Core.Func | undefined): Core.Type | undefined {
 }
 
 /** 已解析表达式的 R2 静态类型；表外的一切为未知。 */
-function typeOf(r: Resolver, scope: Scope, e: Core.Expression): Core.Type | undefined {
+function typeOf(r: Resolver, scope: Scope, e: Core.Expression): Static {
   switch (e.kind) {
     case 'Name':
       return pathType(r, scope, e.name);
@@ -279,15 +295,27 @@ function consume(node: MarkableNode): ResolutionMark | undefined {
 
 interface PathResult {
   readonly name: string;
-  readonly type: Core.Type | undefined;
+  readonly type: Static;
 }
 
-/** 一个字段段：类型已知查 fields[S]，未知按全局唯一候选（W801）。 */
-function resolveSegment(r: Resolver, type: Core.Type | undefined, seg: string, at: Span | undefined): PathResult {
+/** 写法本身即某个已声明字段的规范名（§6.2 第 5 步）：接收者类型未知时直接接受，不告警。 */
+function isCanonicalField(r: Resolver, seg: string): boolean {
+  const w = nfc(seg);
+  return [...r.t.datas.values()].some((fs) => fs.has(w));
+}
+
+/**
+ * 一个字段段：类型已知查 fields[S]；未知时规范名直写直接接受，否则按全局唯一候选采用
+ * （写法与规范名不同时报 W801）。
+ */
+function resolveSegment(r: Resolver, type: Static, seg: string, at: Span | undefined): PathResult {
   const s = dataOf(r, type);
+  if (s === undefined && isCanonicalField(r, seg)) return { name: nfc(seg), type: undefined };
   const picked = chooseField(r, s, seg);
   if (picked.kind === 'hit') {
-    if (s === undefined) warn(r, ErrorCode.RESOLVED_WITHOUT_TYPE, at, seg, 'FIELD_REF', [picked.entry]);
+    if (s === undefined && picked.entry.canonical !== nfc(seg)) {
+      warn(r, ErrorCode.RESOLVED_WITHOUT_TYPE, at, seg, 'FIELD_REF', [picked.entry]);
+    }
     const canonical = picked.entry.canonical;
     return { name: canonical, type: s === undefined ? undefined : fieldType(r, s, canonical) };
   }
@@ -307,7 +335,8 @@ function resolvePath(r: Resolver, scope: Scope, written: string, at: Span | unde
   }
   const parts = [local.local.name];
   let type = local.local.type;
-  for (const seg of tail) {
+  for (const [i, seg] of tail.entries()) {
+    if (isOpaque(r, type)) return { name: [...parts, ...tail.slice(i)].join('.'), type: DYNAMIC };
     const next = resolveSegment(r, type, seg, at);
     parts.push(next.name);
     type = next.type;
@@ -362,17 +391,28 @@ function resolveUnderEnum(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionM
     report(r, ErrorCode.AMBIGUOUS_NAME, at, mark.written, 'MEMBER_REF', [member.entry, ...others]);
     return n;
   }
+  // 写法即成员规范名（§6.2 第 5 步）：保持原样，与未本地化源码的既有 IR 一致
+  if (member.entry.canonical === nfc(mark.written)) return n;
   const canonical = `${e}.${member.entry.canonical}`;
   return renamed(n, { name: canonical }, mark.written, canonical, 'MEMBER_REF');
 }
 
-/** 无期望类型：沿用 R1 结果；R1 未命中时按值位置规则，零候选报 E802（歧义已由 R1 报告）。 */
+/**
+ * 无期望类型：沿用 R1 结果；R1 未命中时按值位置规则（歧义已由 R1 报告）。仍未命中时，
+ * 写法恰为某一个源码 / 导入枚举成员的规范名则原样接受（多个枚举 → E804），否则 E802。
+ */
 function resolveValue(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionMark): Core.Name {
-  if (mark.r1Role !== undefined || BUILTIN_VALUE_NAMES.has(n.name)) return n;
+  if (mark.r1Role !== undefined || isBuiltinValue(n.name)) return n;
   const picked = chooseValue(r, f.scope, mark.written);
   if (picked.kind === 'hit') return renamed(n, { name: picked.entry.canonical }, mark.written, picked.entry.canonical, picked.entry.role);
   // UFCS 拆出的部分可能来自限定调用（`io.get(…)`），首段为命名空间时不报 E802
-  if (picked.kind === 'miss' && !mark.ufcs) report(r, ErrorCode.UNRESOLVED_NAME, spanOf(n), mark.written, 'FUNC_REF');
+  if (picked.kind === 'ambiguous' || mark.ufcs) return n;
+  const owners = [...r.t.enums].filter(([, ms]) => ms.includes(nfc(mark.written)));
+  if (owners.length > 1) {
+    const cands = owners.map(([e]) => ({ written: mark.written, canonical: `${e}.${nfc(mark.written)}`, role: 'MEMBER_REF' as const }));
+    report(r, ErrorCode.AMBIGUOUS_NAME, spanOf(n), mark.written, 'MEMBER_REF', cands);
+  }
+  if (owners.length === 0) report(r, ErrorCode.UNRESOLVED_NAME, spanOf(n), mark.written, 'FUNC_REF');
   return n;
 }
 
@@ -459,7 +499,7 @@ function resolveCall(r: Resolver, f: Frame, e: Core.Call): Core.Call {
 
 /** ConstructField 的期望类型取所构造 Data 的字段声明类型（字段名已由 R1 解析）。 */
 function resolveConstruct(r: Resolver, f: Frame, e: Core.Construct): Core.Construct {
-  const fields = e.fields.map((cf) => ({ ...cf, expr: resolveExpr(r, f, cf.expr, fieldType(r, e.typeName, cf.name)) }));
+  const fields = e.fields.map((cf) => ({ ...cf, expr: resolveExpr(r, f, cf.expr, asType(fieldType(r, e.typeName, cf.name))) }));
   return { ...e, fields };
 }
 
@@ -523,7 +563,7 @@ function resolveStmt(r: Resolver, f: Frame, s: Core.Statement): Core.Statement {
 function resolveSet(r: Resolver, f: Frame, s: Core.Set): Core.Set {
   const mark = consume(s);
   const path = mark?.written.includes('.') ? resolvePath(r, f.scope, mark.written, spanOf(s)) : undefined;
-  const expr = resolveExpr(r, f, s.expr, path?.type);
+  const expr = resolveExpr(r, f, s.expr, asType(path?.type));
   return path ? renamed(s, { name: path.name, expr }, mark!.written, path.name, 'FIELD_REF') : { ...s, expr };
 }
 
@@ -543,7 +583,7 @@ function resolveMatch(r: Resolver, f: Frame, s: Core.Match): Core.Match {
   return { ...s, expr, cases };
 }
 
-function resolveCase(r: Resolver, f: Frame, c: Core.Case, subject: Core.Type | undefined): Core.Case {
+function resolveCase(r: Resolver, f: Frame, c: Core.Case, subject: Static): Core.Case {
   const pattern = resolvePattern(r, f, c.pattern, subject);
   const body: Core.Return | Core.Block =
     c.body.kind === 'Block' ? resolveBlock(r, f, c.body) : { ...c.body, expr: resolveExpr(r, f, c.body.expr, f.ret) };
@@ -552,7 +592,7 @@ function resolveCase(r: Resolver, f: Frame, c: Core.Case, subject: Core.Type | u
 
 // ---- 模式 ----
 
-function resolvePattern(r: Resolver, f: Frame, p: Core.Pattern, subject: Core.Type | undefined): Core.Pattern {
+function resolvePattern(r: Resolver, f: Frame, p: Core.Pattern, subject: Static): Core.Pattern {
   switch (p.kind) {
     case 'PatName':
     case 'PatternName':
@@ -577,7 +617,7 @@ function resolvePattern(r: Resolver, f: Frame, p: Core.Pattern, subject: Core.Ty
  * 主语类型未知时，仅当写法精确等于某枚举成员才视为成员（唯一 → W801，多个 → E806）；
  * 其余为绑定名。模式名是声明而非引用，故不经过 LOCAL 层。
  */
-function resolvePatName(r: Resolver, f: Frame, p: Core.PatName, subject: Core.Type | undefined): Core.PatName {
+function resolvePatName(r: Resolver, f: Frame, p: Core.PatName, subject: Static): Core.PatName {
   const mark = consume(p);
   const asMember = mark ? patNameMember(r, p, mark, subject) : undefined;
   if (asMember) return asMember;
@@ -585,7 +625,7 @@ function resolvePatName(r: Resolver, f: Frame, p: Core.PatName, subject: Core.Ty
   return p;
 }
 
-function patNameMember(r: Resolver, p: Core.PatName, mark: ResolutionMark, subject: Core.Type | undefined): Core.PatName | undefined {
+function patNameMember(r: Resolver, p: Core.PatName, mark: ResolutionMark, subject: Static): Core.PatName | undefined {
   const e = enumOf(r, subject);
   if (e !== undefined) return patNameUnderEnum(r, p, mark, e);
   if (typeNameOf(subject) !== undefined) return undefined;
@@ -595,7 +635,9 @@ function patNameMember(r: Resolver, p: Core.PatName, mark: ResolutionMark, subje
     report(r, ErrorCode.AMBIGUOUS_PATTERN, spanOf(p), mark.written, 'MEMBER_REF', member.candidates);
     return p;
   }
-  warn(r, ErrorCode.RESOLVED_WITHOUT_TYPE, spanOf(p), mark.written, 'MEMBER_REF', [member.entry]);
+  if (member.entry.canonical !== nfc(mark.written)) {
+    warn(r, ErrorCode.RESOLVED_WITHOUT_TYPE, spanOf(p), mark.written, 'MEMBER_REF', [member.entry]);
+  }
   return renamed(p, { name: member.entry.canonical }, mark.written, member.entry.canonical, 'MEMBER_REF');
 }
 
@@ -620,7 +662,7 @@ function allMembers(r: Resolver): Entry[] {
   return [...decls, ...vocab];
 }
 
-function resolvePatCtor(r: Resolver, f: Frame, p: Core.PatCtor, subject: Core.Type | undefined): Core.PatCtor {
+function resolvePatCtor(r: Resolver, f: Frame, p: Core.PatCtor, subject: Static): Core.PatCtor {
   const mark = consume(p);
   const args = p.args?.map((a) => resolvePattern(r, f, a, undefined));
   for (const n of p.names) declare(f, n);
@@ -638,7 +680,7 @@ interface CtorRule {
 }
 
 /** 主语为枚举 → 成员（同 R1）；为其它已知类型 → Data 构造器（同 R1）；未知 → 全部成员与构造器中唯一（W801）。 */
-function ctorRule(r: Resolver, written: string, subject: Core.Type | undefined): CtorRule {
+function ctorRule(r: Resolver, written: string, subject: Static): CtorRule {
   const e = enumOf(r, subject);
   if (e !== undefined) {
     const choice = chooseMember(r, e, written);
@@ -654,12 +696,12 @@ function ctorRule(r: Resolver, written: string, subject: Core.Type | undefined):
   return { choice, role: 'TYPE', typed: false, ambiguous: ErrorCode.AMBIGUOUS_PATTERN, unresolved: ErrorCode.UNRESOLVED_PATTERN };
 }
 
-function ctorResolution(r: Resolver, p: Core.PatCtor, mark: ResolutionMark, subject: Core.Type | undefined): Core.PatCtor {
+function ctorResolution(r: Resolver, p: Core.PatCtor, mark: ResolutionMark, subject: Static): Core.PatCtor {
   const rule = ctorRule(r, mark.written, subject);
   const at = spanOf(p);
   if (rule.choice.kind === 'hit') {
     const { canonical, role } = rule.choice.entry;
-    if (!rule.typed) warn(r, ErrorCode.RESOLVED_WITHOUT_TYPE, at, mark.written, role, [rule.choice.entry]);
+    if (!rule.typed && canonical !== nfc(mark.written)) warn(r, ErrorCode.RESOLVED_WITHOUT_TYPE, at, mark.written, role, [rule.choice.entry]);
     return renamed(p, { typeName: canonical }, mark.written, canonical, role);
   }
   if (rule.choice.kind === 'ambiguous') report(r, rule.ambiguous, at, mark.written, rule.role, rule.choice.candidates);
