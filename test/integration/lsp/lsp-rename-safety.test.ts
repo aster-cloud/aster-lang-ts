@@ -107,20 +107,5 @@ describe('领域词汇（finance.loan）', () => {
     const def = (await c.request('textDocument/definition', { textDocument: td, position: inside(use, 0) })) as { range: Range } | null;
     assert.deepEqual(def?.range.start, rangeOf(ZH, '乙', 0).start);
   });
-
-  it('★词汇词本身不可重命名（它不是用户标识符，位置也不能基于推算）', async () => {
-    const c = await open('zh-CN', ZH, init);
-    await assertNotRenameable(c, inside(rangeOf(ZH, '申请人', 0)), '申请人');
-  });
-
-  /* 用户自己写的 Applicant 与词汇词「申请人」规范化后同名：重命名若只改逐字对齐的那处，
-   *   会让两者从同一个名字变成两个名字（语义改变）。必须整体拒绝。 */
-  it('★与词汇词同名的标识符：重命名整体拒绝，而不是只改一部分', async () => {
-    const T = ['模块 demo.p。', '', '规则 评估 给定 甲 作为 申请人，乙 作为 Applicant 产出 整数：', '  返回 1。', ''].join('\n');
-    const c = await open('zh-CN', T, init);
-    const at = inside(rangeOf(T, 'Applicant', 0), 2);
-    assert.equal(await c.request('textDocument/prepareRename', { textDocument: td, position: at }), null);
-    assert.equal(await c.request('textDocument/rename', { textDocument: td, position: at, newName: 'Borrower' }), null);
-  });
 });
 

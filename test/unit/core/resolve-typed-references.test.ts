@@ -609,6 +609,11 @@ describe('resolveTypedReferences（R2）', () => {
       assert.deepEqual(codes(r2), []);
     });
 
+    it('3b. 类型参数（未声明类型名成为隐式类型参数）上的字段段 → E801，不透传', () => {
+      const { r2 } = run('Module m.\n\nRule f given x as Foo, produce Int:\n  Return x.age.\n', [], EN_US);
+      assert.deepEqual(codes(r2), [ErrorCode.UNRESOLVED_FIELD]);
+    });
+
     it('4. lambda 绑定的局部名与内置运算符不报 E802', () => {
       const { r1, r2 } = run(
         'Module m.\n\nRule f given x as Int, produce Int:\n' +

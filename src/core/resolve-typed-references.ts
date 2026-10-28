@@ -357,6 +357,8 @@ function resolvePath(r: Resolver, scope: Scope, written: string, at: Span | unde
   const parts = [local.local.name];
   let type = local.local.type;
   for (const [i, seg] of tail.entries()) {
+    // 类型参数没有字段：其上的字段段一定无法解析（类型检查同样拒绝），不让原写法进入 IR
+    if (type !== DYNAMIC && type?.kind === 'TypeVar') report(r, ErrorCode.UNRESOLVED_FIELD, at, seg, 'FIELD_REF');
     if (isOpaque(r, type)) return { name: [...parts, ...tail.slice(i)].join('.'), type: DYNAMIC };
     const next = resolveSegment(r, type, seg, at);
     parts.push(next.name);

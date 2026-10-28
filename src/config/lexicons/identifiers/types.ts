@@ -5,7 +5,7 @@
  *
  * **设计原则**：
  * - 领域分离：每个业务领域（金融、保险、医疗等）有独立的映射
- * - 双向映射：支持本地化→规范化 和 规范化→本地化 双向转换
+ * - 本地化→规范化按源码位置解析（VocabularyScopes，ADR 0051）；本索引只提供规范化→本地化
  * - 可扩展：租户可添加自定义映射
  * - 类型安全：通过 TypeScript 类型系统保证映射完整性
  */
@@ -24,8 +24,8 @@ export enum IdentifierKind {
   ENUM_VALUE = 'enum_value',
   /**
    * 字面量宏（token → 字符串字面量）。与其它 kind 不同：canonical **不是** ASCII
-   * 标识符，而是要替换出去的**字符串内容**（不含引号）。canonicalize 时把 localized
-   * token 逐字替换成 `<open>content<close>`（用当前 lexicon 的 stringQuotes 包裹，
+   * 标识符，而是要替换出去的**字符串内容**（不含引号）。canonicalize 时把触发词
+   * token（按折叠键匹配）替换成 `<open>content<close>`（用当前 lexicon 的 stringQuotes 包裹，
    * 从而被 segmentString 正确保护，避免插入 ASCII 引号在标点归一化后不被隔离）。
    *
    * <p>用途：把一个领域术语固定展开成一段标准文案（合规场景常见），例如
@@ -106,26 +106,18 @@ export interface DomainVocabulary {
 }
 
 /**
- * 标识符映射索引 - 用于快速查找。
+ * 标识符映射索引 - 用于展示与按类型查找（规范名 → 本地化写法等）。
+ * 源码中的名字按位置解析见 VocabularyScopes（ADR 0051），本索引不参与编译。
  */
 export interface IdentifierIndex {
-  /** 本地化名称 → 规范化名称 */
-  readonly toCanonical: ReadonlyMap<string, string>;
-
-  /** 规范化名称 → 本地化名称 */
+  /** 规范化名称（小写） → 本地化名称 */
   readonly toLocalized: ReadonlyMap<string, string>;
 
-  /** 按类型分类的映射 */
+  /** 按类型分类的映射（键为本地化名称小写） */
   readonly byKind: ReadonlyMap<IdentifierKind, ReadonlyMap<string, IdentifierMapping>>;
 
   /** 字段映射（按父结构体索引） */
   readonly fieldsByParent: ReadonlyMap<string, ReadonlyMap<string, IdentifierMapping>>;
-
-  /**
-   * 字面量宏的 localized key（已 toLowerCase）。canonicalize 替换时据此判定：
-   * 命中则把 `toCanonical` 里存的**内容**用 lexicon 引号包裹后插入，而非当作标识符原样插入。
-   */
-  readonly literals: ReadonlySet<string>;
 }
 
 /**
@@ -135,11 +127,9 @@ export interface IdentifierIndex {
  * @returns 标识符索引
  */
 export function buildIdentifierIndex(vocabulary: DomainVocabulary): IdentifierIndex {
-  const toCanonical = new Map<string, string>();
   const toLocalized = new Map<string, string>();
   const byKind = new Map<IdentifierKind, Map<string, IdentifierMapping>>();
   const fieldsByParent = new Map<string, Map<string, IdentifierMapping>>();
-  const literals = new Set<string>();
 
   // 初始化 byKind 分类
   for (const kind of Object.values(IdentifierKind)) {
@@ -148,22 +138,9 @@ export function buildIdentifierIndex(vocabulary: DomainVocabulary): IdentifierIn
 
   const addMapping = (mapping: IdentifierMapping): void => {
     const localizedKey = mapping.localized.toLowerCase();
-    // localized → canonical（字面量宏存的是「内容」，替换阶段再包引号）
-    toCanonical.set(localizedKey, mapping.canonical);
     // 字面量宏是单向宏展开，不建反向映射（避免 toLocalized 暴露怪异的内容反查）。
-    if (mapping.kind === IdentifierKind.LITERAL) {
-      literals.add(localizedKey);
-    } else {
+    if (mapping.kind !== IdentifierKind.LITERAL) {
       toLocalized.set(mapping.canonical.toLowerCase(), mapping.localized);
-    }
-
-    // 别名也加入映射（字面量宏的别名同样触发宏展开）
-    if (mapping.aliases) {
-      for (const alias of mapping.aliases) {
-        const aliasKey = alias.toLowerCase();
-        toCanonical.set(aliasKey, mapping.canonical);
-        if (mapping.kind === IdentifierKind.LITERAL) literals.add(aliasKey);
-      }
     }
 
     // 按类型分类
@@ -186,23 +163,10 @@ export function buildIdentifierIndex(vocabulary: DomainVocabulary): IdentifierIn
   vocabulary.literals?.forEach(addMapping);
 
   return {
-    toCanonical,
     toLocalized,
     byKind: byKind as ReadonlyMap<IdentifierKind, ReadonlyMap<string, IdentifierMapping>>,
     fieldsByParent: fieldsByParent as ReadonlyMap<string, ReadonlyMap<string, IdentifierMapping>>,
-    literals,
   };
-}
-
-/**
- * 将本地化标识符转换为规范化名称。
- *
- * @param index - 标识符索引
- * @param localized - 本地化名称
- * @returns 规范化名称，如果不存在映射则返回原始名称
- */
-export function canonicalizeIdentifier(index: IdentifierIndex, localized: string): string {
-  return index.toCanonical.get(localized.toLowerCase()) ?? localized;
 }
 
 /**
@@ -214,18 +178,6 @@ export function canonicalizeIdentifier(index: IdentifierIndex, localized: string
  */
 export function localizeIdentifier(index: IdentifierIndex, canonical: string): string {
   return index.toLocalized.get(canonical.toLowerCase()) ?? canonical;
-}
-
-/**
- * 检查是否存在标识符映射。
- *
- * @param index - 标识符索引
- * @param name - 标识符名称（本地化或规范化）
- * @returns 如果存在映射返回 true
- */
-export function hasIdentifierMapping(index: IdentifierIndex, name: string): boolean {
-  const lower = name.toLowerCase();
-  return index.toCanonical.has(lower) || index.toLocalized.has(lower);
 }
 
 /**

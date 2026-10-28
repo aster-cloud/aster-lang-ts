@@ -20,18 +20,11 @@ interface TokenLike { start?: Pos; end?: Pos; value?: unknown; kind?: unknown }
 /**
  * 对齐结果：
  *   exact      —— 原文里找到了同样的文本，位置确定
- *   translated —— 规范化文本里是领域词汇的规范名（如 Applicant），原文里找到的是其本地化写法
- *                 （申请人）；位置确定，但这不是用户自己的标识符
  *   guessed    —— 原文里找不到（被转写的关键字、全角标点等），位置按相对偏移推算，不可靠
  * ★编辑类操作（重命名）只能基于 exact，绝不能基于推算的位置产生编辑。
  */
-export type SourceAlignment = 'exact' | 'translated' | 'guessed';
+export type SourceAlignment = 'exact' | 'guessed';
 export type AlignedToken<T> = T & { srcAlign?: SourceAlignment };
-
-export interface AlignOptions {
-  /** 规范名 → 原文中的本地化写法（领域词汇；canonicalize 会把本地化词替换成规范名） */
-  readonly localizedOf?: ((canonical: string) => string | undefined) | undefined;
-}
 
 const WORDISH = /^[\p{L}\p{N}_]+$/u;
 const WORD_CHAR = /[\p{L}\p{N}_]/u;
@@ -58,7 +51,6 @@ export function alignTokensToSource<T extends TokenLike>(
   original: string,
   canonical: string,
   tokens: readonly T[],
-  options: AlignOptions = {},
 ): AlignedToken<T>[] {
   const origLines = original.replace(/\r\n?/g, '\n').split('\n');
   const canLines = canonical.split('\n');
@@ -79,23 +71,14 @@ export function alignTokensToSource<T extends TokenLike>(
     const origLine = origLines[line - 1] ?? '';
     const sameLine = t.end.line === line;
     const raw = sameLine ? canLine.slice(t.start.col - 1, t.end.col - 1) : '';
-    let at = sameLine ? findInLine(origLine, raw, st.cursor) : -1;
-    let srcText = raw;
+    const at = sameLine ? findInLine(origLine, raw, st.cursor) : -1;
     let srcAlign: SourceAlignment = 'exact';
-    if (at === -1 && sameLine) {
-      // 领域词汇：规范名在原文里是本地化写法
-      const localized = options.localizedOf?.(raw);
-      if (localized) {
-        at = findInLine(origLine, localized, st.cursor);
-        if (at !== -1) { srcText = localized; srcAlign = 'translated'; }
-      }
-    }
     let start: Pos;
     let end: Pos;
     if (at !== -1) {
       start = { line, col: at + 1 };
-      end = { line, col: at + 1 + srcText.length };
-      st.cursor = at + srcText.length;
+      end = { line, col: at + 1 + raw.length };
+      st.cursor = at + raw.length;
     } else {
       srcAlign = 'guessed';
       start = { line, col: mapCol(line, t.start.col, st) };

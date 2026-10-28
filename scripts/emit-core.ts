@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import { canonicalize, lex, parse, lowerModule } from '../src/index.js';
+import { parseSource, resolveAndLower } from '../src/index.js';
 import { DiagnosticError, formatDiagnostic } from '../src/diagnostics/diagnostics.js';
 
 function main(): void {
@@ -11,10 +11,11 @@ function main(): void {
   }
   const input = fs.readFileSync(file, 'utf8');
   try {
-    const can = canonicalize(input);
-    const toks = lex(can);
-    const { ast } = parse(toks);
-    const core = lowerModule(ast);
+    const { ast } = parseSource(input);
+    // 名称解析 R1 → lower → R2（ADR 0051）；任一 E8xx 不输出 IR
+    const { core, diagnostics } = resolveAndLower(ast);
+    for (const d of diagnostics) console.error(`${d.severity}: ${d.code} ${d.message}`);
+    if (diagnostics.some((d) => d.severity === 'error')) process.exit(1);
     console.log(JSON.stringify(prune(core), null, 2));
   } catch (e: unknown) {
     if (e instanceof DiagnosticError) {

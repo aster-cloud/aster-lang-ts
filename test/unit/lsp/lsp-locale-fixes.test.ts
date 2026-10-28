@@ -94,24 +94,23 @@ describe('取词回退路径（词法失败时）', () => {
 });
 
 describe('领域词汇 token 的可编辑性', () => {
+  // canonicalize 不再把本地化词替换为规范名（ADR 0051 按位置解析），词汇词是用户原写法的普通标识符
   const text = '模块 demo.p。\n\n规则 评估 给定 甲 作为 申请人 产出 整数：\n  返回 1。\n';
   const { tokens } = parseDocumentText(text, zh, 'tenant-unit', 'finance.loan');
 
-  it('★被翻译的词汇 token 标为 translated，位置是原文「申请人」', () => {
-    const t = tokens.find((x: any) => x.value === 'Applicant') as any;
-    assert.ok(t, '应有 Applicant token（词汇翻译生效）');
-    assert.equal(t.srcAlign, 'translated');
+  it('★词汇词保持原写法，逐字对齐到原文「申请人」', () => {
+    assert.equal(tokens.find((x: any) => x.value === 'Applicant'), undefined, '不应再出现替换后的规范名');
+    const t = tokens.find((x: any) => x.value === '申请人') as any;
+    assert.ok(t, '应有原写法 token');
+    assert.equal(t.srcAlign, 'exact');
     const line = text.split('\n')[2]!;
     assert.equal(t.start.col - 1, line.indexOf('申请人'));
-    // 其后的 token 仍逐字对齐
-    const after = tokens.find((x: any) => x.start?.line === 3 && x.value === '整数') as any;
-    assert.equal(after.srcAlign, 'exact');
-    assert.equal(after.start.col - 1, line.indexOf('整数'));
   });
 
-  it('★光标在词汇词上不可编辑；同名存在非逐字对齐 token 时标记 uncertain', () => {
-    assert.equal(identifierTokenAt(tokens, text, text.indexOf('申请人') + 1, zh), null);
-    assert.equal(exactIdentifierPositions(tokens, text, 'Applicant').uncertain, true);
+  it('★词汇词与其它标识符一样可编辑，位置确定', () => {
+    const hit = identifierTokenAt(tokens, text, text.indexOf('申请人') + 1, zh);
+    assert.equal(hit?.name, '申请人');
+    assert.equal(exactIdentifierPositions(tokens, text, '申请人').uncertain, false);
     assert.equal(exactIdentifierPositions(tokens, text, '甲').uncertain, false);
   });
 });

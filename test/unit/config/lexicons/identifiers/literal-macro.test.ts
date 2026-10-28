@@ -2,6 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildIdentifierIndex,
+  buildVocabularyScopes,
+  foldKey,
   validateVocabulary,
   IdentifierKind,
 } from '../../../../../src/config/lexicons/identifiers/index.js';
@@ -12,7 +14,7 @@ import { vocabularyRegistry } from '../../../../../src/config/lexicons/identifie
 
 initializeAllBundledLexicons();
 
-// 字面量宏（IdentifierKind.LITERAL）：canonicalize 时把 localized token 展开成字符串
+// 字面量宏（IdentifierKind.LITERAL）：canonicalize 时把触发词 token 展开成字符串
 // 字面量（用 lexicon 引号包裹），内容受严格校验防注入。与 aster-lang-core LiteralMacroTest
 // 逐条对齐（双引擎 parity）。动机：《静夜思》demo 里 思故乡 → "静夜思"。
 
@@ -29,25 +31,22 @@ describe('字面量宏 IdentifierKind.LITERAL', () => {
   it('canonicalize 把 思故乡 展开成 lexicon 引号包裹的字符串字面量', () => {
     const v = vocab([{ localized: '思故乡', canonical: '静夜思', kind: IdentifierKind.LITERAL }]);
     assert.equal(validateVocabulary(v).valid, true, '合法字面量宏应通过校验');
-    const index = buildIdentifierIndex(v);
-    assert.equal(index.literals.has('思故乡'), true, '思故乡 标记为字面量宏');
-    assert.equal(index.toCanonical.get('思故乡'), '静夜思', 'toCanonical 存内容（不含引号）');
+    const scopes = buildVocabularyScopes(v);
+    assert.equal(scopes.literals.get(foldKey('思故乡')), '静夜思', 'literals 存内容（不含引号）');
 
-    // zh-CN 引号「」；替换后 canonicalize 里 ASCII 步会把 " 归一到「」，此处直接检出现「静夜思」
-    const out = canonicalize('低头 思故乡。', ZH_CN);
-    // 注：ZH_CN 无字面量宏词汇；用 registry 走 domain 路径验证
-    // 见下方 registerCustom 用例。此处仅确认 buildIdentifierIndex 层正确。
-    assert.ok(out.length > 0);
+    // zh-CN 引号「」：展开结果用 lexicon 引号包裹
+    const out = canonicalize('低头 思故乡。', { lexicon: ZH_CN, vocabulary: scopes });
+    assert.match(out, /「静夜思」/, `字面量宏应展开成 lexicon 引号字符串，实际: ${out}`);
   });
 
-  it('端到端 canonicalize（domain 路径）：思故乡 → 「静夜思」', () => {
+  it('端到端 canonicalize（注册中心路径）：思故乡 → 「静夜思」', () => {
     const TENANT = 'jingyesi-t';
     vocabularyRegistry.registerCustom(TENANT, vocab(
       [{ localized: '思故乡', canonical: '静夜思', kind: IdentifierKind.LITERAL }],
       { locale: 'zh-CN' },
     ));
     const out = canonicalize('低头 思故乡。', {
-      lexicon: ZH_CN, domain: 'jingyesi', locale: 'zh-CN', tenantId: TENANT,
+      lexicon: ZH_CN, vocabulary: vocabularyRegistry.getWithCustom(TENANT, 'jingyesi', 'zh-CN'),
     });
     assert.match(out, /「静夜思」/, `字面量宏应展开成 lexicon 引号字符串，实际: ${out}`);
     assert.doesNotMatch(out, /思故乡/, '原 token 不应残留');
@@ -108,7 +107,7 @@ describe('字面量宏 IdentifierKind.LITERAL', () => {
   // （丢失元音符号 matra ा/े，属 Unicode Mark \p{M} 而非 Letter \p{L}），导致天城文触发词
   // 永不匹配。修为 [\p{L}_][\p{L}\p{M}\p{Nd}_]* 后 जागे 作为整词匹配并展开。与 Java 引擎
   // isIdentifierPart 纳入 Mark 对齐。动机：Gitanjali #35 印地语 demo。
-  it('端到端 canonicalize（Hindi domain 路径）：जागे → 英文名句字面量', () => {
+  it('端到端 canonicalize（Hindi 注册中心路径）：जागे → 英文名句字面量', () => {
     const TENANT = 'gitanjali-t';
     vocabularyRegistry.registerCustom(TENANT, {
       id: 'gitanjali', name: 'Gitanjali', locale: 'hi-IN', version: '1.0.0',
@@ -120,7 +119,7 @@ describe('字面量宏 IdentifierKind.LITERAL', () => {
       }],
     });
     const out = canonicalize('लौटाएं जागे।', {
-      lexicon: HI_IN, domain: 'gitanjali', locale: 'hi-IN', tenantId: TENANT,
+      lexicon: HI_IN, vocabulary: vocabularyRegistry.getWithCustom(TENANT, 'gitanjali', 'hi-IN'),
     });
     assert.match(out, /"Into that heaven of freedom, let my country awake"/,
       `天城文触发词应展开成英文字符串字面量，实际: ${out}`);
@@ -134,9 +133,10 @@ describe('字面量宏 IdentifierKind.LITERAL', () => {
       structs: [], fields: [], functions: [], enumValues: [],
       literals: [{ localized: 'निर्भय', canonical: 'fearless', kind: IdentifierKind.LITERAL }],
     } as DomainVocabulary;
-    const index = buildIdentifierIndex(v);
-    assert.equal(index.literals.has('निर्भय'), true, 'निर्भय 整词进 index');
-    assert.equal(index.toCanonical.get('निर्भय'), 'fearless', 'toCanonical 存内容');
+    const scopes = buildVocabularyScopes(v);
+    assert.equal(scopes.literals.get(foldKey('निर्भय')), 'fearless', 'निर्भय 整词进 literals');
+    const out = canonicalize('लौटाएं निर्भय।', { lexicon: HI_IN, vocabulary: scopes });
+    assert.match(out, /"fearless"/, `含元音符号的触发词应整词展开，实际: ${out}`);
   });
 
   // 跨引擎 parity 边界（Codex 审查）：identifier 数字部分用 \p{Nd}（十进制）而非 \p{N}，
@@ -153,7 +153,7 @@ describe('字面量宏 IdentifierKind.LITERAL', () => {
       literals: [{ localized: 'aⅫ', canonical: 'ROMAN', kind: IdentifierKind.LITERAL }],
     });
     const out = canonicalize('Return aⅫ.', {
-      lexicon: EN_US, domain: 'ndp', locale: 'en-US', tenantId: TENANT,
+      lexicon: EN_US, vocabulary: vocabularyRegistry.getWithCustom(TENANT, 'ndp', 'en-US'),
     });
     // 触发词 "aⅫ" 不应被当整词展开（因为 Ⅻ 不是 \p{Nd} → identifier 在 a 后断开）。
     assert.doesNotMatch(out, /ROMAN/, `\\p{Nd} 下 Nl 字符不应粘进 identifier，实际: ${out}`);

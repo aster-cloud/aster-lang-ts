@@ -9,15 +9,28 @@ import assert from 'node:assert';
 import {
   vocabularyRegistry,
   initBuiltinVocabularies,
-  canonicalizeIdentifier,
   localizeIdentifier,
-  hasIdentifierMapping,
   buildIdentifierIndex,
+  buildVocabularyScopes,
+  lookup,
   validateVocabulary,
   IdentifierKind,
   INSURANCE_AUTO_ZH_CN,
   FINANCE_LOAN_ZH_CN,
 } from '../../../../../src/config/lexicons/identifiers/index.js';
+import type { VocabularyScopes } from '../../../../../src/config/lexicons/identifiers/index.js';
+
+/** 写法在类型 / 函数 / 各 struct 字段作用域中精确命中的规范名（按位置解析的候选集合）。 */
+function canonicalsOf(scopes: VocabularyScopes, written: string): string[] {
+  const maps = [scopes.types, scopes.functions, ...scopes.fields.values()];
+  return [...new Set(maps.flatMap((m) => lookup(m, written).exact.map((c) => c.canonical)))];
+}
+
+function scopesOf(domain: string, tenantId?: string): VocabularyScopes {
+  const scopes = vocabularyRegistry.getWithCustom(tenantId, domain, 'zh-CN');
+  assert.ok(scopes, `${domain} 应已注册`);
+  return scopes;
+}
 
 describe('标识符映射模块', () => {
   beforeEach(() => {
@@ -62,13 +75,14 @@ describe('标识符映射模块', () => {
   });
 
   describe('索引构建', () => {
-    it('构建双向映射索引', () => {
+    it('构建双向映射：本地化 → 规范化按作用域，规范化 → 本地化走展示索引', () => {
       const index = buildIdentifierIndex(INSURANCE_AUTO_ZH_CN);
+      const scopes = buildVocabularyScopes({ ...INSURANCE_AUTO_ZH_CN, enumValues: [] });
 
       // 测试本地化 → 规范化
-      assert.strictEqual(index.toCanonical.get('驾驶员'), 'Driver');
-      assert.strictEqual(index.toCanonical.get('年龄'), 'age');
-      assert.strictEqual(index.toCanonical.get('月保费'), 'monthlyPremium');
+      assert.deepStrictEqual(canonicalsOf(scopes, '驾驶员'), ['Driver']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '年龄'), ['age']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '月保费'), ['monthlyPremium']);
 
       // 测试规范化 → 本地化
       assert.strictEqual(index.toLocalized.get('driver'), '驾驶员');
@@ -76,12 +90,12 @@ describe('标识符映射模块', () => {
     });
 
     it('支持别名映射', () => {
-      const index = buildIdentifierIndex(INSURANCE_AUTO_ZH_CN);
+      const scopes = scopesOf('insurance.auto');
 
-      // 别名应该也能映射到规范化名称
-      assert.strictEqual(index.toCanonical.get('司机'), 'Driver');
-      assert.strictEqual(index.toCanonical.get('驾驶人'), 'Driver');
-      assert.strictEqual(index.toCanonical.get('车牌'), 'plateNo');
+      // 别名（synonym 候选）也能映射到规范化名称
+      assert.deepStrictEqual(canonicalsOf(scopes, '司机'), ['Driver']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '驾驶人'), ['Driver']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '车牌'), ['plateNo']);
     });
 
     it('按类型分类映射', () => {
@@ -114,11 +128,11 @@ describe('标识符映射模块', () => {
 
   describe('标识符转换', () => {
     it('本地化到规范化', () => {
-      const index = vocabularyRegistry.getIndex('insurance.auto', 'zh-CN')!;
+      const scopes = scopesOf('insurance.auto');
 
-      assert.strictEqual(canonicalizeIdentifier(index, '驾驶员'), 'Driver');
-      assert.strictEqual(canonicalizeIdentifier(index, '报价结果'), 'QuoteResult');
-      assert.strictEqual(canonicalizeIdentifier(index, '计算保费'), 'calculatePremium');
+      assert.deepStrictEqual(canonicalsOf(scopes, '驾驶员'), ['Driver']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '报价结果'), ['QuoteResult']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '计算保费'), ['calculatePremium']);
     });
 
     it('规范化到本地化', () => {
@@ -132,14 +146,13 @@ describe('标识符映射模块', () => {
     it('未映射的标识符返回原值', () => {
       const index = vocabularyRegistry.getIndex('insurance.auto', 'zh-CN')!;
 
-      assert.strictEqual(canonicalizeIdentifier(index, '未知标识符'), '未知标识符');
+      assert.deepStrictEqual(canonicalsOf(scopesOf('insurance.auto'), '未知标识符'), []);
       assert.strictEqual(localizeIdentifier(index, 'UnknownIdentifier'), 'UnknownIdentifier');
     });
 
     it('大小写不敏感', () => {
       const index = vocabularyRegistry.getIndex('insurance.auto', 'zh-CN')!;
 
-      assert.strictEqual(canonicalizeIdentifier(index, '驾驶员'), 'Driver');
       assert.strictEqual(localizeIdentifier(index, 'DRIVER'), '驾驶员');
       assert.strictEqual(localizeIdentifier(index, 'driver'), '驾驶员');
     });
@@ -202,40 +215,66 @@ describe('标识符映射模块', () => {
 
       vocabularyRegistry.registerCustom('tenant-123', customVocab);
 
-      // 使用租户 ID 查询时应返回自定义词汇表
-      const entry = vocabularyRegistry.getWithCustom(
-        'tenant-123',
-        'insurance.auto',
-        'zh-CN'
-      );
-      assert.strictEqual(entry?.vocabulary.name, '自定义汽车保险');
+      // 使用租户 ID 查询时应返回自定义词汇的作用域
+      const custom = scopesOf('insurance.auto', 'tenant-123');
+      assert.deepStrictEqual(canonicalsOf(custom, '自定义驾驶员'), ['CustomDriver']);
+      assert.deepStrictEqual(canonicalsOf(custom, '驾驶员'), []);
 
-      // 不使用租户 ID 时应返回内置词汇表
-      const builtinEntry = vocabularyRegistry.getWithCustom(
-        undefined,
-        'insurance.auto',
-        'zh-CN'
-      );
-      assert.strictEqual(builtinEntry?.vocabulary.name, '汽车保险');
+      // 不使用租户 ID 时应返回内置词汇的作用域
+      const builtin = scopesOf('insurance.auto');
+      assert.deepStrictEqual(canonicalsOf(builtin, '驾驶员'), ['Driver']);
+      assert.deepStrictEqual(canonicalsOf(builtin, '自定义驾驶员'), []);
+    });
+  });
+
+  describe('注册中心的词汇作用域', () => {
+    it('没有所属类型的字段 / 枚举成员不进入作用域，注册本身不失败', () => {
+      vocabularyRegistry.registerCustom('tenant-scope', {
+        id: 'scope.test',
+        name: '作用域',
+        locale: 'zh-CN',
+        version: '1.0.0',
+        structs: [{ canonical: 'Level', localized: '等级', kind: IdentifierKind.STRUCT }],
+        fields: [
+          { canonical: 'score', localized: '分数', kind: IdentifierKind.FIELD, parent: 'Level' },
+          { canonical: 'orphan', localized: '孤立', kind: IdentifierKind.FIELD },
+        ],
+        functions: [],
+        enumValues: [
+          { canonical: 'High', localized: '高', kind: IdentifierKind.ENUM_VALUE, parent: 'Level' },
+          { canonical: 'Low', localized: '低', kind: IdentifierKind.ENUM_VALUE },
+        ],
+      });
+      const scopes = vocabularyRegistry.getWithCustom('tenant-scope', 'scope.test', 'zh-CN')!;
+      assert.deepStrictEqual([...scopes.fields.keys()], ['Level']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '孤立'), []);
+      assert.deepStrictEqual([...scopes.enumMembers.keys()], ['Level']);
+      assert.strictEqual(lookup(scopes.enumMembers.get('Level')!, '高').exact[0]?.canonical, 'High');
+    });
+
+    it('内置词汇（枚举成员无所属类型）可构建作用域', () => {
+      const scopes = scopesOf('insurance.auto');
+      assert.strictEqual(scopes.enumMembers.size, 0);
+      assert.deepStrictEqual(canonicalsOf(scopes, '驾驶员'), ['Driver']);
     });
   });
 
   describe('贷款金融领域', () => {
     it('贷款领域标识符转换', () => {
-      const index = vocabularyRegistry.getIndex('finance.loan', 'zh-CN')!;
+      const scopes = scopesOf('finance.loan');
 
-      assert.strictEqual(canonicalizeIdentifier(index, '申请人'), 'Applicant');
-      assert.strictEqual(canonicalizeIdentifier(index, '贷款申请'), 'LoanRequest');
-      assert.strictEqual(canonicalizeIdentifier(index, '信用评分'), 'creditScore');
-      assert.strictEqual(canonicalizeIdentifier(index, '评估贷款'), 'evaluateLoan');
+      assert.deepStrictEqual(canonicalsOf(scopes, '申请人'), ['Applicant']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '贷款申请'), ['LoanRequest']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '信用评分'), ['creditScore']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '评估贷款'), ['evaluateLoan']);
     });
 
     it('支持贷款领域别名', () => {
-      const index = vocabularyRegistry.getIndex('finance.loan', 'zh-CN')!;
+      const scopes = scopesOf('finance.loan');
 
-      assert.strictEqual(canonicalizeIdentifier(index, '借款人'), 'Applicant');
-      assert.strictEqual(canonicalizeIdentifier(index, '征信分'), 'creditScore');
-      assert.strictEqual(canonicalizeIdentifier(index, '工龄'), 'workYears');
+      assert.deepStrictEqual(canonicalsOf(scopes, '借款人'), ['Applicant']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '征信分'), ['creditScore']);
+      assert.deepStrictEqual(canonicalsOf(scopes, '工龄'), ['workYears']);
     });
   });
 });

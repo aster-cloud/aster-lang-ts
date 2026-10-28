@@ -8,7 +8,7 @@
  *
  * **编译管道**：
  * ```
- * CNL 源代码 → canonicalize → lex → parse → AST → lowerModule → Core IR → typecheck → JVM
+ * CNL 源代码 → canonicalize → lex → parse → AST → R1 名称解析 → lowerModule → R2 名称解析 → Core IR → typecheck → JVM
  * ```
  *
  * @example 基础用法
@@ -30,6 +30,33 @@ export { lex } from './frontend/lexer.js';
 export { parse, parseWithLexicon } from './parser.js';
 export type { ParseResult } from './parser.js';
 export { lowerModule } from './lower_to_core.js';
+
+// 名称解析接入后的前端（ADR 0051）：parse → R1 → lower → R2
+export { parseSource, resolveAndLower } from './compile-pipeline.js';
+export type { ParsedSource, ResolvedCore } from './compile-pipeline.js';
+
+// 领域词汇按位置解析（ADR 0051）
+export {
+  buildVocabularyScopes,
+  canonicalScopesJson,
+  foldKey,
+  VocabularyScopeError,
+} from './config/lexicons/identifiers/index.js';
+export type {
+  Candidate,
+  DomainVocabulary,
+  IdentifierMapping,
+  VocabularyScopes,
+  VocabularyScopeErrorCode,
+} from './config/lexicons/identifiers/index.js';
+export { resolvePolicyTypes } from './frontend/resolve-policy-types.js';
+export type {
+  PolicyTypes,
+  PolicyTypesDiagnostic,
+  ResolvePolicyTypesOptions,
+  ResolvePolicyTypesResult,
+  TypeRef,
+} from './frontend/resolve-policy-types.js';
 
 // 关键词翻译（多语言 CNL 支持）
 export {

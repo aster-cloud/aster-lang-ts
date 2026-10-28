@@ -23,8 +23,8 @@
 import type { Lexicon } from '../config/lexicons/types.js';
 import { getMultiWordKeywords } from '../config/lexicons/types.js';
 import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/index.js';
-import type { IdentifierIndex } from '../config/lexicons/identifiers/types.js';
-import { vocabularyRegistry, initBuiltinVocabularies } from '../config/lexicons/identifiers/registry.js';
+import { foldKey } from '../config/lexicons/identifiers/casefold.js';
+import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
 import { applyTransformers } from './transformers.js';
 import { compileGuardedRegex } from '../config/lexicons/regex-guard.js';
 import { createLogger } from '../utils/logger.js';
@@ -152,17 +152,12 @@ function compiledCustomRules(lexicon: Lexicon): ReadonlyArray<{ re: RegExp; repl
  */
 export interface CanonicalizerOptions {
   /** 词法表，默认使用 en-US */
-  lexicon?: Lexicon;
-  /** 领域标识符（如 'insurance.auto'），启用标识符翻译 */
-  domain?: string;
-  /** 语言代码（如 'zh-CN'），与 domain 配合使用 */
-  locale?: string;
+  lexicon?: Lexicon | undefined;
   /**
-   * 租户标识符。提供时，领域词汇查找优先命中该租户通过
-   * `registerCustom` 注册的自定义词汇，未命中再回退到内置词汇。
-   * 缺省时仅查内置词汇（保持原有行为）。
+   * 领域词汇作用域。canonicalize 只用其中的字面量宏（触发词展开为字符串字面量）；
+   * 标识符不在此替换，由解析后的名称解析按位置处理（ADR 0051）。
    */
-  tenantId?: string | undefined;
+  vocabulary?: VocabularyScopes | undefined;
 }
 
 // 默认正则表达式（英语）
@@ -345,34 +340,24 @@ function isEscaped(str: string, index: number): boolean {
  * import { ZH_CN } from './config/lexicons/zh-CN.js';
  * const zhCanonical = canonicalize(raw, ZH_CN);
  *
- * // 带领域词汇表翻译
- * const withDomain = canonicalize(raw, {
+ * // 带领域词汇（仅展开字面量宏）
+ * const withMacros = canonicalize(raw, {
  *   lexicon: ZH_CN,
- *   domain: 'insurance.auto',
- *   locale: 'zh-CN',
+ *   vocabulary: buildVocabularyScopes(vocab),
  * });
  * ```
  */
 export function canonicalize(input: string, lexiconOrOptions?: Lexicon | CanonicalizerOptions): string {
   // 解析参数
   let lexicon: Lexicon | undefined;
-  let identifierIndex: IdentifierIndex | undefined;
+  let literals: ReadonlyMap<string, string> | undefined;
 
   if (lexiconOrOptions && 'keywords' in lexiconOrOptions) {
     lexicon = lexiconOrOptions as Lexicon;
   } else if (lexiconOrOptions && typeof lexiconOrOptions === 'object') {
     const opts = lexiconOrOptions as CanonicalizerOptions;
     lexicon = opts.lexicon;
-    if (opts.domain && opts.locale) {
-      initBuiltinVocabularies();
-      // 通过 getWithCustom 先查租户自定义词汇、再回退内置；tenantId
-      // 缺省时该方法等价于仅查内置（getIndex 老行为）。
-      identifierIndex = vocabularyRegistry.getWithCustom(
-        opts.tenantId,
-        opts.domain,
-        opts.locale,
-      )?.index;
-    }
+    literals = opts.vocabulary?.literals;
   }
 
   // 缓存有效的词法表，确保所有配置访问都使用同一来源
@@ -550,9 +535,9 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   // `[^\S\n]` = 空白字符但排除换行，因此逐行生效、行数不变。
   marked = marked.replace(/^[^\S\n]+$/gm, '');
 
-  // 标识符翻译（如果提供了领域词汇表）
-  if (identifierIndex) {
-    marked = translateIdentifiers(marked, identifierIndex, quotes);
+  // 字面量宏展开（词汇中只有它在解析前处理：它决定 token 类别）
+  if (literals && literals.size > 0) {
+    marked = expandLiteralMacros(marked, literals, quotes);
   }
 
   // Final whitespace normalization to ensure idempotency after article/macro passes
@@ -786,52 +771,23 @@ function normalizeRest(
 }
 
 /**
- * 使用词汇表索引翻译代码中的标识符。
- *
- * 将本地化标识符（如中文）转换为规范化名称（英文）。
- * 字符串字面量内的内容不做翻译。
+ * 把字面量宏触发词展开为字符串字面量（按折叠键匹配完整标识符 token）。
+ * 字符串字面量内部不展开；展开结果用当前 lexicon 的引号包裹，后续 segmentString 会把它当作字符串保护。
  */
-function translateIdentifiers(
+function expandLiteralMacros(
   source: string,
-  index: IdentifierIndex,
+  literals: ReadonlyMap<string, string>,
   quotes: { open: string; close: string },
 ): string {
-  const segments = segmentString(source, quotes);
-
-  return segments
+  // 与 applyCustomRulesKeywordGated 共用同一 token 切分口径（见 identifierTokenRegex）
+  const IDENT_RE = identifierTokenRegex();
+  return segmentString(source, quotes)
     .map(segment => {
       if (segment.inString) return segment.text;
-      return translateIdentifiersInSegment(segment.text, index, quotes);
+      return segment.text.replace(IDENT_RE, token => {
+        const content = literals.get(foldKey(token));
+        return content === undefined ? token : `${quotes.open}${content}${quotes.close}`;
+      });
     })
     .join('');
-}
-
-/**
- * 翻译单个代码片段中的标识符。
- *
- * 识别标识符边界（字母/下划线/中文字符序列），
- * 用词汇表索引将本地化名称替换为规范化名称。
- */
-function translateIdentifiersInSegment(
-  text: string,
-  index: IdentifierIndex,
-  quotes: { open: string; close: string },
-): string {
-  // 标识符匹配模式：与 applyCustomRulesKeywordGated 共用同一 token 切分口径（见
-  // identifierTokenRegex 的详细说明——含 \p{M} 支持天城文 matra、用 \p{Nd} 对齐 Java isDigit）。
-  // 原先硬编码 [a-zA-Z_\u4e00-\u9fa5] 只认 ASCII+CJK，导致 Hindi 等脚本的标识符/字面量宏永不匹配。
-  const IDENT_RE = identifierTokenRegex();
-
-  return text.replace(IDENT_RE, match => {
-    const key = match.toLowerCase();
-    const canonical = index.toCanonical.get(key);
-    if (canonical === undefined) return match;
-    // 字面量宏（IdentifierKind.LITERAL）：把 toCanonical 里的内容用当前 lexicon 的
-    // stringQuotes 包裹展开成字符串字面量（<open>content<close>），使其被后续
-    // segmentString 正确保护——而非当作普通标识符原样插入。
-    if (index.literals.has(key)) {
-      return `${quotes.open}${canonical}${quotes.close}`;
-    }
-    return canonical;
-  });
 }

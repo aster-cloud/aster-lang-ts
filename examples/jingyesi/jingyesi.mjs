@@ -43,14 +43,15 @@ const JINGYESI = {
   },
 };
 
-// 字面量宏词汇表：思故乡 → 内容「静夜思」（kind = literal）。
+// 词汇表：望明月 是 Text 的诗意名（返回类型按位置解析为 Text）；
+// 字面量宏 思故乡 → 内容「静夜思」（kind = literal）。
 // 注：compile 用 lexicon.id 作 locale 查词汇，故 vocab.locale 对齐 lexicon.id。
 vocabularyRegistry.registerCustom(DOMAIN, {
   id: DOMAIN,
   name: '静夜思',
   locale: DOMAIN,
   version: '1.0.0',
-  structs: [],
+  structs: [{ localized: '望明月', canonical: 'Text', kind: 'struct' }],
   fields: [],
   functions: [],
   enumValues: [],

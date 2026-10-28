@@ -1,10 +1,7 @@
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { canonicalize } from '../../../src/frontend/canonicalizer.js';
-import {
-  vocabularyRegistry,
-  initBuiltinVocabularies,
-} from '../../../src/config/lexicons/identifiers/registry.js';
+import { buildVocabularyScopes } from '../../../src/config/lexicons/identifiers/scopes.js';
 import { IdentifierKind } from '../../../src/config/lexicons/identifiers/types.js';
 import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 
@@ -367,64 +364,9 @@ describe('canonicalizer', () => {
     });
   });
 
-  describe('租户自定义词汇翻译（ADR 0014 线A）', () => {
-    // 租户自定义词汇：把本地化术语 pilot 翻译为规范化 Driver
-    const customVocab = {
-      id: 'my.custom',
-      name: 'Custom',
-      locale: 'en-US',
-      version: '1.0.0',
-      structs: [{ canonical: 'Driver', localized: 'pilot', kind: IdentifierKind.STRUCT }],
-      fields: [],
-      functions: [],
-      enumValues: [],
-    };
-
-    beforeEach(() => {
-      vocabularyRegistry.clear();
-      initBuiltinVocabularies();
-      vocabularyRegistry.registerCustom('tenant-42', customVocab);
-    });
-
-    afterEach(() => {
-      vocabularyRegistry.clear();
-    });
-
-    it('提供 tenantId 时应翻译该租户的自定义词汇', () => {
-      const result = canonicalize('Return pilot.', {
-        domain: 'my.custom',
-        locale: 'en-US',
-        tenantId: 'tenant-42',
-      });
-
-      assert.strictEqual(result, 'Return Driver.');
-    });
-
-    it('缺省 tenantId 时仅查内置词汇，自定义词汇不被翻译', () => {
-      const result = canonicalize('Return pilot.', {
-        domain: 'my.custom',
-        locale: 'en-US',
-      });
-
-      // my.custom 非内置领域，getWithCustom 回退后查无 → 不翻译
-      assert.strictEqual(result, 'Return pilot.');
-    });
-
-    it('tenantId 不匹配时回退内置，自定义词汇不被翻译', () => {
-      const result = canonicalize('Return pilot.', {
-        domain: 'my.custom',
-        locale: 'en-US',
-        tenantId: 'other-tenant',
-      });
-
-      assert.strictEqual(result, 'Return pilot.');
-    });
-
-    it('结构体+字段重命名规范化结果与 Java 执行端基线字节一致（跨引擎 parity）', () => {
-      // 与 aster-api VocabularyExecutionTest 同一词汇：Fahrer→Driver、alter→age。
-      // 断言 TS 规范化产出 = 该测试的 canonical 基线源（Java 据此求值得 42），
-      // 锁定两引擎对用户自定义词汇的翻译一致。
-      const vocab = {
+  describe('领域词汇不在 canonicalize 中替换标识符（ADR 0051）', () => {
+    it('结构体 / 字段词汇保持原写法，由解析后的名称解析按位置处理', () => {
+      const scopes = buildVocabularyScopes({
         id: 'insurance.custom',
         name: 'Custom',
         locale: 'en-US',
@@ -433,40 +375,9 @@ describe('canonicalizer', () => {
         fields: [{ canonical: 'age', localized: 'alter', kind: IdentifierKind.FIELD, parent: 'Driver' }],
         functions: [],
         enumValues: [],
-      };
-      vocabularyRegistry.clear();
-      initBuiltinVocabularies();
-      vocabularyRegistry.registerCustom('t-parity', vocab);
-
-      const localized = [
-        'Module insurance.custom.',
-        'Define Fahrer has alter as Int.',
-        'Rule evaluate given driver as Fahrer, produce Int:',
-        '  Return driver.alter.',
-      ].join('\n');
-
-      const expectedCanonical = [
-        'Module insurance.custom.',
-        'Define Driver has age as Int.',
-        'Rule evaluate given driver as Driver, produce Int:',
-        '  Return driver.age.',
-      ].join('\n');
-
-      const result = canonicalize(localized, {
-        domain: 'insurance.custom',
-        locale: 'en-US',
-        tenantId: 't-parity',
       });
-
-      assert.strictEqual(result, expectedCanonical);
-
-      // 大小写不敏感：小写 fahrer/alter 同样翻译（与 Java 引擎等价）。
-      const lower = canonicalize('Return fahrer.alter.', {
-        domain: 'insurance.custom',
-        locale: 'en-US',
-        tenantId: 't-parity',
-      });
-      assert.strictEqual(lower, 'Return Driver.age.');
+      const src = 'Define Fahrer has alter as Int.\nRule evaluate given fahrer as Fahrer, produce Int:\n  Return fahrer.alter.';
+      assert.strictEqual(canonicalize(src, { vocabulary: scopes }), canonicalize(src));
     });
   });
 
