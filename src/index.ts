@@ -103,6 +103,9 @@ export type {
   ParameterInfo,
 } from './parser/input-generator.js';
 
+// 工具链分量版本常量（ADR 0051 §7）
+export { RESOLVER_VERSION, CASEFOLD_VERSION, CORE_IR_ABI } from './version.js';
+
 // 类型定义重导出
 export type * from './types.js';
 
