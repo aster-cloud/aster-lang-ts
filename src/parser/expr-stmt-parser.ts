@@ -1735,10 +1735,15 @@ function parsePrimary(
       const withTok = ctx.nextWord();
       const fields: ConstructField[] = [];
       let hasMore = true;
+      const setToMissing = `Expected '${kw(ctx, KW.SET)} ${kw(ctx, KW.TO_WORD)}' in construction`;
       while (hasMore) {
         const nameTok = ctx.peek();
-        const name = parseIdent(ctx, error);
-        if (!ctx.isKeyword(KW.SET)) error(`Expected '${kw(ctx, KW.SET)} ${kw(ctx, KW.TO_WORD)}' in construction`);
+        // 字段位置不是名字（如 `helper with 10` 这种 with 调用后缀）：与 Java 引擎
+        // （AsterParser.g4 malformedConstructField）同口径，报缺 set to，而不是 "Expected identifier"。
+        const translated = tryReadTranslatedIdent(ctx);
+        if (translated === null && !ctx.at(TokenKind.IDENT)) error(setToMissing);
+        const name = translated ?? parseIdent(ctx, error);
+        if (!ctx.isKeyword(KW.SET)) error(setToMissing);
         const equalsTok = ctx.peek();
         ctx.nextWord();
         if (!ctx.isKeyword(KW.TO_WORD)) error(`Expected ${kwq(ctx, KW.TO_WORD)} after ${kwq(ctx, KW.SET)} in construction`);
