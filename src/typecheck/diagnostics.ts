@@ -1,4 +1,6 @@
 import type { Core, Span, TypecheckDiagnostic } from '../types.js';
+import type { Lexicon } from '../config/lexicons/types.js';
+import { attachDiagnosticMessages } from '../config/lexicons/diagnostic-messages.js';
 import { ErrorCode, ERROR_MESSAGES, ERROR_METADATA } from '../diagnostics/error_codes.js';
 import { TypeSystem } from './type_system.js';
 
@@ -10,6 +12,32 @@ function formatMessage(template: string, params: Record<string, unknown>): strin
     if (value === undefined || value === null) return `{${key}}`;
     if (Array.isArray(value)) return value.join(', ');
     return String(value);
+  });
+}
+
+/** 模板中的占位符是否都能由参数填上（缺参数时渲染会留下字面的 {name}）。 */
+function canRender(template: string, params: Record<string, unknown>): boolean {
+  return [...template.matchAll(/\{(\w+)\}/g)].every((m) => params[m[1]!] !== undefined && params[m[1]!] !== null);
+}
+
+/**
+ * 把已产出的诊断按 lexicon 的诊断译文本地化（返回新数组，不修改输入）。
+ *
+ * 名称解析（R1/R2）与浏览器类型检查在产出诊断时不知道 lexicon，这里按错误码与诊断的
+ * data（DiagnosticBuilder 记录的模板参数）用目标语言模板重新渲染 message；参数不足以
+ * 填满模板时保留原 message。原诊断带 help 时换成目标语言的 help。lexicon 没有诊断译文
+ * （如 en-US）或未传时原样返回。
+ */
+export function localizeDiagnostics<T extends TypecheckDiagnostic>(diagnostics: readonly T[], lexicon: Lexicon | undefined): T[] {
+  if (!lexicon) return [...diagnostics];
+  const { diagnosticMessages: messages, diagnosticHelp: help } = attachDiagnosticMessages(lexicon);
+  if (!messages && !help) return [...diagnostics];
+  return diagnostics.map((d) => {
+    const params = d.data !== null && typeof d.data === 'object' ? (d.data as Record<string, unknown>) : {};
+    const template = messages?.[d.code];
+    const localizedHelp = d.help === undefined ? undefined : help?.[d.code];
+    const message = template !== undefined && canRender(template, params) ? formatMessage(template, params) : d.message;
+    return localizedHelp === undefined ? { ...d, message } : { ...d, message, help: localizedHelp };
   });
 }
 

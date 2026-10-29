@@ -20,6 +20,7 @@ import {
 import { parse } from '../parser.js';
 import { hasErrors } from '../compile-pipeline.js';
 import { resolveDocument } from './resolution.js';
+import { localizeDiagnostics } from '../typecheck/diagnostics.js';
 import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
@@ -444,7 +445,7 @@ export async function computeDiagnostics(
       //   因此不发布名称解析诊断；无词汇且 R1 无 error 时 Core 仍可信，照常做语义与类型检查，
       //   否则只留语法错误（见 resolution.ts resolvePartial）。
       const resolution = resolveDocument({ ast: parsed, parseDiagnostics: parseDiagnostics ?? [], ...(vocabulary ? { vocabulary } : {}) });
-      if (resolution.complete) diagnostics.push(...resolution.diagnostics.map(typecheckDiagToLspDiag));
+      if (resolution.complete) diagnostics.push(...localizeDiagnostics(resolution.diagnostics, lexicon).map(typecheckDiagToLspDiag));
       if (resolution.core && !hasErrors(resolution.diagnostics)) {
         diagnostics.push(...(await coreDiagnostics(resolution.core, (parsed as any).name || '', tokens, textDocument, lexicon)));
       }
