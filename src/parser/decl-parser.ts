@@ -750,6 +750,7 @@ export function collectTopLevelDecls(
         parseType(ctx, tools.error); // 消费别名目标类型（值被丢弃）
         tools.expectDot();
         ctx.declaredTypes.add(aliasName);
+        ctx.typeAliases.push(aliasName);
       }
       // 解析带声明级注解的函数: @entry Rule ...
       else if (ctx.at(TokenKind.AT)) {

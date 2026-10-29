@@ -18,7 +18,9 @@ import {
   type TypecheckDiagnostic,
 } from '../typecheck.js';
 import { parse } from '../parser.js';
-import { lowerModule } from '../lower_to_core.js';
+import { hasErrors } from '../compile-pipeline.js';
+import { resolveDocument } from './resolution.js';
+import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
 import { DiagnosticError } from '../diagnostics/diagnostics.js';
@@ -302,6 +304,82 @@ function asterDiagToLspDiag(
   };
 }
 
+/** 类型检查 / 名称解析诊断转换为 LSP Diagnostic：优先 span，回退 origin，最后文件起点。 */
+function typecheckDiagToLspDiag(td: TypecheckDiagnostic): Diagnostic {
+  const at = td.span ?? td.origin;
+  const range: Range = at
+    ? {
+        start: { line: at.start.line - 1, character: at.start.col - 1 },
+        end: { line: at.end.line - 1, character: at.end.col - 1 },
+      }
+    : { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } };
+  const d: Diagnostic = {
+    severity: td.severity === 'error' ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
+    range,
+    message: td.message,
+    source: td.source ?? 'aster-typecheck', // P1-3 Task 6: 透传诊断来源标识
+  };
+  if (td.code !== null && td.code !== undefined) (d as any).code = td.code as string;
+  if (td.data !== null && td.data !== undefined) (d as any).data = td.data as any;
+  return d;
+}
+
+/** 基于已解析 Core 的语义检查与类型检查（带模块级类型检查缓存与反向依赖图维护）。 */
+async function coreDiagnostics(
+  core: import('../types.js').Core.Module,
+  moduleName: string,
+  tokens: readonly any[],
+  textDocument: TextDocument,
+  lexicon: Lexicon | undefined,
+): Promise<Diagnostic[]> {
+  const uri = textDocument.uri;
+  const version = textDocument.version;
+  const semantic = collectSemanticDiagnostics(tokens, core);
+
+  // 类型检查（使用模块级缓存）
+  const imports = extractImports(core);
+
+  // 检查类型检查缓存
+  const tcCached = typecheckCache.get(uri);
+  let tdiags: TypecheckDiagnostic[];
+
+  if (tcCached && tcCached.version === version && tcCached.moduleName === moduleName) {
+    // 缓存命中，直接使用缓存的类型检查结果
+    tdiags = tcCached.diagnostics;
+    // Use stderr to avoid corrupting the LSP protocol stream on stdout
+    console.error(`[TypecheckCache] Cache hit for ${uri} (module: ${moduleName})`);
+  } else {
+    // 缓存未命中或版本不匹配，执行类型检查
+    const typecheckStart = Date.now();
+    const manifest = await loadCapabilityManifest();
+    const moduleSearchPaths = buildModuleSearchPaths(uri);
+    const typecheckOptions = { uri, moduleSearchPaths, lexicon };
+    tdiags = manifest
+      ? typecheckModuleWithCapabilities(core, manifest, typecheckOptions)
+      : typecheckModule(core, typecheckOptions);
+    const typecheckTime = Date.now() - typecheckStart;
+
+    // 更新类型检查缓存
+    typecheckCache.set(uri, {
+      moduleName,
+      version,
+      diagnostics: tdiags,
+      imports,
+      timestamp: Date.now(),
+    });
+
+    // 更新反向依赖图
+    removeFromDependentsMap(uri); // 先清除旧的依赖关系
+    updateDependentsMap(uri, imports);
+
+    // Use stderr to avoid corrupting the LSP protocol stream on stdout
+    console.error(`[TypecheckCache] Cached ${uri} (module: ${moduleName}, typecheck: ${typecheckTime}ms, imports: ${imports.length})`);
+  }
+
+  // 转换为 LSP Diagnostic 格式
+  return [...semantic, ...tdiags.map(typecheckDiagToLspDiag)];
+}
+
 /**
  * 计算指定文档的诊断信息。
  * @param textDocument 目标文档。
@@ -315,6 +393,7 @@ export async function computeDiagnostics(
     tokens: readonly any[];
     ast: any;
     parseDiagnostics?: readonly import('../diagnostics/diagnostics.js').Diagnostic[];
+    vocabulary?: VocabularyScopes;
   },
   lexicon?: Lexicon,
 ): Promise<Diagnostic[]> {
@@ -334,7 +413,7 @@ export async function computeDiagnostics(
     return cached.diagnostics;
   }
 
-  const { tokens, ast, parseDiagnostics } = getOrParse(textDocument);
+  const { tokens, ast, parseDiagnostics, vocabulary } = getOrParse(textDocument);
 
   const diagnostics: Diagnostic[] = [];
 
@@ -352,81 +431,15 @@ export async function computeDiagnostics(
 
     // 运行语义检查（包含互操作、空值和 PII 流检查）
     try {
-      const core = lowerModule(parsed);
-      diagnostics.push(...collectSemanticDiagnostics(tokens, core));
-
-      // 类型检查（使用模块级缓存）
-      const moduleName = (parsed as any).name || '';
-      const imports = extractImports(core);
-
-      // 检查类型检查缓存
-      const tcCached = typecheckCache.get(uri);
-      let tdiags: TypecheckDiagnostic[];
-
-      if (tcCached && tcCached.version === version && tcCached.moduleName === moduleName) {
-        // 缓存命中，直接使用缓存的类型检查结果
-        tdiags = tcCached.diagnostics;
-        // Use stderr to avoid corrupting the LSP protocol stream on stdout
-        console.error(`[TypecheckCache] Cache hit for ${uri} (module: ${moduleName})`);
-      } else {
-        // 缓存未命中或版本不匹配，执行类型检查
-        const typecheckStart = Date.now();
-        const manifest = await loadCapabilityManifest();
-        const moduleSearchPaths = buildModuleSearchPaths(uri);
-        const typecheckOptions = { uri, moduleSearchPaths, lexicon };
-        tdiags = manifest
-          ? typecheckModuleWithCapabilities(core, manifest, typecheckOptions)
-          : typecheckModule(core, typecheckOptions);
-        const typecheckTime = Date.now() - typecheckStart;
-
-        // 更新类型检查缓存
-        typecheckCache.set(uri, {
-          moduleName,
-          version,
-          diagnostics: tdiags,
-          imports,
-          timestamp: Date.now(),
-        });
-
-        // 更新反向依赖图
-        removeFromDependentsMap(uri); // 先清除旧的依赖关系
-        updateDependentsMap(uri, imports);
-
-        // Use stderr to avoid corrupting the LSP protocol stream on stdout
-        console.error(`[TypecheckCache] Cached ${uri} (module: ${moduleName}, typecheck: ${typecheckTime}ms, imports: ${imports.length})`);
-      }
-
-      // 转换为 LSP Diagnostic 格式
-      for (const td of tdiags) {
-        // 优先使用 span，回退到 origin，最后使用文件起点
-        let range: Range;
-        if (td.span) {
-          range = {
-            start: { line: td.span.start.line - 1, character: td.span.start.col - 1 },
-            end: { line: td.span.end.line - 1, character: td.span.end.col - 1 },
-          };
-        } else if (td.origin) {
-          range = {
-            start: { line: td.origin.start.line - 1, character: td.origin.start.col - 1 },
-            end: { line: td.origin.end.line - 1, character: td.origin.end.col - 1 },
-          };
-        } else {
-          range = {
-            start: { line: 0, character: 0 },
-            end: { line: 0, character: 0 },
-          };
-        }
-
-        const d: Diagnostic = {
-          severity:
-            td.severity === 'error' ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
-          range,
-          message: td.message,
-          source: td.source ?? 'aster-typecheck', // P1-3 Task 6: 透传诊断来源标识
-        };
-        if (td.code !== null && td.code !== undefined) (d as any).code = td.code as string;
-        if (td.data !== null && td.data !== undefined) (d as any).data = td.data as any;
-        diagnostics.push(d);
+      // 名称解析（ADR 0051，带租户词汇），与悬停 / 补全共用同一视图：
+      // - 语法完整：R1 → lower → R2；E8xx 时没有可信的 Core，不再做语义与类型检查。
+      // - 语法不完整：解析器按声明丢弃未完成部分，其余部分对它的引用会级联出 E800/E802，
+      //   因此不发布名称解析诊断；无词汇且 R1 无 error 时 Core 仍可信，照常做语义与类型检查，
+      //   否则只留语法错误（见 resolution.ts resolvePartial）。
+      const resolution = resolveDocument({ ast: parsed, parseDiagnostics: parseDiagnostics ?? [], ...(vocabulary ? { vocabulary } : {}) });
+      if (resolution.complete) diagnostics.push(...resolution.diagnostics.map(typecheckDiagToLspDiag));
+      if (resolution.core && !hasErrors(resolution.diagnostics)) {
+        diagnostics.push(...(await coreDiagnostics(resolution.core, (parsed as any).name || '', tokens, textDocument, lexicon)));
       }
     } catch {
       // 忽略类型检查失败；解析错误在下方处理

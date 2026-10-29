@@ -2,7 +2,8 @@
 import fs from 'node:fs';
 import * as cp from 'node:child_process';
 import * as path from 'node:path';
-import { canonicalize, lex, lowerModule } from '../src/index.js';
+import { canonicalize, lex, parseSource } from '../src/index.js';
+import { resolveAndLowerChecked } from '../src/compile-pipeline.js';
 import { parse as parseAst } from '../src/parser.js';
 import { emitJava } from '../src/jvm/emitter.js';
 import cac from 'cac';
@@ -31,15 +32,20 @@ async function cmdParse(file: string): Promise<void> {
   console.log(JSON.stringify(ast, null, 2));
 }
 
+/** 源码 → Core：经名称解析 R1/R2（ADR 0051），任一 E8xx 抛出 NameResolutionError，不产出 IR。 */
+function coreOf(input: string): ReturnType<typeof resolveAndLowerChecked>['core'] {
+  return resolveAndLowerChecked(parseSource(input).ast).core;
+}
+
 async function cmdCore(file: string): Promise<void> {
   const input = readFileStrict(file);
-  const core = lowerModule(parseAst(lex(canonicalize(input))).ast);
+  const core = coreOf(input);
   console.log(JSON.stringify(core, null, 2));
 }
 
 async function cmdJvm(file: string, outDir = 'build/jvm-src', force = false): Promise<void> {
   const input = readFileStrict(file);
-  const core = lowerModule(parseAst(lex(canonicalize(input))).ast);
+  const core = coreOf(input);
   const target = prepareOutDir(outDir, force);
   await emitJava(core, target);
   console.log('Wrote Java sources to', target);
@@ -65,7 +71,7 @@ async function ensureAsmEmitterBuilt(): Promise<void> {
 async function cmdClass(file: string, outDir = 'build/jvm-classes'): Promise<void> {
   await ensureAsmEmitterBuilt();
   const input = readFileStrict(file);
-  const core = lowerModule(parseAst(lex(canonicalize(input))).ast);
+  const core = coreOf(input);
   const payload = JSON.stringify(core);
   fs.mkdirSync('build', { recursive: true });
   fs.writeFileSync('build/last-core.json', payload);
@@ -107,7 +113,7 @@ async function cmdTruffle(input: string, passthrough: string[]): Promise<void> {
   let corePath = input;
   if (input.endsWith('.aster')) {
     const src = readFileStrict(input);
-    const core = lowerModule(parseAst(lex(canonicalize(src))).ast);
+    const core = coreOf(src);
     fs.mkdirSync('build', { recursive: true });
     corePath = path.join('build', `${path.basename(input, '.aster')}_core.json`);
     fs.writeFileSync(corePath, JSON.stringify(core));

@@ -9,7 +9,7 @@
  *
  * **Compilation Pipeline**:
  * ```
- * CNL Source → canonicalize → lex → parse → AST → lowerModule → Core IR → typecheck
+ * CNL 源码 → canonicalize → lex → parse → AST → R1 名称解析 → lowerModule → R2 名称解析 → Core IR → typecheck
  * ```
  *
  * @example Basic compilation
@@ -31,7 +31,6 @@
 export { canonicalize } from './frontend/canonicalizer.js';
 export { lex } from './frontend/lexer.js';
 export { parse } from './parser.js';
-export { lowerModule } from './lower_to_core.js';
 
 // Keyword translation (multi-language CNL support)
 export {
@@ -70,6 +69,9 @@ export type {
   ParameterInfo,
 } from './parser/input-generator.js';
 
+// 工具链分量版本常量（ADR 0051 §7）
+export { RESOLVER_VERSION, CASEFOLD_VERSION, CORE_IR_ABI } from './version.js';
+
 // Type definitions re-export
 export type * from './types.js';
 
@@ -93,26 +95,42 @@ export type { Lexicon } from './config/lexicons/types.js';
 export { getLspUiTexts } from './config/lexicons/lsp-ui-texts.js';
 export type { LspUiTexts } from './config/lexicons/lsp-ui-texts.js';
 
-// 领域标识符词汇表（ADR 0014）+ 字面量宏（IdentifierKind.LITERAL）：让浏览器消费者
-// 能经 vocabularyRegistry.registerCustom 注册自定义词汇（含 token→字符串字面量宏），
-// 再用 compile(source, { lexicon, domain, tenantId }) 触发标识符/字面量宏展开。
+// 领域词汇（ADR 0014 / ADR 0051）：compile(source, { lexicon, vocabulary }) 直接传入词汇，
+// 或经 vocabularyRegistry.registerCustom 注册后用 { lexicon, domain, tenantId } 引用。
+// 标识符在解析后按位置解析（R1/R2）；字面量宏（IdentifierKind.LITERAL）仍在 canonicalize 中展开。
 export {
   IdentifierKind,
   vocabularyRegistry,
   initBuiltinVocabularies,
   VocabularyRegistry,
   buildIdentifierIndex,
-  canonicalizeIdentifier,
   localizeIdentifier,
-  hasIdentifierMapping,
   validateVocabulary,
+  buildVocabularyScopes,
+  canonicalScopesJson,
+  foldKey,
+  VocabularyScopeError,
 } from './config/lexicons/identifiers/index.js';
 export type {
   IdentifierMapping,
   DomainVocabulary,
   IdentifierIndex,
   VocabularyEntry,
+  Candidate,
+  VocabularyScopes,
+  VocabularyScopeErrorCode,
 } from './config/lexicons/identifiers/index.js';
+export { resolvePolicyTypes } from './frontend/resolve-policy-types.js';
+export type {
+  PolicyTypes,
+  PolicyTypesDiagnostic,
+  ResolvePolicyTypesOptions,
+  ResolvePolicyTypesResult,
+  TypeRef,
+} from './frontend/resolve-policy-types.js';
+// 只导出带检查的出口：原始 lower 与不抛错的 resolveAndLower 为内部实现（可能产出含本地化名的 Core）
+export { parseSource, resolveAndLowerChecked, NameResolutionError } from './compile-pipeline.js';
+export type { ParsedSource, ResolvedCore } from './compile-pipeline.js';
 
 // ============================================================================
 // High-level compilation API (browser-friendly)
@@ -121,14 +139,18 @@ export type {
 import { canonicalize } from './frontend/canonicalizer.js';
 import { lex } from './frontend/lexer.js';
 import { parse } from './parser.js';
-import { lowerModule } from './lower_to_core.js';
-import type { Core as CoreTypes, Token, Module as AstModule } from './types.js';
+import type { Core as CoreTypes, Token, Module as AstModule, TypecheckDiagnostic } from './types.js';
 import type { Lexicon } from './config/lexicons/types.js';
 import { typecheckBrowser as _typecheckBrowser } from './typecheck/browser.js';
 import type { ControlRegistry } from './governance/controls.js';
 import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
 import { attachTypeInferenceRules } from './config/lexicons/type-inference-rules.js';
 import { DiagnosticError } from './diagnostics/diagnostics.js';
+import { buildVocabularyScopes } from './config/lexicons/identifiers/scopes.js';
+import type { VocabularyScopes } from './config/lexicons/identifiers/scopes.js';
+import type { DomainVocabulary } from './config/lexicons/identifiers/types.js';
+import { vocabularyRegistry, initBuiltinVocabularies } from './config/lexicons/identifiers/registry.js';
+import { hasErrors, parseSource, resolveAndLower } from './compile-pipeline.js';
 
 /**
  * Parse error with position information
@@ -155,9 +177,16 @@ export interface CompileResult {
   parseErrors?: ParseError[];
   /** Lowering errors (if any) */
   loweringErrors?: string[];
+  /**
+   * 名称解析诊断（ADR 0051 E800–E807 / W800–W801），仅在非空时出现。
+   * 含 error 时 success 为 false 且不产出 core；只有 warning 时编译成功。
+   * E8xx 失败只出现在这里：此时 parseErrors 为空或只含 warning，
+   * compileAndTypecheck 的 typeErrors 为空（不对未通过名称解析的程序做类型检查）。
+   */
+  resolutionDiagnostics?: TypecheckDiagnostic[];
   /** Raw tokens from lexer (only when includeIntermediates is true) */
   tokens?: Token[];
-  /** AST from parser (only when includeIntermediates is true) */
+  /** R1 名称解析后的 AST，标识符节点带 `resolved`（仅 includeIntermediates 为 true 时返回） */
   ast?: AstModule;
 }
 
@@ -167,10 +196,15 @@ export interface CompileResult {
 export interface CompileOptions {
   /** CNL lexicon (default: EN_US). Pass a Lexicon object from the exports. */
   lexicon?: Lexicon;
-  /** 领域标识符（如 'insurance.auto'），启用领域标识符翻译 */
+  /**
+   * 领域词汇（ADR 0051）：源码中的本地化名字按位置解析为规范名。
+   * 提供时优先于 domain / tenantId。
+   */
+  vocabulary?: DomainVocabulary;
+  /** 已注册的领域标识符（如 'insurance.auto'），按 lexicon 语言查注册中心中的词汇 */
   domain?: string;
   /**
-   * 租户标识符。提供时，领域词汇翻译优先命中该租户的自定义词汇
+   * 租户标识符。与 domain 一起使用时优先命中该租户的自定义词汇
    * （需先经 `vocabularyRegistry.registerCustom` 注册），未命中回退内置。
    */
   tenantId?: string;
@@ -180,12 +214,22 @@ export interface CompileOptions {
   controls?: ControlRegistry;
 }
 
+/** 本次编译使用的词汇作用域：显式词汇优先，其次按 domain / tenantId 查注册中心。 */
+function vocabularyScopesOf(options: CompileOptions | undefined): VocabularyScopes | undefined {
+  if (options?.vocabulary) return buildVocabularyScopes(options.vocabulary);
+  if (!options?.domain) return undefined;
+  // 浏览器入口预注册 en + zh + de（这些已在 bundle 里）
+  const lexicon = options.lexicon ?? (initializeAllBundledLexicons(), LexiconRegistry.getDefault());
+  initBuiltinVocabularies();
+  return vocabularyRegistry.getWithCustom(options.tenantId, options.domain, lexicon.id);
+}
+
 /**
  * Compile CNL source code to Core IR
  *
  * This is the main compilation function for browser/edge use.
- * It runs the full compilation pipeline without type checking
- * (type checking requires module resolution which needs file system access).
+ * 运行完整编译流水线（含 ADR 0051 名称解析 R1/R2），不做类型检查。
+ * 任一名称解析 error（E8xx）时 `success: false` 且不产出 `core`。
  *
  * @param source - CNL source code
  * @param options - Compilation options
@@ -208,70 +252,36 @@ export interface CompileOptions {
 export function compile(source: string, options?: CompileOptions): CompileResult {
   try {
     const lexicon = options?.lexicon;
-    const domain = options?.domain;
-    const tenantId = options?.tenantId;
-
-    // Step 1: Canonicalize source WITH lexicon for language-specific normalization
-    // If domain is specified, pass CanonicalizerOptions to enable identifier translation
-    let canonical: string;
-    if (domain) {
-      // Resolve effective lexicon for domain translation (default to EN_US)
-      // M3: 浏览器入口预注册 en + zh + de（这些已在 bundle 里）
-      const effectiveLexicon = lexicon ?? (initializeAllBundledLexicons(), LexiconRegistry.getDefault());
-      canonical = canonicalize(source, { lexicon: effectiveLexicon, domain, locale: effectiveLexicon.id, tenantId });
-    } else {
-      canonical = canonicalize(source, lexicon);
-    }
-
-    // Step 2: Lexical analysis
-    let tokens = lex(canonical, lexicon);
-
-    // Step 3: Translate non-English tokens to English for parser compatibility
-    // Parser uses hardcoded English keywords (e.g., 'Module', 'if', 'return')
-    // so we need to translate German/Chinese tokens to English before parsing
-    if (lexicon && needsKeywordTranslation(lexicon)) {
-      const translator = createKeywordTranslator(lexicon);
-      tokens = translator.translateTokens(tokens);
-    }
-
-    // Step 4: Parse to AST (now with English tokens)
-    const effectiveLex = lexicon ? attachTypeInferenceRules(lexicon) : undefined;
-    const parseResult = parse(tokens, effectiveLex);
+    const scopes = vocabularyScopesOf(options);
+    const parsed = parseSource(source, lexicon, scopes);
+    const tokens = parsed.tokens;
+    const parseErrors = parsed.diagnostics.map(d => ({ message: d.message, span: d.span }));
 
     // Parse 诊断分级：error 必须导致 success=false（即使部分 decl 可恢复），
     // warning 不阻塞编译。原实现仅在 decls 全空时才报失败，导致调用方在
     // 部分恢复场景下误以为编译成功 —— 实际产物（Core IR）来自残缺 AST。
-    const parseErrorDiagnostics = parseResult.diagnostics.filter(d => d.severity === 'error');
-    if (parseErrorDiagnostics.length > 0) {
-      const result: CompileResult = {
-        success: false,
-        parseErrors: parseResult.diagnostics.map(d => ({
-          message: d.message,
-          span: d.span,
-        })),
-      };
+    if (hasErrors(parsed.diagnostics)) {
+      const result: CompileResult = { success: false, parseErrors };
       if (options?.includeIntermediates) {
         result.tokens = tokens;
       }
       return result;
     }
 
-    const ast = parseResult.ast;
-
-    // Step 5: Lower to Core IR
-    const core = lowerModule(ast);
-
-    const result: CompileResult = {
-      success: true,
-      core,
-    };
-    if (parseResult.diagnostics.length > 0) {
+    // 名称解析：R1 → lower → R2；任一 E8xx 不产出 core
+    const resolved = resolveAndLower(parsed.ast, scopes);
+    const success = !hasErrors(resolved.diagnostics);
+    const result: CompileResult = success ? { success, core: resolved.core } : { success };
+    if (parseErrors.length > 0) {
       // 此时只剩 warning（error 已在上面 short-circuit），保留以便调用方展示
-      result.parseErrors = parseResult.diagnostics.map(d => ({ message: d.message, span: d.span }));
+      result.parseErrors = parseErrors;
+    }
+    if (resolved.diagnostics.length > 0) {
+      result.resolutionDiagnostics = [...resolved.diagnostics];
     }
     if (options?.includeIntermediates) {
       result.tokens = tokens;
-      result.ast = ast;
+      result.ast = resolved.ast;
     }
     return result;
   } catch (error) {

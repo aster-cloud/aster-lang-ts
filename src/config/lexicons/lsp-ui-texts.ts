@@ -39,6 +39,14 @@ export interface LspUiTexts {
   readonly fixPrefix: string;
 
   readonly missingModuleHeader: string;
+
+  /** 名称解析悬停（ADR 0051）：`写法 → 规范名（角色 · 父名）` 的角色名与括号 */
+  readonly resolutionRoleType: string;
+  readonly resolutionRoleField: string;
+  readonly resolutionRoleMember: string;
+  readonly resolutionRoleFunction: string;
+  readonly resolutionOpen: string;
+  readonly resolutionClose: string;
 }
 
 /** 内联 fallback：英文 UI 文本 */
@@ -68,6 +76,13 @@ const EN_US_UI: Readonly<LspUiTexts> = {
   fixPrefix: 'Fix:',
 
   missingModuleHeader: 'Missing module header. Add "Module <name>."',
+
+  resolutionRoleType: 'type',
+  resolutionRoleField: 'field',
+  resolutionRoleMember: 'enum member',
+  resolutionRoleFunction: 'function',
+  resolutionOpen: ' (',
+  resolutionClose: ')',
 };
 
 /** 内联 fallback：中文 UI 文本 */
@@ -97,6 +112,13 @@ const ZH_CN_UI: Readonly<LspUiTexts> = {
   fixPrefix: '修复：',
 
   missingModuleHeader: '缺少模块头。请添加 "模块 <名称>。"',
+
+  resolutionRoleType: '类型',
+  resolutionRoleField: '字段',
+  resolutionRoleMember: '枚举成员',
+  resolutionRoleFunction: '函数',
+  resolutionOpen: '（',
+  resolutionClose: '）',
 };
 
 const UI_BY_LEXICON: Record<string, Readonly<LspUiTexts>> = {

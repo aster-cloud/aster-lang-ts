@@ -236,32 +236,38 @@ export const INSURANCE_AUTO_EN_US: DomainVocabulary = {
       canonical: 'Approved',
       localized: 'Approved',
       kind: IdentifierKind.ENUM_VALUE,
+      parent: 'QuoteStatus',
     },
     {
       canonical: 'Rejected',
       localized: 'Rejected',
       kind: IdentifierKind.ENUM_VALUE,
+      parent: 'QuoteStatus',
       aliases: ['Denied'],
     },
     {
       canonical: 'Pending',
       localized: 'Pending',
       kind: IdentifierKind.ENUM_VALUE,
+      parent: 'QuoteStatus',
     },
     {
       canonical: 'HighRisk',
       localized: 'HighRisk',
       kind: IdentifierKind.ENUM_VALUE,
+      parent: 'RiskLevel',
     },
     {
       canonical: 'MediumRisk',
       localized: 'MediumRisk',
       kind: IdentifierKind.ENUM_VALUE,
+      parent: 'RiskLevel',
     },
     {
       canonical: 'LowRisk',
       localized: 'LowRisk',
       kind: IdentifierKind.ENUM_VALUE,
+      parent: 'RiskLevel',
     },
   ],
 };

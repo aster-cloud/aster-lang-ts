@@ -1,7 +1,7 @@
 import { canonicalize } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
 import { parse } from '../parser.js';
-import { lowerModule } from '../lower_to_core.js';
+import { resolveAndLowerChecked } from '../compile-pipeline.js';
 import { computeNodeIds, forEachIrNode } from '../nodeid/node-id-map.js';
 import { parseSourceIr, type SourceNode } from './source-ir.js';
 import { extractQuantities, type Quantity } from './quantity-ir.js';
@@ -163,7 +163,8 @@ function candidateLayer(source: string, diagnostics: string[]): readonly Verifie
       diagnostics.push(`${BRIDGE_DIAGNOSTIC.syntaxError}L${first.span?.start.line ?? '?'}:${first.span?.start.col ?? '?'} ${first.message}`);
       return [];
     }
-    ir = lowerModule(parsed.ast);
+    // 名称解析 R1 → lower → R2（ADR 0051）；E8xx 抛 NameResolutionError，归入编译失败
+    ir = resolveAndLowerChecked(parsed.ast).core;
   } catch (e) {
     diagnostics.push(BRIDGE_DIAGNOSTIC.compileFailed + message(e));
     return [];

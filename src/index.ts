@@ -8,20 +8,21 @@
  *
  * **编译管道**：
  * ```
- * CNL 源代码 → canonicalize → lex → parse → AST → lowerModule → Core IR → typecheck → JVM
+ * CNL 源代码 → canonicalize → lex → parse → AST → R1 名称解析 → lowerModule → R2 名称解析 → Core IR → typecheck → JVM
  * ```
  *
  * @example 基础用法
  * ```typescript
- * import { canonicalize, lex, parse, lowerModule } from '@aster-cloud/aster-lang-ts';
+ * import { parseSource, resolveAndLowerChecked } from '@aster-cloud/aster-lang-ts';
  *
  * const src = `Module app. Rule id, produce Int: Return 1.`;
- * const canonical = canonicalize(src);  // 规范化源代码
- * const tokens = lex(canonical);         // 词法分析
- * const ast = parse(tokens);             // 语法分析
- * const core = lowerModule(ast);         // 降级到 Core IR
+ * const { ast } = parseSource(src);                   // 规范化 + 词法 + 语法分析
+ * const { core } = resolveAndLowerChecked(ast);       // R1 → lower → R2；任一 E8xx 抛出 NameResolutionError
  * console.log(core);
  * ```
+ *
+ * 公开 API 只提供带名称解析检查的出口（resolveAndLowerChecked / compile / resolvePolicyTypes）：
+ * 未经 R1/R2 的原始 lower 与不抛错的 resolveAndLower 是内部实现，可能产出含本地化名的 Core。
  */
 
 // 编译器管道函数
@@ -29,7 +30,33 @@ export { canonicalize } from './frontend/canonicalizer.js';
 export { lex } from './frontend/lexer.js';
 export { parse, parseWithLexicon } from './parser.js';
 export type { ParseResult } from './parser.js';
-export { lowerModule } from './lower_to_core.js';
+
+// 名称解析接入后的前端（ADR 0051）：parse → R1 → lower → R2；只导出带检查的出口
+export { parseSource, resolveAndLowerChecked, NameResolutionError } from './compile-pipeline.js';
+export type { ParsedSource, ResolvedCore } from './compile-pipeline.js';
+
+// 领域词汇按位置解析（ADR 0051）
+export {
+  buildVocabularyScopes,
+  canonicalScopesJson,
+  foldKey,
+  VocabularyScopeError,
+} from './config/lexicons/identifiers/index.js';
+export type {
+  Candidate,
+  DomainVocabulary,
+  IdentifierMapping,
+  VocabularyScopes,
+  VocabularyScopeErrorCode,
+} from './config/lexicons/identifiers/index.js';
+export { resolvePolicyTypes } from './frontend/resolve-policy-types.js';
+export type {
+  PolicyTypes,
+  PolicyTypesDiagnostic,
+  ResolvePolicyTypesOptions,
+  ResolvePolicyTypesResult,
+  TypeRef,
+} from './frontend/resolve-policy-types.js';
 
 // 关键词翻译（多语言 CNL 支持）
 export {
@@ -75,6 +102,9 @@ export type {
   FieldInfo,
   ParameterInfo,
 } from './parser/input-generator.js';
+
+// 工具链分量版本常量（ADR 0051 §7）
+export { RESOLVER_VERSION, CASEFOLD_VERSION, CORE_IR_ABI } from './version.js';
 
 // 类型定义重导出
 export type * from './types.js';

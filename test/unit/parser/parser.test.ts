@@ -1561,6 +1561,13 @@ Rule greet given name as Text, produce Text:
       assert.equal(r.diagnostics.filter(d => d.severity === 'error').length, 0);
     });
 
+    it('type alias 名按出现顺序记入 Module.typeAliases；无别名时省略该字段（ADR 0051）', () => {
+      const m = parseSource('Module a.b.\nType Score as Int.\nType Tags as list of Text.\n');
+      assert.deepEqual(m.typeAliases, ['Score', 'Tags']);
+      assert.equal(m.decls.length, 0, '别名不产出声明');
+      assert.equal('typeAliases' in parseSource('Module a.b.\nDefine P has x as Int.\n'), false);
+    });
+
     it('预扫描只认顶层声明头：非顶层位置的 type 不误登记（与函数调用不冲突）', () => {
       // 即便后续函数名与某些声明结构词相近，预扫描的顶层位置判定也不应把普通函数调用拦成构造。
       const r = parseWithDiag(

@@ -134,20 +134,28 @@ class EffectParamCollector extends DefaultTypeVisitor<Set<string>> {
   }
 }
 
+/**
+ * 内置类型名：全部内置标量类型和常用容器类型。类型检查据此判定疑似类型变量，
+ * 名称解析 R1（ADR 0051）据此判定类型位置是否未解析。
+ */
+export const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set([
+  'Text', 'Int', 'Bool', 'Float', 'Long', 'Double', 'Unit',
+  // ADR 0025：Decimal 为内置标量
+  'Decimal',
+  // 与 PrimitiveTypeName（types/type-inference.ts）对齐：DateTime 为内置基础类型
+  'DateTime',
+  'Result', 'Option', 'List', 'Map', 'Set', 'Workflow',
+  // ADR 0039：Verdict 为内置类型，不是疑似类型变量
+  VERDICT_TYPE_NAME,
+]);
+
 class UnknownTypeFinder extends DefaultTypeVisitor<{ unknowns: Set<string>; ctx: ModuleContext }> {
-  // 包含所有内置标量类型和常用容器类型
-  private static readonly KNOWN_SCALARS = new Set([
-    'Text', 'Int', 'Bool', 'Float', 'Long', 'Double', 'Unit',
-    'Result', 'Option', 'List', 'Map', 'Set', 'Workflow',
-    // ADR 0039：Verdict 为内置类型，不是疑似类型变量
-    VERDICT_TYPE_NAME,
-  ]);
   private static readonly isMaybeTypeVarLike = (name: string): boolean => /^[A-Z][A-Za-z0-9_]*$/.test(name);
 
   override visitTypeName(n: Core.TypeName, context: { unknowns: Set<string>; ctx: ModuleContext }): void {
     const nm = n.name;
     if (
-      !UnknownTypeFinder.KNOWN_SCALARS.has(nm) &&
+      !BUILTIN_TYPE_NAMES.has(nm) &&
       !context.ctx.datas.has(nm) &&
       !context.ctx.enums.has(nm) &&
       UnknownTypeFinder.isMaybeTypeVarLike(nm)

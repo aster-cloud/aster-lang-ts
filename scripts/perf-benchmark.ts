@@ -178,6 +178,7 @@ function measureCompilationProject(project: Map<string, string>, iterations: num
     const asts = tokenSets.map(tokens => parse(tokens).ast);
     parseSamples.push(performance.now() - stageStart);
 
+    // 只测 lower 阶段耗时、不产出 IR，故不经名称解析（R1/R2 不计入此阶段）
     stageStart = performance.now();
     for (const ast of asts) {
       lowerModule(ast);

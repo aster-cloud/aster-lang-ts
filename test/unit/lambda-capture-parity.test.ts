@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { compile } from '../../src/browser.js';
+import { compile, parseSource } from '../../src/browser.js';
+import { lowerModule } from '../../src/lower_to_core.js';
+import type { Core } from '../../src/types.js';
 
 /**
  * Lambda 闭包捕获的表达式覆盖完整性（2026-08-17 审计修复）。
@@ -18,11 +20,14 @@ import { compile } from '../../src/browser.js';
  * 同一段源码、两个引擎的 IR 不同，且两侧都不报错。
  */
 
-/** 取编译产物中第一个 Lambda 的 captures。 */
 /** 取整段源码里全部 Lambda 的 captures（按遍历序，外层在前）。 */
 function capturesOf2(src: string): string[][] {
   const c = compile(src);
   assert.ok(c.core, `compile 失败: ${JSON.stringify((c as { parseErrors?: unknown }).parseErrors ?? [])}`);
+  return lambdaCaptures(c.core);
+}
+
+function lambdaCaptures(core: Core.Module): string[][] {
   const found: string[][] = [];
   const walk = (n: unknown): void => {
     if (!n || typeof n !== 'object') return;
@@ -32,7 +37,7 @@ function capturesOf2(src: string): string[][] {
       if (Array.isArray(v)) v.forEach(walk); else walk(v);
     }
   };
-  walk(c.core);
+  walk(core);
   assert.ok(found.length > 0, '源码里应至少有一个 Lambda');
   return found;
 }
@@ -186,14 +191,18 @@ describe('lambda 捕获：表达式变体覆盖完整性', () => {
     //   必须让块内声明**逃逸后被引用**：块结束时 tmp 出栈，块外的 `Return tmp`
     //   就成了自由变量、必须捕获。删掉 push/pop 则 tmp 仍在栈上 → 不捕获 → 用例红。
     //   Java 侧实测同为 [outer, tmp]。
-    const captures = capturesOf2(
+    //   块外的 tmp 是未定义名字，compile 的名称解析（ADR 0051）以 E802 拒绝整个程序；
+    //   捕获计算是 lower 的性质，故这里直接对解析结果 lower。
+    const src =
       `Module probe.\n\nRule r given outer, produce:\n` +
       `  Let f be function with x, produce:\n` +
       `    If x:\n` +
       `      Let tmp be outer.\n` +
       `      Return tmp.\n` +
       `    Return tmp.\n` +
-      `  Return f(outer).\n`);
+      `  Return f(outer).\n`;
+    assert.ok(compile(src).resolutionDiagnostics?.some((d) => d.code === 'E802'));
+    const captures = lambdaCaptures(lowerModule(parseSource(src).ast));
     assert.deepEqual([...captures[0]!].sort(), ['outer', 'tmp'],
       `块外引用的 tmp 必须视为自由变量（Java 侧为 [outer, tmp]），实际=${JSON.stringify(captures[0])}`);
   });

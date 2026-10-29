@@ -23,6 +23,8 @@ export interface ParserContext {
    * `with..set to` 构造，故不纳入；与 aster-lang-core 行为对齐（Java 只对记录类型报错）。
    */
   declaredRecordTypes: Set<string>;
+  /** 已解析的类型别名原写法名（按出现顺序），写入 Module.typeAliases（ADR 0051） */
+  typeAliases: string[];
   currentTypeVars: Set<string>;
   currentEffectVars: Set<string>;
   collectedEffects: string[] | null;
@@ -170,6 +172,7 @@ export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon)
     moduleProfile: null,
     declaredTypes: new Set<string>(),
     declaredRecordTypes: new Set<string>(),
+    typeAliases: [],
     currentTypeVars: new Set<string>(),
     currentEffectVars: new Set<string>(),
     collectedEffects: null,

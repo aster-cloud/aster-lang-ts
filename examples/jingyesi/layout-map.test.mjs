@@ -31,7 +31,7 @@ const LEX = {
 };
 vocabularyRegistry.registerCustom(DOMAIN, {
   id: DOMAIN, name: '静夜思', locale: DOMAIN, version: '1.0.0',
-  structs: [], fields: [], functions: [], enumValues: [],
+  structs: [{ localized: '望明月', canonical: 'Text', kind: 'struct' }], fields: [], functions: [], enumValues: [],
   literals: [{ localized: '思故乡', canonical: '静夜思', kind: 'literal' }],
 });
 

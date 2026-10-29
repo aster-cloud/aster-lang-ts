@@ -19,6 +19,10 @@ export interface Origin {
   readonly file?: string;
   readonly start: Position;
   readonly end: Position;
+  /** ADR 0051：源码原写法，仅在与规范名不同时写入 */
+  readonly written?: string;
+  /** ADR 0051：该写法按哪种角色解析，与 written 同时出现 */
+  readonly role?: ResolvedRole;
 }
 
 /**
@@ -170,15 +174,54 @@ export interface TypecheckDiagnostic {
 // CNL AST types
 export type AstNode = Base.BaseNode<Span>;
 
+/**
+ * 名称解析角色（ADR 0051）。R1/R2 写入 AST 标识符节点的 `resolved.role`，
+ * 表示该写法在当前位置按哪种角色解析。`VALUE_REF`（§5 值位置单段名）只出现在未解析诊断中：
+ * 解析成功时记录命中层的具体角色。
+ */
+export type ResolvedRole =
+  | 'TYPE_DECL'
+  | 'FIELD_DECL'
+  | 'MEMBER_DECL'
+  | 'FUNC_DECL'
+  | 'TYPE'
+  | 'FIELD_REF'
+  | 'MEMBER_REF'
+  | 'FUNC_REF'
+  | 'VALUE_REF'
+  | 'LOCAL';
+
+/**
+ * 名称解析结果：`written` 为源码原写法，`canonical` 为规范名。
+ * 节点自身的 name 字段保持原写法不变，下游以 canonical 产出 Core。
+ */
+export interface Resolved {
+  readonly canonical: string;
+  readonly role: ResolvedRole;
+  readonly written: string;
+}
+
+/** 携带名称解析结果的 AST 节点（R1/R2 写入，解析前缺省）。 */
+export interface Resolvable {
+  readonly resolved?: Resolved;
+}
+
 export interface Module extends Base.BaseModule<Span, Declaration> {
   span: Span;
+  /**
+   * ADR 0051：`Type X as …` 类型别名的原写法名（按出现顺序）。仅存在于 AST，供名称解析
+   * 作为 TYPE_DECL；别名不产出 Core 声明（与 Java 一致）。无别名时省略。
+   */
+  readonly typeAliases?: readonly string[];
+  /** R1 对 typeAliases 的 TYPE_DECL 解析结果，与 typeAliases 同长（解析前缺省） */
+  readonly resolvedTypeAliases?: readonly Resolved[];
 }
 
 export interface Import extends Base.BaseImport<Span> {
   span: Span;
 }
 
-export interface Data extends Base.BaseData<Span, Type> {
+export interface Data extends Resolvable, Base.BaseData<Span, Type> {
   readonly fields: readonly Field[];
   span: Span;
 }
@@ -219,7 +262,7 @@ export interface ConstraintPattern {
  */
 export type Constraint = ConstraintRequired | ConstraintRange | ConstraintPattern;
 
-export interface Field extends Base.BaseField<Type> {
+export interface Field extends Resolvable, Base.BaseField<Type> {
   /** CNL 约束列表 */
   readonly constraints?: readonly Constraint[];
   /** 标记类型是否为推断得出（用于诊断和文档生成） */
@@ -227,15 +270,17 @@ export interface Field extends Base.BaseField<Type> {
   span: Span;
 }
 
-export interface Enum extends Base.BaseEnum<Span> {
+export interface Enum extends Resolvable, Base.BaseEnum<Span> {
   span: Span;
   /** R30+ audit P1：LSP / 诊断需要枚举名的精确 span。 */
   readonly nameSpan?: Span;
   /** R30+ audit P1：每个 variant 的精确 span，与 variants 数组同长。 */
   readonly variantSpans?: readonly Span[];
+  /** ADR 0051：每个 variant 的 MEMBER_DECL 解析结果，与 variants 数组同长。 */
+  readonly resolvedVariants?: readonly Resolved[];
 }
 
-export interface Func extends Base.BaseFunc<Span, readonly string[], Type> {
+export interface Func extends Resolvable, Base.BaseFunc<Span, readonly string[], Type> {
   readonly retType: Type;
   readonly annotations?: readonly Annotation[];
   /** 标记返回类型是否为推断得出（用于诊断和文档生成） */
@@ -248,7 +293,7 @@ export interface Func extends Base.BaseFunc<Span, readonly string[], Type> {
   span: Span;
 }
 
-export interface Parameter extends Base.BaseParameter<Type> {
+export interface Parameter extends Resolvable, Base.BaseParameter<Type> {
   /** CNL 约束列表 */
   readonly constraints?: readonly Constraint[];
   /** 标记类型是否为推断得出（用于诊断和文档生成） */
@@ -274,7 +319,7 @@ export type Statement =
   | Expression
   | Block;
 
-export interface Let extends Base.BaseLet<Span, Expression> {
+export interface Let extends Resolvable, Base.BaseLet<Span, Expression> {
   span: Span;
   readonly nameSpan?: Span;
 }
@@ -326,11 +371,11 @@ export interface PatternNull extends Base.BasePatternNull<Span> {
   span: Span;
 }
 
-export interface PatternCtor extends Base.BasePatternCtor<Span, Pattern> {
+export interface PatternCtor extends Resolvable, Base.BasePatternCtor<Span, Pattern> {
   span: Span;
 }
 
-export interface PatternName extends Base.BasePatternName<Span> {
+export interface PatternName extends Resolvable, Base.BasePatternName<Span> {
   span: Span;
 }
 
@@ -372,7 +417,7 @@ export interface ListLit extends Base.BaseListLit<Span, Expression> {
   span: Span;
 }
 
-export interface Name extends Base.BaseName<Span> {
+export interface Name extends Resolvable, Base.BaseName<Span> {
   span: Span;
 }
 
@@ -414,11 +459,11 @@ export interface Lambda extends Base.BaseLambda<Span, Type, Block> {
   span: Span;
 }
 
-export interface Construct extends Base.BaseConstruct<Span, ConstructField> {
+export interface Construct extends Resolvable, Base.BaseConstruct<Span, ConstructField> {
   span: Span;
 }
 
-export interface ConstructField extends Base.BaseConstructField<Expression> {
+export interface ConstructField extends Resolvable, Base.BaseConstructField<Expression> {
   span: Span;
 }
 
@@ -493,7 +538,7 @@ export interface TypePii extends AstNode {
   span: Span;
 }
 
-export interface TypeName extends Base.BaseTypeName<Span> {
+export interface TypeName extends Resolvable, Base.BaseTypeName<Span> {
   span: Span;
 }
 
@@ -507,7 +552,7 @@ export interface EffectVar extends AstNode {
   span: Span;
 }
 
-export interface TypeApp extends Base.BaseTypeApp<Span, Type> {
+export interface TypeApp extends Resolvable, Base.BaseTypeApp<Span, Type> {
   span: Span;
 }
 

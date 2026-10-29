@@ -22,6 +22,71 @@ import type {
 import type { Lexicon } from '../config/lexicons/types.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
 import { CONTROLS_REGISTRY } from '../governance/controls-registry.data.js';
+import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
+import type { Core } from '../types.js';
+import { resolveDocument } from './resolution.js';
+import type { ResolvableDocument } from './resolution.js';
+
+/** 补全所需的文档快照：tokens / AST，以及名称解析用的语法诊断与租户词汇。 */
+type CompletionDocument = { text: string; tokens: readonly any[]; ast: any } & Omit<ResolvableDocument, 'ast'>;
+
+type Coord = { readonly line: number; readonly col: number };
+
+const isName = (t: any): boolean => t?.kind === TokenKind.IDENT || t?.kind === TokenKind.TYPE_IDENT;
+const sameCoord = (a: Coord | undefined, b: Coord | undefined): boolean => !!a && !!b && a.line === b.line && a.col === b.col;
+
+/**
+ * 光标紧跟在 `recv.` 的点之后时，返回接收者（可为点分路径）的起止位置；否则 null。
+ * 位置为 token 坐标（1 基，end 不含）。
+ */
+export function receiverBeforeDot(tokens: readonly any[], pos: { line: number; character: number }): { start: Coord; end: Coord } | null {
+  const cursor = { line: pos.line + 1, col: pos.character + 1 };
+  const dot = tokens.findIndex((t) => t?.kind === TokenKind.DOT && sameCoord(t.end, cursor));
+  if (dot < 1 || !isName(tokens[dot - 1])) return null;
+  let head = dot - 1;
+  while (tokens[head - 1]?.kind === TokenKind.DOT && isName(tokens[head - 2])) head -= 2;
+  return { start: tokens[head].start, end: tokens[dot - 1].end };
+}
+
+/** 字段的本地化写法：文档词汇中该 struct 字段的主词条；无本地化时为规范名。 */
+function localizedField(vocabulary: VocabularyScopes | undefined, struct: string, canonical: string): string {
+  const buckets = vocabulary?.fields.get(struct)?.values() ?? [];
+  for (const list of buckets) {
+    const term = list.find((c) => c.canonical === canonical && c.source === 'term');
+    if (term) return term.written;
+  }
+  return canonical;
+}
+
+/**
+ * `x.` 之后的字段补全（ADR 0051 §5：FIELD_REF 按接收者类型）。接收者类型取 R2 的 §4 显式声明规则；
+ * 语法不完整（R2 已跳过）、接收者类型未知或不是源码 Data 时返回 null，由普通补全接管。
+ */
+export function fieldCompletions(entry: CompletionDocument, pos: { line: number; character: number }): CompletionItem[] | null {
+  const receiver = receiverBeforeDot(entry.tokens, pos);
+  if (!receiver) return null;
+  const res = resolveDocument(entry);
+  if (!res.complete) return null;
+  const typed = res.typedNames.find((t) => sameCoord(t.span.start, receiver.start) && sameCoord(t.span.end, receiver.end));
+  const typeName = typed?.type.kind === 'TypeName' ? typed.type.name : undefined;
+  const data = res.core?.decls.find((d): d is Core.Data => d.kind === 'Data' && d.name === typeName);
+  if (!data) return null;
+  return data.fields.map((f) => {
+    const label = localizedField(entry.vocabulary, data.name, f.name);
+    return { label, kind: CompletionItemKind.Field, ...(label === f.name ? {} : { detail: f.name }) };
+  });
+}
+
+/** 按补全请求求字段补全；请求缺字段、文档不存在或不在 `x.` 之后时返回 null。 */
+function fieldCompletionsAt(
+  documents: { get(uri: string): TextDocument | undefined },
+  getOrParse: (doc: TextDocument) => CompletionDocument,
+  params: { textDocument?: { uri: string }; position?: { line: number; character: number } } | undefined,
+): CompletionItem[] | null {
+  if (!params?.textDocument || !params.position) return null;
+  const doc = documents.get(params.textDocument.uri);
+  return doc ? fieldCompletions(getOrParse(doc), params.position) : null;
+}
 
 const CONTROL_ARG = /@control\(\s*"([^"]*)$/;
 
@@ -240,7 +305,7 @@ function findCallInfoAt(
 export function registerCompletionHandlers(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined },
-  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any },
+  getOrParse: (doc: TextDocument) => CompletionDocument,
   getLexiconForDoc?: (uri: string) => Lexicon | undefined,
 ): void {
   // 代码补全：提供关键字和类型补全
@@ -248,6 +313,9 @@ export function registerCompletionHandlers(
     // 位于 @control(" 字符串内时只提供注册表键，不混入关键字补全
     const controls = controlCompletionsAt(documents, params);
     if (controls) return controls;
+    // `x.` 之后且接收者类型已知：只列该 struct 的字段
+    const fields = fieldCompletionsAt(documents, getOrParse, params);
+    if (fields) return fields;
     // ★关键词必须取自**该文档的 lexicon**，而不是硬编码的英文 KW。
     //
     //   此前是 `Object.values(KW)` —— KW 是 config/semantic.ts 里写死的英文

@@ -58,7 +58,7 @@ $ node examples/jingyesi/jingyesi.mjs
 |---|---|
 | 床前 | Module（立篇）→ 模块名 `明月光` |
 | 疑是 | Rule（起一首）→ 函数名 `地上霜` |
-| 举头 | produce（产出）→ 返回类型 `望明月`（Text 的诗意名，类型由用法推断） |
+| 举头 | produce（产出）→ 返回类型 `望明月`（Text 的诗意名，经领域词汇按类型位置解析为 Text） |
 | 低头 | Return（归于所思） |
 
 ### 2. 字面量宏 `IdentifierKind.LITERAL`（本 demo 引入的新特性）—— 术语变字面量

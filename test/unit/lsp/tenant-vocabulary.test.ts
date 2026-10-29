@@ -7,6 +7,8 @@ import {
 import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
 import type { DomainVocabulary } from '../../../src/config/lexicons/identifiers/types.js';
+import { lookup } from '../../../src/config/lexicons/identifiers/scopes.js';
+import type { VocabularyScopes } from '../../../src/config/lexicons/identifiers/scopes.js';
 import { buildCanonicalizeOptions } from '../../../src/lsp/canonicalize-options.js';
 import { applyTenantInitOptions, resolveTenantContext } from '../../../src/lsp/tenant-init.js';
 
@@ -14,23 +16,14 @@ import { applyTenantInitOptions, resolveTenantContext } from '../../../src/lsp/t
  * 租户领域词汇必须参与 LSP 的解析（issue #161）。
  *
  * ★缺口有**两半**，缺任一半都等于没做：
- *   1. LSP 进程不知道自己在为哪个租户服务 —— 网关的 upgrade 只校验
- *      Origin + 共享 token，不传租户身份。已改为由客户端在 `initialize` 的
+ *   1. LSP 进程不知道自己在为哪个租户服务 —— 已改为由客户端在 `initialize` 的
  *      `initializationOptions` 里推送 `{ tenantId, domainVocabularies }`。
- *   2. **即便注册了也白搭**：canonicalizer 靠
- *      `getWithCustom(tenantId, domain, locale)` 查自定义词汇，
- *      而 LSP 此前调用的是 `canonicalize(text, lexicon)` —— 只传 lexicon，
- *      那条分支（要求 `opts.domain && opts.locale` 同时存在）根本走不到。
+ *   2. LSP 必须把该租户的词汇作用域交给 canonicalize（字面量宏）与后续名称解析
+ *      （ADR 0051：标识符按位置解析，canonicalize 不再替换标识符）。
  *
  * 本测试两半都锁：
- *   · 第 2 半——同一段源码在**传/不传**租户上下文时的行为差异（canonicalizer 契约）
+ *   · 第 2 半——buildCanonicalizeOptions 在传/不传租户上下文时取到的词汇作用域
  *   · 第 1 半——`applyTenantInitOptions` 是否真的把词汇注册进去
- *
- * ★为什么第 1 半非补不可：原先它只由 `server.ts` 承担，而那个模块顶层就
- * `createConnection()`，单测无法 import。实测把 server.ts 整段注册逻辑改成
- * `if (false)`，本文件 6 条用例**仍然全绿**——契约证明"canonicalizer 会用
- * 租户词汇"，证明不了"LSP 真的注册了"。已把决策点抽成无副作用的
- * `src/lsp/tenant-init.ts`（与 aster-lang-ts#162 同一修法）。
  */
 
 const TENANT = 'tenant-vocab-test';
@@ -49,53 +42,38 @@ const VOCAB = {
 
 const SRC = '模块 probe。\n\n规则 main 产出 Int：\n  返回 保额()。\n';
 
+function vocabularyOf(opts: ReturnType<typeof buildCanonicalizeOptions>): VocabularyScopes | undefined {
+  return opts && 'vocabulary' in opts ? opts.vocabulary : undefined;
+}
+
 describe('租户领域词汇参与解析', () => {
-  it('★传租户上下文时，本地化词被规范化', () => {
+  it('★有完整租户上下文时，LSP 传的是带该租户词汇作用域的 options', () => {
     initBuiltinVocabularies();
     vocabularyRegistry.registerCustom(TENANT, VOCAB);
 
-    const out = canonicalize(SRC, {
-      lexicon: ZH_CN,
-      tenantId: TENANT,
-      domain: DOMAIN,
-      locale: 'zh-CN',
-    });
-
-    assert.ok(
-      out.includes('coverageAmount'),
-      `「保额」应被规范化为 coverageAmount，实际输出：${out.slice(0, 120)}`,
-    );
+    const opts = buildCanonicalizeOptions(ZH_CN, TENANT, DOMAIN);
+    const scopes = vocabularyOf(opts);
+    assert.ok(scopes, 'LSP 应传 options 对象而非裸 lexicon，否则租户词汇走不到');
+    assert.equal((opts as { lexicon: unknown }).lexicon, ZH_CN);
+    assert.deepEqual(lookup(scopes.functions, '保额').exact.map((c) => c.canonical), ['coverageAmount']);
   });
 
-  it('★不传租户上下文时保持原样（反向护栏）', () => {
+  it('★canonicalize 不再替换标识符：本地化词保持原写法，交由名称解析', () => {
     initBuiltinVocabularies();
     vocabularyRegistry.registerCustom(TENANT, VOCAB);
 
-    // 没有这一条，把实现写成「无条件查所有租户词汇」也能让上面变绿——
-    // 而那会造成**跨租户词汇泄露**：A 租户的术语在 B 租户的文档里生效。
-    const out = canonicalize(SRC, ZH_CN);
-
-    assert.ok(
-      !out.includes('coverageAmount'),
-      `未传租户时不得应用其词汇（跨租户泄露），实际输出：${out.slice(0, 120)}`,
-    );
+    const out = canonicalize(SRC, buildCanonicalizeOptions(ZH_CN, TENANT, DOMAIN));
+    assert.ok(out.includes('保额') && !out.includes('coverageAmount'), `实际输出：${out.slice(0, 120)}`);
   });
 
   it('★另一个租户拿不到本租户的词汇（隔离性）', () => {
     initBuiltinVocabularies();
     vocabularyRegistry.registerCustom(TENANT, VOCAB);
 
-    const out = canonicalize(SRC, {
-      lexicon: ZH_CN,
-      tenantId: 'some-other-tenant',
-      domain: DOMAIN,
-      locale: 'zh-CN',
-    });
-
-    assert.ok(
-      !out.includes('coverageAmount'),
-      `租户隔离被打破：other-tenant 用到了 ${TENANT} 的词汇`,
-    );
+    // 没有这一条，把实现写成「无条件查所有租户词汇」也能让上面变绿——
+    // 而那会造成**跨租户词汇泄露**：A 租户的术语在 B 租户的文档里生效。
+    assert.equal(buildCanonicalizeOptions(ZH_CN, 'some-other-tenant', DOMAIN), ZH_CN,
+      `租户隔离被打破：other-tenant 用到了 ${TENANT} 的词汇`);
   });
 
   it('无效词汇表被拒绝（registerCustom 有校验，不静默接受）', () => {
@@ -108,23 +86,7 @@ describe('租户领域词汇参与解析', () => {
     );
   });
 
-  /* ── LSP 侧接线：证明"真的传了"，而不只是"canonicalizer 会用" ────────────
-   *
-   * ★上面四条只锁 canonicalizer 契约。实测把 LSP 里的租户参数删掉
-   * （回到缺陷版）后，那四条**仍然全绿** —— 契约对了不等于调用方传了。
-   * 故必须对 LSP 实际构造的参数单独断言。
-   */
-  it('★有完整租户上下文时，LSP 传的是带 tenantId/domain 的 options', () => {
-    const opts = buildCanonicalizeOptions(ZH_CN, TENANT, DOMAIN);
-    assert.ok(opts && typeof opts === 'object' && 'tenantId' in opts,
-      'LSP 应传 options 对象而非裸 lexicon，否则自定义词汇分支走不到');
-    assert.equal((opts as { tenantId: string }).tenantId, TENANT);
-    assert.equal((opts as { domain: string }).domain, DOMAIN);
-    assert.equal((opts as { locale: string }).locale, ZH_CN.id,
-      'locale 必须跟随 lexicon —— canonicalizer 按 (tenant, domain, locale) 三元组查');
-  });
-
-  it('★缺任一项即回退裸 lexicon（半套参数会静默走内置，比报错更难查）', () => {
+  it('★缺任一项即回退裸 lexicon（半套参数查不到租户那一份）', () => {
     assert.equal(buildCanonicalizeOptions(ZH_CN, undefined, DOMAIN), ZH_CN, '缺 tenantId 应回退');
     assert.equal(buildCanonicalizeOptions(ZH_CN, TENANT, undefined), ZH_CN, '缺 domain 应回退');
     assert.equal(buildCanonicalizeOptions(undefined, TENANT, DOMAIN), undefined, '无 lexicon 时保持 undefined');

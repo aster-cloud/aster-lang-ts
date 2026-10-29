@@ -9,21 +9,17 @@
  * import {
  *   vocabularyRegistry,
  *   initBuiltinVocabularies,
- *   canonicalizeIdentifier,
  *   localizeIdentifier,
  * } from './config/lexicons/identifiers';
  *
  * // 初始化内置词汇表
  * initBuiltinVocabularies();
  *
- * // 获取汽车保险领域的中文词汇表索引
+ * // 源码中的本地化名字按位置解析：编译时传入词汇作用域（ADR 0051）
+ * const scopes = vocabularyRegistry.getWithCustom(tenantId, 'insurance.auto', 'zh-CN');
+ *
+ * // 展示用：将规范化名称转换为中文
  * const index = vocabularyRegistry.getIndex('insurance.auto', 'zh-CN');
- *
- * // 将中文标识符转换为规范化名称
- * canonicalizeIdentifier(index, '驾驶员');  // => 'Driver'
- * canonicalizeIdentifier(index, '年龄');    // => 'age'
- *
- * // 将规范化名称转换为中文
  * localizeIdentifier(index, 'QuoteResult'); // => '报价结果'
  * ```
  */
@@ -35,11 +31,21 @@ export {
   DomainVocabulary,
   IdentifierIndex,
   buildIdentifierIndex,
-  canonicalizeIdentifier,
   localizeIdentifier,
-  hasIdentifierMapping,
   validateVocabulary,
 } from './types.js';
+
+// 按角色与作用域的词汇视图（ADR 0051）
+export {
+  buildVocabularyScopes,
+  canonicalScopesJson,
+  lookup,
+  VocabularyScopeError,
+  type Candidate,
+  type VocabularyScopes,
+  type VocabularyScopeErrorCode,
+} from './scopes.js';
+export { foldKey } from './casefold.js';
 
 // 注册中心导出
 export {

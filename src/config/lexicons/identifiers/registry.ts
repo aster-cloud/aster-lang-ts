@@ -16,6 +16,7 @@ import {
   buildIdentifierIndex,
   validateVocabulary,
 } from './types.js';
+import { buildVocabularyScopes, type VocabularyScopes } from './scopes.js';
 
 // 内置领域词汇表（@generated 文件，由 Java 真源生成）
 import { INSURANCE_AUTO_ZH_CN } from './domains/insurance.auto.zh-CN.js';
@@ -31,6 +32,16 @@ import { FINANCE_LOAN_DE_DE } from './domains/finance.loan.de-DE.js';
 interface VocabularyEntry {
   vocabulary: DomainVocabulary;
   index: IdentifierIndex;
+  /** 编译用的按位置词汇视图（ADR 0051） */
+  scopes: VocabularyScopes;
+}
+
+/**
+ * 构建注册条目。注册前已经 validateVocabulary 校验（字段与枚举成员都有所属类型，ADR 0051 §7、§14.3），
+ * 故词汇整体进入按位置解析的作用域。
+ */
+function makeEntry(vocabulary: DomainVocabulary): VocabularyEntry {
+  return { vocabulary, index: buildIdentifierIndex(vocabulary), scopes: buildVocabularyScopes(vocabulary) };
 }
 
 /**
@@ -61,7 +72,8 @@ class VocabularyRegistry {
    * 注册领域词汇表。
    *
    * @param vocabulary - 领域词汇表
-   * @throws 如果词汇表验证失败
+   * @throws 如果词汇表验证失败，或 buildVocabularyScopes 拒绝该词汇
+   *   （如字面量宏触发词对应多个内容 literal_conflict）
    */
   register(vocabulary: DomainVocabulary): void {
     const validation = validateVocabulary(vocabulary);
@@ -78,8 +90,7 @@ class VocabularyRegistry {
     }
 
     const key = this.makeKey(vocabulary.id, vocabulary.locale);
-    const index = buildIdentifierIndex(vocabulary);
-    this.vocabularies.set(key, { vocabulary, index });
+    this.vocabularies.set(key, makeEntry(vocabulary));
   }
 
   /**
@@ -87,6 +98,8 @@ class VocabularyRegistry {
    *
    * @param tenantId - 租户标识符
    * @param vocabulary - 领域词汇表
+   * @throws 如果词汇表验证失败（含字段 / 枚举成员缺 parent、同角色同作用域写法冲突），
+   *   或 buildVocabularyScopes 拒绝该词汇（如字面量宏触发词对应多个内容 literal_conflict）
    */
   registerCustom(tenantId: string, vocabulary: DomainVocabulary): void {
     const validation = validateVocabulary(vocabulary);
@@ -97,8 +110,7 @@ class VocabularyRegistry {
     }
 
     const key = this.makeCustomKey(tenantId, vocabulary.id, vocabulary.locale);
-    const index = buildIdentifierIndex(vocabulary);
-    this.customVocabularies.set(key, { vocabulary, index });
+    this.customVocabularies.set(key, makeEntry(vocabulary));
   }
 
   /**
@@ -138,27 +150,23 @@ class VocabularyRegistry {
   }
 
   /**
-   * 获取自定义词汇表（优先于内置）。
+   * 获取编译用的词汇作用域：租户自定义词汇优先，未命中回退内置。
    *
-   * @param tenantId - 租户标识符
+   * @param tenantId - 租户标识符（缺省时只查内置）
    * @param domain - 领域标识符
    * @param locale - 语言代码
-   * @returns 词汇表和索引
+   * @returns 词汇作用域，未注册时返回 undefined
    */
   getWithCustom(
     tenantId: string | undefined,
     domain: string,
     locale: string
-  ): VocabularyEntry | undefined {
-    // 优先查找租户自定义词汇表
+  ): VocabularyScopes | undefined {
     if (tenantId) {
-      const customKey = this.makeCustomKey(tenantId, domain, locale);
-      const custom = this.customVocabularies.get(customKey);
-      if (custom) return custom;
+      const custom = this.customVocabularies.get(this.makeCustomKey(tenantId, domain, locale));
+      if (custom) return custom.scopes;
     }
-
-    // 回退到内置词汇表
-    return this.get(domain, locale);
+    return this.get(domain, locale)?.scopes;
   }
 
   /**

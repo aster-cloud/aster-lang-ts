@@ -47,9 +47,12 @@ if (diagnostics && diagnostics.length > 0) {
   }
 }
 
-const { lowerModule } = await import('../src/lower_to_core.js');
-const core = lowerModule(ast);
-const pruned = prune(core);
+// 名称解析 R1 → lower → R2（ADR 0051）；任一 E8xx 不输出 IR
+const { resolveAndLower } = await import('../src/compile-pipeline.js');
+const resolved = resolveAndLower(ast);
+for (const d of resolved.diagnostics) console.error(`${d.severity}: ${d.code} ${d.message}`);
+if (resolved.diagnostics.some(d => d.severity === 'error')) process.exit(2);
+const pruned = prune(resolved.core);
 
 console.log(JSON.stringify(pruned, null, 2));
 

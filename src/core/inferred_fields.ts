@@ -30,3 +30,20 @@ export function markFieldTypeInferred(field: Core.Field): void {
 export function isFieldTypeInferred(field: Core.Field): boolean {
   return inferredFields.has(field);
 }
+
+/**
+ * 「未声明类型的 lambda 参数」旁路表：Core lambda 参数不携带 typeInferred（加入会改变 IR），
+ * 同理以对象身份登记。名称解析 R2（ADR 0051 §4、裁决 R31）只把声明类型当作类型来源，据此视其类型未知。
+ */
+type LambdaParam = Core.Lambda['params'][number];
+const inferredLambdaParams = new WeakSet<LambdaParam>();
+
+/** 登记一个未声明类型的 lambda 参数（仅供降级阶段调用）。 */
+export function markLambdaParamTypeInferred(param: LambdaParam): void {
+  inferredLambdaParams.add(param);
+}
+
+/** lambda 参数是否在源码中未声明类型。 */
+export function isLambdaParamTypeInferred(param: LambdaParam): boolean {
+  return inferredLambdaParams.has(param);
+}

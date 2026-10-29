@@ -1,10 +1,7 @@
 #!/usr/bin/env node
 import readline from 'node:readline';
 // import fs from 'node:fs';
-import { canonicalize } from '../src/frontend/canonicalizer.js';
-import { lex } from '../src/frontend/lexer.js';
-import { parse } from '../src/parser.js';
-import { lowerModule } from '../src/lower_to_core.js';
+import { parseSource, resolveAndLowerChecked } from '../src/compile-pipeline.js';
 import { formatModule } from '../src/core/pretty_core.js';
 import { DiagnosticError, formatDiagnostic } from '../src/diagnostics/diagnostics.js';
 
@@ -58,10 +55,8 @@ async function repl(): Promise<void> {
         return;
       }
       try {
-        const can = canonicalize(src);
-        const tokens = lex(can);
-        const { ast } = parse(tokens);
-        const core = lowerModule(ast);
+        // 名称解析 R1 → lower → R2（ADR 0051）；E8xx 抛 NameResolutionError，不输出 IR
+        const core = resolveAndLowerChecked(parseSource(src).ast).core;
         if (pretty) {
           console.log(formatModule(core));
         } else {

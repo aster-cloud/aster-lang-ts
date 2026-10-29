@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { canonicalize, lex, parse } from '../src/index.js';
+import { resolveAndLower } from '../src/compile-pipeline.js';
 import { loadCorpus } from './corpus-loader.js';
 
 // ★ASTER_LANG_TEST_PATH 已设置时必须从该 checkout 读语料并验证确实生效；
@@ -52,6 +53,12 @@ function resolveInputPath(legacyPath: string): string {
   return legacyPath;
 }
 
+/** 与编译入口相同的前端：parse → R1 → lower → R2（ADR 0051），不带词汇。 */
+function coreOf(src: string): ReturnType<typeof resolveAndLower> {
+  const { ast } = parse(lex(canonicalize(src)));
+  return resolveAndLower(ast);
+}
+
 function runOneAst(inputPath: string, expectPath: string): void {
   inputPath = resolveInputPath(inputPath);
   try {
@@ -82,11 +89,10 @@ async function runOneCore(inputPath: string, expectPath: string): Promise<void> 
   inputPath = resolveInputPath(inputPath);
   try {
     const src = fs.readFileSync(inputPath, 'utf8');
-    const can = canonicalize(src);
-    const toks = lex(can);
-    const { ast } = parse(toks);
-    const { lowerModule } = await import('../src/lower_to_core.js');
-    const core = lowerModule(ast);
+    const { core, diagnostics } = coreOf(src);
+    if (diagnostics.some(d => d.severity === 'error')) {
+      throw new Error(`名称解析失败：${diagnostics.map(d => `${d.code} ${d.message}`).join('; ')}`);
+    }
     const actual = prune(core);
     const expected = prune(JSON.parse(fs.readFileSync(expectPath, 'utf8')));
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -131,13 +137,9 @@ async function runOneTypecheck(inputPath: string, expectPath: string): Promise<v
   inputPath = resolveInputPath(inputPath);
   try {
     const src = fs.readFileSync(inputPath, 'utf8');
-    const can = canonicalize(src);
-    const toks = lex(can);
-    const { ast } = parse(toks);
-    const { lowerModule } = await import('../src/lower_to_core.js');
-    const core = lowerModule(ast);
+    const resolved = coreOf(src);
     const { typecheckModule } = await import('../src/typecheck.js');
-    const diags = typecheckModule(core);
+    const diags = [...resolved.diagnostics, ...typecheckModule(resolved.core)];
     const expectedLines = Array.from(
       new Set(
         fs
@@ -186,11 +188,10 @@ async function runOneTypecheckWithCaps(
   inputPath = resolveInputPath(inputPath);
   try {
     const src = fs.readFileSync(inputPath, 'utf8');
-    const can = canonicalize(src);
-    const toks = lex(can);
-    const { ast } = parse(toks);
-    const { lowerModule } = await import('../src/lower_to_core.js');
-    const core = lowerModule(ast);
+    const { core, diagnostics: resolution } = coreOf(src);
+    if (resolution.some(d => d.severity === 'error')) {
+      throw new Error(`名称解析失败：${resolution.map(d => `${d.code} ${d.message}`).join('; ')}`);
+    }
     const { typecheckModuleWithCapabilities } = await import('../src/typecheck.js');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     const diags = typecheckModuleWithCapabilities(core, manifest);

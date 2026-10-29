@@ -1,7 +1,4 @@
-import { canonicalize } from '../frontend/canonicalizer.js';
-import { lex } from '../frontend/lexer.js';
-import { parse } from '../parser.js';
-import { lowerModule } from '../lower_to_core.js';
+import { parseSource, resolveAndLower } from '../compile-pipeline.js';
 import { typecheckModule, type TypecheckDiagnostic } from '../typecheck.js';
 import type { Core } from '../types.js';
 
@@ -34,7 +31,7 @@ export interface ValidationResult {
  *
  * 封装 policy-converter 的编译流程，提供字符串输入的验证接口。
  * 验证 LLM 生成的 CNL 代码是否通过完整的编译管线：
- * canonicalize → lex → parse → lowerModule → typecheck
+ * canonicalize → lex → parse → R1 → lowerModule → R2 → typecheck（名称解析见 ADR 0051）
  */
 export class PolicyValidator {
   /**
@@ -45,10 +42,8 @@ export class PolicyValidator {
    */
   async validate(cnlCode: string): Promise<ValidationResult> {
     try {
-      // 编译管线：CNL → Canonical → Tokens → AST → Core IR
-      const canonical = canonicalize(cnlCode);
-      const tokens = lex(canonical);
-      const { ast, diagnostics: parseDiags } = parse(tokens);
+      // 编译管线：CNL → Canonical → Tokens → AST
+      const { ast, diagnostics: parseDiags } = parseSource(cnlCode);
 
       // 解析错误直接返回
       if (parseDiags.length > 0) {
@@ -63,10 +58,15 @@ export class PolicyValidator {
         };
       }
 
-      const coreIR = lowerModule(ast);
+      // 名称解析 R1 → lower → R2；任一 E8xx 时不做类型检查、不返回 IR
+      const resolved = resolveAndLower(ast);
+      if (resolved.diagnostics.some(d => d.severity === 'error')) {
+        return { valid: false, diagnostics: [...resolved.diagnostics] };
+      }
+      const coreIR = resolved.core;
 
-      // 类型检查
-      const diagnostics = typecheckModule(coreIR);
+      // 类型检查（名称解析的 warning 一并返回）
+      const diagnostics = [...resolved.diagnostics, ...typecheckModule(coreIR)];
 
       // 检查是否有错误（忽略 warning 和 info）
       const hasErrors = diagnostics.some(d => d.severity === 'error');

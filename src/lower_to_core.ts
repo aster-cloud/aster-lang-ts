@@ -18,11 +18,13 @@
  */
 
 import { Core } from './core/core_ir.js';
-import { markFieldTypeInferred } from './core/inferred_fields.js';
+import { markFieldTypeInferred, markLambdaParamTypeInferred } from './core/inferred_fields.js';
+import { markForResolution, withResolvedOrigin } from './core/resolution-mark.js';
+import { KEYWORD_CTORS } from './frontend/resolution-choice.js';
 import { parseEffect, getAllEffects, inferCapabilityFromName } from './config/semantic.js';
 import type { Effect } from './config/semantic.js';
 import { Diagnostics } from './diagnostics/diagnostics.js';
-import type { Span, Origin } from './types.js';
+import type { Span, Origin, Resolved } from './types.js';
 import type {
   Module,
   Declaration,
@@ -34,6 +36,8 @@ import type {
   Type,
   WorkflowStmt,
   StepStmt,
+  Name,
+  PatternCtor,
 } from './types.js';
 import { DefaultAstVisitor } from './ast/ast_visitor.js';
 import { DefaultCoreVisitor, createVisitorContext } from './core/visitor.js';
@@ -80,6 +84,26 @@ function withOrigin<T extends { origin?: Origin }>(
     // Core IR 构造函数返回的对象实际上是可变的，尽管类型定义声明为 readonly
     // 这是设计上的折衷：类型系统认为它们是只读的，但在降级阶段我们需要附加元数据
     (coreNode as { -readonly [K in keyof T]: T[K] }).origin = origin;
+  }
+  return coreNode;
+}
+
+/**
+ * 名称解析（ADR 0051）：有 R1 结果时取规范名，否则保留原写法。
+ */
+function canonicalOf(name: string, resolved: Resolved | undefined): string {
+  return resolved?.canonical ?? name;
+}
+
+/**
+ * 在已附加的 origin 上记录 R1 的原写法与角色（仅 written !== canonical 时）。
+ * 无 R1 结果或节点无 origin 时原样返回，保证未解析的 AST 降级结果不变。
+ */
+function withResolution<T extends { origin?: Origin }>(coreNode: T, resolved: Resolved | undefined): T {
+  if (!resolved) return coreNode;
+  const origin = withResolvedOrigin(coreNode.origin, resolved.written, resolved.canonical, resolved.role);
+  if (origin && origin !== coreNode.origin) {
+    (coreNode as { origin?: Origin }).origin = origin;
   }
   return coreNode;
 }
@@ -243,22 +267,8 @@ function lowerConstraints(
  * @param ast - AST Module 节点（通过 parser.parse 生成）
  * @returns Core IR Module 节点，包含所有声明的规范化表示
  *
- * @example
- * ```typescript
- * import { canonicalize, lex, parse, lowerModule } from '@aster-cloud/aster-lang-ts';
- *
- * const src = `Module app.
- * Rule greet, produce Text:
- *   Return "Hello".
- * `;
- *
- * const ast = parse(lex(canonicalize(src)));
- * const core = lowerModule(ast);
- *
- * console.log(core.kind);  // "Module"
- * console.log(core.name);  // "app"
- * // Core IR 是更简洁的表示，适合类型检查和代码生成
- * ```
+ * @internal 不从包入口导出：未经 R1 的 AST 降级后名字保持原写法（可能是本地化名）。
+ * 外部调用方使用 resolveAndLowerChecked（compile-pipeline）或 browser `compile`。
  */
 export function lowerModule(ast: Module): import('./types.js').Core.Module {
   const decls = ast.decls.map(lowerDecl);
@@ -271,12 +281,12 @@ function lowerDecl(d: Declaration): import('./types.js').Core.Declaration {
     case 'Import':
       return withOrigin(Core.Import(d.name, d.asName || null, d.version), d);
     case 'Data':
-      return withOrigin(
+      return withResolution(withOrigin(
         Core.Data(
-          d.name,
+          canonicalOf(d.name, d.resolved),
           d.fields.map(f => {
             const field: import('./types.js').Core.Field = {
-              name: f.name,
+              name: canonicalOf(f.name, f.resolved),
               type: lowerType(f.type),
               constraints: lowerConstraints(f.constraints),
             };
@@ -286,9 +296,12 @@ function lowerDecl(d: Declaration): import('./types.js').Core.Declaration {
           })
         ),
         d
-      );
+      ), d.resolved);
     case 'Enum':
-      return withOrigin(Core.Enum(d.name, [...d.variants]), d);
+      return withResolution(
+        withOrigin(Core.Enum(canonicalOf(d.name, d.resolved), d.variants.map((v, i) => canonicalOf(v, d.resolvedVariants?.[i]))), d),
+        d.resolved
+      );
     case 'Func':
       return lowerFunc(d);
     default: {
@@ -331,7 +344,7 @@ function lowerFunc(f: Func): import('./types.js').Core.Func {
   }
   const body = f.body ? lowerBlock(f.body) : Core.Block([]);
   const out = Core.Func(
-    f.name,
+    canonicalOf(f.name, f.resolved),
     f.typeParams ?? [],
     params,
     ret,
@@ -348,7 +361,7 @@ function lowerFunc(f: Func): import('./types.js').Core.Func {
   }
   // 传递能力与 PII 元数据，并附带源位置信息
   const enriched = withFuncPiiMetadata(withEffectCaps(out, f));
-  return withOrigin(enriched, f);
+  return withResolution(withOrigin(enriched, f), f.resolved);
 }
 
 function lowerBlock(b: Block): import('./types.js').Core.Block {
@@ -359,8 +372,12 @@ function lowerStmt(s: Statement): import('./types.js').Core.Statement {
   switch (s.kind) {
     case 'Let':
       return withOrigin(Core.Let(s.name, lowerExpr(s.expr)), s);
-    case 'Set':
-      return withOrigin(Core.Set(s.name, lowerExpr(s.expr)), s);
+    case 'Set': {
+      // Set 目标属于 FIELD_REF，R1 不解析：保留原写法交给 R2
+      const set = withOrigin(Core.Set(s.name, lowerExpr(s.expr)), s);
+      markForResolution(set, { written: s.name });
+      return set;
+    }
     case 'Return':
       return withOrigin(Core.Return(lowerExpr(s.expr)), s);
     case 'If':
@@ -555,7 +572,8 @@ function patternBindings(p: Pattern | undefined): Set<string> {
  * 不是重新设计。若要改语义，应走 ADR。
  */
 function splitUfcsReceiver(
-  target: import('./types.js').Core.Expression
+  target: import('./types.js').Core.Expression,
+  unresolvedTarget: boolean
 ): { receiver: import('./types.js').Core.Expression; method: import('./types.js').Core.Expression } | null {
   if (!target || (target as { kind?: string }).kind !== 'Name') return null;
   const full = (target as unknown as { name?: unknown }).name;
@@ -586,13 +604,18 @@ function splitUfcsReceiver(
     (receiver as { origin?: unknown }).origin = span;
     (method as { origin?: unknown }).origin = span;
   }
+  // 拆分前的点分名由 R1 留给 R2 时，拆出的接收者与方法名同样交给 R2（均为裸名）
+  if (unresolvedTarget) {
+    markForResolution(receiver, { written: head, ufcs: true });
+    markForResolution(method, { written: full.slice(dot + 1), ufcs: true });
+  }
   return { receiver, method };
 }
 
 function lowerExpr(e: Expression): import('./types.js').Core.Expression {
   switch (e.kind) {
     case 'Name':
-      return withOrigin(Core.Name(e.name), e);
+      return lowerName(e);
     case 'Bool':
       return withOrigin(Core.Bool(e.value), e);
     case 'Int':
@@ -652,19 +675,22 @@ function lowerExpr(e: Expression): import('./types.js').Core.Expression {
       //     而不是单方面改变语义。若要重新设计，应走 ADR。
       const target = lowerExpr(e.target);
       const loweredArgs = e.args.map(lowerExpr);
-      const ufcs = splitUfcsReceiver(target);
+      const ufcs = splitUfcsReceiver(target, e.target.kind === 'Name' && !e.target.resolved);
       if (ufcs) {
         return withOrigin(Core.Call(ufcs.method, [ufcs.receiver, ...loweredArgs]), e);
       }
       return withOrigin(Core.Call(target, loweredArgs), e);
     }
     case 'Construct':
-      return withOrigin(
-        Core.Construct(
-          e.typeName,
-          e.fields.map(f => ({ name: f.name, expr: lowerExpr(f.expr) }))
+      return withResolution(
+        withOrigin(
+          Core.Construct(
+            canonicalOf(e.typeName, e.resolved),
+            e.fields.map(f => ({ name: canonicalOf(f.name, f.resolved), expr: lowerExpr(f.expr) }))
+          ),
+          e
         ),
-        e
+        e.resolved
       );
     case 'Ok':
       return withOrigin(Core.Ok(lowerExpr(e.expr)), e);
@@ -752,15 +778,22 @@ function lowerExpr(e: Expression): import('./types.js').Core.Expression {
             }
             return;
           }
-          if (ex.kind === 'Name' && !isBound(ex.name) && !ex.name.includes('.')) {
-            names.add(ex.name);
+          // 以 R1 规范名记录捕获（未解析时即原写法；R2 再按其解析结果改写）
+          const captured = ex.kind === 'Name' ? canonicalOf(ex.name, ex.resolved) : '';
+          if (ex.kind === 'Name' && !isBound(captured) && !captured.includes('.')) {
+            names.add(captured);
           }
           super.visitExpression(ex, ctx);
         }
       }
       new CaptureVisitor().visitBlock(e.body, undefined as unknown as void);
       const captures = Array.from(names);
-      const coreParams = e.params.map(p => ({ name: p.name, type: lowerType(p.type) }));
+      const coreParams = e.params.map(p => {
+        const param = { name: p.name, type: lowerType(p.type) };
+        // 解析器对未标注类型的 lambda 参数同样写入 typeInferred（Parameter），BaseParameter 未声明该字段
+        if ((p as { typeInferred?: boolean }).typeInferred) markLambdaParamTypeInferred(param);
+        return param;
+      });
       const ret = lowerType(e.retType);
       const lambda: import('./types.js').Core.Lambda = {
         kind: 'Lambda',
@@ -787,13 +820,14 @@ function lowerPattern(p: Pattern): import('./types.js').Core.Pattern {
       return withOrigin(Core.PatNull(), p);
     case 'PatternInt':
       return withOrigin(Core.PatInt(p.value), p);
-    case 'PatternCtor': {
-      const ctor = p as Pattern & { args?: readonly Pattern[] };
-      const args = ctor.args ? ctor.args.map(pp => lowerPattern(pp)) : undefined;
-      return withOrigin(Core.PatCtor(p.typeName, [...(p.names ?? [])], args), p);
+    case 'PatternCtor':
+      return lowerPatternCtor(p);
+    case 'PatternName': {
+      // 模式名可能是期望枚举下的成员（ADR 0051 裁决 R12），由 R2 判定
+      const pat = withOrigin(Core.PatName(p.name), p);
+      markForResolution(pat, { written: p.name });
+      return pat;
     }
-    case 'PatternName':
-      return withOrigin(Core.PatName(p.name), p);
     default: {
       const { span } = extractMetadata(p);
       const kind = (p as { kind: string }).kind;
@@ -801,6 +835,31 @@ function lowerPattern(p: Pattern): import('./types.js').Core.Pattern {
       throw new Error('unreachable'); // For TypeScript's control flow analysis
     }
   }
+}
+
+function lowerPatternCtor(p: PatternCtor): import('./types.js').Core.PatCtor {
+  const args = p.args ? p.args.map(pp => lowerPattern(pp)) : undefined;
+  const pat = withResolution(
+    withOrigin(Core.PatCtor(canonicalOf(p.typeName, p.resolved), [...(p.names ?? [])], args), p),
+    p.resolved
+  );
+  // 主语类型在 R1 未知的用户构造器留给 R2；关键词构造器不查词汇
+  if (!p.resolved && !KEYWORD_CTORS.has(p.typeName)) markForResolution(pat, { written: p.typeName });
+  return pat;
+}
+
+/**
+ * 值位置名字：R1 已解析的取规范名。裸单段名一律交给 R2（期望类型为枚举时结果可能改变），
+ * 并记下 R1 的角色；R1 未决定的点分名（字段路径、限定调用）同样交给 R2。
+ */
+function lowerName(e: Name): import('./types.js').Core.Name {
+  const node = withResolution(withOrigin(Core.Name(canonicalOf(e.name, e.resolved)), e), e.resolved);
+  if (!e.name.includes('.')) {
+    markForResolution(node, e.resolved ? { written: e.name, r1Role: e.resolved.role } : { written: e.name });
+  } else if (!e.resolved) {
+    markForResolution(node, { written: e.name });
+  }
+  return node;
 }
 
 function spanToOrigin(span: Span | undefined, file: string | null): Origin | null {
@@ -818,11 +877,11 @@ function spanToOrigin(span: Span | undefined, file: string | null): Origin | nul
 function lowerType(t: Type): import('./types.js').Core.Type {
   switch (t.kind) {
     case 'TypeName':
-      return withOrigin(Core.TypeName(t.name), t);
+      return withResolution(withOrigin(Core.TypeName(canonicalOf(t.name, t.resolved)), t), t.resolved);
     case 'TypeVar':
       return withOrigin(Core.TypeVar(t.name), t);
     case 'TypeApp':
-      return withOrigin(Core.TypeApp(t.base, t.args.map(lowerType)), t);
+      return withResolution(withOrigin(Core.TypeApp(canonicalOf(t.base, t.resolved), t.args.map(lowerType)), t), t.resolved);
     case 'Maybe':
       return withOrigin(Core.Maybe(lowerType(t.type)), t);
     case 'Option':
@@ -844,12 +903,26 @@ function lowerType(t: Type): import('./types.js').Core.Type {
   }
 }
 
+/**
+ * 函数签名类型名的解析记录（ADR 0051 §4，与 Java 对齐）：签名类型平时不带 origin，
+ * 仅当写法被改写（written !== canonical）时才附加带 written/role 的 origin，
+ * 因此无词汇或规范名直写的签名 IR 保持逐字节不变。
+ */
+function withSignatureResolution<T extends { origin?: Origin }>(
+  coreNode: T,
+  astNode: Type,
+  resolved: Resolved | undefined
+): T {
+  if (!resolved || resolved.written === resolved.canonical) return coreNode;
+  return withResolution(withOrigin(coreNode, astNode), resolved);
+}
+
 function lowerTypeWithVars(t: Type, vars: Set<string>): import('./types.js').Core.Type {
   switch (t.kind) {
     case 'TypeName':
       return vars.has(t.name)
         ? ({ kind: 'TypeVar', name: t.name } as import('./types.js').Core.TypeVar)
-        : Core.TypeName(t.name);
+        : withSignatureResolution(Core.TypeName(canonicalOf(t.name, t.resolved)), t, t.resolved);
     case 'EffectVar':
       return { kind: 'EffectVar', name: t.name } as import('./types.js').Core.EffectVar;
     case 'Maybe':
@@ -863,11 +936,11 @@ function lowerTypeWithVars(t: Type, vars: Set<string>): import('./types.js').Cor
     case 'Map':
       return Core.Map(lowerTypeWithVars(t.key, vars), lowerTypeWithVars(t.val, vars));
     case 'TypeApp':
-      return {
+      return withSignatureResolution({
         kind: 'TypeApp',
-        base: t.base,
+        base: canonicalOf(t.base, t.resolved),
         args: t.args.map(tt => lowerTypeWithVars(tt, vars)),
-      } as import('./types.js').Core.Type;
+      } as import('./types.js').Core.TypeApp, t, t.resolved);
     case 'TypeVar':
       return { kind: 'TypeVar', name: t.name } as import('./types.js').Core.TypeVar;
     case 'TypePii':

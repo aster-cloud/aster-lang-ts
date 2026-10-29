@@ -5,7 +5,7 @@ import path from 'node:path';
 import { canonicalize } from '../src/frontend/canonicalizer.js';
 import { lex } from '../src/frontend/lexer.js';
 import { parse } from '../src/parser.js';
-import { lowerModule } from '../src/lower_to_core.js';
+import { resolveAndLowerChecked } from '../src/compile-pipeline.js';
 import { emitJava } from '../src/jvm/emitter.js';
 import { prepareOutDir } from '../src/cli/utils/out-dir.js';
 import { gradleEnv } from '../src/cli/utils/gradle-env.js';
@@ -364,7 +364,8 @@ async function main(): Promise<void> {
 
   for (const input of inputs) {
     const src = fs.readFileSync(input, 'utf8');
-    const core = lowerModule(parse(lex(canonicalize(src))).ast);
+    // 名称解析 R1 → lower → R2（ADR 0051）；E8xx 时抛错，不生成 class
+    const core = resolveAndLowerChecked(parse(lex(canonicalize(src))).ast).core;
     const payload = JSON.stringify(core);
     fs.writeFileSync('build/last-core.json', payload);
 

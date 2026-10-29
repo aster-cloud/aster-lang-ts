@@ -18,29 +18,15 @@ import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { buildCanonicalizeOptions } from './canonicalize-options.js';
 import { alignTokensToSource } from './source-positions.js';
-import { vocabularyRegistry, initBuiltinVocabularies } from '../config/lexicons/identifiers/registry.js';
+import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
 
 export interface ParsedDocument {
   readonly can: string;
   readonly tokens: readonly any[];
   readonly ast: AstModule | null;
   readonly parseDiagnostics: readonly Diagnostic[];
-}
-
-/**
- * 领域词汇的「规范名 → 本地化写法」查找：canonicalize 用同一份词汇把本地化词替换成规范名，
- * 对齐时据此在原文里找回本地化写法（否则该 token 及其后同一行的位置全部推算错位）。
- */
-function localizedLookup(
-  lexicon: Lexicon | undefined,
-  tenantId: string | undefined,
-  domain: string | undefined,
-): ((canonical: string) => string | undefined) | undefined {
-  if (!lexicon || !tenantId || !domain) return undefined;
-  initBuiltinVocabularies();
-  const index = vocabularyRegistry.getWithCustom(tenantId, domain, lexicon.id)?.index;
-  if (!index) return undefined;
-  return (canonical) => index.toLocalized.get(canonical) ?? index.toLocalized.get(canonical.toLowerCase());
+  /** 本文档使用的租户词汇作用域（名称解析 R1/R2 用）；无租户词汇时缺省 */
+  readonly vocabulary?: VocabularyScopes;
 }
 
 export function parseDocumentText(
@@ -49,10 +35,12 @@ export function parseDocumentText(
   tenantId: string | undefined,
   domain: string | undefined,
 ): ParsedDocument {
-  const can = canonicalize(text, buildCanonicalizeOptions(lexicon, tenantId, domain));
+  const options = buildCanonicalizeOptions(lexicon, tenantId, domain);
+  const vocabulary = options && 'vocabulary' in options ? options.vocabulary : undefined;
+  const can = canonicalize(text, options);
   // ★token 位置改为原文坐标后再解析：AST span 由 token 派生，于是高亮/跳转/hover/重命名/
   //   诊断的位置都对应原文（canonicalize 删冠词等会改变行内长度，见 source-positions.ts）。
-  const tokens = alignTokensToSource(text, can, lex(can, lexicon), { localizedOf: localizedLookup(lexicon, tenantId, domain) });
+  const tokens = alignTokensToSource(text, can, lex(can, lexicon));
   let ast: AstModule | null;
   let parseDiagnostics: readonly Diagnostic[] = [];
   try {
@@ -64,5 +52,5 @@ export function parseDocumentText(
   } catch {
     ast = null;
   }
-  return { can, tokens, ast, parseDiagnostics };
+  return vocabulary ? { can, tokens, ast, parseDiagnostics, vocabulary } : { can, tokens, ast, parseDiagnostics };
 }
