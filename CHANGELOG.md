@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.1.0
+
+### Breaking
+
+- The package entries (`@aster-cloud/aster-lang-ts` and `/browser`) no longer
+  export `lowerModule` or the unchecked `resolveAndLower`. Use `parseSource`
+  followed by `resolveAndLowerChecked(ast)`, which throws `NameResolutionError`
+  on any E8xx diagnostic, or the higher-level `compile` /
+  `compileAndTypecheck` / `resolvePolicyTypes`.
+- The pre-parse global identifier substitution (`translateIdentifiers`,
+  `IdentifierIndex.toCanonical`) is removed. Domain vocabulary is resolved by
+  position after parsing (ADR 0051); there is no compatibility path.
+- `Number`, `Boolean` and `String` are not type names; use `Float`, `Bool`,
+  `Text`.
+
+### Added
+
+- **Position-aware vocabulary resolution (ADR 0051)** — R1 resolves
+  declarations and type positions on the AST, R2 resolves typed references
+  (dotted field paths, bare enum members under an expected enum type,
+  pattern constructors, equality-comparison operands) on Core using only
+  explicitly declared types. `CompileOptions.vocabulary`, `buildVocabularyScopes`,
+  `canonicalScopesJson`, `foldKey` (Unicode 15.1 C+S fold, NFC-closed) and
+  `resolvePolicyTypes` are exported. New diagnostics E800–E807 / W800–W801.
+- Qualified enum members `E.M` type-check and evaluate.
+- Toolchain constants `RESOLVER_VERSION`, `CASEFOLD_VERSION`, `CORE_IR_ABI`.
+- LSP hover and field completion by resolved role.
+
 ## 1.0.3
 
 ### Added
