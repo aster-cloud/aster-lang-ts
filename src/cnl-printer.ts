@@ -143,7 +143,9 @@ class CnlPrinter {
     if (m.name) head.push(`Module ${m.name}.`);
     // ADR 0046：档案声明紧跟模块头
     if (m.name && m.profile !== undefined) head.push(`Profile ${JSON.stringify(m.profile)}.`);
-    const decls = m.decls.map(d => this.decl(d));
+    // 类型别名不在 decls 中；统一前置于其余声明（别名可先用后定义，位置不影响语义）
+    const aliases = (m.typeAliasDecls ?? []).map(a => `Type ${a.name} as ${this.type(a.type)}.`);
+    const decls = [...aliases, ...m.decls.map(d => this.decl(d))];
     if (head.length === 0) return decls.join('\n\n');
     return decls.length > 0 ? `${head.join('\n')}\n\n${decls.join('\n\n')}` : head.join('\n');
   }
