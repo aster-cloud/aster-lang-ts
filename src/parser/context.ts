@@ -1,4 +1,4 @@
-import type { Token } from '../types.js';
+import type { Token, TypeAliasDecl } from '../types.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { TokenKind } from '../frontend/tokens.js';
 import { ConfigService } from '../config/config-service.js';
@@ -23,8 +23,8 @@ export interface ParserContext {
    * `with..set to` 构造，故不纳入；与 aster-lang-core 行为对齐（Java 只对记录类型报错）。
    */
   declaredRecordTypes: Set<string>;
-  /** 已解析的类型别名原写法名（按出现顺序），写入 Module.typeAliases（ADR 0051） */
-  typeAliases: string[];
+  /** 已解析的类型别名声明（按出现顺序），写入 Module.typeAliasDecls / typeAliases（ADR 0051） */
+  typeAliasDecls: TypeAliasDecl[];
   currentTypeVars: Set<string>;
   currentEffectVars: Set<string>;
   collectedEffects: string[] | null;
@@ -172,7 +172,7 @@ export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon)
     moduleProfile: null,
     declaredTypes: new Set<string>(),
     declaredRecordTypes: new Set<string>(),
-    typeAliases: [],
+    typeAliasDecls: [],
     currentTypeVars: new Set<string>(),
     currentEffectVars: new Set<string>(),
     collectedEffects: null,

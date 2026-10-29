@@ -26,8 +26,40 @@ import type {
   Module as AstModule,
   Declaration as AstDecl,
   Block as AstBlock,
+  ResolvedRole,
   Span,
 } from '../../types.js';
+import { resolveDocument, siteAt } from '../resolution.js';
+import type { ResolutionSite, ResolvableDocument } from '../resolution.js';
+
+/** 引用角色 → 可作为其定义的声明角色；LOCAL 由下方参数 / Let 逻辑处理 */
+const DECL_ROLES: Readonly<Record<ResolvedRole, readonly ResolvedRole[]>> = {
+  TYPE: ['TYPE_DECL'],
+  TYPE_DECL: ['TYPE_DECL'],
+  FUNC_REF: ['FUNC_DECL'],
+  FUNC_DECL: ['FUNC_DECL'],
+  FIELD_REF: ['FIELD_DECL'],
+  FIELD_DECL: ['FIELD_DECL'],
+  MEMBER_REF: ['MEMBER_DECL'],
+  MEMBER_DECL: ['MEMBER_DECL'],
+  VALUE_REF: ['FUNC_DECL', 'MEMBER_DECL'],
+  LOCAL: [],
+};
+
+/**
+ * 基于名称解析结果（ADR 0051 Origin）的定义位置：光标处写法 → 规范名（及父名）→ 同名声明。
+ * 折叠命中（driver → Driver）、词汇本地化写法、点分路径中的字段段都由此跳到源码声明；
+ * 父名未知时只在声明唯一时跳转；只有词汇条目、没有源码声明时返回 undefined。
+ */
+function resolvedDeclarationSpan(doc: ResolvableDocument, pos: { line: number; character: number }, word: string): Span | undefined {
+  const res = resolveDocument(doc);
+  const site = siteAt(res, pos, word);
+  if (!site) return undefined;
+  const roles = DECL_ROLES[site.role];
+  const decls = res.sites.filter((s: ResolutionSite) => roles.includes(s.role) && s.canonical === site.canonical);
+  if (site.parent !== undefined) return decls.find((s) => s.parent === site.parent)?.span;
+  return decls.length === 1 ? decls[0]!.span : undefined;
+}
 
 /**
  * 注册 Definition 处理器
@@ -38,12 +70,13 @@ import type {
 export function registerDefinitionHandler(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined },
-  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any }
+  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any } & Omit<ResolvableDocument, 'ast'>
 ): void {
   connection.onDefinition(params => {
     const doc = documents.get(params.textDocument.uri);
     if (!doc) return null;
-    const { tokens: toks, ast } = getOrParse(doc);
+    const entry = getOrParse(doc);
+    const { tokens: toks, ast } = entry;
 
     // Build token index once for O(log n) lookups
     const tokenIndex = buildTokenIndex(toks);
@@ -53,6 +86,9 @@ export function registerDefinitionHandler(
       // Use optimized O(log n) token lookup
       const name = tokenNameAtOptimized(tokenIndex, params.position);
       if (!name) return null;
+
+      const resolved = resolvedDeclarationSpan(entry, params.position, name);
+      if (resolved) return toLocation(doc.uri, resolved);
 
       // Index top-level decls
       const declMap = new Map<string, Span | undefined>();

@@ -53,6 +53,28 @@ function resolveInputPath(legacyPath: string): string {
   return legacyPath;
 }
 
+/**
+ * `--update`（`pnpm test:golden -- --update`）：不一致时用实际输出改写 expected 文件，而不是报 FAIL。
+ * AST / Core 写入 prune 后的 JSON（与比较口径一致，不含 span/origin）；类型检查写入诊断行。
+ * 能力清单通道（TYPECHECK+CAPS）只是提示性比较，不参与更新。
+ */
+const UPDATE = process.argv.includes('--update');
+
+/** 不一致时：更新模式下改写 expected 并返回 true；否则返回 false，由调用方报 FAIL */
+function updateExpected(kind: string, inputPath: string, expectPath: string, text: string): boolean {
+  if (!UPDATE) return false;
+  fs.writeFileSync(expectPath, text);
+  console.log(`UPDATED: ${kind} ${inputPath} → ${expectPath}`);
+  return true;
+}
+
+const jsonText = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
+
+/** 读取 expected；更新模式下缺失的基线按 empty 处理，从而新建 */
+function readExpected(expectPath: string, empty: string): string {
+  return UPDATE && !fs.existsSync(expectPath) ? empty : fs.readFileSync(expectPath, 'utf8');
+}
+
 /** 与编译入口相同的前端：parse → R1 → lower → R2（ADR 0051），不带词汇。 */
 function coreOf(src: string): ReturnType<typeof resolveAndLower> {
   const { ast } = parse(lex(canonicalize(src)));
@@ -67,8 +89,9 @@ function runOneAst(inputPath: string, expectPath: string): void {
     const toks = lex(can);
     const { ast } = parse(toks);
     const actual = prune(ast);
-    const expected = prune(JSON.parse(fs.readFileSync(expectPath, 'utf8')));
+    const expected = prune(JSON.parse(readExpected(expectPath, 'null')));
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      if (updateExpected('AST', inputPath, expectPath, jsonText(actual))) return;
       console.error(`FAIL: AST ${inputPath}`);
       console.error('--- Actual ---');
       console.error(JSON.stringify(actual, null, 2));
@@ -94,8 +117,9 @@ async function runOneCore(inputPath: string, expectPath: string): Promise<void> 
       throw new Error(`名称解析失败：${diagnostics.map(d => `${d.code} ${d.message}`).join('; ')}`);
     }
     const actual = prune(core);
-    const expected = prune(JSON.parse(fs.readFileSync(expectPath, 'utf8')));
+    const expected = prune(JSON.parse(readExpected(expectPath, 'null')));
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      if (updateExpected('CORE', inputPath, expectPath, jsonText(actual))) return;
       console.error(`FAIL: CORE ${inputPath}`);
       console.error('--- Actual ---');
       console.error(JSON.stringify(actual, null, 2));
@@ -142,8 +166,7 @@ async function runOneTypecheck(inputPath: string, expectPath: string): Promise<v
     const diags = [...resolved.diagnostics, ...typecheckModule(resolved.core)];
     const expectedLines = Array.from(
       new Set(
-        fs
-          .readFileSync(expectPath, 'utf8')
+        readExpected(expectPath, '')
           .split(/\r?\n/)
           .map(s => s.trim())
           .filter(s => s.length > 0)
@@ -162,6 +185,8 @@ async function runOneTypecheck(inputPath: string, expectPath: string): Promise<v
       // Treat intentional negative tests as OK without failing the suite
       if (inputPath.includes('bad_generic.aster')) {
         console.log(`OK: TYPECHECK ${inputPath}`);
+      } else if (updateExpected('TYPECHECK', inputPath, expectPath, actual)) {
+        return;
       } else {
         console.error(`FAIL: TYPECHECK ${inputPath}`);
         console.error('--- Actual ---');

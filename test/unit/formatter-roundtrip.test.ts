@@ -19,7 +19,10 @@ import { EN_US } from '../../src/config/lexicons/en-US.js';
 import { ZH_CN } from '../../src/config/lexicons/zh-CN.js';
 import { DE_DE } from '../../src/config/lexicons/de-DE.js';
 import type { Lexicon } from '../../src/config/lexicons/types.js';
-import type { Core } from '../../src/types.js';
+import type { Core, Module } from '../../src/types.js';
+import { parseSource, resolveAndLower } from '../../src/compile-pipeline.js';
+import { buildVocabularyScopes } from '../../src/config/lexicons/identifiers/scopes.js';
+import { IdentifierKind } from '../../src/config/lexicons/identifiers/types.js';
 
 // 编译后从 dist/test/unit 运行：上溯 3 级到仓库根，夹具在 test/fixtures 下
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -56,6 +59,7 @@ const FIXTURES: ReadonlyArray<readonly [string, Lexicon]> = [
   ['credit-pilot-v3.en.aster', EN_US],
   ['credit-pilot-v3.zh.aster', ZH_CN],
   ['credit-pilot-v3.de.aster', DE_DE],
+  ['type-aliases.aster', EN_US],
 ];
 
 describe('格式化器往返（Core IR 不变）', () => {
@@ -65,6 +69,8 @@ describe('格式化器往返（Core IR 不变）', () => {
       assert.doesNotMatch(formatted, /,:/);
       assert.doesNotMatch(formatted, /(>=|<=|[<>*+]|\band)\(/);
       assert.equal(formatCNL(formatted), formatted, '格式化须幂等');
+      // Core IR 看不到只在 AST 中的构造（类型别名），再比对源码 AST
+      assert.deepEqual(astOf(formatted), astOf(readFileSync(join(fixtureDir, file), 'utf8'), lexicon));
     });
   }
 
@@ -130,5 +136,92 @@ describe('格式化器往返（Core IR 不变）', () => {
     assert.match(formatted, /Return a minus \(b minus c\)\./);
     assert.match(formatted, /Return a minus b minus c\./);
     assert.match(formatted, /Return not \(p and q\)\./);
+  });
+});
+
+/** 去掉位置信息后的源码 AST：Core IR 看不到只存在于 AST 的构造（如类型别名），须直接比对 AST */
+function astOf(source: string, lexicon: Lexicon = EN_US): unknown {
+  const result = parseWithLexicon(lex(canonicalize(source, lexicon), lexicon), lexicon);
+  const errors = result.diagnostics.filter((d) => d.severity === 'error');
+  if (errors.length > 0) throw new Error(errors.map((d) => d.message).join('\n') + '\n---\n' + source);
+  // span / nameSpan / variantSpans 等位置字段随排版变化，不属于源码语义
+  return JSON.parse(JSON.stringify(result.ast, (k, v) => (/^(span|origin)$|Spans?$/.test(k) ? undefined : v)));
+}
+
+// 格式化 → 重新解析 → 与原文 AST 比对（去掉 span）；同时检查幂等
+function assertSourceRoundTrip(source: string, lexicon: Lexicon = EN_US, opts: Parameters<typeof formatCNL>[1] = {}): string {
+  const formatted = formatCNL(source, { lexicon, ...opts });
+  assert.deepEqual(astOf(formatted), astOf(source, lexicon), formatted);
+  assert.equal(formatCNL(formatted, opts), formatted, '格式化须幂等');
+  return formatted;
+}
+
+describe('格式化器往返（源码 AST 不变，#246）', () => {
+  test('★类型别名在默认档与 normalize 档都保留', () => {
+    const src = 'Module m.\n\nType Score as Int.\n\nDefine D has p as Score.\n\nRule f given x as Score, produce Score:\n  Return x.\n';
+    for (const opts of [{}, { mode: 'normalize' as const }]) {
+      const formatted = assertSourceRoundTrip(src, EN_US, opts);
+      assert.match(formatted, /^Type Score as Int\.$/m);
+    }
+  });
+
+  test('多个别名按出现顺序前置，目标含 list / Maybe / Map / 注解', () => {
+    const src = ['Module m.', '', 'Rule f given x as Score, produce Score:', '  Return x.', '',
+      'Type Score as Int.', '', 'Type Tags as list of Text.', '', 'Type MaybeName as Text?.', '',
+      'Type Index as map Text to Int.', '', 'Type Secret as @pii(L2, email) Text.', ''].join('\n');
+    const formatted = assertSourceRoundTrip(src);
+    const aliases = formatted.split('\n').filter((l) => l.startsWith('Type '));
+    assert.deepEqual(aliases, ['Type Score as Int.', 'Type Tags as list of Text.', 'Type MaybeName as Text?.',
+      'Type Index as map Text to Int.', 'Type Secret as @pii(L2, email) Text.']);
+    assert.ok(formatted.indexOf('Type Secret') < formatted.indexOf('Rule f'), '别名统一前置于其余声明');
+  });
+
+  test('只有别名、没有模块头也保留', () => {
+    const formatted = assertSourceRoundTrip('Type Score as Int.\n');
+    assert.equal(formatted, 'Type Score as Int.\n');
+  });
+
+  test('de-DE 源文的别名以英文 CNL 输出且 AST 不变', () => {
+    const src = 'Modul m.\n\ntype Punktzahl as Ganzzahl.\n\nRegel f gegeben x als Punktzahl, liefert Punktzahl:\n  gib zurueck x plus 1.\n';
+    const formatted = assertSourceRoundTrip(src, DE_DE);
+    assert.match(formatted, /^Type Punktzahl as Int\.$/m);
+  });
+
+  test('★显式 of T 只在函数体中使用时格式化保留 `of T`（#248）', () => {
+    const src = 'Module m.\n\nRule f of T given x as Int, produce Int:\n  Let g be function with a as T, produce T:\n    Return a.\n  Return x.\n';
+    const formatted = assertSourceRoundTrip(src);
+    assert.match(formatted, /^Rule f of T given x as Int, produce Int:$/m);
+  });
+
+  test('隐式类型参数不输出 `of`', () => {
+    const formatted = assertSourceRoundTrip('Module m.\n\nRule f given x as Element, produce Element:\n  Return x.\n');
+    assert.match(formatted, /^Rule f given x as Element, produce Element:$/m);
+  });
+
+  test('与 preserveComments 同用时别名仍保留', () => {
+    const src = 'Module m.\n\n// 分数\nType Score as Int.\n\nRule f given x as Score, produce Score:\n  Return x.\n';
+    const formatted = formatCNL(src, { preserveComments: true, preserveStandaloneComments: true });
+    assert.match(formatted, /^Type Score as Int\.$/m);
+    assert.deepEqual(astOf(formatted), astOf(src));
+  });
+
+  test('★带词汇的 R1 诊断与函数类型参数在格式化前后一致（别名丢失会让 Score 变成 E800 或隐式类型参数）', () => {
+    const scopes = buildVocabularyScopes({
+      id: 't', name: 't', locale: 'en-US', version: '1',
+      structs: [{ canonical: 'Driver', localized: 'Fahrer', kind: IdentifierKind.STRUCT }],
+      fields: [], functions: [], enumValues: [],
+    });
+    const view = (source: string) => {
+      const r = resolveAndLower(parseSource(source).ast as Module, scopes);
+      return {
+        codes: r.diagnostics.map((d) => d.code),
+        typeParams: (r.core?.decls ?? []).filter((d): d is Core.Func => d.kind === 'Func').map((d) => d.typeParams),
+      };
+    };
+    for (const body of ['Define D has p as Score.\n\n', '']) {
+      const src = `Module m.\n\nType Score as Int.\n\n${body}Rule f given x as Score, produce Score:\n  Return x.\n`;
+      assert.deepEqual(view(formatCNL(src)), view(src));
+      assert.deepEqual(view(src), { codes: [], typeParams: [[]] });
+    }
   });
 });

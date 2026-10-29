@@ -24,6 +24,7 @@ import type {
   WorkflowStmt,
 } from './types.js';
 import { inferLambdaReturnType } from './parser/expr-stmt-parser.js';
+import { isExplicitTypeParam, signatureTypeNames } from './ast/type-nodes.js';
 
 /** IR 运算符名 → 英文 CNL 词形、优先级（数值越大结合越紧）与元数，与解析器 parseOr…parseMultiplication 各层一致 */
 interface OperatorInfo {
@@ -125,11 +126,6 @@ function stripSpans(t: Type): unknown {
   return JSON.parse(JSON.stringify(t, (k, v) => (k === 'span' ? undefined : v)));
 }
 
-/** 类型中是否出现显式类型变量（说明原文写了 `of T`，否则类型参数由推断得出） */
-function hasTypeVar(t: Type): boolean {
-  return JSON.stringify(t).includes('"kind":"TypeVar"');
-}
-
 export function printModule(m: Module): string {
   return new CnlPrinter().module(m);
 }
@@ -143,7 +139,9 @@ class CnlPrinter {
     if (m.name) head.push(`Module ${m.name}.`);
     // ADR 0046：档案声明紧跟模块头
     if (m.name && m.profile !== undefined) head.push(`Profile ${JSON.stringify(m.profile)}.`);
-    const decls = m.decls.map(d => this.decl(d));
+    // 类型别名不在 decls 中；统一前置于其余声明（别名可先用后定义，位置不影响语义）
+    const aliases = (m.typeAliasDecls ?? []).map(a => `Type ${a.name} as ${this.type(a.type)}.`);
+    const decls = [...aliases, ...m.decls.map(d => this.decl(d))];
     if (head.length === 0) return decls.join('\n\n');
     return decls.length > 0 ? `${head.join('\n')}\n\n${decls.join('\n\n')}` : head.join('\n');
   }
@@ -203,10 +201,11 @@ class CnlPrinter {
     return `${annotations}${head}:\n${this.block(f.body, 1)}`;
   }
 
-  /** 只有原文显式写了 `of T` 时类型里才有 TypeVar；推断出的类型参数不写，由解析器重新推断 */
+  /** 原文显式写了 `of T` 才输出（含只在函数体内使用的 T）；推断出的类型参数不写，由解析器重新推断 */
   explicitTypeParams(f: Func): string {
-    const explicit = f.params.some(p => hasTypeVar(p.type)) || hasTypeVar(f.retType);
-    return explicit && f.typeParams.length > 0 ? ` of ${f.typeParams.join(' and ')}` : '';
+    const names = signatureTypeNames(f);
+    const explicit = f.typeParams.some(name => isExplicitTypeParam(names, name));
+    return explicit ? ` of ${f.typeParams.join(' and ')}` : '';
   }
 
   /** `. It performs io and cpu [Http, Sql]`；只在有基础效果或显式能力时输出 */
@@ -399,7 +398,8 @@ class CnlPrinter {
       case 'TypeVar':
         return t.name;
       case 'Maybe':
-        return `${this.type(t.type)}?`;
+        // `(A) -> B?` 的 `?` 归返回类型，可空的函数类型须加括号
+        return t.type.kind === 'FuncType' ? `(${this.type(t.type)})?` : `${this.type(t.type)}?`;
       case 'Option':
         return `Option of ${this.type(t.type)}`;
       case 'Result':

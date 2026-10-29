@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Function types `(T1, T2) -> R` and parenthesized types `(T)`, matching the
+  aster-lang-core grammar; Core IR `{kind: 'FuncType', params, ret}` as in Java.
+- `Module.typeAliasDecls` keeps each `Type X as T.` target type and span next to
+  `Module.typeAliases`.
+- LSP: field completion at construction field positions (`T with |`), and
+  go-to-definition through resolved names (case-folded and vocabulary spellings,
+  dotted field segments).
+- `pnpm test:golden -- --update` rewrites mismatching golden baselines.
+
+### Fixed
+
+- The formatter (default and `normalize` modes) no longer drops type aliases.
+- An unterminated string no longer empties LSP pull diagnostics; the lexer
+  error is published instead.
+- E807 for type aliases points at the later declaration instead of 0:0 or the
+  earlier `Define`; E804 for an ambiguous implicit type parameter points at its
+  first use in the signature.
+- An explicit `of T` used only inside the function body is kept as a type
+  parameter (as in Java) and survives formatting.
+
+### Removed
+
+- The no-op `scripts/update-all-core-golden.js` and stale compiled
+  `scripts/{cli,emit-core,golden}.js` artifacts.
+
 ## 1.1.0
 
 ### Breaking

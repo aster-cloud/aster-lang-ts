@@ -1568,6 +1568,18 @@ Rule greet given name as Text, produce Text:
       assert.equal('typeAliases' in parseSource('Module a.b.\nDefine P has x as Int.\n'), false);
     });
 
+    it('Module.typeAliasDecls 保留别名目标类型与声明 span，与 typeAliases 同序同长（#246）', () => {
+      const m = parseSource('Module a.b.\nType Score as Int.\nType Tags as list of Text.\n');
+      const decls = m.typeAliasDecls ?? [];
+      assert.deepEqual(decls.map(d => d.name), m.typeAliases);
+      assert.equal(decls[0]!.type.kind, 'TypeName');
+      assert.equal((decls[0]!.type as { name: string }).name, 'Int');
+      assert.equal(decls[1]!.type.kind, 'List');
+      assert.deepEqual(decls[0]!.span, { start: { line: 2, col: 1 }, end: { line: 2, col: 19 } });
+      assert.equal(decls[1]!.span.start.line, 3);
+      assert.equal('typeAliasDecls' in parseSource('Module a.b.\nDefine P has x as Int.\n'), false);
+    });
+
     it('预扫描只认顶层声明头：非顶层位置的 type 不误登记（与函数调用不冲突）', () => {
       // 即便后续函数名与某些声明结构词相近，预扫描的顶层位置判定也不应把普通函数调用拦成构造。
       const r = parseWithDiag(

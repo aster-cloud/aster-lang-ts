@@ -53,10 +53,6 @@ const ALLOW_LIST: ReadonlyMap<string, string> = new Map([
   ['corpus/tier1-parity/vocab-zh/synonyms.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-parity/vocab-zh/type-equals-field.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-reject/vocab-e804-zh-member-vs-rule.aster', CJK_IDENTIFIERS],
-  [
-    'corpus/tier1-parity/vocab-de/type-alias-localized.aster',
-    '格式化器不输出类型别名声明（AST 不含 TypeAlias 节点），签名引用别名时重写后 Core IR 改变；待格式化器支持别名',
-  ],
 ]);
 
 function asterFiles(dir: string, out: string[] = []): string[] {

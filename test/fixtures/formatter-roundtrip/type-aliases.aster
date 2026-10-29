@@ -1,0 +1,17 @@
+Module demo.aliases.
+
+Define Applicant has name as Text, score as Score, tags as Tags.
+
+Rule approve given applicant as Applicant, produce Decision:
+  If applicant.score at least 600:
+    Return "approve".
+  Return "review".
+
+// 别名可以在使用之后定义
+Type Score as Int.
+
+Type Tags as list of Text.
+
+Type Decision as Text.
+
+Type Lookup as map Text to Score.

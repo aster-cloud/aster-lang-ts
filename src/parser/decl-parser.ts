@@ -740,17 +740,18 @@ export function collectTopLevelDecls(
       }
       // 解析类型别名: Type Score as Int.
       // 与 aster-lang-core 对齐：别名是纯语法/类型层构造，Core IR 不为其产出任何
-      // 声明（Java 的 CoreLowering 对 TypeAlias 静默跳过）。这里消费语法并把别名
-      // 名登记进 declaredTypes（供后续类型引用解析），但不向 AST 推入声明，从而两
-      // 引擎的 Core IR 保持一致（皆无 type-alias 节点）。
+      // 声明（Java 的 CoreLowering 对 TypeAlias 静默跳过）。这里把别名名登记进
+      // declaredTypes（供后续类型引用解析），别名声明（目标类型与 span）记入
+      // Module.typeAliasDecls 供格式化器与名称解析使用，但不向 decls 推入声明，
+      // 从而两引擎的 Core IR 保持一致（皆无 type-alias 节点）。
       else if (ctx.isKeyword(KW.TYPE)) {
-        ctx.nextWord(); // 消费 'Type'
+        const startTok = ctx.nextWord(); // 消费 'Type'
         const aliasName = tools.parseTypeIdent();
         tools.expectKeyword(KW.AS, `Expected ${kwq(ctx, KW.AS)} after type alias name`);
-        parseType(ctx, tools.error); // 消费别名目标类型（值被丢弃）
+        const target = parseType(ctx, tools.error);
         tools.expectDot();
         ctx.declaredTypes.add(aliasName);
-        ctx.typeAliases.push(aliasName);
+        ctx.typeAliasDecls.push({ name: aliasName, type: target, span: spanFromTokens(startTok, lastConsumedToken(ctx)) });
       }
       // 解析带声明级注解的函数: @entry Rule ...
       else if (ctx.at(TokenKind.AT)) {

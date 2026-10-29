@@ -10,6 +10,8 @@ import assert from 'node:assert/strict';
 import { CompletionItemKind } from 'vscode-languageserver/node.js';
 import { registerCompletionHandlers } from '../../../src/lsp/completion.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { EN_US } from '../../../src/config/lexicons/en-US.js';
+import { buildVocabularyScopes } from '../../../src/config/lexicons/identifiers/scopes.js';
 import { DECLS, docOf, documentsOf, getOrParseWith } from './resolution-fixture.js';
 import type { Doc } from './resolution-fixture.js';
 
@@ -34,6 +36,8 @@ function completeAfter(params: string, body: readonly string[], extra: readonly 
 }
 
 const labels = (items: Item[]) => items.map((i) => i.label).sort();
+
+const EMPTY_VOCAB = buildVocabularyScopes({ id: 'empty', name: 't', locale: 'en-US', version: '1', structs: [], fields: [], functions: [], enumValues: [] });
 
 describe('x. 之后的字段补全', () => {
   it('★参数 x 为 司机：只列 Driver 的字段，本地化写法优先、无本地化给规范名', () => {
@@ -73,6 +77,66 @@ describe('x. 之后的字段补全', () => {
     const items = labels(completeAt(doc, DECLS.length + 2, '  返回 y.'.length));
     assert.ok(!items.includes('alter'), `类型未知不应给字段：${items}`);
     assert.ok(items.includes('返回'), '应回到普通（关键词）补全');
+  });
+});
+
+describe('构造字段补全（`T with …` 的字段名位置，#248）', () => {
+  /** 在 DECLS 之后的函数体里写一行 line，光标放在 line 末尾（或 line 中 at 处） */
+  function completeInBody(line: string, at = line.length): Item[] {
+    const doc = docOf([...DECLS, '规则 f 给定 n 作为 整数，产出 整数：', line, '']);
+    return completeAt(doc, DECLS.length + 1, at);
+  }
+
+  it('★`司机 包含 ` 之后：列 Driver 的全部字段，本地化写法', () => {
+    const items = completeInBody('  令 y 定义为 司机 包含 ');
+    assert.deepEqual(labels(items), ['alter', 'name']);
+    assert.ok(items.every((i) => i.kind === CompletionItemKind.Field));
+    assert.equal(items.find((i) => i.label === 'alter')?.detail, 'age');
+  });
+
+  it('★已赋值的字段不再出现：`… alter 将 设为 n，` 之后只剩 name', () => {
+    assert.deepEqual(labels(completeInBody('  令 y 定义为 司机 包含 alter 将 设为 n，')), ['name']);
+  });
+
+  it('正在输入字段名前缀时同样补全（由客户端按前缀过滤）', () => {
+    assert.deepEqual(labels(completeInBody('  令 y 定义为 司机 包含 alter 将 设为 n，na')), ['name']);
+  });
+
+  it('值里有括号嵌套的构造：按外层类型补全', () => {
+    const items = labels(completeInBody('  令 h 定义为 车主 包含 fahrer 将 设为 (司机 包含 alter 将 设为 1，name 将 设为 "a")，'));
+    assert.deepEqual(items, ['jahre']);
+  });
+
+  it('光标在嵌套构造的字段位置：按内层类型补全', () => {
+    const line = '  令 h 定义为 车主 包含 fahrer 将 设为 (司机 包含 ';
+    assert.deepEqual(labels(completeInBody(line)), ['alter', 'name']);
+  });
+
+  it('不在构造里（函数调用实参的逗号之后）：不给字段，回到普通补全', () => {
+    const items = labels(completeInBody('  返回 检查(n，'));
+    assert.ok(!items.includes('alter') && !items.includes('jahre'), `不应给字段：${items}`);
+    assert.ok(items.includes('返回'));
+  });
+
+  it('值位置（`将 设为` 之后）不给字段', () => {
+    const items = labels(completeInBody('  令 y 定义为 司机 包含 alter 将 设为 '));
+    assert.ok(!items.includes('name'), `值位置不应给字段：${items}`);
+  });
+
+  it('类型不是源码 Data（未知类型）：不给字段', () => {
+    const items = labels(completeInBody('  令 y 定义为 未知 包含 '));
+    assert.ok(!items.includes('alter'), `${items}`);
+  });
+
+  it('en 文档：`Driver with age set to 1, ` 之后只剩 name', () => {
+    const lines = ['Module m.', '', 'Define Driver has age as Int, name as Text.', '', 'Rule f given n as Int, produce Driver:',
+      '  Return Driver with age set to n, ', ''];
+    const doc = docOf(lines);
+    let handler: ((params: unknown) => Item[]) | undefined;
+    const connection = { onCompletion: (fn: (params: unknown) => Item[]) => { handler = fn; }, onCompletionResolve() {}, onRequest() {} };
+    registerCompletionHandlers(connection as never, documentsOf(doc), getOrParseWith(EN_US, EMPTY_VOCAB) as never, () => undefined);
+    const items = handler!({ textDocument: { uri: doc.uri }, position: { line: 5, character: lines[5]!.length } });
+    assert.deepEqual(labels(items), ['name']);
   });
 });
 

@@ -213,8 +213,23 @@ export interface Module extends Base.BaseModule<Span, Declaration> {
    * 作为 TYPE_DECL；别名不产出 Core 声明（与 Java 一致）。无别名时省略。
    */
   readonly typeAliases?: readonly string[];
+  /**
+   * `Type X as …` 的完整声明（别名目标类型与声明 span），与 typeAliases 同序同长。
+   * 格式化器据此重新输出别名，名称解析据此把 E807 报在别名声明上。无别名时省略。
+   */
+  readonly typeAliasDecls?: readonly TypeAliasDecl[];
   /** R1 对 typeAliases 的 TYPE_DECL 解析结果，与 typeAliases 同长（解析前缺省） */
   readonly resolvedTypeAliases?: readonly Resolved[];
+}
+
+/** 类型别名声明 `Type Score as Int.`：只存在于 AST，不产出 Core 声明（与 Java 一致）。 */
+export interface TypeAliasDecl {
+  /** 别名原写法名 */
+  readonly name: string;
+  /** 别名目标类型 */
+  readonly type: Type;
+  /** 整条声明（`Type` 至句点）的位置 */
+  readonly span: Span;
 }
 
 export interface Import extends Base.BaseImport<Span> {

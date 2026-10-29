@@ -27,10 +27,13 @@ pnpm test
 Wenn du CNL-Quellen in Tests oder Beispielen aenderst:
 
 ```
-node dist/scripts/update-golden-ast.js
-node scripts/update-all-core-golden.js
+pnpm test:golden -- --update
 node scripts/generate-ai-training-data.mjs
 ```
+
+`--update` ueberschreibt alle abweichenden AST- / Core-IR- / Typecheck-Baselines unter `test/cnl/programs`
+mit der aktuellen Ausgabe (Core IR durchlaeuft dieselbe Namensaufloesung wie der Compiler). Pruefe vor dem
+Commit das `git diff`; danach muss ein normales `pnpm test:golden` durchlaufen.
 
 ## Docs-Updates
 

@@ -23,6 +23,10 @@ import type { Lexicon } from '../config/lexicons/types.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
 import { CONTROLS_REGISTRY } from '../governance/controls-registry.data.js';
 import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
+import { lookup } from '../config/lexicons/identifiers/scopes.js';
+import { foldKey, nfc } from '../config/lexicons/identifiers/casefold.js';
+import { SemanticTokenKind } from '../config/token-kind.js';
+import { EN_US } from '../config/lexicons/en-US.js';
 import type { Core } from '../types.js';
 import { resolveDocument } from './resolution.js';
 import type { ResolvableDocument } from './resolution.js';
@@ -77,15 +81,106 @@ export function fieldCompletions(entry: CompletionDocument, pos: { line: number;
   });
 }
 
-/** 按补全请求求字段补全；请求缺字段、文档不存在或不在 `x.` 之后时返回 null。 */
+const LAYOUT_KINDS: ReadonlySet<unknown> = new Set([TokenKind.NEWLINE, TokenKind.INDENT, TokenKind.DEDENT, TokenKind.EOF, TokenKind.COMMENT]);
+
+/** 该文档语言中某关键字的全部写法（规范拼写 + 别名，小写） */
+function keywordWords(lexicon: Lexicon, kind: SemanticTokenKind): ReadonlySet<string> {
+  const words = [lexicon.keywords[kind], ...(lexicon.aliases?.[kind] ?? [])].filter((w): w is string => !!w);
+  return new Set(words.map((w) => w.toLowerCase()));
+}
+
+const wordOf = (t: any): string => (typeof t?.value === 'string' ? t.value.toLowerCase() : '');
+const before = (a: Coord, b: Coord): boolean => a.line < b.line || (a.line === b.line && a.col <= b.col);
+
+/** 构造表达式中光标所在的字段名位置：构造的类型写法与此前已赋值的字段写法。 */
+export interface ConstructSite {
+  readonly typeName: string;
+  readonly assigned: readonly string[];
+}
+
+/**
+ * 光标是否位于构造的字段名位置：`T with |`、`…, |` 或 `… and |`（可带正在输入的名字前缀）。
+ * 自光标向前按括号深度回扫：同层遇到 `T with` 即为所在构造，途经的 `name set to` 记为已赋值字段；
+ * 遇到 `:`、行末句点（语句边界）或不配对的 `(` 说明不在构造中，返回 null。
+ * 构造未写完时解析器会丢弃它，所以这里只看 token，不依赖 AST。
+ */
+export function constructAt(tokens: readonly any[], pos: { line: number; character: number }, lexicon: Lexicon): ConstructSite | null {
+  const cursor = { line: pos.line + 1, col: pos.character + 1 };
+  const toks = tokens.filter((t) => !LAYOUT_KINDS.has(t?.kind) && t?.end && before(t.end, cursor));
+  const withWords = keywordWords(lexicon, SemanticTokenKind.TYPE_WITH);
+  const setWords = keywordWords(lexicon, SemanticTokenKind.SET);
+  const toWords = keywordWords(lexicon, SemanticTokenKind.TO_WORD);
+  const andWords = keywordWords(lexicon, SemanticTokenKind.AND);
+  let i = toks.length - 1;
+  if (isName(toks[i]) && sameCoord(toks[i].end, cursor)) i--; // 正在输入的字段名前缀
+  const head = toks[i];
+  if (!head || !(head.kind === TokenKind.COMMA || withWords.has(wordOf(head)) || andWords.has(wordOf(head)))) return null;
+  const assigned: string[] = [];
+  let depth = 0;
+  for (let j = i; j >= 0; j--) {
+    const t = toks[j];
+    if (t.kind === TokenKind.RPAREN) {
+      depth++;
+      continue;
+    }
+    if (t.kind === TokenKind.LPAREN) {
+      if (depth === 0) return null;
+      depth--;
+      continue;
+    }
+    if (depth > 0) continue;
+    const endsLine = t.kind === TokenKind.DOT && (toks[j + 1]?.start?.line ?? Infinity) > t.end.line;
+    if (t.kind === TokenKind.COLON || endsLine) return null;
+    if (withWords.has(wordOf(t)) && isName(toks[j - 1])) return { typeName: String(toks[j - 1].value), assigned };
+    if (toWords.has(wordOf(t)) && setWords.has(wordOf(toks[j - 1])) && isName(toks[j - 2])) assigned.push(String(toks[j - 2].value));
+  }
+  return null;
+}
+
+/** 构造类型写法 → 规范 struct 名：源码声明优先，其次词汇中唯一的精确词条，否则原写法。 */
+function structCanonical(res: ReturnType<typeof resolveDocument>, vocabulary: VocabularyScopes | undefined, written: string): string {
+  const w = nfc(written);
+  const declared = res.sites.find((s) => s.role === 'TYPE_DECL' && nfc(s.written) === w);
+  if (declared) return declared.canonical;
+  const canonicals = new Set((vocabulary ? lookup(vocabulary.types, w).exact : []).map((c) => c.canonical));
+  return canonicals.size === 1 ? [...canonicals][0]! : w;
+}
+
+/**
+ * 构造字段名位置的补全（`Driver with |`、`Driver with age set to 1, |`）：列该源码 Data 尚未赋值的字段，
+ * 写法与 `x.` 补全一致（词汇本地化优先）。字段取 R1 的 FIELD_DECL，语法不完整时同样可用。
+ */
+export function constructFieldCompletions(
+  entry: CompletionDocument,
+  pos: { line: number; character: number },
+  lexicon: Lexicon | undefined,
+): CompletionItem[] | null {
+  const site = constructAt(entry.tokens, pos, lexicon ?? EN_US);
+  if (!site) return null;
+  const res = resolveDocument(entry);
+  const struct = structCanonical(res, entry.vocabulary, site.typeName);
+  const fields = [...new Set(res.sites.filter((s) => s.role === 'FIELD_DECL' && s.parent === struct).map((s) => s.canonical))];
+  if (fields.length === 0) return null;
+  const taken = new Set(site.assigned.map(foldKey));
+  return fields.flatMap((canonical) => {
+    const label = localizedField(entry.vocabulary, struct, canonical);
+    if (taken.has(foldKey(label)) || taken.has(foldKey(canonical))) return [];
+    return [{ label, kind: CompletionItemKind.Field, ...(label === canonical ? {} : { detail: canonical }) }];
+  });
+}
+
+/** 按补全请求求字段补全（`x.` 之后或构造字段名位置）；请求缺字段、文档不存在或不在这两类位置时返回 null。 */
 function fieldCompletionsAt(
   documents: { get(uri: string): TextDocument | undefined },
   getOrParse: (doc: TextDocument) => CompletionDocument,
   params: { textDocument?: { uri: string }; position?: { line: number; character: number } } | undefined,
+  lexicon: Lexicon | undefined,
 ): CompletionItem[] | null {
   if (!params?.textDocument || !params.position) return null;
   const doc = documents.get(params.textDocument.uri);
-  return doc ? fieldCompletions(getOrParse(doc), params.position) : null;
+  if (!doc) return null;
+  const entry = getOrParse(doc);
+  return fieldCompletions(entry, params.position) ?? constructFieldCompletions(entry, params.position, lexicon);
 }
 
 const CONTROL_ARG = /@control\(\s*"([^"]*)$/;
@@ -313,8 +408,8 @@ export function registerCompletionHandlers(
     // 位于 @control(" 字符串内时只提供注册表键，不混入关键字补全
     const controls = controlCompletionsAt(documents, params);
     if (controls) return controls;
-    // `x.` 之后且接收者类型已知：只列该 struct 的字段
-    const fields = fieldCompletionsAt(documents, getOrParse, params);
+    // `x.` 之后且接收者类型已知、或位于构造的字段名位置：只列该 struct 的字段
+    const fields = fieldCompletionsAt(documents, getOrParse, params, getLexiconForDoc?.(params.textDocument.uri));
     if (fields) return fields;
     // ★关键词必须取自**该文档的 lexicon**，而不是硬编码的英文 KW。
     //
