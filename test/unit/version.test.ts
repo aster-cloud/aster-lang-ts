@@ -11,12 +11,17 @@ import assert from 'node:assert';
 import * as version from '../../src/version.js';
 import * as indexEntry from '../../src/index.js';
 import * as browserEntry from '../../src/browser.js';
+import * as casefoldTable from '../../src/config/lexicons/identifiers/casefold-table.generated.js';
 
 test('toolchainId 分量常量', async (t) => {
   await t.test('取值与 ADR 0051 一致', () => {
     assert.strictEqual(version.RESOLVER_VERSION, 1);
     assert.strictEqual(version.CASEFOLD_VERSION, '15.1');
     assert.strictEqual(version.CORE_IR_ABI, '1.1');
+  });
+
+  await t.test('CASEFOLD_VERSION 取自生成的折叠表', () => {
+    assert.strictEqual(version.CASEFOLD_VERSION, casefoldTable.CASEFOLD_VERSION);
   });
 
   await t.test('index 入口导出三个常量', () => {
