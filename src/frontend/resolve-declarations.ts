@@ -155,6 +155,14 @@ function checkDuplicates(r: Resolver, sites: readonly DeclaredSite[]): void {
   }
 }
 
+/** 按起始位置排序；无位置的声明（手工构造的 AST）排在最前，保持原有相对顺序 */
+function bySourceOrder(a: DeclaredSite, b: DeclaredSite): number {
+  const pa = a.span?.start;
+  const pb = b.span?.start;
+  if (!pa || !pb) return (pa ? 1 : 0) - (pb ? 1 : 0);
+  return pa.line - pb.line || pa.col - pb.col;
+}
+
 /** 预先解析全部声明名，建立模块符号表（含导入），供后续引用位置使用。 */
 interface DeclNames {
   readonly byDecl: Map<AST.Declaration, Resolved>;
@@ -167,13 +175,14 @@ function declareTopLevel(r: Resolver, module: AST.Module): DeclNames {
   const names: DeclNames = { byDecl: new Map(), aliases: [], fieldNames: new Map(), variantNames: new Map() };
   const typeSites: DeclaredSite[] = [];
   const funcSites: DeclaredSite[] = [];
-  for (const alias of module.typeAliases ?? []) {
-    // 类型别名只以名字存在（无 Core 声明），按 TYPE_DECL 解析并与 Data/Enum 同组查重
-    const resolved = declare(r, alias, 'TYPE_DECL', vocabTypes(r), undefined);
+  (module.typeAliases ?? []).forEach((alias, i) => {
+    // 类型别名无 Core 声明，按 TYPE_DECL 解析并与 Data/Enum 同组查重；span 取自 typeAliasDecls
+    const span = module.typeAliasDecls?.[i]?.span;
+    const resolved = declare(r, alias, 'TYPE_DECL', vocabTypes(r), span);
     names.aliases.push(resolved);
-    typeSites.push({ resolved, span: undefined });
+    typeSites.push({ resolved, span });
     r.table.types.push(refEntry(resolved, 'TYPE'));
-  }
+  });
   for (const d of module.decls) {
     if (d.kind === 'Import') continue;
     const isFunc = d.kind === 'Func';
@@ -183,7 +192,8 @@ function declareTopLevel(r: Resolver, module: AST.Module): DeclNames {
     names.byDecl.set(d, resolved);
     (isFunc ? funcSites : typeSites).push({ resolved, span: d.span });
   }
-  checkDuplicates(r, typeSites);
+  // 别名与 Data/Enum 分两处收集，按源码位置排序后查重，E807 才落在后出现的那一处
+  checkDuplicates(r, [...typeSites].sort(bySourceOrder));
   checkDuplicates(r, funcSites);
   for (const [d, resolved] of names.byDecl) registerDecl(r, names, d, resolved);
   return names;

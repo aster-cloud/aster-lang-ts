@@ -478,6 +478,27 @@ describe('resolveDeclarations（R1）', () => {
       const r = resolveDeclarations(m, ctxOf(DRIVER));
       assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
     });
+
+    it('★两个同名别名 → E807 落在后一个别名声明上（#248，旧实现为 0:0）', () => {
+      const m = parse('Module m.\n\nType Score as Int.\n\nType Score as Text.\n', EN_US);
+      const r = resolveDeclarations(m, ctxOf([]));
+      assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
+      assert.deepEqual(r.diagnostics[0]!.span, { start: { line: 5, col: 1 }, end: { line: 5, col: 20 } });
+    });
+
+    it('★Define 在前、同名别名在后 → E807 落在后出现的别名上，而非 Data', () => {
+      const m = parse('Module m.\n\nDefine Score has v as Int.\n\nType Score as Int.\n', EN_US);
+      const r = resolveDeclarations(m, ctxOf([]));
+      assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
+      assert.equal(r.diagnostics[0]!.span?.start.line, 5);
+    });
+
+    it('别名在前、同名 Define 在后 → E807 落在 Define 上', () => {
+      const m = parse('Module m.\n\nType Score as Int.\n\nDefine Score has v as Int.\n', EN_US);
+      const r = resolveDeclarations(m, ctxOf([]));
+      assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
+      assert.equal(r.diagnostics[0]!.span?.start.line, 5);
+    });
   });
 
   it('不修改输入 AST', () => {
