@@ -1,6 +1,6 @@
 /**
  * 名称解析诊断码 E800–E807 / W800–W801（ADR 0051）。
- * 校验码值、严重级别、英文文案约束与中文 fallback 覆盖。
+ * 校验码值、严重级别、英文文案约束与中文 overlay 覆盖（全语言覆盖见 diagnostic-overlays.test.ts）。
  */
 
 import { describe, it } from 'node:test';
@@ -90,7 +90,7 @@ describe('名称解析诊断码 E800–E807 / W800–W801', () => {
         assert.ok(!CJK.test(meta.help), `${code} help 含 CJK`);
       });
 
-      it('中文 fallback 的消息与帮助非空，消息占位符与英文一致', () => {
+      it('中文 overlay 的消息与帮助非空，消息占位符与英文一致', () => {
         const zhMsg = MESSAGES_BY_LEXICON['zh-CN']?.[code];
         const zhHelp = HELP_BY_LEXICON['zh-CN']?.[code];
         assert.ok(zhMsg && zhMsg.length > 0, `${code} 缺少 zh-CN 消息`);

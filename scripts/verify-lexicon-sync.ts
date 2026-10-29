@@ -21,6 +21,7 @@ import { DE_DE } from '../src/config/lexicons/de-DE.js';
 import { HI_IN } from '../src/config/lexicons/hi-IN.js';
 import type { Lexicon } from '../src/config/lexicons/types.js';
 import { checkFirstPartyCompleteness } from './lexicon-completeness.js';
+import { DIAGNOSTIC_OVERLAYS_OUTPUT, renderDiagnosticOverlays } from './generate-diagnostic-overlays.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -63,7 +64,7 @@ interface LexiconsJson {
   generatedAt: string;
   tokenKinds: string[];
   categories: Record<string, string[]>;
-  lexicons: Record<string, JavaLexicon>;
+  lexicons: Record<string, JavaLexicon & { overlays?: Record<string, unknown> }>;
   checksum: string;
 }
 
@@ -350,6 +351,32 @@ function main(): void {
 
     if (canonErrors === 0) {
       console.log(`  [OK] ${localeId}: 规范化配置一致`);
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  // 6. 诊断译文表与语言包 overlay 一致
+  //    译文唯一来源是语言包的 diagnosticMessages / diagnosticHelp overlay；
+  //    提交的生成物必须等于由本 lexicons.json 重新渲染的结果。
+  // ──────────────────────────────────────────────
+
+  console.log('\n─── 6. 诊断译文表同步 ───');
+
+  const generatedPath = resolve(__dirname, '../..', DIAGNOSTIC_OVERLAYS_OUTPUT);
+  let expectedOverlays: string | undefined;
+  try {
+    expectedOverlays = renderDiagnosticOverlays(json);
+  } catch (e) {
+    console.error(`  [ERROR] lexicons.json 中的诊断 overlay 不合法：${(e as Error).message}`);
+    errors++;
+  }
+  if (expectedOverlays !== undefined) {
+    if (readFileSync(generatedPath, 'utf-8') === expectedOverlays) {
+      console.log(`  [OK] ${DIAGNOSTIC_OVERLAYS_OUTPUT} 与语言包 overlay 一致`);
+    } else {
+      console.error(`  [ERROR] ${DIAGNOSTIC_OVERLAYS_OUTPUT} 与 lexicons.json 中的诊断 overlay 不一致，`
+        + '请运行 npx tsx scripts/generate-diagnostic-overlays.ts <lexicons.json> 重新生成');
+      errors++;
     }
   }
 

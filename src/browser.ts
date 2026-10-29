@@ -142,6 +142,7 @@ import { parse } from './parser.js';
 import type { Core as CoreTypes, Token, Module as AstModule, TypecheckDiagnostic } from './types.js';
 import type { Lexicon } from './config/lexicons/types.js';
 import { typecheckBrowser as _typecheckBrowser } from './typecheck/browser.js';
+import { localizeDiagnostics } from './typecheck/diagnostics.js';
 import type { ControlRegistry } from './governance/controls.js';
 import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
 import { attachTypeInferenceRules } from './config/lexicons/type-inference-rules.js';
@@ -277,7 +278,7 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       result.parseErrors = parseErrors;
     }
     if (resolved.diagnostics.length > 0) {
-      result.resolutionDiagnostics = [...resolved.diagnostics];
+      result.resolutionDiagnostics = localizeDiagnostics(resolved.diagnostics, lexicon);
     }
     if (options?.includeIntermediates) {
       result.tokens = tokens;
@@ -470,7 +471,7 @@ export function compileAndTypecheck(
   }
   if (options?.controls) typecheckOptions.controls = options.controls;
 
-  const typeErrors = _typecheckBrowser(compileResult.core, typecheckOptions);
+  const typeErrors = localizeDiagnostics(_typecheckBrowser(compileResult.core, typecheckOptions), options?.lexicon);
 
   return {
     ...compileResult,
