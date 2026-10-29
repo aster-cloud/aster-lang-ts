@@ -24,9 +24,9 @@ pnpm install @aster-cloud/aster-lang-ts
 ## Quick Start
 
 ```typescript
-import { canonicalize, lex, parse, lowerModule } from '@aster-cloud/aster-lang-ts';
+import { parseSource, resolveAndLowerChecked } from '@aster-cloud/aster-lang-ts';
 
-// Compile pipeline
+// Compile pipeline: canonicalize → lex → parse → name resolution (R1) → lower → name resolution (R2)
 const source = `
 Module greeting.
 
@@ -34,11 +34,15 @@ Rule greet given name, produce:
   Return Text.concat("Hello, ", name).
 `;
 
-const canonical = canonicalize(source);
-const tokens = lex(canonical);
-const ast = parse(tokens);
-const core = lowerModule(ast);
+const { ast } = parseSource(source);
+// Throws NameResolutionError (E8xx diagnostics) instead of returning Core with unresolved names
+const { core, diagnostics } = resolveAndLowerChecked(ast);
 ```
+
+Raw lowering (`lowerModule`) and the unchecked `resolveAndLower` are internal and not exported:
+every public path to Core IR runs name resolution and refuses to emit IR on resolution errors.
+Use `compile` / `compileAndTypecheck` from `@aster-cloud/aster-lang-ts/browser`,
+`resolveAndLowerChecked`, or `resolvePolicyTypes`.
 
 ## Multi-Language Support
 
@@ -130,7 +134,9 @@ src/
 | `canonicalize(source, lexicon?)` | Normalize CNL source |
 | `lex(source, lexicon?)` | Tokenize source |
 | `parse(tokens)` | Parse to AST |
-| `lowerModule(ast)` | Convert AST to Core IR |
+| `parseSource(source, lexicon?, scopes?)` | Canonicalize, tokenize and parse |
+| `resolveAndLowerChecked(ast, scopes?)` | Name resolution + lowering to Core IR; throws `NameResolutionError` on E8xx |
+| `resolvePolicyTypes(source, options)` | Resolved Data/Enum declarations with original spellings |
 | `typecheck(module)` | Type check module |
 
 ### Lexicon Exports

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { canonicalize, lex, parse, resolveAndLower } from '../src/index.js';
+import { canonicalize, lex, parse } from '../src/index.js';
+import { resolveAndLower } from '../src/compile-pipeline.js';
 import { loadCorpus } from './corpus-loader.js';
 
 // ★ASTER_LANG_TEST_PATH 已设置时必须从该 checkout 读语料并验证确实生效；

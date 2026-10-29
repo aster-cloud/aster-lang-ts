@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as fc from 'fast-check';
-import { canonicalize, lex, parse, lowerModule, TokenKind } from '../../src/index.js';
+import { canonicalize, lex, parse, TokenKind } from '../../src/index.js';
+import { lowerModule } from '../../src/lower_to_core.js';
 import { findAmbiguousInteropCalls, computeDisambiguationEdits, findDottedCallRangeAt, describeDottedCallAt, buildDescriptorPreview, returnTypeTextFromDesc } from '../../src/lsp/analysis.js';
 
 // Property: Canonicalizer should be idempotent

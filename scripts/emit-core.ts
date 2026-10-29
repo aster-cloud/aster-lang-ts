@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import { parseSource, resolveAndLower } from '../src/index.js';
+import { parseSource, resolveAndLower } from '../src/compile-pipeline.js';
 import { DiagnosticError, formatDiagnostic } from '../src/diagnostics/diagnostics.js';
 
 function main(): void {

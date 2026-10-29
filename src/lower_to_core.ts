@@ -267,22 +267,8 @@ function lowerConstraints(
  * @param ast - AST Module 节点（通过 parser.parse 生成）
  * @returns Core IR Module 节点，包含所有声明的规范化表示
  *
- * @example
- * ```typescript
- * import { canonicalize, lex, parse, lowerModule } from '@aster-cloud/aster-lang-ts';
- *
- * const src = `Module app.
- * Rule greet, produce Text:
- *   Return "Hello".
- * `;
- *
- * const ast = parse(lex(canonicalize(src)));
- * const core = lowerModule(ast);
- *
- * console.log(core.kind);  // "Module"
- * console.log(core.name);  // "app"
- * // Core IR 是更简洁的表示，适合类型检查和代码生成
- * ```
+ * @internal 不从包入口导出：未经 R1 的 AST 降级后名字保持原写法（可能是本地化名）。
+ * 外部调用方使用 resolveAndLowerChecked（compile-pipeline）或 browser `compile`。
  */
 export function lowerModule(ast: Module): import('./types.js').Core.Module {
   const decls = ast.decls.map(lowerDecl);

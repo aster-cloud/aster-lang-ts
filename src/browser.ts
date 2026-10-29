@@ -31,7 +31,6 @@
 export { canonicalize } from './frontend/canonicalizer.js';
 export { lex } from './frontend/lexer.js';
 export { parse } from './parser.js';
-export { lowerModule } from './lower_to_core.js';
 
 // Keyword translation (multi-language CNL support)
 export {
@@ -129,7 +128,8 @@ export type {
   ResolvePolicyTypesResult,
   TypeRef,
 } from './frontend/resolve-policy-types.js';
-export { parseSource, resolveAndLower, resolveAndLowerChecked, NameResolutionError } from './compile-pipeline.js';
+// 只导出带检查的出口：原始 lower 与不抛错的 resolveAndLower 为内部实现（可能产出含本地化名的 Core）
+export { parseSource, resolveAndLowerChecked, NameResolutionError } from './compile-pipeline.js';
 export type { ParsedSource, ResolvedCore } from './compile-pipeline.js';
 
 // ============================================================================

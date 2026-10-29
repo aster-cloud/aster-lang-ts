@@ -13,15 +13,16 @@
  *
  * @example 基础用法
  * ```typescript
- * import { canonicalize, lex, parse, lowerModule } from '@aster-cloud/aster-lang-ts';
+ * import { parseSource, resolveAndLowerChecked } from '@aster-cloud/aster-lang-ts';
  *
  * const src = `Module app. Rule id, produce Int: Return 1.`;
- * const canonical = canonicalize(src);  // 规范化源代码
- * const tokens = lex(canonical);         // 词法分析
- * const ast = parse(tokens);             // 语法分析
- * const core = lowerModule(ast);         // 降级到 Core IR
+ * const { ast } = parseSource(src);                   // 规范化 + 词法 + 语法分析
+ * const { core } = resolveAndLowerChecked(ast);       // R1 → lower → R2；任一 E8xx 抛出 NameResolutionError
  * console.log(core);
  * ```
+ *
+ * 公开 API 只提供带名称解析检查的出口（resolveAndLowerChecked / compile / resolvePolicyTypes）：
+ * 未经 R1/R2 的原始 lower 与不抛错的 resolveAndLower 是内部实现，可能产出含本地化名的 Core。
  */
 
 // 编译器管道函数
@@ -29,10 +30,9 @@ export { canonicalize } from './frontend/canonicalizer.js';
 export { lex } from './frontend/lexer.js';
 export { parse, parseWithLexicon } from './parser.js';
 export type { ParseResult } from './parser.js';
-export { lowerModule } from './lower_to_core.js';
 
-// 名称解析接入后的前端（ADR 0051）：parse → R1 → lower → R2
-export { parseSource, resolveAndLower, resolveAndLowerChecked, NameResolutionError } from './compile-pipeline.js';
+// 名称解析接入后的前端（ADR 0051）：parse → R1 → lower → R2；只导出带检查的出口
+export { parseSource, resolveAndLowerChecked, NameResolutionError } from './compile-pipeline.js';
 export type { ParsedSource, ResolvedCore } from './compile-pipeline.js';
 
 // 领域词汇按位置解析（ADR 0051）

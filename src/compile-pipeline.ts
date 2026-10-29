@@ -71,6 +71,8 @@ function contextOf(scopes: VocabularyScopes | undefined): ResolutionContext {
 /**
  * R1 → lower → R2（ADR 0051 §4）。任一 error 级诊断时调用方不得发出 core。
  * observer 只读接收 R2 的解析位置与静态类型（LSP 悬停 / 补全用）。
+ *
+ * @internal 不从包入口导出：返回值在有 E8xx 时仍含 core，外部调用方应使用 resolveAndLowerChecked。
  */
 export function resolveAndLower(ast: AstModule, scopes?: VocabularyScopes, observer?: TypedReferenceObserver): ResolvedCore {
   const ctx = contextOf(scopes);
