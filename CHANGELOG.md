@@ -1,33 +1,44 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
 
-### Added
+### 新增
 
-- Function types `(T1, T2) -> R` and parenthesized types `(T)`, matching the
-  aster-lang-core grammar; Core IR `{kind: 'FuncType', params, ret}` as in Java.
-- `Module.typeAliasDecls` keeps each `Type X as T.` target type and span next to
-  `Module.typeAliases`.
-- LSP: field completion at construction field positions (`T with |`), and
-  go-to-definition through resolved names (case-folded and vocabulary spellings,
-  dotted field segments).
-- `pnpm test:golden -- --update` rewrites mismatching golden baselines.
+- 函数类型语法 `(T1, T2) -> R` 与括号类型 `(T)`，与 aster-lang-core 文法逐条对齐；参数可带
+  `@pii` 注解，`?` 作用于返回类型，可空函数类型写作 `((A) -> B)?`。Core IR 新增
+  `{kind: 'FuncType', params, ret}`（不带 effects），与 Java `CoreModel.FuncType` 一致（#247）。
+- `Module.typeAliasDecls`：保留每条 `Type X as T.` 的目标类型与位置，与 `Module.typeAliases`
+  同序同长；没有别名时省略，既有 AST JSON 不变。别名仍不进入 Core IR（#246）。
+- 诊断随语言包本地化：各语言的 message / help 以语言包 overlay 为唯一来源（zh-CN、de-DE 来自
+  aster-lang-locales，hi-IN 来自 aster-lang-hi），由 `pnpm run generate:diagnostic-overlays` 从 core
+  导出的 lexicons.json 生成 `src/config/lexicons/diagnostic-overlays.generated.ts`，三种语言都覆盖全部
+  95 个错误码。新增 `localizeDiagnostics(diagnostics, lexicon)`，已接入 `compile` 的
+  `resolutionDiagnostics`、`compileAndTypecheck` 的 `typeErrors` 与 LSP 的名称解析诊断
+  （aster-lang-locales#107）。
+- LSP：构造字段名位置（`T with |`、`…, |`、`… and |`）补全尚未赋值的字段；按名称解析结果跳转到
+  定义，覆盖大小写折叠写法、词汇本地化写法、点分路径中的字段段与枚举成员（#248）。
+- `pnpm test:golden -- --update` 改写不一致的 golden 基线，缺失的基线直接新建（#248）。
 
-### Fixed
+### 修复
 
-- The formatter (default and `normalize` modes) no longer drops type aliases.
-- An unterminated string no longer empties LSP pull diagnostics; the lexer
-  error is published instead.
-- E807 for type aliases points at the later declaration instead of 0:0 or the
-  earlier `Define`; E804 for an ambiguous implicit type parameter points at its
-  first use in the signature.
-- An explicit `of T` used only inside the function body is kept as a type
-  parameter (as in Java) and survives formatting.
+- 格式化器在默认档与 `normalize` 档下不再丢弃 `Type X as T.`。此前带词汇时引用别名处会报 E800，
+  不带词汇时别名被当成隐式类型参数，函数被静默改成泛型（#246）。
+- 未闭合字符串不再让 LSP pull 诊断变空，改为发布这条词法诊断（#248）。
+- 类型别名的 E807 报在后出现的声明上，不再是 0:0 或先出现的 `Define`；隐式类型参数歧义的 E804
+  报在签名中该名字的第一处类型写法上，不再覆盖整个函数（#248）。
+- 删除内联的 zh 诊断副本（29 条 message / 78 条 help，已与 locales 漂移），de、hi 此前没有译文
+  （aster-lang-locales#107）。
 
-### Removed
+### 行为变化
 
-- The no-op `scripts/update-all-core-golden.js` and stale compiled
-  `scripts/{cli,emit-core,golden}.js` artifacts.
+- **Core IR**：只在函数体中出现的显式 `of T` 保留为类型参数，`typeParams` 由 `[]` 变为 `["T"]`，
+  与 Java 一致；格式化器按同一规则输出 `of T`（#248）。按裁决 R54，`RESOLVER_VERSION` 不递增，仍为 1。
+- **Core IR（Java 侧，core 1.0.37）**：workflow 的 `retry`、`timeout` 与 step 的 `compensate` 未设置时
+  Java 引擎改为省略键，不再输出 `null`，与本包一直以来的输出一致（aster-lang-core#219）。
+- 传入非 en-US lexicon 时，`compile` / `compileAndTypecheck` 与 LSP 名称解析诊断的 message / help
+  输出该语言译文（此前为英文）；参数不足以填满译文模板时保留原文。zh 文案改以 aster-lang-locales 为准，
+  部分措辞与 1.1.0 不同。
+- 删除无效的 `scripts/update-all-core-golden.js` 与陈旧的编译产物 `scripts/{cli,emit-core,golden}.js`。
 
 ## 1.1.0
 
