@@ -37,17 +37,11 @@ interface VocabularyEntry {
 }
 
 /**
- * 构建注册条目。按位置解析要求字段与枚举成员都有所属类型（ADR 0051 §7、§14.3），
- * 没有 parent 的字段 / 枚举成员无法定位作用域，不进入 scopes（仍保留在 vocabulary 与展示索引中）。
- * 内置词汇（由 Java 真源生成）的枚举成员目前都没有 parent。
+ * 构建注册条目。注册前已经 validateVocabulary 校验（字段与枚举成员都有所属类型，ADR 0051 §7、§14.3），
+ * 故词汇整体进入按位置解析的作用域。
  */
 function makeEntry(vocabulary: DomainVocabulary): VocabularyEntry {
-  const scoped: DomainVocabulary = {
-    ...vocabulary,
-    fields: vocabulary.fields.filter((m) => m.parent !== undefined),
-    enumValues: (vocabulary.enumValues ?? []).filter((m) => m.parent !== undefined),
-  };
-  return { vocabulary, index: buildIdentifierIndex(vocabulary), scopes: buildVocabularyScopes(scoped) };
+  return { vocabulary, index: buildIdentifierIndex(vocabulary), scopes: buildVocabularyScopes(vocabulary) };
 }
 
 /**
@@ -104,8 +98,8 @@ class VocabularyRegistry {
    *
    * @param tenantId - 租户标识符
    * @param vocabulary - 领域词汇表
-   * @throws 如果词汇表验证失败，或 buildVocabularyScopes 拒绝该词汇
-   *   （如字面量宏触发词对应多个内容 literal_conflict）；无 parent 的字段 / 枚举成员不会导致失败
+   * @throws 如果词汇表验证失败（含字段 / 枚举成员缺 parent、同角色同作用域写法冲突），
+   *   或 buildVocabularyScopes 拒绝该词汇（如字面量宏触发词对应多个内容 literal_conflict）
    */
   registerCustom(tenantId: string, vocabulary: DomainVocabulary): void {
     const validation = validateVocabulary(vocabulary);

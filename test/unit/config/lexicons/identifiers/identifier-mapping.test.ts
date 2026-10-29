@@ -18,7 +18,7 @@ import {
   INSURANCE_AUTO_ZH_CN,
   FINANCE_LOAN_ZH_CN,
 } from '../../../../../src/config/lexicons/identifiers/index.js';
-import type { VocabularyScopes } from '../../../../../src/config/lexicons/identifiers/index.js';
+import type { IdentifierMapping, VocabularyScopes } from '../../../../../src/config/lexicons/identifiers/index.js';
 
 /** 写法在类型 / 函数 / 各 struct 字段作用域中精确命中的规范名（按位置解析的候选集合）。 */
 function canonicalsOf(scopes: VocabularyScopes, written: string): string[] {
@@ -71,6 +71,67 @@ describe('标识符映射模块', () => {
       const result = validateVocabulary(invalidVocab);
       assert.strictEqual(result.valid, false);
       assert.ok(result.errors.some(e => e.includes('无效名称')));
+    });
+  });
+
+  describe('词汇表验证：按角色与作用域判定冲突（ADR 0051）', () => {
+    const base = { id: 't', name: 'T', locale: 'de-DE', version: '1', structs: [], functions: [] };
+    const field = (canonical: string, localized: string, parent?: string): IdentifierMapping => ({
+      canonical, localized, kind: IdentifierKind.FIELD, ...(parent ? { parent } : {}),
+    });
+
+    it('不同父类型下的同规范名字段合法，registerCustom 不拒绝', () => {
+      const vocab = { ...base, fields: [field('age', 'alter', 'Driver'), field('age', 'alter', 'Car')] };
+      const result = validateVocabulary(vocab);
+      assert.deepStrictEqual(result.errors, []);
+      assert.strictEqual(result.valid, true);
+      vocabularyRegistry.registerCustom('tenant-scope', vocab);
+      const scopes = vocabularyRegistry.getWithCustom('tenant-scope', 't', 'de-DE');
+      assert.deepStrictEqual([...scopes!.fields.keys()].sort(), ['Car', 'Driver']);
+    });
+
+    it('同义词（同规范名多写法）与仅大小写不同的写法合法', () => {
+      const vocab = {
+        ...base,
+        structs: [
+          { canonical: 'Level', localized: 'Stufe', kind: IdentifierKind.STRUCT },
+          { canonical: 'Grade', localized: 'STUFE', kind: IdentifierKind.STRUCT },
+        ],
+        fields: [field('level', 'stufe', 'Driver'), field('level', 'niveau', 'Driver')],
+      };
+      assert.deepStrictEqual(validateVocabulary(vocab).errors, []);
+    });
+
+    it('同角色同作用域内写法完全相同但规范名不同 → error', () => {
+      const vocab = { ...base, fields: [field('age', 'alter', 'Driver'), field('years', 'alter', 'Driver')] };
+      const result = validateVocabulary(vocab);
+      assert.strictEqual(result.valid, false);
+      assert.ok(result.errors.some((e) => /写法 "alter" 在 fields\[Driver\] 中对应多个规范名/.test(e)), result.errors.join('\n'));
+      assert.throws(() => vocabularyRegistry.registerCustom('tenant-scope', vocab));
+    });
+
+    it('NFC 等价写法视为相同写法', () => {
+      const vocab = {
+        ...base,
+        functions: [
+          { canonical: 'approve', localized: 'café', kind: IdentifierKind.FUNCTION },
+          { canonical: 'reject', localized: 'cafe\u0301', kind: IdentifierKind.FUNCTION },
+        ],
+        fields: [],
+      };
+      assert.strictEqual(validateVocabulary(vocab).valid, false);
+    });
+
+    it('字段与枚举成员缺 parent → error', () => {
+      const vocab = {
+        ...base,
+        fields: [field('age', 'alter')],
+        enumValues: [{ canonical: 'High', localized: 'Hoch', kind: IdentifierKind.ENUM_VALUE }],
+      };
+      const result = validateVocabulary(vocab);
+      assert.strictEqual(result.valid, false);
+      assert.ok(result.errors.some((e) => e.includes('字段 "alter" 没有指定父结构体')));
+      assert.ok(result.errors.some((e) => e.includes('枚举成员 "Hoch" 没有指定父枚举')));
     });
   });
 
@@ -228,28 +289,27 @@ describe('标识符映射模块', () => {
   });
 
   describe('注册中心的词汇作用域', () => {
-    it('没有所属类型的字段 / 枚举成员不进入作用域，注册本身不失败', () => {
-      vocabularyRegistry.registerCustom('tenant-scope', {
-        id: 'scope.test',
-        name: '作用域',
-        locale: 'zh-CN',
-        version: '1.0.0',
-        structs: [{ canonical: 'Level', localized: '等级', kind: IdentifierKind.STRUCT }],
-        fields: [
-          { canonical: 'score', localized: '分数', kind: IdentifierKind.FIELD, parent: 'Level' },
-          { canonical: 'orphan', localized: '孤立', kind: IdentifierKind.FIELD },
-        ],
-        functions: [],
-        enumValues: [
-          { canonical: 'High', localized: '高', kind: IdentifierKind.ENUM_VALUE, parent: 'Level' },
-          { canonical: 'Low', localized: '低', kind: IdentifierKind.ENUM_VALUE },
-        ],
-      });
-      const scopes = vocabularyRegistry.getWithCustom('tenant-scope', 'scope.test', 'zh-CN')!;
-      assert.deepStrictEqual([...scopes.fields.keys()], ['Level']);
-      assert.deepStrictEqual(canonicalsOf(scopes, '孤立'), []);
-      assert.deepStrictEqual([...scopes.enumMembers.keys()], ['Level']);
-      assert.strictEqual(lookup(scopes.enumMembers.get('Level')!, '高').exact[0]?.canonical, 'High');
+    it('没有所属类型的字段 / 枚举成员：registerCustom 拒绝（ADR 0051 §14 第 3 条）', () => {
+      assert.throws(
+        () => vocabularyRegistry.registerCustom('tenant-scope', {
+          id: 'scope.test',
+          name: '作用域',
+          locale: 'zh-CN',
+          version: '1.0.0',
+          structs: [{ canonical: 'Level', localized: '等级', kind: IdentifierKind.STRUCT }],
+          fields: [
+            { canonical: 'score', localized: '分数', kind: IdentifierKind.FIELD, parent: 'Level' },
+            { canonical: 'orphan', localized: '孤立', kind: IdentifierKind.FIELD },
+          ],
+          functions: [],
+          enumValues: [
+            { canonical: 'High', localized: '高', kind: IdentifierKind.ENUM_VALUE, parent: 'Level' },
+            { canonical: 'Low', localized: '低', kind: IdentifierKind.ENUM_VALUE },
+          ],
+        }),
+        /字段 "孤立" 没有指定父结构体[\s\S]*枚举成员 "低" 没有指定父枚举/,
+      );
+      assert.strictEqual(vocabularyRegistry.getWithCustom('tenant-scope', 'scope.test', 'zh-CN'), undefined);
     });
 
     it('内置词汇的枚举成员归属到各自的枚举（14 个成员）', () => {
