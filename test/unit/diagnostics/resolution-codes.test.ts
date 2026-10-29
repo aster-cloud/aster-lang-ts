@@ -6,40 +6,55 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ErrorCode, ERROR_MESSAGES, ERROR_METADATA } from '../../../src/diagnostics/error_codes.js';
 import { MESSAGES_BY_LEXICON, HELP_BY_LEXICON } from '../../../src/config/lexicons/diagnostic-messages.js';
 
 interface Expected {
   readonly code: string;
+  /** shared/error_codes.json 的键名，须与 ErrorCode 枚举键一致 */
+  readonly name: string;
   readonly severity: 'error' | 'warning';
+  /** 英文与中文文案都必须引用、且只引用这些占位符（resolve-*.ts 按此传参） */
+  readonly placeholders: readonly string[];
 }
 
+const NAME_ROLE = ['role', 'written'];
+const AMBIGUOUS = ['candidates', 'role', 'written'];
+
 const EXPECTED: ReadonlyArray<Expected> = [
-  { code: 'E800', severity: 'error' },
-  { code: 'E801', severity: 'error' },
-  { code: 'E802', severity: 'error' },
-  { code: 'E803', severity: 'error' },
-  { code: 'E804', severity: 'error' },
-  { code: 'E805', severity: 'error' },
-  { code: 'E806', severity: 'error' },
-  { code: 'E807', severity: 'error' },
-  { code: 'W800', severity: 'warning' },
-  { code: 'W801', severity: 'warning' },
+  { code: 'E800', name: 'UNRESOLVED_TYPE', severity: 'error', placeholders: NAME_ROLE },
+  { code: 'E801', name: 'UNRESOLVED_FIELD', severity: 'error', placeholders: NAME_ROLE },
+  { code: 'E802', name: 'UNRESOLVED_NAME', severity: 'error', placeholders: NAME_ROLE },
+  { code: 'E803', name: 'UNRESOLVED_PATTERN', severity: 'error', placeholders: NAME_ROLE },
+  { code: 'E804', name: 'AMBIGUOUS_NAME', severity: 'error', placeholders: AMBIGUOUS },
+  { code: 'E805', name: 'AMBIGUOUS_FIELD', severity: 'error', placeholders: AMBIGUOUS },
+  { code: 'E806', name: 'AMBIGUOUS_PATTERN', severity: 'error', placeholders: AMBIGUOUS },
+  { code: 'E807', name: 'DUPLICATE_DECLARATION', severity: 'error', placeholders: NAME_ROLE },
+  { code: 'W800', name: 'SHADOWED_VOCABULARY', severity: 'warning', placeholders: NAME_ROLE },
+  { code: 'W801', name: 'RESOLVED_WITHOUT_TYPE', severity: 'warning', placeholders: NAME_ROLE },
 ];
+
+/** 文案中出现的占位符名（去重、排序） */
+function placeholdersOf(text: string): string[] {
+  return [...new Set([...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!))].sort();
+}
 
 // Han、平假名/片假名、谚文
 const CJK = /[぀-ヿ㐀-䶿一-鿿가-힯豈-﫿]/;
 
-const table = JSON.parse(
-  readFileSync(resolve(process.cwd(), 'shared', 'error_codes.json'), 'utf8'),
-) as Record<string, { code: string }>;
+// 按测试文件自身位置定位仓库根（dist/test/unit/diagnostics → 上溯 4 级），不依赖 cwd
+const repoFile = (rel: string): string => readFileSync(fileURLToPath(new URL(`../../../../${rel}`, import.meta.url)), 'utf8');
 
-function nameOf(code: string): string {
-  const hit = Object.entries(table).find(([, v]) => v.code === code);
-  assert.ok(hit, `码表缺少 ${code}`);
-  return hit[0];
-}
+const table = JSON.parse(repoFile('shared/error_codes.json')) as Record<
+  string,
+  { code: string; severity: string; message: string; help: string }
+>;
+
+// ErrorCode 是 const enum，运行时没有键名 → 从生成的源码里读出「枚举键 → 码值」
+const enumKeys = new Map(
+  [...repoFile('src/diagnostics/error_codes.ts').matchAll(/^\s+([A-Z][A-Z0-9_]*) = "([EWI]\d+)",?$/gm)].map((m) => [m[1]!, m[2]!]),
+);
 
 describe('名称解析诊断码 E800–E807 / W800–W801', () => {
   it('枚举值与码表名称一致', () => {
@@ -55,7 +70,7 @@ describe('名称解析诊断码 E800–E807 / W800–W801', () => {
     assert.equal(ErrorCode.RESOLVED_WITHOUT_TYPE, 'W801');
   });
 
-  for (const { code, severity } of EXPECTED) {
+  for (const { code, name, severity, placeholders } of EXPECTED) {
     describe(code, () => {
       const meta = Object.values(ERROR_METADATA).find(m => (m.code as string) === code);
 
@@ -65,26 +80,34 @@ describe('名称解析诊断码 E800–E807 / W800–W801', () => {
         assert.equal(meta.category, 'scope');
       });
 
-      it('英文文案非空、无 CJK 且引用 {written}', () => {
+      it('英文文案非空、无 CJK 且恰好引用约定的占位符', () => {
         assert.ok(meta);
         const message = ERROR_MESSAGES[meta.code];
         assert.ok(message && message.length > 0);
         assert.ok(meta.help.length > 0);
-        assert.ok(message.includes('{written}'), `${code} message 应引用 {written}`);
+        assert.deepEqual(placeholdersOf(message), placeholders, `${code} 英文 message 占位符`);
         assert.ok(!CJK.test(message), `${code} message 含 CJK`);
         assert.ok(!CJK.test(meta.help), `${code} help 含 CJK`);
       });
 
-      it('中文 fallback 的消息与帮助非空且引用 {written}', () => {
+      it('中文 fallback 的消息与帮助非空，消息占位符与英文一致', () => {
         const zhMsg = MESSAGES_BY_LEXICON['zh-CN']?.[code];
         const zhHelp = HELP_BY_LEXICON['zh-CN']?.[code];
         assert.ok(zhMsg && zhMsg.length > 0, `${code} 缺少 zh-CN 消息`);
-        assert.ok(zhMsg.includes('{written}'));
+        assert.deepEqual(placeholdersOf(zhMsg), placeholders, `${code} zh-CN message 占位符`);
         assert.ok(zhHelp && zhHelp.length > 0, `${code} 缺少 zh-CN 帮助`);
       });
 
-      it('码表键名与 json 一致', () => {
-        assert.ok(nameOf(code).length > 0);
+      it('码表键名与 ErrorCode 枚举键一致，条目与生成的元数据一致', () => {
+        const entry = table[name];
+        assert.ok(entry, `shared/error_codes.json 缺少键 ${name}`);
+        assert.equal(entry.code, code);
+        assert.equal(enumKeys.get(name), code, `ErrorCode.${name} 应为 ${code}`);
+        assert.equal(Object.entries(table).filter(([, v]) => v.code === code).length, 1, `${code} 在码表中应唯一`);
+        assert.ok(meta);
+        assert.equal(entry.severity, meta.severity);
+        assert.equal(entry.message, ERROR_MESSAGES[meta.code]);
+        assert.equal(entry.help, meta.help);
       });
     });
   }
