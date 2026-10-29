@@ -83,9 +83,9 @@ function byCanonical(map: ReadonlyMap<string, Candidate[]>): Map<string, Candida
   return index;
 }
 
+/** 歧义候选的确定性文本：`规范名 (写法)` 去重后按码点序以逗号连接（同一候选可经源码声明与词汇两层命中）。 */
 export function formatCandidates(cands: readonly Entry[]): string {
-  return cands
-    .map((c) => `${c.canonical} (${c.written})`)
+  return [...new Set(cands.map((c) => `${c.canonical} (${c.written})`))]
     .sort(compareCodePoints)
     .join(', ');
 }

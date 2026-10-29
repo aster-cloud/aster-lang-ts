@@ -823,7 +823,7 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     category: 'scope',
     severity: 'error',
     message: "Cannot resolve name '{written}' in {role} position",
-    help: "Declare the name, import it, or use a name from the active vocabulary.",
+    help: "Declare the name, import it, use a name from the active vocabulary, or write a qualified enum member (e.g. Stufe.Hoch).",
   },
   [ErrorCode.UNRESOLVED_PATTERN]: {
     code: ErrorCode.UNRESOLVED_PATTERN,
@@ -844,7 +844,7 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     category: 'scope',
     severity: 'error',
     message: "Field '{written}' in {role} position is ambiguous between: {candidates}",
-    help: "Qualify the field with its owning type or add a type annotation to the receiver.",
+    help: "Add a type annotation to the receiver (parameter or Let) so the field resolves against its declared type, or rename one of the conflicting fields.",
   },
   [ErrorCode.AMBIGUOUS_PATTERN]: {
     code: ErrorCode.AMBIGUOUS_PATTERN,
