@@ -1501,6 +1501,31 @@ Rule greet given name as Text, produce Text:
     });
   });
 
+  /* 2026-10-30 生产复测 B2：`helper with 10`（with 调用后缀）编辑器报 "Expected identifier"，
+   * 服务端（Java，AsterParser.g4 malformedConstructField）报 "Expected 'set to' in construction"。
+   * `X with` 一律按构造解析，首个字段位置不是名字时与 Java 同口径：只报一条 set to 诊断。 */
+  describe('构造字段缺名字时与 Java 引擎同一诊断（复测 B2）', () => {
+    const errors = (src: string) => parseWithDiag(src).diagnostics.filter(d => d.severity === 'error');
+
+    it('★`helper with 10` → 只报 "Expected \'set to\' in construction"', () => {
+      const errs = errors(
+        'Module a.b.\nRule helper given n as Int, produce Int:\n  Return n plus 1.\n'
+        + 'Rule f given x as Int, produce Int:\n  Let y be helper with 10.\n  Return y.\n',
+      );
+      assert.deepEqual(errs.map(d => d.message), ["Expected 'set to' in construction"]);
+    });
+
+    it('字符串字面量作首个字段位置同样报 set to', () => {
+      const errs = errors('Module a.b.\nDefine Box has v.\nRule f given x, produce:\n  Return Box with "v".\n');
+      assert.deepEqual(errs.map(d => d.message), ["Expected 'set to' in construction"]);
+    });
+
+    it('字段名后用 = 的既有诊断不变', () => {
+      const errs = errors('Module a.b.\nDefine Box has v.\nRule f given x, produce:\n  Return Box with v = 1.\n');
+      assert.deepEqual(errs.map(d => d.message), ["Expected 'set to' in construction"]);
+    });
+  });
+
   describe('结构体位置式构造编译期报错', () => {
     it('对已声明类型用 TypeName(args) 应报错并提示用 with..set to', () => {
       const r = parseWithDiag(
