@@ -24,6 +24,7 @@ import type {
   WorkflowStmt,
 } from './types.js';
 import { inferLambdaReturnType } from './parser/expr-stmt-parser.js';
+import { isExplicitTypeParam, signatureTypeNames } from './ast/type-nodes.js';
 
 /** IR 运算符名 → 英文 CNL 词形、优先级（数值越大结合越紧）与元数，与解析器 parseOr…parseMultiplication 各层一致 */
 interface OperatorInfo {
@@ -125,11 +126,6 @@ function stripSpans(t: Type): unknown {
   return JSON.parse(JSON.stringify(t, (k, v) => (k === 'span' ? undefined : v)));
 }
 
-/** 类型中是否出现显式类型变量（说明原文写了 `of T`，否则类型参数由推断得出） */
-function hasTypeVar(t: Type): boolean {
-  return JSON.stringify(t).includes('"kind":"TypeVar"');
-}
-
 export function printModule(m: Module): string {
   return new CnlPrinter().module(m);
 }
@@ -205,10 +201,11 @@ class CnlPrinter {
     return `${annotations}${head}:\n${this.block(f.body, 1)}`;
   }
 
-  /** 只有原文显式写了 `of T` 时类型里才有 TypeVar；推断出的类型参数不写，由解析器重新推断 */
+  /** 原文显式写了 `of T` 才输出（含只在函数体内使用的 T）；推断出的类型参数不写，由解析器重新推断 */
   explicitTypeParams(f: Func): string {
-    const explicit = f.params.some(p => hasTypeVar(p.type)) || hasTypeVar(f.retType);
-    return explicit && f.typeParams.length > 0 ? ` of ${f.typeParams.join(' and ')}` : '';
+    const names = signatureTypeNames(f);
+    const explicit = f.typeParams.some(name => isExplicitTypeParam(names, name));
+    return explicit ? ` of ${f.typeParams.join(' and ')}` : '';
   }
 
   /** `. It performs io and cpu [Http, Sql]`；只在有基础效果或显式能力时输出 */

@@ -187,6 +187,17 @@ describe('格式化器往返（源码 AST 不变，#246）', () => {
     assert.match(formatted, /^Type Punktzahl as Int\.$/m);
   });
 
+  test('★显式 of T 只在函数体中使用时格式化保留 `of T`（#248）', () => {
+    const src = 'Module m.\n\nRule f of T given x as Int, produce Int:\n  Let g be function with a as T, produce T:\n    Return a.\n  Return x.\n';
+    const formatted = assertSourceRoundTrip(src);
+    assert.match(formatted, /^Rule f of T given x as Int, produce Int:$/m);
+  });
+
+  test('隐式类型参数不输出 `of`', () => {
+    const formatted = assertSourceRoundTrip('Module m.\n\nRule f given x as Element, produce Element:\n  Return x.\n');
+    assert.match(formatted, /^Rule f given x as Element, produce Element:$/m);
+  });
+
   test('与 preserveComments 同用时别名仍保留', () => {
     const src = 'Module m.\n\n// 分数\nType Score as Int.\n\nRule f given x as Score, produce Score:\n  Return x.\n';
     const formatted = formatCNL(src, { preserveComments: true, preserveStandaloneComments: true });

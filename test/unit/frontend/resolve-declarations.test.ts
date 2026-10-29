@@ -341,6 +341,30 @@ describe('resolveDeclarations（R1）', () => {
       assert.deepEqual(decl(r.module, 0, 'Func').typeParams, ['FaHrer']);
     });
 
+    it('★隐式参数歧义的 E804 落在签名中第一处写法上，而不是整个函数（#248）', () => {
+      const m = parse('Modul m.\n\nRegel f gegeben y als Ganzzahl, x als FaHrer, liefert FaHrer:\n  gib zurueck x.\n');
+      const r = resolveDeclarations(m, ctxOf([struct('Driver', 'Fahrer'), struct('Pilot', 'FAHRER')]));
+      assert.deepEqual(codes(r), [ErrorCode.AMBIGUOUS_NAME]);
+      const x = decl(m, 0, 'Func').params[1]!;
+      assert.deepEqual(r.diagnostics[0]!.span, x.type.span, 'E804 应落在 x 的类型 FaHrer 上');
+      assert.equal(r.diagnostics[0]!.span?.start.line, 3);
+    });
+
+    it('隐式参数只出现在返回类型 → E804 落在返回类型上', () => {
+      const m = parse('Modul m.\n\nRegel f gegeben x als Ganzzahl, liefert FaHrer:\n  gib zurueck x.\n');
+      const r = resolveDeclarations(m, ctxOf([struct('Driver', 'Fahrer'), struct('Pilot', 'FAHRER')]));
+      assert.deepEqual(codes(r), [ErrorCode.AMBIGUOUS_NAME]);
+      assert.deepEqual(r.diagnostics[0]!.span, decl(m, 0, 'Func').retType.span);
+    });
+
+    it('隐式参数嵌在 list of 里 → E804 落在内层类型名上', () => {
+      const m = parse('Module m.\n\nRule f given xs as list of FaHrer, produce Int:\n  Return 1.\n', EN_US);
+      const r = resolveDeclarations(m, ctxOf([struct('Driver', 'Fahrer'), struct('Pilot', 'FAHRER')]));
+      assert.deepEqual(codes(r), [ErrorCode.AMBIGUOUS_NAME]);
+      const list = decl(m, 0, 'Func').params[0]!.type as AST.List;
+      assert.deepEqual(r.diagnostics[0]!.span, list.type.span);
+    });
+
     it('显式 of T → 保留，TypeVar 不查词汇', () => {
       const m = parse('Modul m.\n\nRegel f of Fahrer gegeben x als Fahrer, liefert Fahrer:\n  gib zurueck x.\n');
       const r = resolveDeclarations(m, ctxOf(DRIVER));
@@ -349,6 +373,38 @@ describe('resolveDeclarations（R1）', () => {
       assert.deepEqual(f.params[0]!.type, decl(m, 0, 'Func').params[0]!.type);
       assert.equal(f.params[0]!.type.kind, 'TypeVar');
       assert.deepEqual(codes(r), []);
+    });
+
+    it('★显式 of T 只在函数体中使用（lambda 参数）且 T 同名 Data → 仍保留（#248，与 Java 一致）', () => {
+      const m = parse(
+        'Module m.\n\nDefine T has v as Int.\n\nRule f of T given x as Int, produce Int:\n' +
+          '  Let g be function with a as T, produce T:\n    Return a.\n  Return x.\n',
+        EN_US
+      );
+      assert.deepEqual(decl(m, 1, 'Func').typeParams, ['T'], '前提：解析器记录显式类型参数');
+      const r = resolveDeclarations(m, ctxOf([]));
+      assert.deepEqual(decl(r.module, 1, 'Func').typeParams, ['T']);
+      assert.deepEqual(codes(r), []);
+    });
+
+    it('显式 of T 只在函数体中使用且 T 命中词汇 → 仍保留', () => {
+      const m = parse(
+        'Module m.\n\nRule f of Fahrer given x as Int, produce Int:\n' +
+          '  Let g be function with a as Fahrer, produce Fahrer:\n    Return a.\n  Return x.\n',
+        EN_US
+      );
+      const r = resolveDeclarations(m, ctxOf(DRIVER));
+      assert.deepEqual(decl(r.module, 0, 'Func').typeParams, ['Fahrer']);
+    });
+
+    it('显式 of T 在签名与函数体中都使用 → 保留', () => {
+      const m = parse(
+        'Module m.\n\nDefine T has v as Int.\n\nRule f of T given x as T, produce T:\n' +
+          '  Let g be function with a as T, produce T:\n    Return a.\n  Return x.\n',
+        EN_US
+      );
+      const r = resolveDeclarations(m, ctxOf([]));
+      assert.deepEqual(decl(r.module, 1, 'Func').typeParams, ['T']);
     });
   });
 

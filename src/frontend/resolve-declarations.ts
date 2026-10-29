@@ -20,6 +20,7 @@ import type { Resolved, ResolvedRole, Span, TypecheckDiagnostic } from '../types
 import type { ResolutionContext } from './resolution-context.js';
 import { KEYWORD_CTORS, choose, chooseDecl, chooseVocab, formatCandidates } from './resolution-choice.js';
 import type { Choice, Entry, VocabMap } from './resolution-choice.js';
+import { signatureTypeNames, isExplicitTypeParam } from '../ast/type-nodes.js';
 
 // ---- 模块符号表 ----
 
@@ -671,48 +672,23 @@ function rewriteFunc(r: Resolver, d: AST.Func, resolved: Resolved): AST.Func {
  * 裁决 R13：TS 解析器把签名中未声明的大写类型名推断为隐式类型参数（其使用仍为 TypeName）；
  * 显式 `of T` 的使用则解析为 TypeVar。隐式参数若能作为 TYPE 命中源码声明 / 导入 / 词汇，
  * 说明它其实是类型名，从 typeParams 中移除；全部未命中的保留为类型参数。
+ * 显式参数（含只在函数体内使用的 `of T`）一律保留，与 Java 一致。
  */
 function keptTypeParams(r: Resolver, d: AST.Func): readonly string[] {
-  const explicit = new Set<string>();
-  for (const t of [...d.params.map((p) => p.type), d.retType]) collectTypeVars(t, explicit);
-  return d.typeParams.filter((name) => explicit.has(name) || !isImplicitTypeName(r, name, d.span));
+  const names = signatureTypeNames(d);
+  return d.typeParams.filter(
+    (name) => isExplicitTypeParam(names, name) || !isImplicitTypeName(r, name, names.firstTypeNameUse.get(name))
+  );
 }
 
-/** 隐式参数命中类型 → true（应移除）；折叠歧义时报 E804 并保留为类型参数，使编译失败而非静默当作泛型。 */
+/**
+ * 隐式参数命中类型 → true（应移除）；折叠歧义时报 E804 并保留为类型参数，使编译失败而非静默当作泛型。
+ * E804 报在签名里该名字的第一处写法上。
+ */
 function isImplicitTypeName(r: Resolver, name: string, span?: Span): boolean {
   const picked = probeTypeChoice(r, name);
   if (picked.kind === 'ambiguous') reportAmbiguous(r, name, 'TYPE', picked.candidates, span);
   return picked.kind === 'hit';
-}
-
-function collectTypeVars(t: AST.Type, out: Set<string>): void {
-  const each = (xs: readonly AST.Type[]): void => xs.forEach((x) => collectTypeVars(x, out));
-  switch (t.kind) {
-    case 'TypeVar':
-      out.add(t.name);
-      return;
-    case 'TypeApp':
-      return each(t.args);
-    case 'Maybe':
-    case 'Option':
-    case 'List':
-      return each([t.type]);
-    case 'Result':
-      return each([t.ok, t.err]);
-    case 'Map':
-      return each([t.key, t.val]);
-    case 'FuncType':
-      return each([...t.params, t.ret]);
-    case 'TypePii':
-      return each([t.baseType]);
-    case 'TypeName':
-    case 'EffectVar':
-      return;
-    default: {
-      const never: never = t;
-      throw new Error(`未处理的类型节点：${JSON.stringify(never)}`);
-    }
-  }
 }
 
 // ---- 入口 ----
