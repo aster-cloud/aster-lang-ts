@@ -27,10 +27,13 @@ pnpm test
 If you update CNL sources used in tests or examples:
 
 ```
-node dist/scripts/update-golden-ast.js
-node scripts/update-all-core-golden.js
+pnpm test:golden -- --update
 node scripts/generate-ai-training-data.mjs
 ```
+
+`--update` rewrites every mismatching AST / Core IR / typecheck baseline under `test/cnl/programs`
+with the current output (Core IR goes through the same name resolution as the compiler). Review the
+resulting `git diff` before committing; a plain `pnpm test:golden` must pass afterwards.
 
 ## Docs updates
 

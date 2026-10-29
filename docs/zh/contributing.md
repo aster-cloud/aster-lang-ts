@@ -27,10 +27,12 @@ pnpm test
 如果你更新了测试或示例中使用的 CNL 源文件：
 
 ```
-node dist/scripts/update-golden-ast.js
-node scripts/update-all-core-golden.js
+pnpm test:golden -- --update
 node scripts/generate-ai-training-data.mjs
 ```
+
+`--update` 会用当前输出改写 `test/cnl/programs` 下所有不一致的 AST / Core IR / 类型检查基线
+（Core IR 与编译器走同一套名称解析）。提交前请检查 `git diff`，之后直接运行 `pnpm test:golden` 须通过。
 
 ## 文档更新
 
