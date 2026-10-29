@@ -157,6 +157,12 @@ export const Core = {
     base,
     args,
   }),
+  /** 与 Java CoreModel.FuncType 一致：只有 params / ret，不带 effects */
+  FuncType: (params: readonly CoreTypes.Type[], ret: CoreTypes.Type): CoreTypes.FuncType => ({
+    kind: 'FuncType',
+    params,
+    ret,
+  }),
   TypeVar: (name: string): CoreTypes.TypeVar => ({ kind: 'TypeVar', name }),
   Pii: (
     baseType: CoreTypes.Type,

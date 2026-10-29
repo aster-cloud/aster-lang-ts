@@ -200,6 +200,12 @@ export const Node = {
     args,
     span: createEmptySpan(),
   }),
+  FuncType: (params: readonly AST.Type[], ret: AST.Type): AST.FuncType => ({
+    kind: 'FuncType',
+    params,
+    ret,
+    span: createEmptySpan(),
+  }),
   TypeVar: (name: string): AST.TypeVar => ({ kind: 'TypeVar', name, span: createEmptySpan() }),
   EffectVar: (name: string): AST.EffectVar => ({ kind: 'EffectVar', name, span: createEmptySpan() }),
   TypePii: (

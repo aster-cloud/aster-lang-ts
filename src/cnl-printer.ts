@@ -401,7 +401,8 @@ class CnlPrinter {
       case 'TypeVar':
         return t.name;
       case 'Maybe':
-        return `${this.type(t.type)}?`;
+        // `(A) -> B?` 的 `?` 归返回类型，可空的函数类型须加括号
+        return t.type.kind === 'FuncType' ? `(${this.type(t.type)})?` : `${this.type(t.type)}?`;
       case 'Option':
         return `Option of ${this.type(t.type)}`;
       case 'Result':

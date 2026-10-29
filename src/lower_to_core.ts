@@ -894,6 +894,8 @@ function lowerType(t: Type): import('./types.js').Core.Type {
       return withOrigin(Core.Map(lowerType(t.key), lowerType(t.val)), t);
     case 'TypePii':
       return withOrigin(Core.Pii(lowerType(t.baseType), t.sensitivity, t.category), t);
+    case 'FuncType':
+      return withOrigin(Core.FuncType(t.params.map(lowerType), lowerType(t.ret)), t);
     default: {
       const { span } = extractMetadata(t);
       const kind = (t as { kind: string }).kind;
@@ -945,6 +947,8 @@ function lowerTypeWithVars(t: Type, vars: Set<string>): import('./types.js').Cor
       return { kind: 'TypeVar', name: t.name } as import('./types.js').Core.TypeVar;
     case 'TypePii':
       return Core.Pii(lowerTypeWithVars(t.baseType, vars), t.sensitivity, t.category);
+    case 'FuncType':
+      return Core.FuncType(t.params.map(p => lowerTypeWithVars(p, vars)), lowerTypeWithVars(t.ret, vars));
     default:
       return lowerType(t);
   }

@@ -212,10 +212,53 @@ function consumeKeywordSequence(ctx: ParserContext, words: string | string[]): T
   return parts.map(() => ctx.nextWord());
 }
 
+/** `->`：词法上是相邻的 `-` 与 `>` 两个记号（不新增 ARROW 记号，免得波及 CST/高亮）；`- >` 不算箭头 */
+function atArrow(ctx: ParserContext): boolean {
+  if (!ctx.at(TokenKind.MINUS)) return false;
+  const minus = ctx.peek();
+  const gt = ctx.peek(1);
+  return gt.kind === TokenKind.GT && gt.start.line === minus.end.line && gt.start.col === minus.end.col;
+}
+
+/**
+ * `(` 开头的类型，与 aster-lang-core 文法一致：
+ *   `(T1, T2) -> R`：函数类型，至少一个参数，参数可带注解，返回类型递归解析（`?` 归返回类型）；
+ *   `(T)`：括号类型，即内部类型本身（内部不允许注解，与 Java ParenType 的 `type` 一致）。
+ */
+function parseParenOrFuncType(
+  ctx: ParserContext,
+  error: (msg: string) => never
+): Type {
+  const lparen = ctx.next();
+  const params: Type[] = [];
+  let annotated = false;
+  do {
+    if (params.length > 0) ctx.next(); // 消费 ','
+    annotated ||= ctx.at(TokenKind.AT);
+    params.push(parseType(ctx, error));
+  } while (ctx.at(TokenKind.COMMA));
+  if (!ctx.at(TokenKind.RPAREN)) error("Expected ')' after type");
+  ctx.next(); // 消费 ')'
+
+  if (atArrow(ctx)) {
+    ctx.next(); // '-'
+    ctx.next(); // '>'
+    const ret = parseType(ctx, error);
+    const node = Node.FuncType(params, ret);
+    assignSpan(node, spanFromSources(lparen, ret));
+    return node;
+  }
+  if (params.length > 1) error("Expected '->' after function parameter types");
+  if (annotated) error("Expected '->' after annotated function parameter type");
+  return params[0]!;
+}
+
 function parseTypePrimary(
   ctx: ParserContext,
   error: (msg: string) => never
 ): Type {
+  if (ctx.at(TokenKind.LPAREN)) return parseParenOrFuncType(ctx, error);
+
   if (ctx.isKeyword(KW.MAYBE)) {
     const maybeTok = ctx.nextWord();
     const inner = parseType(ctx, error);
