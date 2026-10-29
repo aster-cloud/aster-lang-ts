@@ -479,7 +479,7 @@ function resolveValue(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionMark,
     report(r, ErrorCode.AMBIGUOUS_NAME, spanOf(n), mark.written, 'MEMBER_REF', cands);
   }
   // 调用目标全无候选时保留原写法，由类型检查的未定义函数诊断负责
-  if (owners.length === 0 && !callee) report(r, ErrorCode.UNRESOLVED_NAME, spanOf(n), mark.written, 'FUNC_REF');
+  if (owners.length === 0 && !callee) report(r, ErrorCode.UNRESOLVED_NAME, spanOf(n), mark.written, 'VALUE_REF');
   return n;
 }
 
@@ -558,13 +558,41 @@ function isQualifiedCall(target: Core.Expression): boolean {
   return target.kind === 'Name' && target.name.includes('.');
 }
 
-/** 调用实参的期望类型取被调源码函数对应参数的声明类型。 */
+/** 相等 / 不等比较（`equals to`、`not equal to`、`==`、`!=` 及其本地化关键词均降为这两个运算符）。 */
+const EQUALITY_OPS: ReadonlySet<string> = new Set(['==', '!=']);
+
+function isEquality(target: Core.Expression, args: readonly Core.Expression[]): boolean {
+  return target.kind === 'Name' && EQUALITY_OPS.has(target.name) && args.length === 2;
+}
+
+/** 期望类型待定的比较操作数：带标记的单段裸名且不是局部名（局部名按 LOCAL 解析，与期望类型无关）。 */
+function isBareOperand(f: Frame, e: Core.Expression): boolean {
+  const mark = e.kind === 'Name' ? resolutionMarkOf(e) : undefined;
+  return mark !== undefined && !mark.written.includes('.') && findLocal(f.scope, mark.written).choice.kind === 'miss';
+}
+
+/**
+ * 相等比较的期望类型来源（裁决 R49）：先解析非裸名一侧，其 §4 静态类型为枚举 E 时，
+ * 另一侧裸名以 E 为期望类型（与 Return / 实参同一套 §6.2 跨层裁决）。两侧都是裸名时均无期望类型。
+ */
+function resolveEquality(r: Resolver, f: Frame, args: readonly Core.Expression[]): Core.Expression[] {
+  const bare = args.map((a) => isBareOperand(f, a));
+  const out = args.map((a, i) => (bare[i] ? a : resolveExpr(r, f, a)));
+  return out.map((a, i) => {
+    if (!bare[i]) return a;
+    const other = bare[1 - i] ? undefined : asType(typeOf(r, f.scope, out[1 - i]!));
+    return resolveExpr(r, f, a, other);
+  });
+}
+
+/** 调用实参的期望类型取被调源码函数对应参数的声明类型；相等比较另见 resolveEquality。 */
 function resolveCall(r: Resolver, f: Frame, e: Core.Call): Core.Call {
   const target = isQualifiedCall(e.target)
     ? e.target
     : e.target.kind === 'Name'
       ? resolveName(r, f, e.target, undefined, true)
       : resolveExpr(r, f, e.target);
+  if (isEquality(target, e.args)) return { ...e, target, args: resolveEquality(r, f, e.args) };
   const params = calleeOf(r, f.scope, target)?.params ?? [];
   const expectedAt = (i: number): Core.Type | undefined => {
     const p = params[i];

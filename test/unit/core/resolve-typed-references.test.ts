@@ -324,6 +324,84 @@ describe('resolveTypedReferences（R2）', () => {
       assert.equal(nameOf(c.fields[0]!.expr).name, 'High');
     });
 
+    describe('相等比较：一侧为已知枚举时另一侧裸名以其为期望类型（裁决 R49）', () => {
+      const CMP_DECLS = MODULE + LEVEL_DECL + 'Definiere Fahrer hat stufe als Stufe.\n\n';
+      const CMP_VOCAB = [...LEVEL, struct('Driver', 'Fahrer'), field('Driver', 'level', 'stufe')];
+      const ifCond = (m: Core.Module): Core.Call => stmt(func(m, 'f'), 0, 'If').cond as Core.Call;
+
+      it('wenn d.stufe entspricht Hoch → Hoch 解析为 High（与规范名孪生 d.level equals to High 一致）', () => {
+        const { module, r1, r2 } = run(
+          CMP_DECLS + 'Regel f gegeben d als Fahrer, liefert Ganzzahl:\n  wenn d.stufe entspricht Hoch:\n    gib zurueck 1.\n  gib zurueck 0.\n',
+          CMP_VOCAB
+        );
+        assert.deepEqual([...codes(r1), ...codes(r2)], []);
+        const cond = ifCond(module);
+        assert.equal(nameOf(cond.target).name, '==');
+        assert.equal(nameOf(cond.args[0]!).name, 'd.level');
+        const member = nameOf(cond.args[1]!);
+        assert.equal(member.name, 'High');
+        assert.equal(member.origin?.written, 'Hoch');
+        assert.equal(member.origin?.role, 'MEMBER_REF');
+      });
+
+      it('枚举一侧在右、裸名在左同样解析；局部名参数为枚举类型时亦然', () => {
+        const { module, r1, r2 } = run(
+          CMP_DECLS + 'Regel f gegeben s als Stufe, liefert Ganzzahl:\n  wenn Niedrig entspricht s:\n    gib zurueck 1.\n  gib zurueck 0.\n',
+          CMP_VOCAB
+        );
+        assert.deepEqual([...codes(r1), ...codes(r2)], []);
+        const cond = ifCond(module);
+        assert.equal(nameOf(cond.args[0]!).name, 'Low');
+        assert.equal(nameOf(cond.args[1]!).name, 's');
+      });
+
+      it('不等比较（not equal to）同样提供期望类型', () => {
+        const { module, r1, r2 } = run(
+          'Module m.\n\nDefine Level as one of High, Low.\n\n' +
+            'Rule f given s as Level, produce Int:\n  If s not equal to Low:\n    Return 1.\n  Return 0.\n',
+          [],
+          EN_US
+        );
+        assert.deepEqual([...codes(r1), ...codes(r2)], []);
+        const cond = ifCond(module);
+        assert.equal(nameOf(cond.target).name, '!=');
+        assert.equal(nameOf(cond.args[1]!).name, 'Low');
+      });
+
+      it('词汇函数 hoch 同时存在 → E804（不静默解析为函数 high），候选不重复且帮助提示 Stufe.Hoch', () => {
+        const { r2 } = run(
+          CMP_DECLS + 'Regel f gegeben d als Fahrer, liefert Ganzzahl:\n  wenn d.stufe entspricht Hoch:\n    gib zurueck 1.\n  gib zurueck 0.\n',
+          [...CMP_VOCAB, fn('high', 'hoch')]
+        );
+        // error 级诊断使调用方不发出 IR，因此 R1 的函数命中不会静默进入产物
+        assert.deepEqual(codes(r2), [ErrorCode.AMBIGUOUS_NAME]);
+        assert.match(r2[0]!.message, /High \(Hoch\)/);
+        assert.match(r2[0]!.help ?? '', /Stufe\.Hoch/);
+      });
+
+      it('源码规则 hoch 与词汇函数 hoch→high 同时命中 → E804 候选去重', () => {
+        const { r2 } = run(
+          CMP_DECLS +
+            'Regel hoch gegeben x als Ganzzahl, liefert Ganzzahl:\n  gib zurueck x.\n\n' +
+            'Regel f gegeben s als Stufe, liefert Ganzzahl:\n  wenn s entspricht Hoch:\n    gib zurueck 1.\n  gib zurueck 0.\n',
+          [...CMP_VOCAB, fn('high', 'hoch')]
+        );
+        assert.deepEqual(codes(r2), [ErrorCode.AMBIGUOUS_NAME]);
+        const candidates = r2[0]!.message.split(': ').at(-1)!.split(', ');
+        assert.deepEqual(candidates, [...new Set(candidates)], r2[0]!.message);
+      });
+
+      it('另一侧类型不是枚举 → 无期望类型，裸成员名仍报 E802（角色 VALUE_REF）', () => {
+        const { r2 } = run(
+          CMP_DECLS + 'Regel f gegeben x als Ganzzahl, liefert Ganzzahl:\n  wenn x entspricht Hoch:\n    gib zurueck 1.\n  gib zurueck 0.\n',
+          CMP_VOCAB
+        );
+        assert.deepEqual(codes(r2), [ErrorCode.UNRESOLVED_NAME]);
+        assert.match(r2[0]!.message, /VALUE_REF/);
+        assert.match(r2[0]!.help ?? '', /Stufe\.Hoch/);
+      });
+    });
+
     it('无期望类型的裸成员名不按枚举解析 → E802', () => {
       const { r2 } = run(
         MODULE + LEVEL_DECL +
