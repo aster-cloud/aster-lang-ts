@@ -426,6 +426,13 @@ export async function computeDiagnostics(
     }
   }
 
+  // 词法失败（见 parse-document.ts）：没有 token 可解析，唯一可信的就是上面的词法诊断；
+  // 再走 parse(tokens) 只会多出兜底误报与「缺少模块头」警告。
+  if (ast === null && tokens.length === 0) {
+    diagnosticCache.set(uri, { version, diagnostics, timestamp: Date.now() });
+    return diagnostics;
+  }
+
   try {
     const parsed = ast ?? parse(tokens);
 

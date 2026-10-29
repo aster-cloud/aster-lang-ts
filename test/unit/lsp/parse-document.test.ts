@@ -9,6 +9,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseDocumentText } from '../../../src/lsp/parse-document.js';
 import { LexiconRegistry, initializeAllBundledLexicons } from '../../../src/config/lexicons/index.js';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+import { computeDiagnostics, MISSING_MODULE_HEADER_CODE } from '../../../src/lsp/diagnostics.js';
 
 initializeAllBundledLexicons();
 
@@ -68,5 +70,51 @@ describe('parseDocumentText', () => {
     const text = 'Module demo.p.\n\nRule twice given x as Int, produce Int:\n  Return x times 2.\n';
     const r = parseDocumentText(text, undefined, undefined, undefined);
     assert.equal((r.ast as { name?: string } | null)?.name, 'demo.p');
+  });
+});
+
+describe('parseDocumentText：词法错误', () => {
+  const UNTERMINATED = 'Module demo.p.\n\nRule f given x as Int, produce Text:\n  Return "abc.\n';
+
+  it('★未闭合字符串不抛异常，词法诊断进入 parseDiagnostics', () => {
+    const r = parseDocumentText(UNTERMINATED, undefined, undefined, undefined);
+    assert.equal(r.ast, null);
+    assert.deepEqual(r.tokens, []);
+    assert.equal(r.parseDiagnostics.length, 1);
+    const d = r.parseDiagnostics[0]!;
+    assert.equal(d.severity, 'error');
+    assert.match(d.message, /Unterminated string/);
+    assert.equal(d.span.start.line, 4, '诊断应落在未闭合字符串所在行');
+  });
+
+  it('未闭合字符串后还有多行内容：只报一个词法错误', () => {
+    const text = UNTERMINATED + '\nRule g given y as Int, produce Int:\n  Return y.\n';
+    const r = parseDocumentText(text, undefined, undefined, undefined);
+    assert.equal(r.ast, null);
+    assert.equal(r.parseDiagnostics.length, 1);
+    assert.match(r.parseDiagnostics[0]!.message, /Unterminated string/);
+  });
+
+  it('zh-CN 文档的未闭合「」字符串同样降级为诊断', () => {
+    const zh = LexiconRegistry.get('zh-CN');
+    const text = '模块 demo.p。\n\n规则 f 给定 x 作为 整数 产出 文本：\n  返回 「abc。\n';
+    const r = parseDocumentText(text, zh, undefined, undefined);
+    assert.equal(r.ast, null);
+    assert.equal(r.parseDiagnostics.length, 1);
+    assert.equal(r.parseDiagnostics[0]!.span.start.line, 4);
+  });
+
+  it('非词法异常照常抛出（不吞编程错误）', () => {
+    assert.throws(() => parseDocumentText(undefined as unknown as string, undefined, undefined, undefined));
+  });
+
+  it('★computeDiagnostics 发布该词法诊断，且不附带模块头或通用兜底误报', async () => {
+    const doc = TextDocument.create('inmemory://policy/unterminated.aster', 'aster', 1, UNTERMINATED);
+    const getOrParse = (d: TextDocument) => ({ text: d.getText(), ...parseDocumentText(d.getText(), undefined, undefined, undefined) });
+    const diags = await computeDiagnostics(doc, getOrParse as never, undefined);
+    assert.equal(diags.length, 1, `实际：${JSON.stringify(diags.map((d) => [d.code, d.message]))}`);
+    assert.match(diags[0]!.message, /Unterminated string/);
+    assert.equal(diags[0]!.range.start.line, 3);
+    assert.notEqual(diags[0]!.code, MISSING_MODULE_HEADER_CODE);
   });
 });

@@ -8,13 +8,18 @@
  *   浏览器侧编译（browser.ts）与 formatter 一直是 `lex(canonical, lexicon)`，此处对齐。
  *
  * 返回的 tokens 与 ast 的位置均为**原文**坐标（`can` 仅供需要规范化文本的调用方）。
+ *
+ * ★词法错误（未闭合字符串、非法字符、缩进错误）不抛出：返回 `tokens: []`、`ast: null`，
+ *   把词法诊断放进 parseDiagnostics，由诊断路径照常发布。抛出会让 getOrParse 失败，
+ *   pull 诊断整体 reject 后返回空列表——用户正在输入字符串时反而看到「无问题」。
+ *   规范化保持行数不变，词法诊断的行号即原文行号。
  */
 import { canonicalize } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
 import { parse, parseWithLexicon } from '../parser.js';
 import { needsKeywordTranslation } from '../frontend/keyword-translator.js';
 import type { Module as AstModule } from '../types.js';
-import type { Diagnostic } from '../diagnostics/diagnostics.js';
+import { DiagnosticError, type Diagnostic } from '../diagnostics/diagnostics.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { buildCanonicalizeOptions } from './canonicalize-options.js';
 import { alignTokensToSource } from './source-positions.js';
@@ -40,7 +45,14 @@ export function parseDocumentText(
   const can = canonicalize(text, options);
   // ★token 位置改为原文坐标后再解析：AST span 由 token 派生，于是高亮/跳转/hover/重命名/
   //   诊断的位置都对应原文（canonicalize 删冠词等会改变行内长度，见 source-positions.ts）。
-  const tokens = alignTokensToSource(text, can, lex(can, lexicon));
+  let tokens: readonly any[];
+  try {
+    tokens = alignTokensToSource(text, can, lex(can, lexicon));
+  } catch (error) {
+    if (!(error instanceof DiagnosticError)) throw error;
+    const lexFailed = { can, tokens: [], ast: null, parseDiagnostics: [error.diagnostic] };
+    return vocabulary ? { ...lexFailed, vocabulary } : lexFailed;
+  }
   let ast: AstModule | null;
   let parseDiagnostics: readonly Diagnostic[] = [];
   try {
