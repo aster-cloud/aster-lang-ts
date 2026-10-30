@@ -153,6 +153,19 @@ export class SymbolTable {
     return this.current.lookup(name);
   }
 
+  /**
+   * name 的最近绑定是否在某个 lambda 作用域之外（即 lambda 体内引用的是捕获的外层变量）。
+   * 名字未定义时返回 false。
+   */
+  resolvesAcrossLambda(name: string): boolean {
+    let crossed = false;
+    for (let scope: Scope | null = this.current; scope; scope = scope.getParent()) {
+      if (scope.lookupLocal(name)) return crossed;
+      if (scope.getType() === 'lambda') crossed = true;
+    }
+    return false;
+  }
+
   lookupInCurrentScope(name: string): SymbolInfo | undefined {
     return this.current.lookupLocal(name);
   }

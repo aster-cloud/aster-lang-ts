@@ -6,7 +6,7 @@ import type { ControlRegistry } from '../governance/controls.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
-import type { SymbolKind } from './symbol_table.js';
+import type { SymbolInfo, SymbolKind } from './symbol_table.js';
 import { TypeSystem } from './type_system.js';
 import { formatType, typesEqual } from './pure.js';
 
@@ -80,23 +80,37 @@ export function defineSymbol(
   context.symbols.define(name, type, kind, options);
 }
 
+/** 可作为 Set 目标查找的局部名种类。 */
+const LOCAL_KINDS: ReadonlySet<SymbolKind> = new Set<SymbolKind>(['var', 'param', 'pattern']);
+
 /** 不可赋值的绑定种类在诊断里的英文称呼（与 Java 端一致）。 */
 const IMMUTABLE_KIND_LABEL: Partial<Record<SymbolKind, string>> = {
   param: 'parameter',
   pattern: 'pattern binding',
 };
 
+/**
+ * 不可赋值目标在诊断里的英文称呼（与 Java 端一致）；可赋值时返回 undefined。
+ * lambda 按值捕获外层变量，体内 Set 捕获变量的语义未定义，故一律拒绝（ADR 0052 §2.2）。
+ */
+function immutableTargetLabel(context: TypecheckWalkerContext, name: string, symbol: SymbolInfo): string | undefined {
+  if (!symbol.mutable) return IMMUTABLE_KIND_LABEL[symbol.kind];
+  return context.symbols.resolvesAcrossLambda(name) ? 'captured variable' : undefined;
+}
+
 export function assignSymbol(context: TypecheckWalkerContext, name: string, type: Core.Type, span?: Span): void {
   const symbol = context.symbols.lookup(name);
-  if (!symbol) {
+  // 函数名、类型名不是局部名：与 Java 一致按未定义处理（E101）
+  if (!symbol || !LOCAL_KINDS.has(symbol.kind)) {
     context.diagnostics.undefinedVariable(name, span);
     return;
   }
-  if (!symbol.mutable) {
+  const immutable = immutableTargetLabel(context, name, symbol);
+  if (immutable) {
     // 与 Java BaseTypeChecker 同码（E001）。专用错误码待语言包补齐译文后再引入（见 ADR 0052 §5）。
     context.diagnostics.error(ErrorCode.TYPE_MISMATCH, span, {
       expected: 'a Let binding',
-      actual: `${IMMUTABLE_KIND_LABEL[symbol.kind] ?? symbol.kind} '${name}'`,
+      actual: `${immutable} '${name}'`,
     });
     return;
   }

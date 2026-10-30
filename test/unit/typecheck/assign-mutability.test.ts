@@ -90,13 +90,59 @@ describe('Set 赋值目标的可变性', () => {
     assert.match(errs[0]!.message, /parameter 'k'/);
   });
 
+  it('lambda 体内 Set 捕获的外层 Let：报 E001（按值捕获，语义未定义，一律拒绝）', () => {
+    const errs = errors([
+      'Rule r given n as Int, produce Int:',
+      '  Let acc be 0.',
+      '  Let f be function with k as Int, produce Int:',
+      '    Set acc to acc plus k.',
+      '    Return acc.',
+      '  Return f(n).',
+    ]);
+    assert.deepEqual(errs.map((e) => [e.code, e.line]), [[ErrorCode.TYPE_MISMATCH, 6]]);
+    assert.match(errs[0]!.message, /captured variable 'acc'/);
+  });
+
+  it('lambda 体内 Set 自己的 Let：无错误', () => {
+    assert.deepEqual(errors([
+      'Rule r given n as Int, produce Int:',
+      '  Let f be function with k as Int, produce Int:',
+      '    Let local be k.',
+      '    Set local to local plus 1.',
+      '    Return local.',
+      '  Return f(n).',
+    ]), []);
+  });
+
+  it('Set 函数名：报 E101（与 Java 一致）', () => {
+    const errs = errors([
+      'Rule g given n as Int, produce Int:',
+      '  Return n.',
+      '',
+      'Rule r given n as Int, produce Int:',
+      '  Set g to 1.',
+      '  Return n.',
+    ]);
+    assert.deepEqual(errs.map((e) => [e.code, e.line]), [[ErrorCode.UNDEFINED_VARIABLE, 7]]);
+  });
+
+  it('小写 set 同样是 Set 语句', () => {
+    assert.deepEqual(errors([
+      'Rule r given n as Int, produce Int:',
+      '  Let total be 0.',
+      '  set total to n.',
+      '  Return total.',
+    ]), []);
+  });
+
+  // 有意的破坏性变更（ADR 0052 §6）：Set 只能赋值给已有的 Let 绑定，首次声明用 Set 报 E101。
   it('Set 未定义的名字：报 E101', () => {
     const errs = errors([
       'Rule r given n as Int, produce Int:',
       '  Set missing to 1.',
       '  Return n.',
     ]);
-    assert.deepEqual(errs.map((e) => e.code), [ErrorCode.UNDEFINED_VARIABLE]);
+    assert.deepEqual(errs.map((e) => [e.code, e.line]), [[ErrorCode.UNDEFINED_VARIABLE, 4]]);
   });
 
   it('Set 外层 Let 类型不符：报 E002', () => {

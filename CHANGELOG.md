@@ -1,5 +1,20 @@
 # Changelog
 
+## 未发布
+
+### 修复
+
+- 解释器：`Set` 按词法作用域写回（ADR 0052，aster-lang-truffle#151）。此前 Scope 与 case 体整表拷贝环境，
+  在 case 体 / Scope 里给外层 Let 赋值，离开块后丢失；现在写到最近定义该名字的那层，与 truffle 一致。
+
+### 破坏性变更（类型检查）
+
+- 只有 Let 绑定可被 `Set` 赋值。**新增 E001 拒绝**：`Set` 规则形参、lambda 形参、match 模式绑定，以及在
+  lambda 体内 `Set` 捕获的外层变量（报 `expected a Let binding, got parameter 'n'` /
+  `pattern binding 'x'` / `captured variable 'acc'`，与 aster-lang-core 同码同行）。此前这些写法都能通过类型检查。
+- `Set` 函数名或类型名报 E101（与 aster-lang-core 一致）。
+- `Set` 的诊断（E001 / E002 / E101）现在带行列；此前降级后的 `Set` 节点没有位置。
+
 ## 1.2.2
 
 ### 修复
