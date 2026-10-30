@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1
+
+### 修复
+
+- B2 文案与服务端一致：`with` 调用后缀（如 `Let x be helper with 10.`）被拒时，编辑器原报
+  "Expected identifier"，现与 Java 引擎（aster-lang-core `malformedConstructField`）同报
+  "Expected 'set to' in construction"；关键词按作者语言显示，只报一条（#252）。
+
 ## 1.2.0
 
 ### 新增
