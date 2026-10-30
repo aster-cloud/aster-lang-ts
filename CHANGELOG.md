@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased（1.2.3）
+
+### 修复
+
+- 规则引用可作为函数值传递：`twice(inc, n)`、`Let g be inc`、函数类型参数调用此前在 typecheck 报
+  E101、解释器报 `Undefined variable`（`List.map(xs, inc)` 也带一条 E101）。现在值位置的规则名类型为其签名的
+  `FuncType`，求值得到可调用值；局部名优先于同名规则，经函数类型局部名调用时结果类型取其返回类型，参数个数按
+  该局部值的函数类型校验（`Let g be inc. Return g(n, n).` 报 E032，与 Java 一致拒绝）。与 Java 引擎（TypeChecker 在模块作用域登记函数签名、truffle Loader 以 LambdaValue 入 env）一致（#256）。
+
 ## 1.2.2
 
 ### 修复
