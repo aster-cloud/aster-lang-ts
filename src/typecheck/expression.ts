@@ -101,8 +101,13 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         }
 
         const symbol = symbols.lookup(expression.name);
+        const signature = symbol ? undefined : module.funcSignatures.get(expression.name);
         if (symbol) {
           this.result = symbol.type;
+        } else if (signature) {
+          // 值位置引用模块规则（`twice(inc, n)`、`Let g be inc`）：函数值，类型为签名的 FuncType。
+          // 与 Java TypeChecker 一致——函数签名登记在模块作用域，局部名优先（已在上一分支命中）。
+          this.result = { kind: 'FuncType', params: signature.params, ret: signature.ret } as Core.FuncType;
         } else {
           let matched: Core.Enum | undefined;
           for (const en of module.enums.values()) {
@@ -419,7 +424,8 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         //   在此瞎猜签名会误报。
         if (expression.target.kind === 'Name' && !expression.target.name.includes('.')) {
           const callee = expression.target.name;
-          const sig = module.funcSignatures.get(callee);
+          // 局部名（函数类型参数、Let 绑定的函数值）遮蔽同名模块规则，不按规则签名校验个数
+          const sig = symbols.lookup(callee) ? undefined : module.funcSignatures.get(callee);
           if (sig && sig.params.length !== expression.args.length) {
             diagnostics.error(
               ErrorCode.CALL_ARITY_MISMATCH,
@@ -482,9 +488,16 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
             this.handled = true;
             return;
           }
-          const signature = module.funcSignatures.get(expression.target.name);
+          const local = symbols.lookup(expression.target.name);
+          const signature = local ? undefined : module.funcSignatures.get(expression.target.name);
           if (signature) {
             this.result = signature.ret;
+            this.handled = true;
+            return;
+          }
+          // 调用函数类型的局部名（参数 `f as (Int) -> Int`、`Let g be inc`）：结果为其返回类型
+          if (local && local.type.kind === 'FuncType') {
+            this.result = local.type.ret as Core.Type;
             this.handled = true;
             return;
           }
