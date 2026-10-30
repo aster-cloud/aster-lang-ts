@@ -44,11 +44,56 @@ export function choose(exact: readonly Entry[], folded: readonly Entry[]): Choic
 
 /** 源码声明（含导入）：按原写法与规范名双向匹配。 */
 export function chooseDecl(decls: readonly Entry[], written: string): Choice {
+  return chooseDeclAcross([decls], written);
+}
+
+/** 同 chooseDecl，候选为多张声明表依次拼接（不必为一次查找复制合并数组）。 */
+export function chooseDeclAcross(tables: readonly (readonly Entry[])[], written: string): Choice {
   const w = nfc(written);
   const key = foldKey(w);
-  const exact = decls.filter((d) => d.written === w || d.canonical === w);
-  const folded = decls.filter((d) => foldKey(d.written) === key || foldKey(d.canonical) === key);
+  const exact = tables.flatMap((t) => matches(t, declIndex(t).exact, w));
+  const folded = tables.flatMap((t) => matches(t, declIndex(t).folded, key));
   return choose(exact, folded);
+}
+
+/**
+ * 声明表的查找索引：写法 / 规范名（原样，及其折叠键）→ 表中下标（升序，即原表顺序）。
+ * 每次查找都线性扫描并逐项折叠，会让名称解析随声明数平方增长（2000 条规则约 1.4s，#258）。
+ * 声明表在解析过程中只追加，故按表缓存，表变长时只为新增项补索引。
+ */
+interface DeclIndex {
+  size: number;
+  readonly exact: Map<string, number[]>;
+  readonly folded: Map<string, number[]>;
+}
+
+const declIndexes = new WeakMap<readonly Entry[], DeclIndex>();
+
+function declIndex(decls: readonly Entry[]): DeclIndex {
+  let index = declIndexes.get(decls);
+  if (!index || index.size > decls.length) {
+    index = { size: 0, exact: new Map(), folded: new Map() };
+    declIndexes.set(decls, index);
+  }
+  for (; index.size < decls.length; index.size++) {
+    const d = decls[index.size]!;
+    addKeys(index.exact, [d.written, d.canonical], index.size);
+    addKeys(index.folded, [foldKey(d.written), foldKey(d.canonical)], index.size);
+  }
+  return index;
+}
+
+/** 同一项的两个键相同时只登记一次，保证每个键下的下标无重复 */
+function addKeys(map: Map<string, number[]>, keys: readonly string[], at: number): void {
+  for (const k of new Set(keys)) {
+    const list = map.get(k);
+    if (list) list.push(at);
+    else map.set(k, [at]);
+  }
+}
+
+function matches(decls: readonly Entry[], map: ReadonlyMap<string, readonly number[]>, key: string): Entry[] {
+  return (map.get(key) ?? []).map((i) => decls[i]!);
 }
 
 export interface VocabMap {
