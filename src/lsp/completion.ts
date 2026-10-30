@@ -27,8 +27,8 @@ import { lookup } from '../config/lexicons/identifiers/scopes.js';
 import { foldKey, nfc } from '../config/lexicons/identifiers/casefold.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 import { EN_US } from '../config/lexicons/en-US.js';
-import type { Core } from '../types.js';
 import { resolveDocument } from './resolution.js';
+import { localizedField, memberCompletions } from './member-completion.js';
 import type { ResolvableDocument } from './resolution.js';
 
 /** 补全所需的文档快照：tokens / AST，以及名称解析用的语法诊断与租户词汇。 */
@@ -38,48 +38,6 @@ type Coord = { readonly line: number; readonly col: number };
 
 const isName = (t: any): boolean => t?.kind === TokenKind.IDENT || t?.kind === TokenKind.TYPE_IDENT;
 const sameCoord = (a: Coord | undefined, b: Coord | undefined): boolean => !!a && !!b && a.line === b.line && a.col === b.col;
-
-/**
- * 光标紧跟在 `recv.` 的点之后时，返回接收者（可为点分路径）的起止位置；否则 null。
- * 位置为 token 坐标（1 基，end 不含）。
- */
-export function receiverBeforeDot(tokens: readonly any[], pos: { line: number; character: number }): { start: Coord; end: Coord } | null {
-  const cursor = { line: pos.line + 1, col: pos.character + 1 };
-  const dot = tokens.findIndex((t) => t?.kind === TokenKind.DOT && sameCoord(t.end, cursor));
-  if (dot < 1 || !isName(tokens[dot - 1])) return null;
-  let head = dot - 1;
-  while (tokens[head - 1]?.kind === TokenKind.DOT && isName(tokens[head - 2])) head -= 2;
-  return { start: tokens[head].start, end: tokens[dot - 1].end };
-}
-
-/** 字段的本地化写法：文档词汇中该 struct 字段的主词条；无本地化时为规范名。 */
-function localizedField(vocabulary: VocabularyScopes | undefined, struct: string, canonical: string): string {
-  const buckets = vocabulary?.fields.get(struct)?.values() ?? [];
-  for (const list of buckets) {
-    const term = list.find((c) => c.canonical === canonical && c.source === 'term');
-    if (term) return term.written;
-  }
-  return canonical;
-}
-
-/**
- * `x.` 之后的字段补全（ADR 0051 §5：FIELD_REF 按接收者类型）。接收者类型取 R2 的 §4 显式声明规则；
- * 语法不完整（R2 已跳过）、接收者类型未知或不是源码 Data 时返回 null，由普通补全接管。
- */
-export function fieldCompletions(entry: CompletionDocument, pos: { line: number; character: number }): CompletionItem[] | null {
-  const receiver = receiverBeforeDot(entry.tokens, pos);
-  if (!receiver) return null;
-  const res = resolveDocument(entry);
-  if (!res.complete) return null;
-  const typed = res.typedNames.find((t) => sameCoord(t.span.start, receiver.start) && sameCoord(t.span.end, receiver.end));
-  const typeName = typed?.type.kind === 'TypeName' ? typed.type.name : undefined;
-  const data = res.core?.decls.find((d): d is Core.Data => d.kind === 'Data' && d.name === typeName);
-  if (!data) return null;
-  return data.fields.map((f) => {
-    const label = localizedField(entry.vocabulary, data.name, f.name);
-    return { label, kind: CompletionItemKind.Field, ...(label === f.name ? {} : { detail: f.name }) };
-  });
-}
 
 const LAYOUT_KINDS: ReadonlySet<unknown> = new Set([TokenKind.NEWLINE, TokenKind.INDENT, TokenKind.DEDENT, TokenKind.EOF, TokenKind.COMMENT]);
 
@@ -180,7 +138,7 @@ function fieldCompletionsAt(
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return null;
   const entry = getOrParse(doc);
-  return fieldCompletions(entry, params.position) ?? constructFieldCompletions(entry, params.position, lexicon);
+  return memberCompletions(entry, params.position, lexicon) ?? constructFieldCompletions(entry, params.position, lexicon);
 }
 
 const CONTROL_ARG = /@control\(\s*"([^"]*)$/;

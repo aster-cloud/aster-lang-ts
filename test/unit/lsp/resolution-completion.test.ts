@@ -140,11 +140,54 @@ describe('构造字段补全（`T with …` 的字段名位置，#248）', () =>
   });
 });
 
+describe('成员位置识别（cloud#660 第 5 轮）', () => {
+  it('★行中：`x.` 后还有内容，按接收者类型补全，textEdit 为光标处空范围', () => {
+    const line = '  返回 x. 加 1。';
+    const at = '  返回 x.'.length;
+    const doc = docOf([...DECLS, '规则 f 给定 x 作为 司机，产出 整数：', line, '']);
+    const items = completeAt(doc, DECLS.length + 1, at) as Array<Item & { textEdit?: unknown }>;
+    assert.deepEqual(labels(items), ['alter', 'name']);
+    assert.deepEqual(items.find((i) => i.label === 'alter')?.textEdit, {
+      range: { start: { line: DECLS.length + 1, character: at }, end: { line: DECLS.length + 1, character: at } }, newText: 'alter',
+    });
+  });
+
+  it('★带前缀：`x.al` 的 textEdit 覆盖前缀 al，词汇本地化写法', () => {
+    const line = '  返回 x.al';
+    const doc = docOf([...DECLS, '规则 f 给定 x 作为 司机，产出 整数：', line, '']);
+    const items = completeAt(doc, DECLS.length + 1, line.length) as Array<Item & { textEdit?: { range: { start: { character: number } } } }>;
+    assert.deepEqual(labels(items), ['alter', 'name']);
+    assert.equal(items[0]!.textEdit?.range.start.character, line.length - 2);
+  });
+
+  it('★未完成的块头 `如果 x.`（zh 句末为「。」）：按参数类型补全', () => {
+    for (const line of ['  如果 x.', '  如果 x.al']) {
+      const doc = docOf([...DECLS, '规则 f 给定 x 作为 司机，产出 整数：', line, '']);
+      assert.deepEqual(labels(completeAt(doc, DECLS.length + 1, line.length)), ['alter', 'name'], line);
+    }
+  });
+
+  it('块头后已有缩进的块体：仍可推断', () => {
+    const doc = docOf([...DECLS, '规则 f 给定 x 作为 司机，产出 整数：', '  如果 x.', '    返回 1。', '  返回 0。', '']);
+    assert.deepEqual(labels(completeAt(doc, DECLS.length + 1, '  如果 x.'.length)), ['alter', 'name']);
+  });
+
+  it('接收者是数字或光标不在成员位置：不给字段', () => {
+    const doc = docOf([...DECLS, '规则 f 给定 x 作为 司机，产出 整数：', '  返回 1.', '']);
+    assert.ok(!labels(completeAt(doc, DECLS.length + 1, '  返回 1.'.length)).includes('alter'));
+  });
+});
+
 describe('语法不完整时降级', () => {
-  it('★文档其它位置有语法错误：R2 跳过，不提供字段补全，不抛异常', () => {
+  it('★文档其它位置有语法错误：完整声明里的接收者类型仍可信，照常给字段补全（cloud#660 第 5 轮）', () => {
+    // 解析器只丢弃未完成的声明；x 所在的函数完整，其参数类型不受影响。诊断仍按原规则降级（见 resolution-diagnostics）。
     const items = labels(completeAfter('x 作为 司机', ['  返回 x.'], ['规则 坏 给定 h 作为 车主，产出 整数：', '  返回 h.fahrer.al']));
-    assert.ok(!items.includes('alter'), `语法不完整时不应给字段补全：${items}`);
-    assert.ok(items.includes('返回'));
+    assert.deepEqual(items, ['alter', 'name']);
+  });
+
+  it('★未完成的那一行本身：`h.fahrer.al` 按 fahrer 的类型 Driver 补全（前缀 al）', () => {
+    const doc = docOf([...DECLS, '规则 坏 给定 h 作为 车主，产出 整数：', '  返回 h.fahrer.al', '']);
+    assert.deepEqual(labels(completeAt(doc, DECLS.length + 1, '  返回 h.fahrer.al'.length)), ['alter', 'name']);
   });
 
   it('半行输入不抛异常', () => {

@@ -7,6 +7,9 @@
 - B2 文案与服务端一致：`with` 调用后缀（如 `Let x be helper with 10.`）被拒时，编辑器原报
   "Expected identifier"，现与 Java 引擎（aster-lang-core `malformedConstructField`）同报
   "Expected 'set to' in construction"；关键词按作者语言显示，只报一条（#252）。
+- LSP 成员补全：`x.` 之后的字段补全不再只在「行尾 + 文档可解析」时生效。行中（点号后还有内容）、
+  点号后已输入前缀（`d.a`）、zh 未完成的块头（`如果 司机.`）以及文档别处有语法错误时，都按接收者的
+  声明类型列字段；字段项带 `textEdit`，替换点号之后到光标的前缀（生产复测 cloud#660 第 5 轮）。
 
 ## 1.2.0
 

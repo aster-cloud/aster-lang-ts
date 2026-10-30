@@ -41,7 +41,19 @@ export function parseDocumentText(
   domain: string | undefined,
 ): ParsedDocument {
   const options = buildCanonicalizeOptions(lexicon, tenantId, domain);
-  const vocabulary = options && 'vocabulary' in options ? options.vocabulary : undefined;
+  return parseDocumentWith(text, lexicon, options && 'vocabulary' in options ? options.vocabulary : undefined);
+}
+
+/**
+ * 以已知的词汇作用域解析文本（不查租户注册中心）。补全为推断接收者类型而解析修补后的文本时，
+ * 须与原文档用同一 lexicon 与词汇，否则字面量宏与名称解析结果会不一致。
+ */
+export function parseDocumentWith(
+  text: string,
+  lexicon: Lexicon | undefined,
+  vocabulary: VocabularyScopes | undefined,
+): ParsedDocument {
+  const options = lexicon && vocabulary ? { lexicon, vocabulary } : lexicon;
   const can = canonicalize(text, options);
   // ★token 位置改为原文坐标后再解析：AST span 由 token 派生，于是高亮/跳转/hover/重命名/
   //   诊断的位置都对应原文（canonicalize 删冠词等会改变行内长度，见 source-positions.ts）。
