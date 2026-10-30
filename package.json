@@ -78,6 +78,10 @@
       "types": "./dist/src/lsp/diagnostics.d.ts",
       "import": "./dist/src/lsp/diagnostics.js"
     },
+    "./lsp/completion": {
+      "types": "./dist/src/lsp/completion.d.ts",
+      "import": "./dist/src/lsp/completion.js"
+    },
     "./browser": {
       "types": "./dist/src/browser.d.ts",
       "import": "./dist/src/browser.js"

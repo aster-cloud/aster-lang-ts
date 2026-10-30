@@ -18,7 +18,7 @@ import { BUILTIN_TYPE_NAMES } from '../typecheck/generics.js';
 import type * as AST from '../types.js';
 import type { Resolved, ResolvedRole, Span, TypecheckDiagnostic } from '../types.js';
 import type { ResolutionContext } from './resolution-context.js';
-import { KEYWORD_CTORS, choose, chooseDecl, chooseVocab, formatCandidates } from './resolution-choice.js';
+import { KEYWORD_CTORS, choose, chooseDecl, chooseDeclAcross, chooseVocab, formatCandidates } from './resolution-choice.js';
 import type { Choice, Entry, VocabMap } from './resolution-choice.js';
 import { signatureTypeNames, isExplicitTypeParam } from '../ast/type-nodes.js';
 
@@ -326,7 +326,7 @@ function probeType(r: Resolver, written: string): string | undefined {
 function resolveValueName(r: Resolver, scope: Scope, written: string, span?: Span): Resolved | undefined {
   const maps = [...vocabFunctions(r), ...vocabTypes(r)];
   const local = findLocal(scope, written);
-  const decl = local.kind === 'miss' ? chooseDecl([...r.table.functions, ...r.table.types], written) : local;
+  const decl = local.kind === 'miss' ? chooseDeclAcross([r.table.functions, r.table.types], written) : local;
   const picked = decl.kind === 'miss' ? chooseVocab(maps, written) : decl;
   const role: ResolvedRole = local.kind === 'miss' ? 'FUNC_REF' : 'LOCAL';
   if (picked.kind === 'ambiguous') reportAmbiguous(r, written, role, picked.candidates, span);
