@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased（1.2.2）
+## 1.2.2
 
 ### 修复
 
@@ -9,7 +9,7 @@
   多条 `[LSP Error] {"level":"INFO",...}`。现在 LSP 服务端安装日志落点，ERROR/WARN/INFO/DEBUG 分别映射到
   `connection.console` 的 error/warn/info/log（logMessage 类型 1/2/3/4），默认最小级别为 WARN，可用环境变量
   `ASTER_LOG_LEVEL`（兼容 `LOG_LEVEL`）调高；`[TypecheckCache]` 与诊断缓存命中日志降为 debug 级别并走
-  Logger。CLI 与非 LSP 场景仍写 stderr，行为不变。
+  Logger。CLI 与非 LSP 场景仍写 stderr，行为不变（#261）。
 
 ## 1.2.1
 
