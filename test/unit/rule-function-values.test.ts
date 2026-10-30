@@ -75,6 +75,18 @@ describe('规则引用作为函数值', () => {
     );
   });
 
+  it('★经函数值局部名调用时校验参数个数：`Let g be inc. Return g(n, n).` 报 E032（Java 报 TYPE_MISMATCH 拒绝）', () => {
+    const r = compileAndTypecheck(`Module demo.\n\n${INC}Rule main given n as Int, produce Int:\n  Let g be inc.\n  Return g(n, n).\n`, { lexicon: EN_US });
+    const arity = (r.typeErrors ?? []).filter((d) => d.code === 'E032');
+    assert.equal(arity.length, 1, JSON.stringify(r.typeErrors));
+    assert.deepEqual(arity[0]!.data, { func: 'g', expected: 1, actual: 2 });
+  });
+
+  it('函数类型参数调用个数不符同样报 E032', () => {
+    const r = compileAndTypecheck(`Module demo.\n\nRule apply given f as (Int) -> Int, n as Int, produce Int:\n  Return f().\n`, { lexicon: EN_US });
+    assert.deepEqual((r.typeErrors ?? []).filter((d) => d.code === 'E032').map((d) => d.data), [{ func: 'f', expected: 1, actual: 0 }]);
+  });
+
   it('未声明的名字仍被拒绝（名称解析报 E802，不产出 IR）', () => {
     const r = compileAndTypecheck(`Module demo.\n\n${TWICE}Rule main given n as Int, produce Int:\n  Return twice(nope, n).\n`, { lexicon: EN_US });
     assert.equal(r.success, false);

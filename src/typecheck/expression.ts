@@ -3,7 +3,7 @@ import { DefaultCoreVisitor } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { TypeSystem } from './type_system.js';
 import { isFieldTypeInferred } from '../core/inferred_fields.js';
-import type { ModuleContext, TypecheckWalkerContext } from './context.js';
+import type { FunctionSignature, ModuleContext, TypecheckWalkerContext } from './context.js';
 import { defineSymbol } from './context.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
@@ -424,8 +424,8 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         //   在此瞎猜签名会误报。
         if (expression.target.kind === 'Name' && !expression.target.name.includes('.')) {
           const callee = expression.target.name;
-          // 局部名（函数类型参数、Let 绑定的函数值）遮蔽同名模块规则，不按规则签名校验个数
-          const sig = symbols.lookup(callee) ? undefined : module.funcSignatures.get(callee);
+          // 局部名（函数类型参数、Let 绑定的函数值）遮蔽同名模块规则：按局部值的 FuncType 校验个数
+          const sig = calleeSignature(module, symbols, callee);
           if (sig && sig.params.length !== expression.args.length) {
             diagnostics.error(
               ErrorCode.CALL_ARITY_MISMATCH,
@@ -488,16 +488,10 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
             this.handled = true;
             return;
           }
-          const local = symbols.lookup(expression.target.name);
-          const signature = local ? undefined : module.funcSignatures.get(expression.target.name);
+          // 本模块规则，或函数类型的局部名（参数 `f as (Int) -> Int`、`Let g be inc`）：结果为其返回类型
+          const signature = calleeSignature(module, symbols, expression.target.name);
           if (signature) {
             this.result = signature.ret;
-            this.handled = true;
-            return;
-          }
-          // 调用函数类型的局部名（参数 `f as (Int) -> Int`、`Let g be inc`）：结果为其返回类型
-          if (local && local.type.kind === 'FuncType') {
-            this.result = local.type.ret as Core.Type;
             this.handled = true;
             return;
           }
@@ -530,6 +524,16 @@ function inferDataDeclFromField(
   const narrowed = matches.filter(item => item.name.toLowerCase().includes(loweredBase));
   if (narrowed.length === 1) return narrowed[0]!;
   return null;
+}
+
+/**
+ * 单段调用目标的签名：局部名优先（类型为 FuncType 时取其参数与返回类型，其它类型无签名），
+ * 否则取本模块规则签名。与 Java BaseTypeChecker 一致——函数签名登记在模块作用域，局部名遮蔽之。
+ */
+function calleeSignature(module: ModuleContext, symbols: SymbolTable, name: string): FunctionSignature | undefined {
+  const local = symbols.lookup(name);
+  if (!local) return module.funcSignatures.get(name);
+  return local.type.kind === 'FuncType' ? { params: [...local.type.params] as Core.Type[], ret: local.type.ret as Core.Type } : undefined;
 }
 
 export function typeOfExpr(
