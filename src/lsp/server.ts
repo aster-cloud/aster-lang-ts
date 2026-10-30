@@ -158,6 +158,7 @@ let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
 let hasDiagnosticRelatedInformationCapability = false;
 let hasWatchedFilesCapability = false;
+let hasInsertReplaceCapability = false;
 let watcherRegistered = false;
 
 connection.onInitialize(async (params: InitializeParams) => {
@@ -180,6 +181,8 @@ connection.onInitialize(async (params: InitializeParams) => {
     (capabilities.workspace as any).didChangeWatchedFiles &&
     (capabilities.workspace as any).didChangeWatchedFiles.dynamicRegistration
   );
+  // 成员补全光标在名字中间时用 InsertReplaceEdit（#259）；客户端未声明时退回覆盖整个名字的 TextEdit
+  hasInsertReplaceCapability = capabilities.textDocument?.completion?.completionItem?.insertReplaceSupport === true;
 
   /* ★租户领域词汇：由客户端在 initialize 时推送（issue #161）。
    *
@@ -383,7 +386,7 @@ connection.onInitialized(() => {
   registerDiagnosticHandlers(connection, documents, getOrParse, getLexiconForDoc);
 
   // Register completion handlers
-  registerCompletionHandlers(connection, documents, getOrParse, getLexiconForDoc);
+  registerCompletionHandlers(connection, documents, getOrParse, getLexiconForDoc, { insertReplace: hasInsertReplaceCapability });
 
   // Register navigation handlers
   registerNavigationHandlers(connection, documents, getOrParse, getDocumentSettings, getLexiconForDoc);

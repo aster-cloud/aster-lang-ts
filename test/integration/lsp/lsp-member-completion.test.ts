@@ -22,7 +22,9 @@ interface Item {
   label: string;
   kind?: number;
   detail?: string;
-  textEdit?: { range: { start: { line: number; character: number }; end: { line: number; character: number } }; newText: string };
+  textEdit?:
+    | { range: { start: { line: number; character: number }; end: { line: number; character: number } }; newText: string }
+    | { insert: object; replace: object; newText: string };
 }
 type Completion = Item[] | { items: Item[] } | null;
 
@@ -50,11 +52,11 @@ after(() => {
 });
 
 /** 以 locale 打开 lines，在第 line 行 character 处请求补全 */
-async function complete(locale: string, lines: readonly string[], line: number, character: number, context: object): Promise<Item[]> {
-  client.notify('workspace/didChangeConfiguration', { settings: { asterLanguageServer: { locale, index: { persist: false } } } });
+async function complete(locale: string, lines: readonly string[], line: number, character: number, context: object, via: LSPClient = client): Promise<Item[]> {
+  via.notify('workspace/didChangeConfiguration', { settings: { asterLanguageServer: { locale, index: { persist: false } } } });
   const uri = `inmemory://policy/member-${seq++}.aster`;
-  client.notify('textDocument/didOpen', { textDocument: { uri, languageId: 'aster-cnl', version: 1, text: lines.join('\n') } });
-  const res = (await client.request('textDocument/completion', { textDocument: { uri }, position: { line, character }, context })) as Completion;
+  via.notify('textDocument/didOpen', { textDocument: { uri, languageId: 'aster-cnl', version: 1, text: lines.join('\n') } });
+  const res = (await via.request('textDocument/completion', { textDocument: { uri }, position: { line, character }, context })) as Completion;
   return Array.isArray(res) ? res : res?.items ?? [];
 }
 
@@ -157,5 +159,48 @@ describe('成员补全：协议级', () => {
     const lines = [...EN_HEAD, '  Return 1.', ''];
     const items = await complete('en-US', lines, 5, '  Return 1.'.length, DOT);
     assert.deepEqual(fieldsOf(items), []);
+  });
+
+  it('#259 光标在名字中间 `d.ag|e`、客户端未声明 insertReplaceSupport：TextEdit 覆盖整个名字', async () => {
+    const body = '  Return d.age.';
+    const dot = '  Return d.'.length;
+    const items = await complete('en-US', [...EN_HEAD, body, ''], 5, dot + 2, INVOKED);
+    assert.deepEqual(fieldsOf(items), ['age', 'name']);
+    assertEdits(items, 5, dot, dot + 3);
+  });
+});
+
+describe('成员补全：客户端支持 InsertReplaceEdit（#259）', () => {
+  let irClient: LSPClient;
+  before(async () => {
+    irClient = new LSPClient();
+    irClient.spawn(SERVER, { cwd: workDir });
+    await irClient.request('initialize', {
+      processId: process.pid,
+      rootUri: null,
+      capabilities: { textDocument: { completion: { completionItem: { insertReplaceSupport: true } } } },
+    });
+    irClient.notify('initialized', {});
+  });
+  after(() => irClient.close());
+
+  it('`d.ag|e`：insert 为点号后到光标，replace 延伸到名字末尾', async () => {
+    const body = '  Return d.age.';
+    const dot = '  Return d.'.length;
+    const items = await complete('en-US', [...EN_HEAD, body, ''], 5, dot + 2, INVOKED, irClient);
+    assert.deepEqual(fieldsOf(items), ['age', 'name']);
+    for (const i of items.filter((x) => x.kind === FIELD)) {
+      assert.deepEqual(i.textEdit, {
+        insert: { start: { line: 5, character: dot }, end: { line: 5, character: dot + 2 } },
+        replace: { start: { line: 5, character: dot }, end: { line: 5, character: dot + 3 } },
+        newText: i.label,
+      });
+    }
+  });
+
+  it('光标在名字末尾：仍为普通 TextEdit', async () => {
+    const body = '  Return d.ag.';
+    const items = await complete('en-US', [...EN_HEAD, body, ''], 5, body.length - 1, INVOKED, irClient);
+    assertEdits(items, 5, body.length - 3, body.length - 1);
   });
 });

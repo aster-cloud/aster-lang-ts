@@ -11,8 +11,13 @@
  *      对每份都运行 R1 → lower → R2（不要求全文语法完整，见 resolution.ts resolveForTyping），
  *      取接收者位置的 §4 静态类型；第一份能定出源码 Data 的即为结果。
  *   修补只用于推断类型，不改文档、不发布诊断。
+ *
+ * ★每份修补文本都是一次全文解析 + R1 → lower → R2，且在服务端同步执行（#258）：
+ *   - 修补文本 → 推断结果做 LRU 缓存：同一版本重复请求、继续输入成员前缀（修补时前缀被删去，
+ *     修补文本不变）都直接命中；
+ *   - 文档超过 MEMBER_REPAIR_MAX_LINES 行时不做修补，只用原文推断，避免阻塞其它请求。
  */
-import type { CompletionItem } from 'vscode-languageserver/node.js';
+import type { CompletionItem, InsertReplaceEdit, Range, TextEdit } from 'vscode-languageserver/node.js';
 import { CompletionItemKind } from 'vscode-languageserver/node.js';
 import { TokenKind } from '../frontend/tokens.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
@@ -21,6 +26,7 @@ import type { Lexicon } from '../config/lexicons/types.js';
 import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
 import type { Core } from '../types.js';
 import { parseDocumentWith } from './parse-document.js';
+import type { ParsedDocument } from './parse-document.js';
 import { resolveDocument, resolveForTyping } from './resolution.js';
 import type { DocumentResolution, ResolvableDocument } from './resolution.js';
 
@@ -74,33 +80,34 @@ export function localizedField(vocabulary: VocabularyScopes | undefined, struct:
   return canonical;
 }
 
-/** 一份待推断的文本：null 表示原文档本身；receiver 为该文本中接收者的位置 */
+/** 一份待推断的修补文本；receiver 为该文本中接收者的位置 */
 interface Candidate {
-  readonly text: string | null;
+  readonly text: string;
   readonly receiver: MemberAccess['receiver'];
 }
 
-/** 把 line 中 [from, to)（0 基）替换为等长空格，保持其余位置不变 */
-const blank = (line: string, from: number, to: number): string => line.slice(0, from) + ' '.repeat(Math.max(0, to - from)) + line.slice(to);
+/** 删去 line 中 [from, to)（0 基） */
+const cut = (line: string, from: number, to: number): string => line.slice(0, from) + line.slice(to);
 
 /**
- * 修补候选（都只改光标所在行，保持行号不变）：
- *   1. 去掉 `.前缀`：行中 `fahrer. plus 1.` → `fahrer  plus 1.`；
- *   2. 只去前缀、保留点号：行尾 `Return d.a` → `Return d. `（点号即句末）；
+ * 修补候选（都只改光标所在行，保持行号与接收者位置不变）：
+ *   1. 删去 `.前缀`：行中 `fahrer. plus 1.` → `fahrer plus 1.`；
+ *   2. 只删前缀、保留点号：行尾 `Return d.a` → `Return d.`（点号即句末）；
  *   3. 当前行换成 `<缩进><返回> <接收者>.`，并清空其后更深缩进的行：处理 `如果 司机.` 这类
  *      本身就是未完成语句的行（条件、块头）。
  */
 function candidates(text: string, access: MemberAccess, lexicon: Lexicon): Candidate[] {
   const { receiver, dotEnd, memberEnd } = access;
-  const out: Candidate[] = [{ text: null, receiver }];
+  const out: Candidate[] = [];
   const lines = text.split('\n');
   const row = dotEnd.line - 1;
   const line = lines[row];
   if (line === undefined || receiver.start.line !== dotEnd.line || memberEnd.line !== dotEnd.line) return out;
   const withLine = (replacement: string, rest: readonly string[] = lines.slice(row + 1)): string =>
     [...lines.slice(0, row), replacement, ...rest].join('\n');
-  out.push({ text: withLine(blank(line, dotEnd.col - 2, memberEnd.col - 1)), receiver });
-  out.push({ text: withLine(blank(line, dotEnd.col - 1, memberEnd.col - 1)), receiver });
+  // 删去而非以空格占位：继续输入前缀时修补文本保持不变，缓存才能命中；接收者在点号之前，位置不受影响
+  out.push({ text: withLine(cut(line, dotEnd.col - 2, memberEnd.col - 1)), receiver });
+  out.push({ text: withLine(cut(line, dotEnd.col - 1, memberEnd.col - 1)), receiver });
 
   const indent = /^\s*/.exec(line)![0];
   const keyword = lexicon.keywords[SemanticTokenKind.RETURN] || EN_US.keywords[SemanticTokenKind.RETURN];
@@ -124,24 +131,94 @@ function dataOf(res: DocumentResolution, receiver: MemberAccess['receiver']): Co
   return typeName === undefined ? undefined : res.core?.decls.find((d): d is Core.Data => d.kind === 'Data' && d.name === typeName);
 }
 
+/** 超过该行数的文档不做修补推断：每份修补都是一次全文解析，大文档会拖过编辑器补全超时（#258） */
+export const MEMBER_REPAIR_MAX_LINES = 2000;
+
+/** 修补推断缓存的容量（条）：覆盖一次成员输入过程中的几份修补文本即可 */
+const REPAIR_CACHE_SIZE = 8;
+
+interface RepairEntry {
+  readonly key: string;
+  readonly lexicon: Lexicon | undefined;
+  readonly vocabulary: VocabularyScopes | undefined;
+  readonly data: Core.Data | undefined;
+}
+
+/** 修补文本 → 接收者 Data 的 LRU（按插入顺序，命中时移到末尾） */
+const repairCache: RepairEntry[] = [];
+
+/** 清空修补推断缓存（测试用） */
+export function clearMemberRepairCache(): void {
+  repairCache.length = 0;
+}
+
+function cachedRepair(
+  key: string,
+  lexicon: Lexicon | undefined,
+  vocabulary: VocabularyScopes | undefined,
+  infer: () => Core.Data | undefined,
+): Core.Data | undefined {
+  const at = repairCache.findIndex((e) => e.key === key && e.lexicon === lexicon && e.vocabulary === vocabulary);
+  const entry = at >= 0 ? repairCache.splice(at, 1)[0]! : { key, lexicon, vocabulary, data: infer() };
+  repairCache.push(entry);
+  if (repairCache.length > REPAIR_CACHE_SIZE) repairCache.shift();
+  return entry.data;
+}
+
+const coordKey = (c: Coord): string => `${c.line}:${c.col}`;
+
+function lineCount(text: string): number {
+  let n = 1;
+  for (let i = text.indexOf('\n'); i >= 0; i = text.indexOf('\n', i + 1)) n += 1;
+  return n;
+}
+
+/** 一份解析结果中接收者的 Data：语法完整走正式解析，否则走补全专用的类型推断 */
+function inferData(doc: ParsedDocument | MemberDocument, receiver: MemberAccess['receiver']): Core.Data | undefined {
+  const complete = !(doc.parseDiagnostics ?? []).some((d) => d.severity === 'error');
+  return dataOf(complete ? resolveDocument(doc) : resolveForTyping(doc), receiver);
+}
+
+/** 成员补全的可选项 */
+export interface MemberCompletionOptions {
+  /** 客户端声明支持 InsertReplaceEdit（completionItem.insertReplaceSupport） */
+  readonly insertReplace?: boolean;
+  /** 解析修补文本的函数；缺省 parseDocumentWith（测试注入以统计解析次数） */
+  readonly parse?: typeof parseDocumentWith;
+}
+
 /**
- * 成员位置的字段补全：只列接收者类型（源码 Data）的字段，按文档词汇给本地化写法；
- * 每项带 textEdit，替换点号之后到光标的已输入前缀。不在成员位置或类型未知时返回 null。
+ * 成员位置的字段补全：只列接收者类型（源码 Data）的字段，按文档词汇给本地化写法。
+ * 每项带编辑：插入范围为点号之后到光标；光标在已有名字中间时，替换范围延伸到名字末尾
+ * （客户端支持时给 InsertReplaceEdit，否则 TextEdit 直接覆盖整个名字），避免 `d.ag|e` 选 age 得到 agee。
+ * 不在成员位置或类型未知时返回 null。
  */
 export function memberCompletions(
   entry: MemberDocument,
   pos: { line: number; character: number },
   lexicon: Lexicon | undefined,
+  options: MemberCompletionOptions = {},
 ): CompletionItem[] | null {
   const access = memberAccessAt(entry.tokens, pos);
   if (!access) return null;
+  const data = inferData(entry, access.receiver) ?? firstRepair(entry, access, lexicon, options.parse ?? parseDocumentWith);
+  return data ? fieldItems(data, entry.vocabulary, access, pos, options.insertReplace === true) : null;
+}
+
+/** 原文推断失败时依次尝试修补文本（带缓存），返回第一份能定出接收者 Data 的结果；大文档不尝试 */
+function firstRepair(
+  entry: MemberDocument,
+  access: MemberAccess,
+  lexicon: Lexicon | undefined,
+  parse: typeof parseDocumentWith,
+): Core.Data | undefined {
+  if (lineCount(entry.text) > MEMBER_REPAIR_MAX_LINES) return undefined;
   for (const c of candidates(entry.text, access, lexicon ?? EN_US)) {
-    const doc = c.text === null ? entry : parseDocumentWith(c.text, lexicon, entry.vocabulary);
-    const complete = !(doc.parseDiagnostics ?? []).some((d) => d.severity === 'error');
-    const data = dataOf(complete ? resolveDocument(doc) : resolveForTyping(doc), c.receiver);
-    if (data) return fieldItems(data, entry.vocabulary, access, pos);
+    const key = `${coordKey(c.receiver.start)}-${coordKey(c.receiver.end)}\u0000${c.text}`;
+    const data = cachedRepair(key, lexicon, entry.vocabulary, () => inferData(parse(c.text, lexicon, entry.vocabulary), c.receiver));
+    if (data) return data;
   }
-  return null;
+  return undefined;
 }
 
 function fieldItems(
@@ -149,15 +226,28 @@ function fieldItems(
   vocabulary: VocabularyScopes | undefined,
   access: MemberAccess,
   pos: { line: number; character: number },
+  insertReplace: boolean,
 ): CompletionItem[] {
-  const range = { start: { line: access.dotEnd.line - 1, character: access.dotEnd.col - 1 }, end: pos };
+  const start = { line: access.dotEnd.line - 1, character: access.dotEnd.col - 1 };
+  const insert: Range = { start, end: pos };
+  const replace: Range = { start, end: { line: access.memberEnd.line - 1, character: access.memberEnd.col - 1 } };
   return data.fields.map((f) => {
     const label = localizedField(vocabulary, data.name, f.name);
     return {
       label,
       kind: CompletionItemKind.Field,
       ...(label === f.name ? {} : { detail: f.name }),
-      textEdit: { range, newText: label },
+      textEdit: memberEdit(label, insert, replace, insertReplace),
     };
   });
+}
+
+/**
+ * 字段项的编辑：光标在名字末尾时 insert 与 replace 相同，给普通 TextEdit；
+ * 光标在名字中间时，支持的客户端给 InsertReplaceEdit，否则 TextEdit 覆盖到名字末尾。
+ */
+function memberEdit(newText: string, insert: Range, replace: Range, insertReplace: boolean): TextEdit | InsertReplaceEdit {
+  if (replace.end.character <= insert.end.character) return { range: insert, newText };
+  if (insertReplace) return { insert, replace, newText };
+  return { range: replace, newText };
 }
