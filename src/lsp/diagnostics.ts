@@ -28,7 +28,11 @@ import { DiagnosticError } from '../diagnostics/diagnostics.js';
 import { collectSemanticDiagnostics } from './analysis.js';
 import type { CapabilityManifest } from '../effects/capabilities.js';
 import { ConfigService } from '../config/config-service.js';
+import { createLogger } from '../utils/logger.js';
 import { invalidateModuleEffectsByUri } from './module_cache.js';
+
+/** 缓存命中/写入等诊断性日志：debug 级别，LSP 默认（WARN）不发送 */
+const cacheLogger = createLogger('lsp-diagnostics');
 
 /** 「缺少模块头」诊断的稳定 code（message 随 locale 本地化，不能用来识别） */
 export const MISSING_MODULE_HEADER_CODE = 'missing-module-header';
@@ -347,8 +351,7 @@ async function coreDiagnostics(
   if (tcCached && tcCached.version === version && tcCached.moduleName === moduleName) {
     // 缓存命中，直接使用缓存的类型检查结果
     tdiags = tcCached.diagnostics;
-    // Use stderr to avoid corrupting the LSP protocol stream on stdout
-    console.error(`[TypecheckCache] Cache hit for ${uri} (module: ${moduleName})`);
+    cacheLogger.debug(`[TypecheckCache] Cache hit for ${uri} (module: ${moduleName})`);
   } else {
     // 缓存未命中或版本不匹配，执行类型检查
     const typecheckStart = Date.now();
@@ -373,8 +376,7 @@ async function coreDiagnostics(
     removeFromDependentsMap(uri); // 先清除旧的依赖关系
     updateDependentsMap(uri, imports);
 
-    // Use stderr to avoid corrupting the LSP protocol stream on stdout
-    console.error(`[TypecheckCache] Cached ${uri} (module: ${moduleName}, typecheck: ${typecheckTime}ms, imports: ${imports.length})`);
+    cacheLogger.debug(`[TypecheckCache] Cached ${uri} (module: ${moduleName}, typecheck: ${typecheckTime}ms, imports: ${imports.length})`);
   }
 
   // 转换为 LSP Diagnostic 格式
@@ -408,8 +410,7 @@ export async function computeDiagnostics(
     // 缓存命中，直接返回
     const duration = Date.now() - startTime;
     if (duration > 1) {
-      // Use stderr to avoid corrupting the LSP protocol stream on stdout
-      console.error(`[Diagnostics] Cache hit for ${uri} (${duration}ms)`);
+      cacheLogger.debug(`[Diagnostics] Cache hit for ${uri} (${duration}ms)`);
     }
     return cached.diagnostics;
   }

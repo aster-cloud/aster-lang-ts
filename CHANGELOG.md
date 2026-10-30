@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased（1.2.2）
+
+### 修复
+
+- LSP 日志按真实级别输出：此前 Logger 的所有级别、以及 `[TypecheckCache]` 诊断日志都走 `console.error`，
+  被 vscode-languageserver 重定向成 `window/logMessage` 的 Error 类型，每次类型检查都向浏览器控制台推
+  多条 `[LSP Error] {"level":"INFO",...}`。现在 LSP 服务端安装日志落点，ERROR/WARN/INFO/DEBUG 分别映射到
+  `connection.console` 的 error/warn/info/log（logMessage 类型 1/2/3/4），默认最小级别为 WARN，可用环境变量
+  `ASTER_LOG_LEVEL`（兼容 `LOG_LEVEL`）调高；`[TypecheckCache]` 与诊断缓存命中日志降为 debug 级别并走
+  Logger。CLI 与非 LSP 场景仍写 stderr，行为不变。
+
 ## 1.2.1
 
 ### 修复
