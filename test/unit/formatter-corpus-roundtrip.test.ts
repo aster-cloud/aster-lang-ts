@@ -52,6 +52,7 @@ const ALLOW_LIST: ReadonlyMap<string, string> = new Map([
   ['corpus/tier1-parity/vocab-zh/same-field-two-structs.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-parity/vocab-zh/synonyms.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-parity/vocab-zh/type-equals-field.aster', CJK_IDENTIFIERS],
+  ['corpus/tier1-parity/vocab-zh/set-writeback.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-reject/vocab-e804-zh-member-vs-rule.aster', CJK_IDENTIFIERS],
 ]);
 
@@ -65,9 +66,11 @@ function asterFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/** 语料仓位置：ASTER_LANG_TEST_DIR 优先（本地对照某个分支的 aster-lang-test 时用），否则取并列 checkout。 */
 function siblingTestRepo(): string | undefined {
-  return [join(repoRoot, '..', 'aster-lang-test'), join(repoRoot, 'aster-lang-test')]
-    .find((c) => existsSync(join(c, 'corpus')));
+  const override = process.env['ASTER_LANG_TEST_DIR'];
+  return [override, join(repoRoot, '..', 'aster-lang-test'), join(repoRoot, 'aster-lang-test')]
+    .find((c): c is string => c !== undefined && c !== '' && existsSync(join(c, 'corpus')));
 }
 
 function toCore(source: string, lexicon: Lexicon): Core.Module {
@@ -191,6 +194,9 @@ test('全语料 lossless reflow：幂等，不改字符串、注释、缩进与�
 test('允许清单中的条目确实仍不能往返（能往返的须移出清单）', (t) => {
   const sibling = siblingTestRepo();
   if (sibling === undefined) return t.skip('aster-lang-test 未并列 checkout');
-  const stale = [...ALLOW_LIST.keys()].filter((key) => roundTripProblem(join(sibling, key)) === undefined);
+  // 清单可以先于语料仓登记新样本（两仓分别合并）：语料仓里还没有的文件不算过期。
+  const stale = [...ALLOW_LIST.keys()]
+    .filter((key) => existsSync(join(sibling, key)))
+    .filter((key) => roundTripProblem(join(sibling, key)) === undefined);
   assert.deepEqual(stale, []);
 });

@@ -16,11 +16,21 @@
   （2000 条规则约 1.4s，现约 0.17s）。LSP 成员补全的修补文本推断结果按文本缓存（继续输入成员前缀时复用），
   1000 行以上的文档中，未命中缓存的修补累计耗时超过 150ms 后放弃其余修补，避免大文档补全阻塞服务端；文档大小不设上限，4000 行文档
   当前行未写完时首次成员补全约 0.68s → 0.1s，结果相同（#258）。
+- 解释器：`Set` 按词法作用域写回（ADR 0052，aster-lang-truffle#151）。此前 Scope 与 case 体整表拷贝环境，
+  在 case 体 / Scope 里给外层 Let 赋值，离开块后丢失；现在写到最近定义该名字的那层，与 truffle 一致。
 
 ### 新增
 
 - 包入口 `./lsp/completion`：导出 `memberCompletions`、`parseDocumentText` 等补全 API，下游不必按相对路径引用
   dist 内部模块（#260）。
+
+### 破坏性变更（类型检查）
+
+- 只有 Let 绑定可被 `Set` 赋值。**新增 E001 拒绝**：`Set` 规则形参、lambda 形参、match 模式绑定，以及在
+  lambda 体内 `Set` 捕获的外层变量（报 `expected a Let binding, got parameter 'n'` /
+  `pattern binding 'x'` / `captured variable 'acc'`，与 aster-lang-core 同码同行）。此前这些写法都能通过类型检查。
+- `Set` 函数名或类型名报 E101（与 aster-lang-core 一致）。
+- `Set` 的诊断（E001 / E002 / E101）现在带行列；此前降级后的 `Set` 节点没有位置。
 
 ## 1.2.2
 

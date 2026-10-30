@@ -2,7 +2,8 @@ import type { Core, Span } from '../types.js';
 
 type Type = Core.Type;
 
-export type SymbolKind = 'var' | 'func' | 'data' | 'enum' | 'type_alias' | 'param';
+/** `var` 为 Let 绑定（唯一可被 `Set` 赋值的种类）；`pattern` 为 match 模式绑定。 */
+export type SymbolKind = 'var' | 'func' | 'data' | 'enum' | 'type_alias' | 'param' | 'pattern';
 export type ScopeType = 'module' | 'function' | 'block' | 'lambda';
 
 export interface SymbolInfo {
@@ -150,6 +151,19 @@ export class SymbolTable {
 
   lookup(name: string): SymbolInfo | undefined {
     return this.current.lookup(name);
+  }
+
+  /**
+   * name 的最近绑定是否在某个 lambda 作用域之外（即 lambda 体内引用的是捕获的外层变量）。
+   * 名字未定义时返回 false。
+   */
+  resolvesAcrossLambda(name: string): boolean {
+    let crossed = false;
+    for (let scope: Scope | null = this.current; scope; scope = scope.getParent()) {
+      if (scope.lookupLocal(name)) return crossed;
+      if (scope.getType() === 'lambda') crossed = true;
+    }
+    return false;
   }
 
   lookupInCurrentScope(name: string): SymbolInfo | undefined {

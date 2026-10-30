@@ -14,7 +14,7 @@ export function bindPattern(
   diagnostics: DiagnosticBuilder
 ): void {
   if (pattern.kind === 'PatName') {
-    defineSymbol({ module: ctx, symbols, diagnostics }, pattern.name, scrutineeType, 'var', pattern.span);
+    defineSymbol({ module: ctx, symbols, diagnostics }, pattern.name, scrutineeType, 'pattern', pattern.span);
     return;
   }
   if (pattern.kind === 'PatNull') return;
@@ -69,7 +69,7 @@ function bindPatternCtor(
   if (!dataDecl) {
     if (pattern.names) {
       for (const name of pattern.names) {
-        defineSymbol({ module: ctx, symbols, diagnostics }, name, unknownType(), 'var', pattern.span);
+        defineSymbol({ module: ctx, symbols, diagnostics }, name, unknownType(), 'pattern', pattern.span);
       }
     }
     const ctor = pattern as Core.PatCtor & { args?: readonly Core.Pattern[] };
