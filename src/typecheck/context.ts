@@ -75,14 +75,29 @@ export function defineSymbol(
   }
   const options: { span?: Span; mutable?: boolean } = {};
   if (span) options.span = span;
-  options.mutable = kind !== 'param';
+  // ADR 0052：只有 Let 绑定可被 Set 赋值；形参、lambda 形参、模式绑定不可变（与 Java BaseTypeChecker 一致）。
+  options.mutable = kind === 'var';
   context.symbols.define(name, type, kind, options);
 }
+
+/** 不可赋值的绑定种类在诊断里的英文称呼（与 Java 端一致）。 */
+const IMMUTABLE_KIND_LABEL: Partial<Record<SymbolKind, string>> = {
+  param: 'parameter',
+  pattern: 'pattern binding',
+};
 
 export function assignSymbol(context: TypecheckWalkerContext, name: string, type: Core.Type, span?: Span): void {
   const symbol = context.symbols.lookup(name);
   if (!symbol) {
     context.diagnostics.undefinedVariable(name, span);
+    return;
+  }
+  if (!symbol.mutable) {
+    // 与 Java BaseTypeChecker 同码（E001）。专用错误码待语言包补齐译文后再引入（见 ADR 0052 §5）。
+    context.diagnostics.error(ErrorCode.TYPE_MISMATCH, span, {
+      expected: 'a Let binding',
+      actual: `${IMMUTABLE_KIND_LABEL[symbol.kind] ?? symbol.kind} '${name}'`,
+    });
     return;
   }
   if (!typesEqual(symbol.type, type) && !TypeSystem.isSubtype(type, symbol.type)) {

@@ -40,7 +40,7 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
       }
       case 'Set': {
         const valueType = typeOfExpr(module, symbols, statement.expr, diagnostics);
-        assignSymbol(context, statement.name, valueType, statement.span);
+        assignSymbol(context, statement.name, valueType, statement.span ?? originToSpan(statement.origin));
         this.result = valueType;
         return;
       }

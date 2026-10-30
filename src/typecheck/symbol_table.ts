@@ -2,7 +2,8 @@ import type { Core, Span } from '../types.js';
 
 type Type = Core.Type;
 
-export type SymbolKind = 'var' | 'func' | 'data' | 'enum' | 'type_alias' | 'param';
+/** `var` 为 Let 绑定（唯一可被 `Set` 赋值的种类）；`pattern` 为 match 模式绑定。 */
+export type SymbolKind = 'var' | 'func' | 'data' | 'enum' | 'type_alias' | 'param' | 'pattern';
 export type ScopeType = 'module' | 'function' | 'block' | 'lambda';
 
 export interface SymbolInfo {
