@@ -64,6 +64,23 @@ export function resolveDocument(doc: ResolvableDocument): DocumentResolution {
   return result;
 }
 
+const typingCache = new WeakMap<AstModule, DocumentResolution>();
+
+/**
+ * 补全推断成员访问接收者类型专用：不论语法是否完整都运行 R1 → lower → R2。
+ * 解析器只丢弃未完成的声明，完整声明里参数 / Let 的 §4 静态类型仍然可信；
+ * 这里的诊断不发布（级联误报只影响诊断），只用 typedNames 与 Core 的 Data 声明。
+ */
+export function resolveForTyping(doc: ResolvableDocument): DocumentResolution {
+  const ast = doc.ast;
+  if (!ast) return EMPTY;
+  const hit = typingCache.get(ast);
+  if (hit) return hit;
+  const result = safely(() => resolveComplete(ast, doc.vocabulary));
+  typingCache.set(ast, result);
+  return result;
+}
+
 function safely(run: () => DocumentResolution): DocumentResolution {
   try {
     return run();
