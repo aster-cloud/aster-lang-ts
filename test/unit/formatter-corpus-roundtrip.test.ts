@@ -9,6 +9,7 @@
  * 不留行尾空白，CRLF 版本的结果即 LF 结果换成 CRLF；能编译的文件以原词法包重新编译 Core IR 不变
  * （reflow 不翻译，保留源文语言）。
  */
+import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -195,8 +196,39 @@ test('允许清单中的条目确实仍不能往返（能往返的须移出清�
   const sibling = siblingTestRepo();
   if (sibling === undefined) return t.skip('aster-lang-test 未并列 checkout');
   // 清单可以先于语料仓登记新样本（两仓分别合并）：语料仓里还没有的文件不算过期。
-  const stale = [...ALLOW_LIST.keys()]
-    .filter((key) => existsSync(join(sibling, key)))
+  const keys = [...ALLOW_LIST.keys()];
+  const missing = keys.filter((key) => !existsSync(join(sibling, key)));
+  if (missing.length > 0) t.diagnostic(missingEntriesNote(sibling, missing));
+  const stale = keys
+    .filter((key) => !missing.includes(key))
     .filter((key) => roundTripProblem(join(sibling, key)) === undefined);
   assert.deepEqual(stale, []);
 });
+
+/**
+ * 语料仓里找不到的白名单条目只提示、不失败。语料仓是 main 检出时，找不到通常意味着路径写错或样本已删除，
+ * 提示里点名，便于清理；其他分支上可能只是新样本尚未合入。
+ */
+function missingEntriesNote(sibling: string, missing: readonly string[]): string {
+  const branch = currentBranch(sibling);
+  const hint = branch === 'main'
+    ? '语料仓是 main 检出：这些条目可能写错了路径或样本已删除，请核对后移出白名单'
+    : `语料仓检出为 ${branch ?? '未知分支'}：可能是尚未合入 main 的新样本`;
+  return `白名单中 ${missing.length} 个条目在语料仓不存在（${hint}）：${missing.join(', ')}`;
+}
+
+/** 语料仓检出的分支名；CI 常为 detached HEAD，此时与 main / origin/main 同一提交也视为 main。 */
+function currentBranch(dir: string): string | undefined {
+  const git = (...args: string[]): string | undefined => {
+    try {
+      return execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    } catch {
+      return undefined;
+    }
+  };
+  const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
+  if (branch !== 'HEAD') return branch;
+  const head = git('rev-parse', 'HEAD');
+  const onMain = ['main', 'origin/main'].some((ref) => head !== undefined && git('rev-parse', '--verify', '-q', ref) === head);
+  return onMain ? 'main' : 'detached HEAD';
+}
