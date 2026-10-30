@@ -30,6 +30,15 @@ import { EN_US } from '../config/lexicons/en-US.js';
 import { resolveDocument } from './resolution.js';
 import { localizedField, memberCompletions } from './member-completion.js';
 import type { MemberCompletionOptions } from './member-completion.js';
+
+/*
+ * 包入口 `./lsp/completion` 的公开补全 API：成员补全及其所需的文档解析一并从此导出，
+ * 下游（cloud 补全单测）不必按相对路径引用 dist 内部模块。
+ */
+export { memberCompletions, memberAccessAt, MEMBER_REPAIR_MAX_LINES } from './member-completion.js';
+export type { MemberAccess, MemberCompletionOptions, MemberDocument } from './member-completion.js';
+export { parseDocumentText, parseDocumentWith } from './parse-document.js';
+export type { ParsedDocument } from './parse-document.js';
 import type { ResolvableDocument } from './resolution.js';
 
 /** 补全所需的文档快照：tokens / AST，以及名称解析用的语法诊断与租户词汇。 */
