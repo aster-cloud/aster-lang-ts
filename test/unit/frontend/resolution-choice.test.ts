@@ -4,7 +4,8 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseDecl, chooseDeclAcross } from '../../../src/frontend/resolution-choice.js';
+import { choose, chooseDecl, chooseDeclAcross } from '../../../src/frontend/resolution-choice.js';
+import { foldKey, nfc } from '../../../src/config/lexicons/identifiers/casefold.js';
 import type { Entry } from '../../../src/frontend/resolution-choice.js';
 
 const fn = (written: string, canonical = written): Entry => ({ written, canonical, role: 'FUNC_REF' });
@@ -47,6 +48,35 @@ describe('chooseDecl 语义', () => {
     const types = [ty('Hoch', 'High'), ty('Rate'), ty('Fahrer', 'Driver')];
     for (const w of ['hoch', 'HOCH', 'Rate', 'rate', 'RATE', 'driver', 'Fahrer', 'nichts']) {
       assert.deepEqual(chooseDeclAcross([functions, types], w), chooseDecl([...functions, ...types], w), w);
+    }
+  });
+});
+
+/** 建索引前的线性扫描实现，作为差分参照 */
+function linearChooseDecl(decls: readonly Entry[], written: string) {
+  const w = nfc(written);
+  const key = foldKey(w);
+  const exact = decls.filter((d) => d.written === w || d.canonical === w);
+  const folded = decls.filter((d) => foldKey(d.written) === key || foldKey(d.canonical) === key);
+  return choose(exact, folded);
+}
+
+describe('chooseDecl 与线性扫描差分', () => {
+  it('随机表、交替追加与查找：结果与线性扫描逐项相同', () => {
+    const atoms = ['hoch', 'Hoch', 'HOCH', 'stufe', 'Stufe', 'straße', 'STRASSE', 'prüfe', 'pru\u0308fe', 'İd', 'id', 'σ', 'ς', 'ǅ', 'ﬁx', 'fix'];
+    let seed = 7;
+    const rnd = (n: number) => ((seed = (seed * 1103515245 + 12345) % 2147483648) % n);
+    for (let round = 0; round < 200; round++) {
+      const functions: Entry[] = [];
+      const types: Entry[] = [];
+      for (let step = 0; step < 12; step++) {
+        const table = rnd(2) === 0 ? functions : types;
+        const make = table === functions ? fn : ty;
+        table.push(make(atoms[rnd(atoms.length)]!, atoms[rnd(atoms.length)]!));
+        const probe = atoms[rnd(atoms.length)]!;
+        assert.deepEqual(chooseDecl(types, probe), linearChooseDecl(types, probe), probe);
+        assert.deepEqual(chooseDeclAcross([functions, types], probe), linearChooseDecl([...functions, ...types], probe), probe);
+      }
     }
   });
 });

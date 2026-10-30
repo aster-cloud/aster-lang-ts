@@ -35,7 +35,7 @@ import type { MemberCompletionOptions } from './member-completion.js';
  * 包入口 `./lsp/completion` 的公开补全 API：成员补全及其所需的文档解析一并从此导出，
  * 下游（cloud 补全单测）不必按相对路径引用 dist 内部模块。
  */
-export { memberCompletions, memberAccessAt, MEMBER_REPAIR_MAX_LINES } from './member-completion.js';
+export { memberCompletions, memberAccessAt, MEMBER_REPAIR_BUDGET_MS, MEMBER_REPAIR_BUDGET_FROM_LINES } from './member-completion.js';
 export type { MemberAccess, MemberCompletionOptions, MemberDocument } from './member-completion.js';
 export { parseDocumentText, parseDocumentWith } from './parse-document.js';
 export type { ParsedDocument } from './parse-document.js';

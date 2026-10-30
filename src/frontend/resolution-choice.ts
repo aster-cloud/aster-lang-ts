@@ -60,6 +60,7 @@ export function chooseDeclAcross(tables: readonly (readonly Entry[])[], written:
  * 声明表的查找索引：写法 / 规范名（原样，及其折叠键）→ 表中下标（升序，即原表顺序）。
  * 每次查找都线性扫描并逐项折叠，会让名称解析随声明数平方增长（2000 条规则约 1.4s，#258）。
  * 声明表在解析过程中只追加，故按表缓存，表变长时只为新增项补索引。
+ * ★调用约定：传入的声明表只允许追加，不得截短后再追加或原地替换元素（索引不会察觉）。
  */
 interface DeclIndex {
   size: number;

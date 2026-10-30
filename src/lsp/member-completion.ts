@@ -15,7 +15,9 @@
  * ★每份修补文本都是一次全文解析 + R1 → lower → R2，且在服务端同步执行（#258）：
  *   - 修补文本 → 推断结果做 LRU 缓存：同一版本重复请求、继续输入成员前缀（修补时前缀被删去，
  *     修补文本不变）都直接命中；
- *   - 文档超过 MEMBER_REPAIR_MAX_LINES 行时不做修补，只用原文推断，避免阻塞其它请求。
+ *   - 不少于 MEMBER_REPAIR_BUDGET_FROM_LINES 行的文档，修补推断有耗时预算 MEMBER_REPAIR_BUDGET_MS：
+ *     累计耗时超过预算后不再解析新的修补文本，
+ *     避免大文档补全拖过编辑器超时、阻塞其它请求（名称解析已是线性，一份修补约随文档长度线性增长）。
  */
 import type { CompletionItem, InsertReplaceEdit, Range, TextEdit } from 'vscode-languageserver/node.js';
 import { CompletionItemKind } from 'vscode-languageserver/node.js';
@@ -131,8 +133,17 @@ function dataOf(res: DocumentResolution, receiver: MemberAccess['receiver']): Co
   return typeName === undefined ? undefined : res.core?.decls.find((d): d is Core.Data => d.kind === 'Data' && d.name === typeName);
 }
 
-/** 超过该行数的文档不做修补推断：每份修补都是一次全文解析，大文档会拖过编辑器补全超时（#258） */
-export const MEMBER_REPAIR_MAX_LINES = 2000;
+/**
+ * 修补推断的累计耗时预算（毫秒）：每份未命中缓存的修补都是一次全文解析 + 名称解析，
+ * 超过预算后放弃其余修补（已解析的仍入缓存，继续输入时直接命中）。第一份修补总会尝试（#258）。
+ */
+export const MEMBER_REPAIR_BUDGET_MS = 150;
+
+/**
+ * 不足该行数的文档不受耗时预算约束：小文档每份修补只需几毫秒，耗时主要是冷启动 JIT 与机器负载，
+ * 按墙钟放弃反而会让小文档的补全时有时无。预算只用来保护大文档。
+ */
+export const MEMBER_REPAIR_BUDGET_FROM_LINES = 1000;
 
 /** 修补推断缓存的容量（条）：覆盖一次成员输入过程中的几份修补文本即可 */
 const REPAIR_CACHE_SIZE = 8;
@@ -152,17 +163,18 @@ export function clearMemberRepairCache(): void {
   repairCache.length = 0;
 }
 
-function cachedRepair(
-  key: string,
-  lexicon: Lexicon | undefined,
-  vocabulary: VocabularyScopes | undefined,
-  infer: () => Core.Data | undefined,
-): Core.Data | undefined {
+/** 查缓存：命中时移到 LRU 末尾并返回该条，未命中返回 undefined */
+function lookupRepair(key: string, lexicon: Lexicon | undefined, vocabulary: VocabularyScopes | undefined): RepairEntry | undefined {
   const at = repairCache.findIndex((e) => e.key === key && e.lexicon === lexicon && e.vocabulary === vocabulary);
-  const entry = at >= 0 ? repairCache.splice(at, 1)[0]! : { key, lexicon, vocabulary, data: infer() };
+  if (at < 0) return undefined;
+  const entry = repairCache.splice(at, 1)[0]!;
+  repairCache.push(entry);
+  return entry;
+}
+
+function storeRepair(entry: RepairEntry): void {
   repairCache.push(entry);
   if (repairCache.length > REPAIR_CACHE_SIZE) repairCache.shift();
-  return entry.data;
 }
 
 const coordKey = (c: Coord): string => `${c.line}:${c.col}`;
@@ -185,6 +197,12 @@ export interface MemberCompletionOptions {
   readonly insertReplace?: boolean;
   /** 解析修补文本的函数；缺省 parseDocumentWith（测试注入以统计解析次数） */
   readonly parse?: typeof parseDocumentWith;
+  /** 修补推断的累计耗时预算（毫秒）；缺省 MEMBER_REPAIR_BUDGET_MS */
+  readonly repairBudgetMs?: number;
+  /** 计时函数（毫秒）；缺省 performance.now（测试注入以确定性地模拟耗时） */
+  readonly now?: () => number;
+  /** 达到该行数才启用耗时预算；缺省 MEMBER_REPAIR_BUDGET_FROM_LINES */
+  readonly repairBudgetFromLines?: number;
 }
 
 /**
@@ -201,21 +219,37 @@ export function memberCompletions(
 ): CompletionItem[] | null {
   const access = memberAccessAt(entry.tokens, pos);
   if (!access) return null;
-  const data = inferData(entry, access.receiver) ?? firstRepair(entry, access, lexicon, options.parse ?? parseDocumentWith);
+  const data = inferData(entry, access.receiver) ?? firstRepair(entry, access, lexicon, options);
   return data ? fieldItems(data, entry.vocabulary, access, pos, options.insertReplace === true) : null;
 }
 
-/** 原文推断失败时依次尝试修补文本（带缓存），返回第一份能定出接收者 Data 的结果；大文档不尝试 */
+/**
+ * 原文推断失败时依次尝试修补文本，返回第一份能定出接收者 Data 的结果。
+ * 命中缓存的修补不计耗时；未命中的修补在累计耗时超过预算后不再尝试。
+ */
 function firstRepair(
   entry: MemberDocument,
   access: MemberAccess,
   lexicon: Lexicon | undefined,
-  parse: typeof parseDocumentWith,
+  options: MemberCompletionOptions,
 ): Core.Data | undefined {
-  if (lineCount(entry.text) > MEMBER_REPAIR_MAX_LINES) return undefined;
+  const parse = options.parse ?? parseDocumentWith;
+  const now = options.now ?? ((): number => performance.now());
+  const budgeted = lineCount(entry.text) >= (options.repairBudgetFromLines ?? MEMBER_REPAIR_BUDGET_FROM_LINES);
+  const budget = budgeted ? (options.repairBudgetMs ?? MEMBER_REPAIR_BUDGET_MS) : Infinity;
+  const start = now();
+  let parsed = 0;
   for (const c of candidates(entry.text, access, lexicon ?? EN_US)) {
     const key = `${coordKey(c.receiver.start)}-${coordKey(c.receiver.end)}\u0000${c.text}`;
-    const data = cachedRepair(key, lexicon, entry.vocabulary, () => inferData(parse(c.text, lexicon, entry.vocabulary), c.receiver));
+    const cached = lookupRepair(key, lexicon, entry.vocabulary);
+    if (cached) {
+      if (cached.data) return cached.data;
+      continue;
+    }
+    if (parsed > 0 && now() - start > budget) return undefined;
+    parsed += 1;
+    const data = inferData(parse(c.text, lexicon, entry.vocabulary), c.receiver);
+    storeRepair({ key, lexicon, vocabulary: entry.vocabulary, data });
     if (data) return data;
   }
   return undefined;
