@@ -29,6 +29,16 @@ import { SemanticTokenKind } from '../config/token-kind.js';
 import { EN_US } from '../config/lexicons/en-US.js';
 import { resolveDocument } from './resolution.js';
 import { localizedField, memberCompletions } from './member-completion.js';
+import type { MemberCompletionOptions } from './member-completion.js';
+
+/*
+ * 包入口 `./lsp/completion` 的公开补全 API：成员补全及其所需的文档解析一并从此导出，
+ * 下游（cloud 补全单测）不必按相对路径引用 dist 内部模块。
+ */
+export { memberCompletions, memberAccessAt, MEMBER_REPAIR_BUDGET_MS, MEMBER_REPAIR_BUDGET_FROM_LINES } from './member-completion.js';
+export type { MemberAccess, MemberCompletionOptions, MemberDocument } from './member-completion.js';
+export { parseDocumentText, parseDocumentWith } from './parse-document.js';
+export type { ParsedDocument } from './parse-document.js';
 import type { ResolvableDocument } from './resolution.js';
 
 /** 补全所需的文档快照：tokens / AST，以及名称解析用的语法诊断与租户词汇。 */
@@ -133,12 +143,13 @@ function fieldCompletionsAt(
   getOrParse: (doc: TextDocument) => CompletionDocument,
   params: { textDocument?: { uri: string }; position?: { line: number; character: number } } | undefined,
   lexicon: Lexicon | undefined,
+  options: MemberCompletionOptions,
 ): CompletionItem[] | null {
   if (!params?.textDocument || !params.position) return null;
   const doc = documents.get(params.textDocument.uri);
   if (!doc) return null;
   const entry = getOrParse(doc);
-  return memberCompletions(entry, params.position, lexicon) ?? constructFieldCompletions(entry, params.position, lexicon);
+  return memberCompletions(entry, params.position, lexicon, options) ?? constructFieldCompletions(entry, params.position, lexicon);
 }
 
 const CONTROL_ARG = /@control\(\s*"([^"]*)$/;
@@ -354,12 +365,14 @@ function findCallInfoAt(
  * @param connection LSP 连接对象
  * @param documents 文档管理器，提供 get 方法按 URI 获取文档
  * @param getOrParse 文档解析函数，返回文本、词法标记和 AST
+ * @param clientOptions 由客户端能力决定的补全选项（如是否支持 InsertReplaceEdit）
  */
 export function registerCompletionHandlers(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined },
   getOrParse: (doc: TextDocument) => CompletionDocument,
   getLexiconForDoc?: (uri: string) => Lexicon | undefined,
+  clientOptions: Pick<MemberCompletionOptions, 'insertReplace'> = {},
 ): void {
   // 代码补全：提供关键字和类型补全
   connection.onCompletion((params): CompletionItem[] => {
@@ -367,7 +380,7 @@ export function registerCompletionHandlers(
     const controls = controlCompletionsAt(documents, params);
     if (controls) return controls;
     // `x.` 之后且接收者类型已知、或位于构造的字段名位置：只列该 struct 的字段
-    const fields = fieldCompletionsAt(documents, getOrParse, params, getLexiconForDoc?.(params.textDocument.uri));
+    const fields = fieldCompletionsAt(documents, getOrParse, params, getLexiconForDoc?.(params.textDocument.uri), clientOptions);
     if (fields) return fields;
     // ★关键词必须取自**该文档的 lexicon**，而不是硬编码的英文 KW。
     //

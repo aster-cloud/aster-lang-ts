@@ -1,11 +1,28 @@
 # Changelog
 
-## 未发布
+## Unreleased（1.2.3）
 
 ### 修复
 
+- 规则引用可作为函数值传递：`twice(inc, n)`、`Let g be inc`、函数类型参数调用此前在 typecheck 报
+  E101、解释器报 `Undefined variable`（`List.map(xs, inc)` 也带一条 E101）。现在值位置的规则名类型为其签名的
+  `FuncType`，求值得到可调用值；局部名优先于同名规则，经函数类型局部名调用时结果类型取其返回类型，参数个数按
+  该局部值的函数类型校验（`Let g be inc. Return g(n, n).` 报 E032，与 Java 一致拒绝）。与 Java 引擎（TypeChecker 在模块作用域登记函数签名、truffle Loader 以 LambdaValue 入 env）一致（#256）。
+- LSP 成员补全：光标位于已有成员名中间（`d.ag|e`）时，选中 `age` 不再残留后半截得到 `agee`。客户端声明
+  `completionItem.insertReplaceSupport` 时字段项给 InsertReplaceEdit（insert 为点号后到光标、replace 延伸到名字
+  末尾），否则 TextEdit 直接覆盖整个名字（#259）。cloud 编辑器需在 initialize 中声明 `insertReplaceSupport: true`
+  才会拿到 InsertReplaceEdit。
+- 名称解析的源码声明查找改为按声明表建索引：此前每次查找都线性扫描并逐项折叠整张表，解析耗时随声明数平方增长
+  （2000 条规则约 1.4s，现约 0.17s）。LSP 成员补全的修补文本推断结果按文本缓存（继续输入成员前缀时复用），
+  1000 行以上的文档中，未命中缓存的修补累计耗时超过 150ms 后放弃其余修补，避免大文档补全阻塞服务端；文档大小不设上限，4000 行文档
+  当前行未写完时首次成员补全约 0.68s → 0.1s，结果相同（#258）。
 - 解释器：`Set` 按词法作用域写回（ADR 0052，aster-lang-truffle#151）。此前 Scope 与 case 体整表拷贝环境，
   在 case 体 / Scope 里给外层 Let 赋值，离开块后丢失；现在写到最近定义该名字的那层，与 truffle 一致。
+
+### 新增
+
+- 包入口 `./lsp/completion`：导出 `memberCompletions`、`parseDocumentText` 等补全 API，下游不必按相对路径引用
+  dist 内部模块（#260）。
 
 ### 破坏性变更（类型检查）
 

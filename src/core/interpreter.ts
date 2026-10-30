@@ -1146,6 +1146,14 @@ class Interpreter {
       return this.enumValue(enumName, name);
     }
 
+    // 模块规则作为函数值（`twice(inc, n)`、`Let g be inc`）：得到无捕获的闭包。
+    // 与 truffle Loader 一致——每个函数以 LambdaValue 放进 env，Name 回退到 env 即为可调用值；
+    // 局部名与枚举成员优先（已在上面命中）。
+    const func = this.funcs.get(name);
+    if (func) {
+      return new Closure(func.params, func.body, new Map());
+    }
+
     throw new InterpreterError(`Undefined variable '${name}'`);
   }
 
