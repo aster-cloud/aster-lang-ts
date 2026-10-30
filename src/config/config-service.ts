@@ -53,6 +53,9 @@ export class ConfigService {
   /** 日志级别（默认 INFO） */
   readonly logLevel: LogLevel;
 
+  /** 显式配置的日志级别（ASTER_LOG_LEVEL，兼容旧名 LOG_LEVEL）；未配置或非法时为 undefined */
+  readonly configuredLogLevel: LogLevel | undefined;
+
   /** 能力清单文件路径（可选，用于 LSP 诊断） */
   readonly capsManifestPath: string | null;
 
@@ -67,7 +70,8 @@ export class ConfigService {
     this.effectsEnforce = getEnv('ASTER_CAP_EFFECTS_ENFORCE') !== '0';
     this.effectConfigPath = getEnv('ASTER_EFFECT_CONFIG') || '.aster/effects.json';
     this.cachedEffectConfigPath = this.effectConfigPath;
-    this.logLevel = this.parseLogLevel(getEnv('LOG_LEVEL'));
+    this.configuredLogLevel = this.parseLogLevel(getEnv('ASTER_LOG_LEVEL') || getEnv('LOG_LEVEL'));
+    this.logLevel = this.configuredLogLevel ?? LogLevel.INFO;
     this.capsManifestPath = getEnv('ASTER_CAPS') || null;
     this.debugTypes = getEnv('ASTER_DEBUG_TYPES') === '1';
 
@@ -76,17 +80,17 @@ export class ConfigService {
   }
 
   /**
-   * 解析 LOG_LEVEL 环境变量为 LogLevel 枚举值。
+   * 解析日志级别环境变量为 LogLevel 枚举值。
    *
    * @param raw - 原始环境变量值
-   * @returns 解析后的 LogLevel，默认 INFO
+   * @returns 解析后的 LogLevel；缺失或非法时返回 undefined
    */
-  private parseLogLevel(raw: string | undefined): LogLevel {
-    if (!raw) return LogLevel.INFO;
+  private parseLogLevel(raw: string | undefined): LogLevel | undefined {
+    if (!raw) return undefined;
     const upper = raw.toUpperCase();
-    return upper in LogLevel
+    return upper in LogLevel && Number.isNaN(Number(upper))
       ? (LogLevel[upper as keyof typeof LogLevel] as LogLevel)
-      : LogLevel.INFO;
+      : undefined;
   }
 
   /**

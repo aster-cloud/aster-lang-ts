@@ -76,10 +76,14 @@ import { DebounceMap } from './debounce-map.js';
 import { ConfigService } from '../config/config-service.js';
 import { setWarmupPromise } from './shared-state.js';
 import { config } from './config.js';
+import { installLspLogSink } from './log-sink.js';
 // import { lowerModule } from "../lower_to_core";
 
 // Create a connection for the server, using Node's IPC as a transport.
 const connection = createConnection(ProposedFeatures.all);
+
+// Logger 输出按真实级别经 window/logMessage 发送，默认只发 WARN 及以上
+installLspLogSink(connection.console);
 
 // Create a simple text document manager.
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);

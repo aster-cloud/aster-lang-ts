@@ -14,6 +14,7 @@ const ENV_KEYS = [
   'ASTER_CAPS',
   'ASTER_DEBUG_TYPES',
   'LOG_LEVEL',
+  'ASTER_LOG_LEVEL',
 ];
 
 const ORIGINAL_ENV: Record<string, string | undefined> = Object.fromEntries(
@@ -100,6 +101,23 @@ describe('ConfigService', () => {
     const instance = ConfigService.getInstance();
 
     assert.strictEqual(instance.logLevel, LogLevel.INFO);
+    assert.strictEqual(instance.configuredLogLevel, undefined);
+  });
+
+  it('ASTER_LOG_LEVEL 优先于 LOG_LEVEL，并记录为显式配置', () => {
+    setEnv('LOG_LEVEL', 'error');
+    setEnv('ASTER_LOG_LEVEL', 'debug');
+
+    const instance = ConfigService.getInstance();
+
+    assert.strictEqual(instance.logLevel, LogLevel.DEBUG);
+    assert.strictEqual(instance.configuredLogLevel, LogLevel.DEBUG);
+  });
+
+  it('数字形式的日志级别视为非法', () => {
+    setEnv('ASTER_LOG_LEVEL', '2');
+
+    assert.strictEqual(ConfigService.getInstance().configuredLogLevel, undefined);
   });
 });
 
