@@ -281,6 +281,55 @@ class Closure {
 }
 
 /**
+ * 词法作用域链（ADR 0052，aster-cloud/aster-lang-truffle#151）。
+ *
+ * - `set`：在**当前层**登记绑定（Let、形参、模式绑定），可遮蔽外层同名绑定；
+ * - `assign`：`Set` 语句的写入，沿作用域链找到最近定义该名字的那一层写入，
+ *   找不到时在当前层登记（与 aster-lang-truffle `Env.set` 的写冒泡一致）；
+ * - `child`：Scope 与 case 体进入新的一层，离开后该层的 Let 与模式绑定随之消失，
+ *   而对外层绑定的 `Set` 已写在外层，离开后仍可见。
+ */
+class Env {
+  private readonly vars = new Map<string, unknown>();
+
+  constructor(private readonly parent: Env | null = null, initial?: ReadonlyMap<string, unknown>) {
+    if (initial) for (const [k, v] of initial) this.vars.set(k, v);
+  }
+
+  child(): Env {
+    return new Env(this);
+  }
+
+  has(name: string): boolean {
+    return this.owner(name) !== null;
+  }
+
+  get(name: string): unknown {
+    return this.owner(name)?.vars.get(name);
+  }
+
+  set(name: string, value: unknown): void {
+    this.vars.set(name, value);
+  }
+
+  assign(name: string, value: unknown): void {
+    (this.owner(name) ?? this).vars.set(name, value);
+  }
+
+  /** 闭包捕获用：把整条链压平成一张表（内层遮蔽外层），即定义时刻的值快照。 */
+  snapshot(): Map<string, unknown> {
+    const out = this.parent ? this.parent.snapshot() : new Map<string, unknown>();
+    for (const [k, v] of this.vars) out.set(k, v);
+    return out;
+  }
+
+  private owner(name: string): Env | null {
+    if (this.vars.has(name)) return this;
+    return this.parent ? this.parent.owner(name) : null;
+  }
+}
+
+/**
  * Guest Map 运行时值。以真正的 `Map` 作后端，杜绝原型污染 / 原型链泄漏
  * （`Map.get(m,"constructor")` 不再泄漏 `Object`；`Map.put(m,"__proto__",x)`
  * 只会写入一个普通条目，不污染任何原型），并保留插入序（含数字样式键，
@@ -806,7 +855,7 @@ class Interpreter {
     }
 
     // 构建初始环境：将 context 中的值按参数名映射
-    const env = new Map<string, unknown>();
+    const env = new Env();
     for (const param of func.params) {
       if (param.name in context) {
         env.set(param.name, context[param.name]);
@@ -821,7 +870,7 @@ class Interpreter {
   }
 
   /** 执行函数体 */
-  private invokeFunc(func: CoreTypes.Func, env: Map<string, unknown>): unknown {
+  private invokeFunc(func: CoreTypes.Func, env: Env): unknown {
     this.callDepth++;
     if (this.callDepth > MAX_CALL_DEPTH) {
       throw new InterpreterError(
@@ -847,13 +896,13 @@ class Interpreter {
   // 语句执行
   // ------------------------------------------------------------------
 
-  private execBlock(block: CoreTypes.Block | CoreTypes.Scope, env: Map<string, unknown>): void {
+  private execBlock(block: CoreTypes.Block | CoreTypes.Scope, env: Env): void {
     for (const stmt of block.statements) {
       this.execStmt(stmt, env);
     }
   }
 
-  private execStmt(stmt: CoreTypes.Statement, env: Map<string, unknown>): void {
+  private execStmt(stmt: CoreTypes.Statement, env: Env): void {
     this.tick();
 
     switch (stmt.kind) {
@@ -864,7 +913,7 @@ class Interpreter {
       }
       case 'Set': {
         const value = this.evalExpr(stmt.expr, env);
-        env.set(stmt.name, value);
+        env.assign(stmt.name, value);
         break;
       }
       case 'Return': {
@@ -886,8 +935,8 @@ class Interpreter {
         break;
       }
       case 'Scope': {
-        // Scope 创建新的作用域（子环境）
-        const childEnv = new Map(env);
+        // Scope 进入新的一层作用域：块内 Let 离开后消失，对外层绑定的 Set 写回外层
+        const childEnv = env.child();
         this.execBlock(stmt, childEnv);
         break;
       }
@@ -905,10 +954,10 @@ class Interpreter {
   private execMatch(
     value: unknown,
     cases: readonly CoreTypes.Case[],
-    env: Map<string, unknown>,
+    env: Env,
   ): void {
     for (const c of cases) {
-      const childEnv = new Map(env);
+      const childEnv = env.child();
       if (this.matchPattern(value, c.pattern, childEnv)) {
         if (c.body.kind === 'Return') {
           const result = this.evalExpr(c.body.expr, childEnv);
@@ -924,7 +973,7 @@ class Interpreter {
   private matchPattern(
     value: unknown,
     pattern: CoreTypes.Pattern,
-    env: Map<string, unknown>,
+    env: Env,
   ): boolean {
     switch (pattern.kind) {
       case 'PatNull':
@@ -984,7 +1033,7 @@ class Interpreter {
   // 表达式求值
   // ------------------------------------------------------------------
 
-  private evalExpr(expr: CoreTypes.Expression, env: Map<string, unknown>): unknown {
+  private evalExpr(expr: CoreTypes.Expression, env: Env): unknown {
     this.tick();
 
     switch (expr.kind) {
@@ -1033,7 +1082,7 @@ class Interpreter {
         return { __type: 'Some', value: this.evalExpr(expr.expr, env) };
       case 'Lambda':
         // 词法捕获当前环境的快照，避免后续 Set 改写影响已创建的闭包。
-        return new Closure(expr.params, expr.body, new Map(env));
+        return new Closure(expr.params, expr.body, env.snapshot());
       case 'Await':
         throw new InterpreterError('Await expressions are not supported in the interpreter');
       case 'IfExpr':
@@ -1051,7 +1100,7 @@ class Interpreter {
   }
 
   /** 解析 Name 节点：支持 dot notation 字段访问 */
-  private resolveName(name: string, env: Map<string, unknown>): unknown {
+  private resolveName(name: string, env: Env): unknown {
     if (name.includes('.')) {
       const parts = name.split('.');
       const root = parts[0]!;
@@ -1105,7 +1154,7 @@ class Interpreter {
   }
 
   /** 求值函数调用或运算符 */
-  private evalCall(call: CoreTypes.Call, env: Map<string, unknown>): unknown {
+  private evalCall(call: CoreTypes.Call, env: Env): unknown {
     // 检查是否为内置运算符
     if (call.target.kind === 'Name' && BUILTIN_OPS.has(call.target.name)) {
       return this.evalBuiltinOp(call.target.name, call.args, env);
@@ -1159,7 +1208,7 @@ class Interpreter {
       }
 
       // 构建函数环境
-      const funcEnv = new Map<string, unknown>();
+      const funcEnv = new Env();
       for (let i = 0; i < func.params.length; i++) {
         const param = func.params[i]!;
         funcEnv.set(param.name, i < argValues.length ? argValues[i] : null);
@@ -1189,7 +1238,7 @@ class Interpreter {
       if (!func) {
         throw new InterpreterError(`Undefined function '${callable}' used as callback`);
       }
-      const funcEnv = new Map<string, unknown>();
+      const funcEnv = new Env();
       for (let i = 0; i < func.params.length; i++) {
         funcEnv.set(func.params[i]!.name, i < args.length ? args[i] : null);
       }
@@ -1200,7 +1249,7 @@ class Interpreter {
 
   /** 以捕获环境为基底，绑定实参后执行闭包体。 */
   private applyClosure(closure: Closure, args: readonly unknown[]): unknown {
-    const callEnv = new Map(closure.capturedEnv);
+    const callEnv = new Env(null, closure.capturedEnv);
     for (let i = 0; i < closure.params.length; i++) {
       callEnv.set(closure.params[i]!.name, i < args.length ? args[i] : null);
     }
@@ -1227,7 +1276,7 @@ class Interpreter {
   private evalStdlibCall(
     name: string,
     argExprs: readonly CoreTypes.Expression[],
-    env: Map<string, unknown>,
+    env: Env,
   ): unknown {
     // 参数个数校验（aster-lang-ts#123）。
     //
@@ -1712,7 +1761,7 @@ class Interpreter {
   private evalBuiltinOp(
     op: string,
     args: readonly CoreTypes.Expression[],
-    env: Map<string, unknown>,
+    env: Env,
   ): unknown {
     // 单目运算符
     if (op === 'not') {
@@ -1917,7 +1966,7 @@ class Interpreter {
   /** 求值 Construct 表达式 */
   private evalConstruct(
     expr: CoreTypes.Construct,
-    env: Map<string, unknown>,
+    env: Env,
   ): unknown {
     const obj: Record<string, unknown> = { __type: expr.typeName };
     for (const field of expr.fields) {
