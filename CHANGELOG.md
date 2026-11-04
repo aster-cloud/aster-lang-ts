@@ -9,25 +9,37 @@
   `(Int) -> Int` 形参同样报错，与 aster-lang-core `BaseTypeChecker.checkCall` 同码。原则是能正常运行的调用不新增
   E001，拿不准时放行：
   - 只比较**写了类型**的形参。未写类型的形参（规则与 lambda）按名字推断出的类型不作为调用约束；实参若是
-    未写类型的形参（`given amount` 后 `inc(amount)`），同样不比较。
+    未写类型的形参（`given amount` 后 `inc(amount)`），或经 Let 直接取自它的局部名（`Let y be amount. inc(y)`），
+    同样不比较。
   - 实参或形参含 Unknown / 类型变量时放行：泛型规则、`produce:` 推断不出的返回类型。
   - **数值拓宽放行**：Int → Long / Float / Decimal，Long → Float / Decimal，Float ↔ Double；包括字面量
     （`f(5)` 传给 Float / Long 形参）与容器元素（`List of Int` → `List of Float`、`Option of Int` → `Option of Float`）。
     收窄（Float → Int）仍报错。
   - Maybe 与 Option 视为同一种类：T → T?、None → T?、T? ↔ `Option of T`、`Some(n)` → `Option of Int` 放行；
     T? → T 仍报错。PII 包装比较前剥掉，函数类型不比较效应。
-  - aster-lang-test 全部 454 份语料无新增诊断。Java 侧对未写类型形参、数值拓宽、Maybe/Option 仍更严格，
-    向 TS 对齐见 aster-lang-core#229。
+  - aster-lang-test 全部 454 份语料无新增诊断。aster-lang-core#231（#229）起两引擎按同一套规则检查。
 - 调用类型已知且不是函数的局部名报 E001（`expected a function, got 'score' of type Int`，#268）。局部名遮蔽同名
   规则（与 Java 名称解析一致），此前 `Rule main given score as Int … Return score(1, 2).` 在有同名规则 `score`
   时零诊断。未写类型的形参（`given f` 后 `f(n)`）不报。同理，从 If 分支作用域外泄的同名变量（分支内
-  `Let score be 1.`、分支外 `score(n)`）现在也遮蔽同名规则，报 E001。
+  `Let score be 1.`、分支外 `score(n)`）现在也遮蔽同名规则，报 E001。单段具名 builtin（`add` / `sub` / `mul` /
+  `div` / `intdiv` / `mod` / `eq` / `ne` / `lt` / `lte` / `gt` / `gte` / `and` / `or` / `not` / `await`，与 truffle
+  Builtins、aster-lang-core CallTargetBuiltins 一致）不按「调用非函数局部名」报：`given add as Int … Return add(1, 2).`
+  在没有同名规则时调用的是 builtin，能正常运行。
 - 经未写类型的形参 / 局部值发起的调用不做类型检查；局部名与规则同名且其值不是函数时，现在在运行期报错
   （与 truffle 一致），不再回退到同名规则（例如 `given score` 后 `score(1)`：类型检查不报，运行期报
   `'score' is not a function`）。
 
+### 类型检查放宽
+
+- 字段构造（E012）与 `Set`（E002）复用规则调用实参的兼容规则（数值拓宽含容器元素、T? ← T / None、Maybe/Option
+  互通、Unknown / 类型变量占位放行）。此前字段 `Long` ← Int、`Text?` ← Text / None、`List of Float` ← `List of Int`、
+  `produce:` 推断不出返回类型的值放进 Float 字段（`expects Float, got Unknown`）报 E012，`Set` Float 变量为 Int 报
+  E002；运行都正常，Java 侧也接受。收窄仍报错。
+
 ### 修复
 
+- 解释器：单段具名 builtin（`add(1, 2)`、`gt(2, 1)` …）在没有同名规则时直接调用 builtin，不看同名局部变量，
+  与 truffle Loader 一致；此前 TS 解释器不认这些名字（报 `Undefined function 'add'`）。
 - 解释器：调用目标与类型检查一致，局部名遮蔽同名规则。局部值不是函数时报 `'score' is not a function`，
   不再改调同名规则并静默丢弃多余实参（#268，与 truffle 的 `Unknown call target` 一致失败）。
 - LSP 成员补全：块头行（首词为 If / Otherwise / Match，如中文 `如果 司机.`）先尝试「当前行换成 `返回 接收者.`」

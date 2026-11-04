@@ -16,7 +16,7 @@
 
 import type { Core as CoreTypes } from '../types.js';
 import Decimal from 'decimal.js';
-import { BUILTIN_OPS } from '../config/semantic.js';
+import { BUILTIN_OPS, NAMED_BUILTIN_OPS } from '../config/semantic.js';
 
 // Decimal 精确十进制配置（ADR 0025）：锁死 precision/rounding，**不依赖默认**，避免环境差异
 // 与双引擎不一致。precision 设高（80）让 plus/minus/times 不被有效数字上下文截断（v1 输入
@@ -1200,6 +1200,11 @@ class Interpreter {
     // （Let f be function with …）。先求值参数，再分派。
     if (call.target.kind === 'Name') {
       const funcName = call.target.name;
+      // 单段具名 builtin（add / sub / gt …）：没有同名规则时直接调用 builtin，不看同名局部变量（与 truffle Loader 一致）
+      const namedOp = Object.hasOwn(NAMED_BUILTIN_OPS, funcName) ? NAMED_BUILTIN_OPS[funcName] : null;
+      if (namedOp && !this.funcs.has(funcName)) {
+        return this.evalBuiltinOp(namedOp, call.args, env);
+      }
       const argValues = call.args.map(arg => this.evalExpr(arg, env));
 
       // 局部名遮蔽同名模块函数（与 typecheck、truffle 一致）：局部值不是闭包时报错，

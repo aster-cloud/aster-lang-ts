@@ -9,9 +9,13 @@
  *   报 E001（期望函数）；TS 解释器同样按局部名分派，不再悄悄改调同名规则。
  */
 import { describe, it } from 'node:test';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { compileAndTypecheck, evaluate, EN_US } from '../../src/browser.js';
 import type { Core } from '../../src/types.js';
+import { NAMED_BUILTIN_OPS } from '../../src/config/semantic.js';
 
 const INC = 'Rule inc given x as Int, produce Int:\n  Return x plus 1.\n\n';
 const GREET = 'Rule greet given name as Text, produce Text:\n  Return name.\n\n';
@@ -219,5 +223,83 @@ describe('#266 审查跟进：能正常运行的调用不新增 E001', () => {
   it('收窄仍报：Float 实参传给 Int 形参', () => {
     const { errors } = check(INC + 'Rule main given x as Float, produce Int:\n  Return inc(x).\n');
     assert.deepEqual(mismatches(errors), [{ expected: 'Int', actual: 'Double' }]);
+  });
+});
+
+describe('core#231 审查跟进：TS 不比 Java 严', () => {
+  const codes = (errors: readonly Diag[]) => errors.map((d) => d.code);
+
+  it('F2 字段构造（E012）复用实参兼容规则：T? ← T、T? ← None、Long ← Int、List of Float ← List of Int 放行', () => {
+    const DATA = 'Define Box has t as Text?, l as Long, fs as List of Float.\n\n';
+    for (const [t, l, fs] of [['s', 'n', 'xs'], ['None', '5', '[1, 2]']]) {
+      const { errors, core } = check(DATA + `Rule main given s as Text, n as Int, xs as List of Int, produce Int:\n  Let b be Box with t set to ${t}, l set to ${l}, fs set to ${fs}.\n  Return 1.\n`);
+      assert.deepEqual(codes(errors), [], `${t} ${l} ${fs}`);
+      runsOk(core, { s: 'a', n: 1, xs: [1] });
+    }
+  });
+
+  it('F2 字段构造：推断不出返回类型的实参（produce:）放行，不再报 expects Float, got Unknown', () => {
+    const { errors } = check(
+      'Define Q has cost as Float.\n\nRule est given x as Int, produce:\n  Return x plus 1.\n\n' +
+      'Rule main given n as Int, produce Int:\n  Let q be Q with cost set to est(n).\n  Return 1.\n',
+    );
+    assert.deepEqual(codes(errors), []);
+  });
+
+  it('F2 字段构造的收窄仍报 E012：Int 字段 ← Float', () => {
+    const { errors } = check('Define Box has i as Int.\n\nRule main given x as Float, produce Int:\n  Let b be Box with i set to x.\n  Return 1.\n');
+    assert.deepEqual(codes(errors), ['E012']);
+  });
+
+  it('F2 Set（E002）复用实参兼容规则：Float 变量 ← Int、Text? 变量 ← Text 放行', () => {
+    const { errors, core } = check(
+      'Rule main given n as Int, f as Float, m as Text?, t as Text, produce Int:\n  Let x be f.\n  Set x to n.\n  Let y be m.\n  Set y to t.\n  Return 1.\n',
+    );
+    assert.deepEqual(codes(errors), []);
+    runsOk(core, { n: 1, f: 1.5, m: 'a', t: 'b' });
+  });
+
+  it('F2 Set 的收窄仍报 E002：Int 变量 ← Float', () => {
+    const { errors } = check('Rule main given n as Int, f as Float, produce Int:\n  Let x be n.\n  Set x to f.\n  Return 1.\n');
+    assert.deepEqual(codes(errors), ['E002']);
+  });
+
+  it('按名字推断的标记随 Let 传播：given amount 后 Let y be amount. inc(y) 放行', () => {
+    const { errors, core } = check(INC + 'Rule main given amount, produce Int:\n  Let y be amount.\n  Return inc(y).\n');
+    assert.deepEqual(codes(errors), []);
+    assert.equal(runsOk(core, { amount: 1 }), 2);
+  });
+
+  it('F1 局部名与单段 builtin 同名、调用的正是 builtin：不报「期望函数」，解释器先调 builtin（与 truffle 一致）', () => {
+    const cases: [string, Record<string, unknown>, unknown][] = [
+      ['Rule main given add as Int, produce Int:\n  Return add(1, 2).\n', { add: 7 }, 3],
+      ['Rule main given n as Int, produce Int:\n  Let sub be 3.\n  Return sub(5, n).\n', { n: 2 }, 3],
+      ['Rule main given gt as Int, produce Bool:\n  Return gt(2, 1).\n', { gt: 0 }, true],
+    ];
+    for (const [body, input, expected] of cases) {
+      const { errors, core } = check(body);
+      assert.deepEqual(codes(errors), [], body);
+      assert.equal(runsOk(core, input), expected, body);
+    }
+  });
+
+  it('F1 builtin 名一律不做调用目标检查（与 core CallTargetBuiltins 一致）；有同名规则时运行期按局部值分派，与 truffle 一致失败', () => {
+    const { errors, core } = check('Rule add given a as Int, b as Int, produce Int:\n  Return a.\n\nRule main given add as Int, produce Int:\n  Return add(1, 2).\n');
+    assert.deepEqual(codes(errors), []);
+    const r = evaluate(core!, 'main', { add: 7 });
+    assert.equal(r.success, false);
+    assert.match(r.error ?? '', /'add' is not a function/);
+  });
+
+  it('F1 交叉核对：单段 builtin 名单与 truffle Builtins 注册的单段名一致（兄弟仓缺失时跳过）', (t) => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const truffleDir = process.env.ASTER_LANG_TRUFFLE_DIR ?? resolve(here, '../../..', '..', 'aster-lang-truffle');
+    const file = join(truffleDir, 'src/main/java/aster/truffle/runtime/Builtins.java');
+    if (!existsSync(file)) {
+      t.skip(`未找到 ${file}（可用 ASTER_LANG_TRUFFLE_DIR 指定）`);
+      return;
+    }
+    const registered = [...readFileSync(file, 'utf8').matchAll(/register\("([a-z]+)"/g)].map((m) => m[1]!);
+    assert.deepEqual([...new Set(registered)].sort(), Object.keys(NAMED_BUILTIN_OPS).sort());
   });
 });

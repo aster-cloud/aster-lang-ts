@@ -23,6 +23,7 @@ export {
   unwrapWorkflowResult,
   typesEqual,
   isAssignable,
+  argumentFits,
   originToSpan,
   shouldEnforcePii,
   checkEntryRuleUniqueness,

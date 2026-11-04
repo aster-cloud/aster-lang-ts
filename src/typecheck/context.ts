@@ -8,7 +8,7 @@ import { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
 import type { SymbolInfo, SymbolKind } from './symbol_table.js';
 import { TypeSystem } from './type_system.js';
-import { formatType, typesEqual } from './pure.js';
+import { argumentFits, formatType, typesEqual } from './pure.js';
 
 // 类型检查上下文模块：集中管理模块/函数上下文字段以及符号定义与赋值操作。
 
@@ -116,7 +116,8 @@ export function assignSymbol(context: TypecheckWalkerContext, name: string, type
     });
     return;
   }
-  if (!typesEqual(symbol.type, type) && !TypeSystem.isSubtype(type, symbol.type)) {
+  // 与规则调用实参同一套兼容规则（数值拓宽、可空、Unknown 占位），TS 不比 Java 严
+  if (!typesEqual(symbol.type, type) && !TypeSystem.isSubtype(type, symbol.type) && !argumentFits(symbol.type, type)) {
     context.diagnostics.error(ErrorCode.TYPE_MISMATCH_ASSIGN, span, {
       name,
       expected: formatType(symbol.type),

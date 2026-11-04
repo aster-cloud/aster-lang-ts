@@ -34,7 +34,9 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
       case 'Let': {
         const valueType = typeOfExpr(module, symbols, statement.expr, diagnostics);
         // 降级后的 Let 节点只带 origin（无 span）：用 origin 定位，否则 E104 诊断没有行列，编辑器无法标红。
-        defineSymbol(context, statement.name, valueType, 'var', statement.span ?? originToSpan(statement.origin));
+        // `Let y be amount`：按名字推断的标记随 Let 传播，y 同样不作为调用约束
+        const inferred = statement.expr.kind === 'Name' && symbols.lookup(statement.expr.name)?.typeInferred === true;
+        defineSymbol(context, statement.name, valueType, 'var', statement.span ?? originToSpan(statement.origin), inferred);
         this.result = valueType;
         return;
       }
