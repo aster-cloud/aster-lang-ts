@@ -1202,12 +1202,14 @@ class Interpreter {
       const funcName = call.target.name;
       const argValues = call.args.map(arg => this.evalExpr(arg, env));
 
-      // 闭包变量优先（局部绑定遮蔽同名模块函数）。
+      // 局部名遮蔽同名模块函数（与 typecheck、truffle 一致）：局部值不是闭包时报错，
+      // 不能改调同名规则——那会静默丢弃多余实参或补 null（#268）。
       if (env.has(funcName)) {
         const bound = env.get(funcName);
         if (bound instanceof Closure) {
           return this.applyClosure(bound, argValues);
         }
+        throw new InterpreterError(`'${funcName}' is not a function`);
       }
 
       const func = this.funcs.get(funcName);

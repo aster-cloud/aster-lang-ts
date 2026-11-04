@@ -2,7 +2,7 @@ import type { Core } from '../types.js';
 import { DefaultCoreVisitor } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { TypeSystem } from './type_system.js';
-import { isFieldTypeInferred } from '../core/inferred_fields.js';
+import { isFieldTypeInferred, isLambdaParamTypeInferred } from '../core/inferred_fields.js';
 import type { FunctionSignature, ModuleContext, TypecheckWalkerContext } from './context.js';
 import { defineSymbol } from './context.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
@@ -266,9 +266,10 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         } finally {
           symbols.exitScope();
         }
+        // 函数值的类型：未写类型的形参记为 Unknown，调用方实参不按推断类型比较（#266）
         const funcType: Core.FuncType = {
           kind: 'FuncType',
-          params,
+          params: expression.params.map((param, index) => (isLambdaParamTypeInferred(param) ? unknownType() : params[index]!)),
           ret,
           effectParams: [],
           declaredEffects: [],
@@ -340,9 +341,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           return;
         }
 
-        for (const arg of expression.args) {
-          void typeOfExpr(module, symbols, arg, diagnostics);
-        }
+        const argTypes = expression.args.map(arg => typeOfExpr(module, symbols, arg, diagnostics));
 
         // Decimal↔Double 混算编译期拦截（ADR 0025）。runtime 只能 catch 非整数 Double
         // （2.5），整数值 Double（2.0）与 Int（2）在 JS number 不可分——必须靠编译期 AST
@@ -423,20 +422,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         //   只查**本模块内声明**的函数：内置与跨模块导入各有自己的校验路径，
         //   在此瞎猜签名会误报。
         if (expression.target.kind === 'Name' && !expression.target.name.includes('.')) {
-          const callee = expression.target.name;
-          // 局部名（函数类型参数、Let 绑定的函数值）遮蔽同名模块规则：按局部值的 FuncType 校验个数
-          const sig = calleeSignature(module, symbols, callee);
-          if (sig && sig.params.length !== expression.args.length) {
-            diagnostics.error(
-              ErrorCode.CALL_ARITY_MISMATCH,
-              originToSpan(expression.origin) ?? originToSpan(expression.target.origin),
-              {
-                func: callee,
-                expected: sig.params.length,
-                actual: expression.args.length,
-              },
-            );
-          }
+          checkUserCall(module, symbols, expression, expression.target.name, argTypes, diagnostics);
         }
 
         if (expression.target.kind === 'Name' && expression.target.name.includes('.')) {
@@ -534,6 +520,98 @@ function calleeSignature(module: ModuleContext, symbols: SymbolTable, name: stri
   const local = symbols.lookup(name);
   if (!local) return module.funcSignatures.get(name);
   return local.type.kind === 'FuncType' ? { params: [...local.type.params] as Core.Type[], ret: local.type.ret as Core.Type } : undefined;
+}
+
+/**
+ * 单段名字调用的静态检查（本模块规则或局部函数值）。
+ *
+ * - 局部名遮蔽同名规则（#268）：局部名类型已知且不可能是函数时报 E001（期望函数），
+ *   与运行期一致——truffle 与 TS 解释器都按局部值分派，不会改调同名规则。
+ * - 个数不符报 E032；形参类型与实参类型不符报 E001（#266，与 Java BaseTypeChecker.checkCall 同码）。
+ *   未写类型的形参在签名里是 Unknown（signatureParamTypes），不参与比较。
+ */
+function checkUserCall(
+  module: ModuleContext,
+  symbols: SymbolTable,
+  call: Core.Call,
+  callee: string,
+  argTypes: readonly Core.Type[],
+  diagnostics: DiagnosticBuilder,
+): void {
+  const span = originToSpan(call.origin) ?? originToSpan(call.target.origin);
+  const local = symbols.lookup(callee);
+  if (local && !mayBeCallable(local.type)) {
+    diagnostics.error(ErrorCode.TYPE_MISMATCH, span, {
+      expected: 'a function',
+      actual: `'${callee}' of type ${formatType(local.type)}`,
+    });
+    return;
+  }
+  const sig = calleeSignature(module, symbols, callee);
+  if (!sig) return;
+  if (sig.params.length !== call.args.length) {
+    diagnostics.error(ErrorCode.CALL_ARITY_MISMATCH, span, {
+      func: callee,
+      expected: sig.params.length,
+      actual: call.args.length,
+    });
+  }
+  const count = Math.min(sig.params.length, call.args.length);
+  for (let i = 0; i < count; i++) {
+    if (!argumentFits(sig.params[i]!, argTypes[i]!)) {
+      diagnostics.typeMismatch(sig.params[i]!, argTypes[i]!, originToSpan(call.args[i]!.origin) ?? span);
+    }
+  }
+}
+
+/** 局部值可能是函数：函数类型、未知类型、类型变量。 */
+function mayBeCallable(type: Core.Type): boolean {
+  return type.kind === 'FuncType' || type.kind === 'TypeVar' || isUnknown(type);
+}
+
+/**
+ * 实参类型能否传给形参。与 Java TypeSystem.equals(非严格) 对齐：Unknown 放行、PII 包装先剥掉、
+ * 函数类型只比参数与返回类型（不比效应）；另沿用 TS 字段构造的数值提升（Int → Float 等）。
+ * 含类型变量的形参（泛型规则）不在此比较——Java 先做统一再比，TS 侧由泛型检查负责。
+ */
+function argumentFits(param: Core.Type, arg: Core.Type): boolean {
+  const p = unwrapPii(param);
+  const a = unwrapPii(arg);
+  if (isUnknown(p) || isUnknown(a) || containsTypeVar(p)) return true;
+  if (p.kind === 'FuncType' && a.kind === 'FuncType') {
+    return p.params.length === a.params.length &&
+      // 形参位逆变：期望 (Int) -> X 时可以传 (Float) -> X
+      p.params.every((t, i) => argumentFits(a.params[i] as Core.Type, t as Core.Type)) &&
+      argumentFits(p.ret as Core.Type, a.ret as Core.Type);
+  }
+  return isAssignable(p, a);
+}
+
+function unwrapPii(type: Core.Type): Core.Type {
+  return type.kind === 'PiiType' ? unwrapPii(type.baseType as Core.Type) : type;
+}
+
+function containsTypeVar(type: Core.Type): boolean {
+  switch (type.kind) {
+    case 'TypeVar':
+      return true;
+    case 'TypeApp':
+      return type.args.some(t => containsTypeVar(t as Core.Type));
+    case 'FuncType':
+      return type.params.some(t => containsTypeVar(t as Core.Type)) || containsTypeVar(type.ret as Core.Type);
+    case 'Result':
+      return containsTypeVar(type.ok as Core.Type) || containsTypeVar(type.err as Core.Type);
+    case 'Maybe':
+    case 'Option':
+    case 'List':
+      return containsTypeVar(type.type as Core.Type);
+    case 'Map':
+      return containsTypeVar(type.key as Core.Type) || containsTypeVar(type.val as Core.Type);
+    case 'PiiType':
+      return containsTypeVar(type.baseType as Core.Type);
+    default:
+      return false;
+  }
 }
 
 export function typeOfExpr(

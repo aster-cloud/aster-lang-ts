@@ -64,6 +64,15 @@ export function normalizeType(type: Core.Type | undefined | null): Core.Type {
   return type ?? UNKNOWN_TYPE;
 }
 
+/**
+ * 规则签名中的形参类型：未写类型的形参（解析器按名字推断，`typeInferred`）登记为 Unknown。
+ * 推断类型只是按名字猜的，调用方传入的实参不以它为准（#266，两引擎当前都接受这类调用）；
+ * 函数体内仍按推断类型检查形参的使用。
+ */
+export function signatureParamTypes(params: readonly Core.Parameter[]): Core.Type[] {
+  return params.map(param => (param.typeInferred ? UNKNOWN_TYPE : normalizeType(param.type as Core.Type)));
+}
+
 export function buildFieldTypeMap(decls: readonly Core.Declaration[]): Map<string, Core.Type> {
   const fieldTypes = new Map<string, Core.Type>();
   const conflicts = new Set<string>();

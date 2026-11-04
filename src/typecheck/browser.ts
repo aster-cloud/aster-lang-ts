@@ -127,6 +127,7 @@ import {
   formatType,
   isUnknown,
   normalizeType,
+  signatureParamTypes,
   typesEqual,
   unknownType,
 } from './pure.js';
@@ -215,7 +216,7 @@ export function typecheckBrowser(
     // First pass: collect function signatures
     for (const d of m.decls) {
       if (d.kind === 'Func') {
-        const params = d.params.map((param) => normalizeType(param.type as Core.Type));
+        const params = signatureParamTypes(d.params);
         let ret = normalizeType(d.ret as Core.Type);
         if ((d as { retTypeInferred?: boolean }).retTypeInferred) {
           const inferred = TypeSystem.inferFunctionType(d.params, d.body.statements, fieldTypes)

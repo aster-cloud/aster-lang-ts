@@ -17,6 +17,7 @@ export {
   unknownType,
   buildFieldTypeMap,
   normalizeType,
+  signatureParamTypes,
   formatType,
   isWorkflowType,
   unwrapWorkflowResult,

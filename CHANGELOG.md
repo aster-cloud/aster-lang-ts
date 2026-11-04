@@ -2,8 +2,21 @@
 
 ## Unreleased（1.2.4）
 
+### 破坏性变更（类型检查）
+
+- 调用本模块规则或函数值局部名时比较实参类型（#266）：**新增 E001 拒绝**，如 `inc("a")`（`inc` 的形参
+  `x as Int`）报 `expected Int, got Text`；`Let g be inc. Return g("a").`、把 `(Text) -> Text` 的规则传给
+  `(Int) -> Int` 形参同样报错，与 aster-lang-core `BaseTypeChecker.checkCall` 同码。只比较**写了类型**的形参：
+  未写类型的形参（规则与 lambda）按名字推断出的类型不作为调用约束，在签名 / 函数值类型中记为 Unknown；
+  数值提升（Int → Float 等）、PII 包装、含类型变量的泛型形参放行。aster-lang-test 全部 454 份语料无新增诊断。
+- 调用类型已知且不是函数的局部名报 E001（`expected a function, got 'score' of type Int`，#268）。局部名遮蔽同名
+  规则（与 Java 名称解析一致），此前 `Rule main given score as Int … Return score(1, 2).` 在有同名规则 `score`
+  时零诊断。
+
 ### 修复
 
+- 解释器：调用目标与类型检查一致，局部名遮蔽同名规则。局部值不是函数时报 `'score' is not a function`，
+  不再改调同名规则并静默丢弃多余实参（#268，与 truffle 的 `Unknown call target` 一致失败）。
 - LSP 成员补全：块头行（首词为 If / Otherwise / Match，如中文 `如果 司机.`）先尝试「当前行换成 `返回 接收者.`」
   这份修补。此前按顺序先试的两份修补对块头总是不完整，1000 行以上的文档在高负载下 150ms 预算往往只够解析
   一两份，前 1–2 次请求回落到关键字列表、第 3 次才出字段；现在首次请求即出字段（实测 1207 / 4207 行、
