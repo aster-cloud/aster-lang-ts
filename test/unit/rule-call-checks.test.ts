@@ -10,8 +10,7 @@
  */
 import { describe, it } from 'node:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
 import { compileAndTypecheck, evaluate, EN_US } from '../../src/browser.js';
 import type { Core } from '../../src/types.js';
@@ -291,15 +290,39 @@ describe('core#231 审查跟进：TS 不比 Java 严', () => {
     assert.match(r.error ?? '', /'add' is not a function/);
   });
 
-  it('F1 交叉核对：单段 builtin 名单与 truffle Builtins 注册的单段名一致（兄弟仓缺失时跳过）', (t) => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const truffleDir = process.env.ASTER_LANG_TRUFFLE_DIR ?? resolve(here, '../../..', '..', 'aster-lang-truffle');
-    const file = join(truffleDir, 'src/main/java/aster/truffle/runtime/Builtins.java');
-    if (!existsSync(file)) {
-      t.skip(`未找到 ${file}（可用 ASTER_LANG_TRUFFLE_DIR 指定）`);
-      return;
+  it('R1 局部函数值优先于同名 builtin：函数类型形参 gt、闭包 add、单参闭包 add 都调用局部值', () => {
+    const cases: [string, Record<string, unknown>, unknown][] = [
+      [
+        'Rule lessThan given a as Int, b as Int, produce Bool:\n  Return a less than b.\n\n' +
+          'Rule ap given gt as (Int, Int) -> Bool, produce Bool:\n  Return gt(1, 2).\n\n' +
+          'Rule main given n as Int, produce Bool:\n  Return ap(lessThan).\n',
+        { n: 0 },
+        true,
+      ],
+      ['Rule main given n as Int, produce Int:\n  Let add be function with a as Int, b as Int, produce Int:\n    Return a times b.\n  Return add(2, 3).\n', { n: 0 }, 6],
+      ['Rule main given n as Int, produce Int:\n  Let add be function with a as Int, produce Int:\n    Return a.\n  Return add(n).\n', { n: 1 }, 1],
+    ];
+    for (const [body, input, expected] of cases) {
+      const { errors, core } = check(body);
+      assert.deepEqual(codes(errors), [], body);
+      assert.equal(runsOk(core, input), expected, body);
     }
-    const registered = [...readFileSync(file, 'utf8').matchAll(/register\("([a-z]+)"/g)].map((m) => m[1]!);
-    assert.deepEqual([...new Set(registered)].sort(), Object.keys(NAMED_BUILTIN_OPS).sort());
+  });
+
+  it('R1 与 builtin 同名的局部函数值按局部函数类型检查：add 闭包为 (Int) -> Int 时 add(1, 2) 报 E032', () => {
+    const { errors } = check('Rule main given n as Int, produce Int:\n  Let add be function with a as Int, produce Int:\n    Return a.\n  Return add(1, 2).\n');
+    assert.deepEqual(codes(errors), ['E032']);
+  });
+
+  it('F1 交叉核对：单段 builtin 名单与 aster-lang-core CallTargetBuiltins.NAMES 一致（找不到 core 即失败）', () => {
+    // CI 的 test job 把 core 检出到工作区内 ./aster-lang-core；本地可用 ASTER_CORE_DIR 指定，或放在兄弟目录 ../aster-lang-core
+    const RELATIVE = 'src/main/java/aster/core/typecheck/CallTargetBuiltins.java';
+    const roots = [process.env['ASTER_CORE_DIR'], resolve(process.cwd(), 'aster-lang-core'), resolve(process.cwd(), '..', 'aster-lang-core')];
+    const file = roots.filter((r): r is string => !!r).map((r) => join(r, RELATIVE)).find((f) => existsSync(f));
+    assert.ok(file, `找不到 aster-lang-core 的 ${RELATIVE}（CI 检出 ./aster-lang-core；本地用 ASTER_CORE_DIR 指定）`);
+    const block = /Set\.of\(([^)]*)\)/.exec(readFileSync(file, 'utf8'));
+    assert.ok(block, 'CallTargetBuiltins.NAMES 的 Set.of(...) 未找到');
+    const names = [...block[1]!.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+    assert.deepEqual([...new Set(names)].sort(), Object.keys(NAMED_BUILTIN_OPS).sort());
   });
 });

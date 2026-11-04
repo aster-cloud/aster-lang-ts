@@ -1200,22 +1200,22 @@ class Interpreter {
     // （Let f be function with …）。先求值参数，再分派。
     if (call.target.kind === 'Name') {
       const funcName = call.target.name;
-      // 单段具名 builtin（add / sub / gt …）：没有同名规则时直接调用 builtin，不看同名局部变量（与 truffle Loader 一致）
+      // 调用目标的分派顺序（与 truffle Loader、类型检查一致）：
+      //   1. 局部值是函数（闭包 / 函数值）→ 调用局部值，即使与 builtin 同名（`given gt as (Int, Int) -> Bool`）；
+      //   2. 单段具名 builtin（add / sub / gt …）且没有同名规则 → 调用 builtin，同名的非函数局部变量不影响；
+      //   3. 其余局部名遮蔽同名规则：局部值不是函数时报错，不改调同名规则（#268）。
+      const bound = env.has(funcName) ? env.get(funcName) : undefined;
+      if (bound instanceof Closure) {
+        return this.applyClosure(bound, call.args.map(arg => this.evalExpr(arg, env)));
+      }
       const namedOp = Object.hasOwn(NAMED_BUILTIN_OPS, funcName) ? NAMED_BUILTIN_OPS[funcName] : null;
       if (namedOp && !this.funcs.has(funcName)) {
         return this.evalBuiltinOp(namedOp, call.args, env);
       }
-      const argValues = call.args.map(arg => this.evalExpr(arg, env));
-
-      // 局部名遮蔽同名模块函数（与 typecheck、truffle 一致）：局部值不是闭包时报错，
-      // 不能改调同名规则——那会静默丢弃多余实参或补 null（#268）。
       if (env.has(funcName)) {
-        const bound = env.get(funcName);
-        if (bound instanceof Closure) {
-          return this.applyClosure(bound, argValues);
-        }
         throw new InterpreterError(`'${funcName}' is not a function`);
       }
+      const argValues = call.args.map(arg => this.evalExpr(arg, env));
 
       const func = this.funcs.get(funcName);
       if (!func) {

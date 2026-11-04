@@ -382,9 +382,10 @@ export const BUILTIN_OPS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * 单段具名 builtin（与 aster-lang-truffle Builtins 注册的单段名一致，交叉核对见 rule-call-checks 测试）。
- * truffle Loader 对这些名字在没有同名规则时直接调用 builtin，不看同名局部变量；
- * 两引擎类型检查与 TS 解释器按同样的规则处理（aster-lang-core#231）。
+ * 单段具名 builtin（与 aster-lang-core CallTargetBuiltins.NAMES、aster-lang-truffle Builtins 注册的单段名一致，
+ * 交叉核对见 rule-call-checks 测试）。调用位置的分派：局部值是函数时调用局部值；否则在没有同名规则时调用 builtin，
+ * 同名的非函数局部变量不影响。类型检查不把这些名字算作「调用非函数局部名」（aster-lang-core#231、truffle#158）。
+ * 规范名之外的别名（divide、over、equals …）未列入，见 aster-lang-core#234。
  * 值为 TS 解释器 evalBuiltinOp 使用的运算符写法；null 表示 TS 解释器不在调用位置路由（await 另有处理）。
  */
 export const NAMED_BUILTIN_OPS: Readonly<Record<string, string | null>> = {
