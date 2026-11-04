@@ -22,6 +22,9 @@
   规则（与 Java 名称解析一致），此前 `Rule main given score as Int … Return score(1, 2).` 在有同名规则 `score`
   时零诊断。未写类型的形参（`given f` 后 `f(n)`）不报。同理，从 If 分支作用域外泄的同名变量（分支内
   `Let score be 1.`、分支外 `score(n)`）现在也遮蔽同名规则，报 E001。
+- 经未写类型的形参 / 局部值发起的调用不做类型检查；局部名与规则同名且其值不是函数时，现在在运行期报错
+  （与 truffle 一致），不再回退到同名规则（例如 `given score` 后 `score(1)`：类型检查不报，运行期报
+  `'score' is not a function`）。
 
 ### 修复
 

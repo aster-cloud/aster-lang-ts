@@ -157,9 +157,11 @@ describe('#266 审查跟进：能正常运行的调用不新增 E001', () => {
     assert.equal(runsOk(core, { n: 1 }), 3);
   });
 
-  it('M1 未写类型且 produce: 的规则作函数值：twice(bump, n) 放行', () => {
-    const { errors } = check('Rule bump given amount, produce:\n  Return 1.\n\n' + TWICE + 'Rule main given n as Int, produce Int:\n  Return twice(bump, n).\n');
+  it('M1 未写类型且 produce: 推断不出返回类型的规则作函数值：twice(bump, n) 放行', () => {
+    // `amount plus 1` 推断不出返回类型，签名 ret 为 TypeVar 'Unknown' 占位，函数值类型为 (Unknown) -> Unknown
+    const { errors, core } = check('Rule bump given amount, produce:\n  Return amount plus 1.\n\n' + TWICE + 'Rule main given n as Int, produce Int:\n  Return twice(bump, n).\n');
     assert.deepEqual(mismatches(errors), []);
+    assert.equal(runsOk(core, { n: 1 }), 3);
   });
 
   it('M1 泛型规则 id of T 作函数值传给 (Int) -> Int 放行', () => {
@@ -201,6 +203,17 @@ describe('#266 审查跟进：能正常运行的调用不新增 E001', () => {
       const { errors } = check(DECLS + `Rule main given n as Int, l as Long, xs as List of Int, produce Int:\n  Return ${call}.\n`);
       assert.deepEqual(mismatches(errors), [], call);
     }
+  });
+
+  // Decimal 形参目前被降级为类型变量（#276），任何实参都放行，断言没有意义；#276 修复后去掉 skip
+  it('数值拓宽：Int / Long 实参传给 Decimal 形参放行，Double 传 Decimal 报错（ADR 0025）', { skip: '#276 Decimal 形参被降级为类型变量' }, () => {
+    const DECLS = 'Rule toD given x as Decimal, produce Int:\n  Return 1.\n\n';
+    for (const call of ['toD(n)', 'toD(l)', 'toD(5)']) {
+      const { errors } = check(DECLS + `Rule main given n as Int, l as Long, produce Int:\n  Return ${call}.\n`);
+      assert.deepEqual(mismatches(errors), [], call);
+    }
+    const { errors } = check(DECLS + 'Rule main given x as Float, produce Int:\n  Return toD(x).\n');
+    assert.equal(mismatches(errors).length, 1);
   });
 
   it('收窄仍报：Float 实参传给 Int 形参', () => {
