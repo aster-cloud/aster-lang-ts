@@ -1,11 +1,11 @@
 /**
  * @module test/unit/core/caseless-pattern-name.test
  *
- * 无大小写文字（中文等）的裸模式名（ADR 0051 裁决 R54，aster-lang-core#227）。
+ * 无大小写文字（中文等）的裸模式名（ADR 0051 裁决 R55，aster-lang-core#227）。
  *
  * 成员还是绑定由 R2 按 R12 判定（主语为枚举时查该枚举的成员，主语类型未知时查全部枚举成员的精确写法，
  * 其余为绑定），两引擎一致；R2 再按判定结果给出统一的 IR 形态：成员为无参数 PatCtor，绑定为 PatName。
- * 首字母为 ASCII 大写的名字保持原有形态。用例与 aster-lang-core 的 CaselessPatternNameTest 同输入同断言，
+ * 首字母为 ASCII 大写的名字 IR 不变；de 变音开头成员与小写 ASCII 成员同样产出 PatCtor。用例与 aster-lang-core 的 CaselessPatternNameTest 同输入同断言，
  * 另加解释器求值（core 没有解释器，求值由 truffle 与 aster-lang-test 的 tier1 样本覆盖）。
  */
 import { describe, it } from 'node:test';
@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { compileAndTypecheck } from '../../../src/browser.js';
 import { evaluate } from '../../../src/core/interpreter.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 import type { Lexicon } from '../../../src/config/lexicons/types.js';
 import type { Core } from '../../../src/types.js';
 
@@ -54,7 +55,7 @@ function run(core: Core.Module, entry: string, context: Record<string, unknown>)
   return result.value;
 }
 
-describe('无大小写文字的裸模式名（R54）', () => {
+describe('无大小写文字的裸模式名（R55）', () => {
   const describeSource = ENUM_ZH
     + '规则 描述 给定 s 作为 状态，产出 整数：\n  匹配于 s：\n    当 待处理，返回 1。\n    当 进行中，返回 2。\n'
     + '    当 其余，返回 9。\n\n'
@@ -95,7 +96,31 @@ describe('无大小写文字的裸模式名（R54）', () => {
     assertBinding('别的', ps[1]);
   });
 
-  it('首字母为 ASCII 大写的名字保持原有形态', () => {
+  it('de 变音字母开头的成员是变体，非成员是绑定', () => {
+    const core = compileClean('Modul probe.de.\n\nDefiniere Laune als eines von Übel, Gut, Ärger.\n\n'
+      + 'Regel wert gegeben l als Laune, liefert Ganzzahl:\n  pruefe l:\n    bei Übel, gib zurueck 1.\n'
+      + '    bei Gut, gib zurueck 2.\n    bei rest, gib zurueck 9.\n\n'
+      + 'Regel wAerger, liefert Ganzzahl:\n  gib zurueck wert(Laune.Ärger).\n\n'
+      + 'Regel bind gegeben n als Ganzzahl, liefert Ganzzahl:\n  pruefe n:\n    bei 0, gib zurueck 100.\n'
+      + '    bei Ärger, gib zurueck Ärger.\n', DE_DE);
+    const ps = patterns(core, 'wert');
+    assertVariant('Übel', ps[0]);
+    assert.equal(ps[1]?.kind, 'PatName');
+    assertBinding('rest', ps[2]);
+    assertBinding('Ärger', patterns(core, 'bind')[1]);
+    assert.equal(run(core, 'wAerger', {}), 9);
+    assert.equal(run(core, 'bind', { n: 7 }), 7);
+  });
+
+  it('小写 ASCII 枚举成员是变体（本仓接受的写法）', () => {
+    const core = compileClean('Module probe.lc.\n\nDefine Color as one of red, Green.\n\n'
+      + 'Rule f given c as Color, produce Int:\n  Match c:\n    When red, Return 1.\n    When Green, Return 2.\n\n'
+      + 'Rule g, produce Int:\n  Return f(Color.Green).\n');
+    assertVariant('red', patterns(core, 'f')[0]);
+    assert.equal(run(core, 'g', {}), 2);
+  });
+
+  it('首字母为 ASCII 大写的名字 IR 不变', () => {
     // en：裸 TYPE_IDENT 在 TS 仍为 PatName（运行时按大写判为变体），小写绑定仍为 PatName，IR 不变
     const ps = patterns(compileClean('Module demo.cased.\n\nDefine Color as one of Red, Green.\n\n'
       + 'Rule f given c as Color, produce Int:\n  Match c:\n    When Red, Return 1.\n    When other, Return 2.\n'), 'f');

@@ -721,7 +721,7 @@ function resolvePattern(r: Resolver, f: Frame, p: Core.Pattern, subject: Static)
  * 模式名：主语为枚举 E 时，命中 enumMembers[E] 即为成员（与其它层同时命中 → E804）；
  * 主语类型未知时，仅当写法精确等于某枚举成员才视为成员（唯一 → W801，多个 → E806）；
  * 其余为绑定名。模式名是声明而非引用，故不经过 LOCAL 层。
- * 首字母不是 ASCII 大写的成员产出无参数 PatCtor（裁决 R54，见 {@link isCased}）。
+ * 首字母不是 ASCII 大写的成员产出无参数 PatCtor（裁决 R55，见 {@link isCased}）。
  */
 function resolvePatName(r: Resolver, f: Frame, p: Core.PatName, subject: Static): Core.Pattern {
   const mark = consume(p);
@@ -732,10 +732,11 @@ function resolvePatName(r: Resolver, f: Frame, p: Core.PatName, subject: Static)
 }
 
 /**
- * 裁决 R54：运行时（本仓解释器、truffle）与 parity 归一化都按「PatName 首字母为 ASCII 大写 = 变体，否则 = 绑定」区分。
+ * 裁决 R55：运行时（本仓解释器、truffle）与 parity 归一化都按「PatName 首字母为 ASCII 大写 = 变体，否则 = 绑定」区分。
  * 中文、天城文等无大小写文字无法用大小写表达，故 R2 按判定结果直接给出形态：成员 → 无参数 PatCtor，绑定 → PatName
  * （Java 把中文裸名解析为无参数 PatCtor，判为绑定时改为 PatName，两侧 IR 同形）。
- * 首字母为 ASCII 大写的名字保持原有形态，en / de 的 IR 不变。判定只看 ASCII，与 Java 侧结果相同。
+ * 首字母为 ASCII 大写的名字 IR 不变；de 以变音字母开头的成员、本仓接受的小写 ASCII 枚举成员
+ * （`Define Color as one of red, Green`，Java 拒绝）同样产出 PatCtor，此前它们是兜底绑定。判定只看 ASCII，与 Java 侧结果相同。
  */
 function isCased(name: string): boolean {
   return /^[A-Z]/.test(name);
