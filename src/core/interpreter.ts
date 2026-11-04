@@ -1006,10 +1006,15 @@ class Interpreter {
         // 与 aster-lang-truffle MatchNode.PatCtorNode 对齐：按位置（非按名）把
         // 构造体的非 __type 字段值依序绑定到模式的 bind 名——因为 Ok(value)/
         // Err(err) 的载荷统一存于 `value` 字段，绑定名却各异，按名绑定会落空。
+        // 无绑定的构造器模式也匹配枚举成员（同 truffle PatCtorNode）：R2 对无大小写文字的成员名
+        // 产出此形态（ADR 0051 裁决 R54），如中文「当 待处理，」。
+        const bindsNothing = pattern.names.length === 0 && !(pattern as { args?: readonly unknown[] }).args?.length;
+        if (bindsNothing && typeof value === 'string') return value === pattern.typeName;
         if (value === null || value === undefined || typeof value !== 'object') {
           return false;
         }
         const obj = value as Record<string, unknown>;
+        if (bindsNothing && obj.value === pattern.typeName) return true;
         if (obj.__type !== pattern.typeName) {
           return false;
         }
