@@ -128,25 +128,92 @@ describe('#258 修补推断的缓存与规模上限', () => {
   };
   const ZH_AT = { line: 5, character: '  如果 司机.'.length };
 
+  /** 统计次数、但每份修补都推断不出接收者类型的 parse（模拟所有修补都失败） */
+  const failingParse = () => {
+    let n = 0;
+    return {
+      parse: ((_text, lexicon, vocabulary) => {
+        n += 1;
+        return parseDocumentWith('Module demo.p.\n', lexicon, vocabulary);
+      }) as typeof parseDocumentWith,
+      count: () => n,
+    };
+  };
+
   it('★累计耗时超过预算后放弃其余修补：第一份修补失败即返回 null', () => {
-    const probe = countingParse();
-    const items = memberCompletions(zhDoc(), ZH_AT, ZH_CN, { parse: probe.parse, now: ticking(1000), repairBudgetMs: 150, repairBudgetFromLines: 0 });
+    const probe = failingParse();
+    const items = memberCompletions(docOf(broken('')), at(''), EN_US, { parse: probe.parse, now: ticking(1000), repairBudgetMs: 150, repairBudgetFromLines: 0 });
     assert.equal(items, null);
     assert.equal(probe.count(), 1, '第一份修补总会尝试，之后超预算即停止');
   });
 
-  it('小文档（不足 MEMBER_REPAIR_BUDGET_FROM_LINES 行）不受预算约束：冷启动或高负载下也依次尝试到成功', () => {
+  it('★#267 块头行（如果/If/Match/Otherwise 开头）先试「换成 返回 接收者.」：高负载下首次请求即出字段', () => {
+    const filler = Array.from({ length: 1200 }, () => '');
+    const lines = [...ZH_LINES.slice(0, 5), '  如果 司机.', ...filler];
+    assert.ok(lines.length >= 1000, '须达到预算生效的行数');
+    const text = lines.join('\n');
+    const doc = { text, ...parseDocumentText(text, ZH_CN, undefined, undefined) };
     const probe = countingParse();
-    const items = memberCompletions(zhDoc(), ZH_AT, ZH_CN, { parse: probe.parse, now: ticking(1000), repairBudgetMs: 150 });
+    const items = memberCompletions(doc, ZH_AT, ZH_CN, { parse: probe.parse, now: ticking(1000), repairBudgetMs: 150 });
     assert.deepEqual(labels(items), ['姓名', '年龄'].sort());
+    assert.equal(probe.count(), 1, '块头行第一份修补即为「换成 返回 接收者.」');
+  });
+
+  it('#267 英文块头同样优先：Match d. / Otherwise if d. 在预算耗尽时首次请求即出字段', () => {
+    for (const header of ['  Match d.', '  Otherwise if d.', '  if d.']) {
+      clearMemberRepairCache();
+      const lines = [...HEAD, '  If d.age greater than 1:', '    Return 1.', header, ''];
+      const probe = countingParse();
+      const items = memberCompletions(docOf(lines), { line: 7, character: header.length }, EN_US, { parse: probe.parse, now: ticking(1000), repairBudgetMs: 150, repairBudgetFromLines: 0 });
+      assert.deepEqual(labels(items), ['age', 'name'], header);
+      assert.equal(probe.count(), 1, header);
+    }
+  });
+
+  it('#267 非块头行保持原修补顺序：先删 `.前缀`', () => {
+    const tried: string[] = [];
+    const parse: typeof parseDocumentWith = (text, lexicon, vocabulary) => {
+      tried.push(text.split('\n')[5]!);
+      return parseDocumentWith(text, lexicon, vocabulary);
+    };
+    const line = '  Let x be d. plus 1';
+    memberCompletions(docOf([...HEAD, line, '  Return 1.', '']), { line: 5, character: '  Let x be d.'.length }, EN_US, { parse, now: ticking(0), repairBudgetFromLines: 0 });
+    assert.equal(tried[0], '  Let x be d plus 1');
+  });
+
+  /** 前 failures 份修补推断失败、之后正常解析的 parse */
+  const failFirst = (failures: number) => {
+    let n = 0;
+    return {
+      parse: ((text, lexicon, vocabulary) => {
+        n += 1;
+        return parseDocumentWith(n <= failures ? 'Module demo.p.\n' : text, lexicon, vocabulary);
+      }) as typeof parseDocumentWith,
+      count: () => n,
+    };
+  };
+  const LET_LINES = [...HEAD, '  Let x be d. plus 1', '  Return 1.', ''];
+  const LET_AT = { line: 5, character: '  Let x be d.'.length };
+
+  it('小文档（不足 MEMBER_REPAIR_BUDGET_FROM_LINES 行）不受预算约束：冷启动或高负载下也依次尝试到成功', () => {
+    const probe = failFirst(2);
+    const items = memberCompletions(docOf(LET_LINES), LET_AT, EN_US, { parse: probe.parse, now: ticking(1000), repairBudgetMs: 150 });
+    assert.deepEqual(labels(items), ['age', 'name']);
     assert.equal(probe.count(), 3);
   });
 
   it('预算未超出时依次尝试，直到某份修补成功', () => {
-    const probe = countingParse();
-    const items = memberCompletions(zhDoc(), ZH_AT, ZH_CN, { parse: probe.parse, now: ticking(0), repairBudgetMs: 150, repairBudgetFromLines: 0 });
-    assert.deepEqual(labels(items), ['姓名', '年龄'].sort());
+    const probe = failFirst(2);
+    const items = memberCompletions(docOf(LET_LINES), LET_AT, EN_US, { parse: probe.parse, now: ticking(0), repairBudgetMs: 150, repairBudgetFromLines: 0 });
+    assert.deepEqual(labels(items), ['age', 'name']);
     assert.equal(probe.count(), 3);
+  });
+
+  it('zh 块头 `如果 司机.` 在小文档里同样一次修补即成功', () => {
+    const probe = countingParse();
+    const items = memberCompletions(zhDoc(), ZH_AT, ZH_CN, { parse: probe.parse, now: ticking(1000), repairBudgetMs: 150 });
+    assert.deepEqual(labels(items), ['姓名', '年龄'].sort());
+    assert.equal(probe.count(), 1);
   });
 
   it('命中缓存的修补不计耗时：预算耗尽时继续输入前缀仍能补全', () => {

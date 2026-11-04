@@ -97,8 +97,10 @@ const cut = (line: string, from: number, to: number): string => line.slice(0, fr
  *   2. 只删前缀、保留点号：行尾 `Return d.a` → `Return d.`（点号即句末）；
  *   3. 当前行换成 `<缩进><返回> <接收者>.`，并清空其后更深缩进的行：处理 `如果 司机.` 这类
  *      本身就是未完成语句的行（条件、块头）。
+ * 块头行（isBlockHeader）把第 3 份放在最前：前两份对块头总是不完整，大文档在预算内
+ * 往往只来得及解析一两份，按原顺序要多次请求才出字段（#267）。
  */
-function candidates(text: string, access: MemberAccess, lexicon: Lexicon): Candidate[] {
+function candidates(text: string, access: MemberAccess, lexicon: Lexicon, header: boolean): Candidate[] {
   const { receiver, dotEnd, memberEnd } = access;
   const out: Candidate[] = [];
   const lines = text.split('\n');
@@ -119,11 +121,25 @@ function candidates(text: string, access: MemberAccess, lexicon: Lexicon): Candi
   const following = lines.slice(row + 1);
   const bodyEnd = following.findIndex((l) => !deeper(l) && l.trim() !== '');
   const rest = following.map((l, i) => (bodyEnd === -1 || i < bodyEnd ? '' : l));
-  out.push({
+  const asReturn: Candidate = {
     text: withLine(`${indent}${keyword} ${path}.`, rest),
     receiver: { start: { line: receiver.start.line, col: startCol }, end: { line: receiver.start.line, col: startCol + path.length } },
-  });
-  return out;
+  };
+  return header ? [asReturn, ...out] : [...out, asReturn];
+}
+
+/**
+ * 当前行是否为块头：首个词是本文档 lexicon 的 If / Otherwise / Match 关键字（不区分大小写）。
+ * 这些行的接收者不在本行绑定，整行换成 `返回 接收者.` 不改变其作用域；
+ * When、For each 会在本行绑定名字，不算块头。关键字按 token 取（词法器把关键字产出为名字 token）。
+ */
+const HEADER_KEYWORDS = [SemanticTokenKind.IF, SemanticTokenKind.OTHERWISE, SemanticTokenKind.MATCH] as const;
+
+function isBlockHeader(tokens: readonly any[], line: number, lexicon: Lexicon): boolean {
+  const first = tokens.find((t) => t.start?.line === line && isName(t));
+  const word = typeof first?.value === 'string' ? first.value.toLowerCase() : undefined;
+  if (word === undefined) return false;
+  return HEADER_KEYWORDS.some((k) => (lexicon.keywords[k] ?? '').toLowerCase().split(/\s+/)[0] === word);
 }
 
 /** 在一份解析结果里找接收者的静态类型对应的源码 Data */
@@ -239,7 +255,9 @@ function firstRepair(
   const budget = budgeted ? (options.repairBudgetMs ?? MEMBER_REPAIR_BUDGET_MS) : Infinity;
   const start = now();
   let parsed = 0;
-  for (const c of candidates(entry.text, access, lexicon ?? EN_US)) {
+  const lex = lexicon ?? EN_US;
+  const header = isBlockHeader(entry.tokens, access.dotEnd.line, lex);
+  for (const c of candidates(entry.text, access, lex, header)) {
     const key = `${coordKey(c.receiver.start)}-${coordKey(c.receiver.end)}\u0000${c.text}`;
     const cached = lookupRepair(key, lexicon, entry.vocabulary);
     if (cached) {
