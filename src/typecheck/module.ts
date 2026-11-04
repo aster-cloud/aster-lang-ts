@@ -32,6 +32,7 @@ import {
   getIOPrefixesCompat,
   normalizeModuleSearchPaths,
   normalizeType,
+  signatureParamTypes,
   typesEqual,
   unknownType,
 } from './utils.js';
@@ -79,7 +80,7 @@ export function typecheckModule(m: Core.Module, options?: TypecheckOptions): Typ
     const fieldTypes = buildFieldTypeMap(m.decls);
     for (const d of m.decls) {
       if (d.kind === 'Func') {
-        const params = d.params.map(param => normalizeType(param.type as Core.Type));
+        const params = signatureParamTypes(d.params);
         let ret = normalizeType(d.ret as Core.Type);
         if ((d as { retTypeInferred?: boolean }).retTypeInferred) {
           const inferred = TypeSystem.inferFunctionType(d.params, d.body.statements, fieldTypes).ret as Core.Type;
@@ -264,7 +265,7 @@ function typecheckFunc(ctx: ModuleContext, f: Core.Func, diagnostics: Diagnostic
 
   for (const param of f.params) {
     const paramType = normalizeType(param.type as Core.Type);
-    defineSymbol(functionContext, param.name, paramType, 'param');
+    defineSymbol(functionContext, param.name, paramType, 'param', undefined, param.typeInferred === true);
   }
 
   const declaredReturn = normalizeType(f.ret as Core.Type);

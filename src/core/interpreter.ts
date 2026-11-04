@@ -16,7 +16,7 @@
 
 import type { Core as CoreTypes } from '../types.js';
 import Decimal from 'decimal.js';
-import { BUILTIN_OPS } from '../config/semantic.js';
+import { BUILTIN_OPS, NAMED_BUILTIN_OPS } from '../config/semantic.js';
 
 // Decimal 精确十进制配置（ADR 0025）：锁死 precision/rounding，**不依赖默认**，避免环境差异
 // 与双引擎不一致。precision 设高（80）让 plus/minus/times 不被有效数字上下文截断（v1 输入
@@ -1200,15 +1200,22 @@ class Interpreter {
     // （Let f be function with …）。先求值参数，再分派。
     if (call.target.kind === 'Name') {
       const funcName = call.target.name;
-      const argValues = call.args.map(arg => this.evalExpr(arg, env));
-
-      // 闭包变量优先（局部绑定遮蔽同名模块函数）。
-      if (env.has(funcName)) {
-        const bound = env.get(funcName);
-        if (bound instanceof Closure) {
-          return this.applyClosure(bound, argValues);
-        }
+      // 调用目标的分派顺序（与 truffle Loader、类型检查一致）：
+      //   1. 局部值是函数（闭包 / 函数值）→ 调用局部值，即使与 builtin 同名（`given gt as (Int, Int) -> Bool`）；
+      //   2. 单段具名 builtin（add / sub / gt …）且没有同名规则 → 调用 builtin，同名的非函数局部变量不影响；
+      //   3. 其余局部名遮蔽同名规则：局部值不是函数时报错，不改调同名规则（#268）。
+      const bound = env.has(funcName) ? env.get(funcName) : undefined;
+      if (bound instanceof Closure) {
+        return this.applyClosure(bound, call.args.map(arg => this.evalExpr(arg, env)));
       }
+      const namedOp = Object.hasOwn(NAMED_BUILTIN_OPS, funcName) ? NAMED_BUILTIN_OPS[funcName] : null;
+      if (namedOp && !this.funcs.has(funcName)) {
+        return this.evalBuiltinOp(namedOp, call.args, env);
+      }
+      if (env.has(funcName)) {
+        throw new InterpreterError(`'${funcName}' is not a function`);
+      }
+      const argValues = call.args.map(arg => this.evalExpr(arg, env));
 
       const func = this.funcs.get(funcName);
       if (!func) {

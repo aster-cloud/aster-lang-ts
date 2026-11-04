@@ -14,6 +14,8 @@ export interface SymbolInfo {
   span?: Span;
   captured?: boolean;
   shadowedFrom?: SymbolInfo;
+  /** 未写类型、按名字推断出类型的形参：推断类型只是猜测，调用检查不以它为准（#266） */
+  typeInferred?: boolean;
 }
 
 export type Symbol = SymbolInfo;
@@ -22,6 +24,7 @@ export interface DefineOptions {
   mutable?: boolean;
   span?: Span;
   captured?: boolean;
+  typeInferred?: boolean;
   onShadow?: (current: SymbolInfo, shadowed: SymbolInfo) => void;
 }
 
@@ -133,6 +136,7 @@ export class SymbolTable {
       mutable: options.mutable ?? false,
       ...(options.span !== undefined && { span: options.span }),
       captured: options.captured ?? false,
+      ...(options.typeInferred && { typeInferred: true }),
     };
 
     try {

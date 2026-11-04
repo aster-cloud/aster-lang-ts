@@ -64,6 +64,15 @@ export function normalizeType(type: Core.Type | undefined | null): Core.Type {
   return type ?? UNKNOWN_TYPE;
 }
 
+/**
+ * 规则签名中的形参类型：未写类型的形参（解析器按名字推断，`typeInferred`）登记为 Unknown。
+ * 推断类型只是按名字猜的，调用方传入的实参不以它为准（#266）；函数体内仍按推断类型检查形参的使用。
+ * Java 目前仍按推断类型比较并拒绝这类调用，TS 放行（向 TS 对齐见 aster-lang-core#229）。
+ */
+export function signatureParamTypes(params: readonly Core.Parameter[]): Core.Type[] {
+  return params.map(param => (param.typeInferred ? UNKNOWN_TYPE : normalizeType(param.type as Core.Type)));
+}
+
 export function buildFieldTypeMap(decls: readonly Core.Declaration[]): Map<string, Core.Type> {
   const fieldTypes = new Map<string, Core.Type>();
   const conflicts = new Set<string>();
@@ -173,6 +182,82 @@ export function isAssignable(
       return actualName === 'Int' || actualName === 'Double';
     case 'Double':
       return actualName === 'Int' || actualName === 'Long' || actualName === 'Float';
+    default:
+      return false;
+  }
+}
+
+/**
+ * 数值拓宽：整数可传给小数 / 更宽的整数形参（用户裁决，Java 侧对齐见 aster-lang-core#229）。
+ * Float 在类型检查中规范化为 Double，两者同列。
+ */
+const NUMERIC_WIDENING: Readonly<Record<string, readonly string[]>> = {
+  Int: ['Long', 'Float', 'Double', 'Decimal'],
+  Long: ['Float', 'Double', 'Decimal'],
+  Float: ['Double'],
+  Double: ['Float'],
+};
+
+/**
+ * 值能否放进期望类型的位置（规则调用实参 E001、字段构造 E012、Set E002 共用），按结构逐层比较；拿不准时放行。
+ * 原则：能正常运行的程序不新增类型错误，TS 不比 Java 严（aster-lang-core#231 与此同一套规则）。
+ * - 任一侧为 Unknown、或含类型变量（泛型规则、推断失败的返回类型占位 TypeVar 'Unknown'）：放行；
+ * - PII 包装先剥掉；Maybe 与 Option 视为同一种类，T 可传给 T?（None 的类型为 Option of Unknown）；
+ * - List / Map / Result / TypeApp 逐个比较元素类型；函数类型参数位逆变、不比较效应；
+ * - 类型名：相等（含 TS 既有的 DateTime ≈ Text 宽松）或按 NUMERIC_WIDENING 拓宽。
+ */
+export function argumentFits(param: Core.Type, arg: Core.Type): boolean {
+  const p = unwrapPii(param);
+  const a = unwrapPii(arg);
+  if (isUnknown(p) || isUnknown(a) || containsTypeVar(p) || containsTypeVar(a)) return true;
+  if (isOptional(p)) return argumentFits(p.type as Core.Type, isOptional(a) ? (a.type as Core.Type) : a);
+  if (p.kind === 'List' && a.kind === 'List') return argumentFits(p.type as Core.Type, a.type as Core.Type);
+  if (p.kind === 'Map' && a.kind === 'Map') {
+    return argumentFits(p.key as Core.Type, a.key as Core.Type) && argumentFits(p.val as Core.Type, a.val as Core.Type);
+  }
+  if (p.kind === 'Result' && a.kind === 'Result') {
+    return argumentFits(p.ok as Core.Type, a.ok as Core.Type) && argumentFits(p.err as Core.Type, a.err as Core.Type);
+  }
+  if (p.kind === 'TypeApp' && a.kind === 'TypeApp') {
+    return p.base === a.base && p.args.length === a.args.length &&
+      p.args.every((t, i) => argumentFits(t as Core.Type, a.args[i] as Core.Type));
+  }
+  if (p.kind === 'FuncType' && a.kind === 'FuncType') {
+    return p.params.length === a.params.length &&
+      // 形参位逆变：期望 (Int) -> X 时可以传 (Float) -> X
+      p.params.every((t, i) => argumentFits(a.params[i] as Core.Type, t as Core.Type)) &&
+      argumentFits(p.ret as Core.Type, a.ret as Core.Type);
+  }
+  if (p.kind === 'TypeName' && a.kind === 'TypeName' && NUMERIC_WIDENING[a.name]?.includes(p.name)) return true;
+  return typesEqual(p, a);
+}
+
+function isOptional(type: Core.Type): type is Core.Maybe | Core.Option {
+  return type.kind === 'Maybe' || type.kind === 'Option';
+}
+
+function unwrapPii(type: Core.Type): Core.Type {
+  return type.kind === 'PiiType' ? unwrapPii(type.baseType as Core.Type) : type;
+}
+
+function containsTypeVar(type: Core.Type): boolean {
+  switch (type.kind) {
+    case 'TypeVar':
+      return true;
+    case 'TypeApp':
+      return type.args.some(t => containsTypeVar(t as Core.Type));
+    case 'FuncType':
+      return type.params.some(t => containsTypeVar(t as Core.Type)) || containsTypeVar(type.ret as Core.Type);
+    case 'Result':
+      return containsTypeVar(type.ok as Core.Type) || containsTypeVar(type.err as Core.Type);
+    case 'Maybe':
+    case 'Option':
+    case 'List':
+      return containsTypeVar(type.type as Core.Type);
+    case 'Map':
+      return containsTypeVar(type.key as Core.Type) || containsTypeVar(type.val as Core.Type);
+    case 'PiiType':
+      return containsTypeVar(type.baseType as Core.Type);
     default:
       return false;
   }

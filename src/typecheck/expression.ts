@@ -2,7 +2,8 @@ import type { Core } from '../types.js';
 import { DefaultCoreVisitor } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { TypeSystem } from './type_system.js';
-import { isFieldTypeInferred } from '../core/inferred_fields.js';
+import { NAMED_BUILTIN_OPS } from '../config/semantic.js';
+import { isFieldTypeInferred, isLambdaParamTypeInferred } from '../core/inferred_fields.js';
 import type { FunctionSignature, ModuleContext, TypecheckWalkerContext } from './context.js';
 import { defineSymbol } from './context.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
@@ -13,6 +14,7 @@ import {
   isAssignable,
   isUnknown,
   normalizeType,
+  argumentFits,
   originToSpan,
   unknownType,
 } from './pure.js';
@@ -207,8 +209,8 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
             continue;
           }
           const valueType = typeOfExpr(module, symbols, field.expr, diagnostics);
-          // 使用 isAssignable 支持数值类型隐式提升（Int → Float 等）
-          if (!isAssignable(schemaField.type as Core.Type, valueType)) {
+          // 与规则调用实参同一套兼容规则：数值拓宽、可空、Maybe/Option 互通、Unknown/类型变量占位放行
+          if (!argumentFits(schemaField.type as Core.Type, valueType)) {
             diagnostics.error(ErrorCode.FIELD_TYPE_MISMATCH, originToSpan(field.expr.origin) ?? originToSpan(expression.origin), {
               field: field.name,
               expected: formatType(schemaField.type as Core.Type),
@@ -254,6 +256,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
               'param',
               // 形参节点不带位置信息：用 lambda 自身的 origin 定位 E104。
               originToSpan(expression.origin),
+              isLambdaParamTypeInferred(param),
             );
           });
           const bodyType = typecheckBlock(module, symbols, expression.body, diagnostics);
@@ -266,9 +269,10 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         } finally {
           symbols.exitScope();
         }
+        // 函数值的类型：未写类型的形参记为 Unknown，调用方实参不按推断类型比较（#266）
         const funcType: Core.FuncType = {
           kind: 'FuncType',
-          params,
+          params: expression.params.map((param, index) => (isLambdaParamTypeInferred(param) ? unknownType() : params[index]!)),
           ret,
           effectParams: [],
           declaredEffects: [],
@@ -340,9 +344,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           return;
         }
 
-        for (const arg of expression.args) {
-          void typeOfExpr(module, symbols, arg, diagnostics);
-        }
+        const argTypes = expression.args.map(arg => typeOfExpr(module, symbols, arg, diagnostics));
 
         // Decimal↔Double 混算编译期拦截（ADR 0025）。runtime 只能 catch 非整数 Double
         // （2.5），整数值 Double（2.0）与 Int（2）在 JS number 不可分——必须靠编译期 AST
@@ -423,20 +425,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         //   只查**本模块内声明**的函数：内置与跨模块导入各有自己的校验路径，
         //   在此瞎猜签名会误报。
         if (expression.target.kind === 'Name' && !expression.target.name.includes('.')) {
-          const callee = expression.target.name;
-          // 局部名（函数类型参数、Let 绑定的函数值）遮蔽同名模块规则：按局部值的 FuncType 校验个数
-          const sig = calleeSignature(module, symbols, callee);
-          if (sig && sig.params.length !== expression.args.length) {
-            diagnostics.error(
-              ErrorCode.CALL_ARITY_MISMATCH,
-              originToSpan(expression.origin) ?? originToSpan(expression.target.origin),
-              {
-                func: callee,
-                expected: sig.params.length,
-                actual: expression.args.length,
-              },
-            );
-          }
+          checkUserCall(module, symbols, expression, expression.target.name, argTypes, diagnostics);
         }
 
         if (expression.target.kind === 'Name' && expression.target.name.includes('.')) {
@@ -534,6 +523,64 @@ function calleeSignature(module: ModuleContext, symbols: SymbolTable, name: stri
   const local = symbols.lookup(name);
   if (!local) return module.funcSignatures.get(name);
   return local.type.kind === 'FuncType' ? { params: [...local.type.params] as Core.Type[], ret: local.type.ret as Core.Type } : undefined;
+}
+
+/**
+ * 单段名字调用的静态检查（本模块规则或局部函数值）。原则：能正常运行的调用不新增 E001，拿不准时放行。
+ *
+ * - 局部名遮蔽同名规则（#268）：局部名类型已知且不可能是函数时报 E001（期望函数），
+ *   与运行期一致——truffle 与 TS 解释器都按局部值分派，不会改调同名规则。
+ *   类型只来自名字推断的形参（`given f`）不算已知。
+ * - 个数不符报 E032；形参类型与实参类型不符报 E001（#266，与 Java BaseTypeChecker.checkCall 同码）。
+ *   未写类型的形参在签名里是 Unknown（signatureParamTypes）；实参若是类型只来自名字推断的局部名，同样按 Unknown 处理。
+ */
+function checkUserCall(
+  module: ModuleContext,
+  symbols: SymbolTable,
+  call: Core.Call,
+  callee: string,
+  argTypes: readonly Core.Type[],
+  diagnostics: DiagnosticBuilder,
+): void {
+  const span = originToSpan(call.origin) ?? originToSpan(call.target.origin);
+  const local = symbols.lookup(callee);
+  // 单段具名 builtin 名不算「调用非函数局部名」：truffle Loader 在没有同名规则时直接调用 builtin，
+  // 不看同名局部变量。与 aster-lang-core CallTargetBuiltins 一致，不论是否有同名规则（TS 不比 Java 严）。
+  const builtinName = Object.hasOwn(NAMED_BUILTIN_OPS, callee);
+  if (local && !local.typeInferred && !builtinName && !mayBeCallable(local.type)) {
+    diagnostics.error(ErrorCode.TYPE_MISMATCH, span, {
+      expected: 'a function',
+      actual: `'${callee}' of type ${formatType(local.type)}`,
+    });
+    return;
+  }
+  const sig = calleeSignature(module, symbols, callee);
+  if (!sig) return;
+  if (sig.params.length !== call.args.length) {
+    diagnostics.error(ErrorCode.CALL_ARITY_MISMATCH, span, {
+      func: callee,
+      expected: sig.params.length,
+      actual: call.args.length,
+    });
+  }
+  const count = Math.min(sig.params.length, call.args.length);
+  for (let i = 0; i < count; i++) {
+    const arg = call.args[i]!;
+    if (isNameInferredLocal(symbols, arg)) continue;
+    if (!argumentFits(sig.params[i]!, argTypes[i]!)) {
+      diagnostics.typeMismatch(sig.params[i]!, argTypes[i]!, originToSpan(arg.origin) ?? span);
+    }
+  }
+}
+
+/** 实参是类型只来自名字推断的局部名（未写类型的形参） */
+function isNameInferredLocal(symbols: SymbolTable, arg: Core.Expression): boolean {
+  return arg.kind === 'Name' && symbols.lookup(arg.name)?.typeInferred === true;
+}
+
+/** 局部值可能是函数：函数类型、未知类型、类型变量。 */
+function mayBeCallable(type: Core.Type): boolean {
+  return type.kind === 'FuncType' || type.kind === 'TypeVar' || isUnknown(type);
 }
 
 export function typeOfExpr(
