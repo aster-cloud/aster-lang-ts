@@ -14,6 +14,7 @@ import {
   isUnknown,
   normalizeType,
   originToSpan,
+  typesEqual,
   unknownType,
 } from './pure.js';
 import { hasVerdictPrefix, isVerdictField, isVerdictType, verdictArity, VERDICT_TYPE_NAME } from './verdict_signatures.js';
@@ -254,6 +255,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
               'param',
               // 形参节点不带位置信息：用 lambda 自身的 origin 定位 E104。
               originToSpan(expression.origin),
+              isLambdaParamTypeInferred(param),
             );
           });
           const bodyType = typecheckBlock(module, symbols, expression.body, diagnostics);
@@ -523,12 +525,13 @@ function calleeSignature(module: ModuleContext, symbols: SymbolTable, name: stri
 }
 
 /**
- * 单段名字调用的静态检查（本模块规则或局部函数值）。
+ * 单段名字调用的静态检查（本模块规则或局部函数值）。原则：能正常运行的调用不新增 E001，拿不准时放行。
  *
  * - 局部名遮蔽同名规则（#268）：局部名类型已知且不可能是函数时报 E001（期望函数），
  *   与运行期一致——truffle 与 TS 解释器都按局部值分派，不会改调同名规则。
+ *   类型只来自名字推断的形参（`given f`）不算已知。
  * - 个数不符报 E032；形参类型与实参类型不符报 E001（#266，与 Java BaseTypeChecker.checkCall 同码）。
- *   未写类型的形参在签名里是 Unknown（signatureParamTypes），不参与比较。
+ *   未写类型的形参在签名里是 Unknown（signatureParamTypes）；实参若是类型只来自名字推断的局部名，同样按 Unknown 处理。
  */
 function checkUserCall(
   module: ModuleContext,
@@ -540,7 +543,7 @@ function checkUserCall(
 ): void {
   const span = originToSpan(call.origin) ?? originToSpan(call.target.origin);
   const local = symbols.lookup(callee);
-  if (local && !mayBeCallable(local.type)) {
+  if (local && !local.typeInferred && !mayBeCallable(local.type)) {
     diagnostics.error(ErrorCode.TYPE_MISMATCH, span, {
       expected: 'a function',
       actual: `'${callee}' of type ${formatType(local.type)}`,
@@ -558,10 +561,17 @@ function checkUserCall(
   }
   const count = Math.min(sig.params.length, call.args.length);
   for (let i = 0; i < count; i++) {
+    const arg = call.args[i]!;
+    if (isNameInferredLocal(symbols, arg)) continue;
     if (!argumentFits(sig.params[i]!, argTypes[i]!)) {
-      diagnostics.typeMismatch(sig.params[i]!, argTypes[i]!, originToSpan(call.args[i]!.origin) ?? span);
+      diagnostics.typeMismatch(sig.params[i]!, argTypes[i]!, originToSpan(arg.origin) ?? span);
     }
   }
+}
+
+/** 实参是类型只来自名字推断的局部名（未写类型的形参） */
+function isNameInferredLocal(symbols: SymbolTable, arg: Core.Expression): boolean {
+  return arg.kind === 'Name' && symbols.lookup(arg.name)?.typeInferred === true;
 }
 
 /** 局部值可能是函数：函数类型、未知类型、类型变量。 */
@@ -570,21 +580,51 @@ function mayBeCallable(type: Core.Type): boolean {
 }
 
 /**
- * 实参类型能否传给形参。与 Java TypeSystem.equals(非严格) 对齐：Unknown 放行、PII 包装先剥掉、
- * 函数类型只比参数与返回类型（不比效应）；另沿用 TS 字段构造的数值提升（Int → Float 等）。
- * 含类型变量的形参（泛型规则）不在此比较——Java 先做统一再比，TS 侧由泛型检查负责。
+ * 数值拓宽：整数可传给小数 / 更宽的整数形参（用户裁决，Java 侧对齐见 aster-lang-core#229）。
+ * Float 在类型检查中规范化为 Double，两者同列。
+ */
+const NUMERIC_WIDENING: Readonly<Record<string, readonly string[]>> = {
+  Int: ['Long', 'Float', 'Double', 'Decimal'],
+  Long: ['Float', 'Double', 'Decimal'],
+  Float: ['Double'],
+  Double: ['Float'],
+};
+
+/**
+ * 实参类型能否传给形参，按结构逐层比较；拿不准时放行。
+ * - 任一侧为 Unknown、或含类型变量（泛型规则、推断失败的返回类型占位 TypeVar 'Unknown'）：放行；
+ * - PII 包装先剥掉；Maybe 与 Option 视为同一种类，T 可传给 T?（None 的类型为 Option of Unknown）；
+ * - List / Map / Result / TypeApp 逐个比较元素类型；函数类型参数位逆变、不比较效应；
+ * - 类型名：相等（含 TS 既有的 DateTime ≈ Text 宽松）或按 NUMERIC_WIDENING 拓宽。
  */
 function argumentFits(param: Core.Type, arg: Core.Type): boolean {
   const p = unwrapPii(param);
   const a = unwrapPii(arg);
-  if (isUnknown(p) || isUnknown(a) || containsTypeVar(p)) return true;
+  if (isUnknown(p) || isUnknown(a) || containsTypeVar(p) || containsTypeVar(a)) return true;
+  if (isOptional(p)) return argumentFits(p.type as Core.Type, isOptional(a) ? (a.type as Core.Type) : a);
+  if (p.kind === 'List' && a.kind === 'List') return argumentFits(p.type as Core.Type, a.type as Core.Type);
+  if (p.kind === 'Map' && a.kind === 'Map') {
+    return argumentFits(p.key as Core.Type, a.key as Core.Type) && argumentFits(p.val as Core.Type, a.val as Core.Type);
+  }
+  if (p.kind === 'Result' && a.kind === 'Result') {
+    return argumentFits(p.ok as Core.Type, a.ok as Core.Type) && argumentFits(p.err as Core.Type, a.err as Core.Type);
+  }
+  if (p.kind === 'TypeApp' && a.kind === 'TypeApp') {
+    return p.base === a.base && p.args.length === a.args.length &&
+      p.args.every((t, i) => argumentFits(t as Core.Type, a.args[i] as Core.Type));
+  }
   if (p.kind === 'FuncType' && a.kind === 'FuncType') {
     return p.params.length === a.params.length &&
       // 形参位逆变：期望 (Int) -> X 时可以传 (Float) -> X
       p.params.every((t, i) => argumentFits(a.params[i] as Core.Type, t as Core.Type)) &&
       argumentFits(p.ret as Core.Type, a.ret as Core.Type);
   }
-  return isAssignable(p, a);
+  if (p.kind === 'TypeName' && a.kind === 'TypeName' && NUMERIC_WIDENING[a.name]?.includes(p.name)) return true;
+  return typesEqual(p, a);
+}
+
+function isOptional(type: Core.Type): type is Core.Maybe | Core.Option {
+  return type.kind === 'Maybe' || type.kind === 'Option';
 }
 
 function unwrapPii(type: Core.Type): Core.Type {

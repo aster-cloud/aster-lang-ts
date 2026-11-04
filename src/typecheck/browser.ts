@@ -411,7 +411,7 @@ function typecheckFunc(ctx: ModuleContext, f: Core.Func, diagnostics: Diagnostic
   // Define parameters
   for (const param of f.params) {
     const paramType = normalizeType(param.type as Core.Type);
-    defineSymbol(functionContext, param.name, paramType, 'param');
+    defineSymbol(functionContext, param.name, paramType, 'param', undefined, param.typeInferred === true);
   }
 
   // Check function body

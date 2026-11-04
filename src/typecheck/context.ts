@@ -62,7 +62,8 @@ export function defineSymbol(
   name: string,
   type: Core.Type,
   kind: SymbolKind,
-  span?: Span
+  span?: Span,
+  typeInferred = false,
 ): void {
   const existing = context.symbols.lookupInCurrentScope(name);
   if (existing) {
@@ -73,8 +74,9 @@ export function defineSymbol(
     });
     return;
   }
-  const options: { span?: Span; mutable?: boolean } = {};
+  const options: { span?: Span; mutable?: boolean; typeInferred?: boolean } = {};
   if (span) options.span = span;
+  if (typeInferred) options.typeInferred = true;
   // ADR 0052：只有 Let 绑定可被 Set 赋值；形参、lambda 形参、模式绑定不可变（与 Java BaseTypeChecker 一致）。
   options.mutable = kind === 'var';
   context.symbols.define(name, type, kind, options);

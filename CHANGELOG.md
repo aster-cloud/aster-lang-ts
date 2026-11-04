@@ -6,12 +6,22 @@
 
 - 调用本模块规则或函数值局部名时比较实参类型（#266）：**新增 E001 拒绝**，如 `inc("a")`（`inc` 的形参
   `x as Int`）报 `expected Int, got Text`；`Let g be inc. Return g("a").`、把 `(Text) -> Text` 的规则传给
-  `(Int) -> Int` 形参同样报错，与 aster-lang-core `BaseTypeChecker.checkCall` 同码。只比较**写了类型**的形参：
-  未写类型的形参（规则与 lambda）按名字推断出的类型不作为调用约束，在签名 / 函数值类型中记为 Unknown；
-  数值提升（Int → Float 等）、PII 包装、含类型变量的泛型形参放行。aster-lang-test 全部 454 份语料无新增诊断。
+  `(Int) -> Int` 形参同样报错，与 aster-lang-core `BaseTypeChecker.checkCall` 同码。原则是能正常运行的调用不新增
+  E001，拿不准时放行：
+  - 只比较**写了类型**的形参。未写类型的形参（规则与 lambda）按名字推断出的类型不作为调用约束；实参若是
+    未写类型的形参（`given amount` 后 `inc(amount)`），同样不比较。
+  - 实参或形参含 Unknown / 类型变量时放行：泛型规则、`produce:` 推断不出的返回类型。
+  - **数值拓宽放行**：Int → Long / Float / Decimal，Long → Float / Decimal，Float ↔ Double；包括字面量
+    （`f(5)` 传给 Float / Long 形参）与容器元素（`List of Int` → `List of Float`、`Option of Int` → `Option of Float`）。
+    收窄（Float → Int）仍报错。
+  - Maybe 与 Option 视为同一种类：T → T?、None → T?、T? ↔ `Option of T`、`Some(n)` → `Option of Int` 放行；
+    T? → T 仍报错。PII 包装比较前剥掉，函数类型不比较效应。
+  - aster-lang-test 全部 454 份语料无新增诊断。Java 侧对未写类型形参、数值拓宽、Maybe/Option 仍更严格，
+    向 TS 对齐见 aster-lang-core#229。
 - 调用类型已知且不是函数的局部名报 E001（`expected a function, got 'score' of type Int`，#268）。局部名遮蔽同名
   规则（与 Java 名称解析一致），此前 `Rule main given score as Int … Return score(1, 2).` 在有同名规则 `score`
-  时零诊断。
+  时零诊断。未写类型的形参（`given f` 后 `f(n)`）不报。同理，从 If 分支作用域外泄的同名变量（分支内
+  `Let score be 1.`、分支外 `score(n)`）现在也遮蔽同名规则，报 E001。
 
 ### 修复
 

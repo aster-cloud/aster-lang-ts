@@ -3,7 +3,8 @@
  *
  * #266：调用本模块规则或函数值局部名时，按**显式写了类型**的形参比较实参类型，不符报 E001
  *   （与 Java BaseTypeChecker.checkCall 同码）。未写类型的形参（解析器按名字推断出类型，
- *   `typeInferred`）不参与比较——推断类型只是猜测，两引擎当前都接受这类调用。
+ *   `typeInferred`）不参与比较——推断类型只是按名字猜的。Java 目前仍按推断类型比较并拒绝这类调用，
+ *   TS 放行（向 TS 对齐见 aster-lang-core#229）。原则：能正常运行的程序不新增 E001，拿不准时放行。
  * #268：调用目标解析与 Java/truffle 一致——局部名遮蔽同名规则。局部名类型已知且不是函数类型时
  *   报 E001（期望函数）；TS 解释器同样按局部名分派，不再悄悄改调同名规则。
  */
@@ -73,7 +74,7 @@ describe('#266 用户规则调用的实参类型', () => {
     assert.deepEqual(mismatches(untyped.errors), []);
   });
 
-  it('Int 实参传给 Float 形参按数值提升放行（与字段构造的 isAssignable 一致）', () => {
+  it('Int 实参传给 Float 形参按数值拓宽放行', () => {
     const { errors } = check(
       'Rule half given x as Float, produce Float:\n  Return x.\n\n' +
       'Rule main given n as Int, produce Float:\n  Return half(n).\n',
@@ -132,5 +133,78 @@ describe('#268 非函数局部名与规则同名', () => {
     const r = evaluate(core!, 'run', { n: 5 });
     assert.equal(r.success, true, r.error);
     assert.equal(r.value, 4);
+  });
+});
+
+/** 运行 main 并断言成功：放行的用例须是真能跑通的程序 */
+function runsOk(core: Core.Module | undefined, input: Record<string, unknown>): unknown {
+  assert.ok(core, '应产出 Core IR');
+  const r = evaluate(core!, 'main', input);
+  assert.equal(r.success, true, r.error);
+  return r.value;
+}
+
+describe('#266 审查跟进：能正常运行的调用不新增 E001', () => {
+  it('M1 实参为推断失败的返回类型（produce:）：inc(mk(n)) 放行', () => {
+    const { errors, core } = check(INC + 'Rule mk given x as Int, produce:\n  Return x.\n\nRule main given n as Int, produce Int:\n  Return inc(mk(n)).\n');
+    assert.deepEqual(mismatches(errors), []);
+    assert.equal(runsOk(core, { n: 1 }), 2);
+  });
+
+  it('M1 函数值的返回类型为推断占位：twice(inc2, n)（inc2 写 produce:）放行', () => {
+    const { errors, core } = check('Rule inc2 given x as Int, produce:\n  Return x plus 1.\n\n' + TWICE + 'Rule main given n as Int, produce Int:\n  Return twice(inc2, n).\n');
+    assert.deepEqual(mismatches(errors), []);
+    assert.equal(runsOk(core, { n: 1 }), 3);
+  });
+
+  it('M1 未写类型且 produce: 的规则作函数值：twice(bump, n) 放行', () => {
+    const { errors } = check('Rule bump given amount, produce:\n  Return 1.\n\n' + TWICE + 'Rule main given n as Int, produce Int:\n  Return twice(bump, n).\n');
+    assert.deepEqual(mismatches(errors), []);
+  });
+
+  it('M1 泛型规则 id of T 作函数值传给 (Int) -> Int 放行', () => {
+    const { errors, core } = check('Rule id of T given x as T, produce T:\n  Return x.\n\n' + TWICE + 'Rule main given n as Int, produce Int:\n  Return twice(id, n).\n');
+    assert.deepEqual(mismatches(errors), []);
+    assert.equal(runsOk(core, { n: 4 }), 4);
+  });
+
+  it('M2 T → T?、None → T?、T? ↔ Option of T、Some(n) → Option of Int 都放行', () => {
+    const OPT = 'Rule pick given x as Text?, produce Text:\n  Return "k".\n\nRule pickO given x as Option of Text, produce Text:\n  Return "o".\n\nRule pickI given x as Option of Int, produce Text:\n  Return "i".\n\n';
+    for (const call of ['pick(t)', 'pick(None)', 'pickO(m)', 'pick(o)', 'pickI(Some(n))']) {
+      const { errors, core } = check(OPT + `Rule main given t as Text, m as Text?, o as Option of Text, n as Int, produce Text:\n  Return ${call}.\n`);
+      assert.deepEqual(mismatches(errors), [], call);
+      runsOk(core, { t: 'a', m: 'b', o: 'c', n: 1 });
+    }
+  });
+
+  it('M2 内层类型不符仍报：Text? 形参传 Int', () => {
+    const { errors } = check('Rule pick given x as Text?, produce Text:\n  Return "k".\n\nRule main given n as Int, produce Text:\n  Return pick(n).\n');
+    assert.deepEqual(mismatches(errors), [{ expected: 'Text?', actual: 'Int' }]);
+  });
+
+  it('M3 实参类型只来自名字推断（given amount）时放行：inc(amount)', () => {
+    const { errors, core } = check(INC + 'Rule main given amount, produce Int:\n  Return inc(amount).\n');
+    assert.deepEqual(mismatches(errors), []);
+    assert.equal(runsOk(core, { amount: 1 }), 2);
+  });
+
+  it('M3 调用未写类型的形参（given f … f(n)）不报「期望函数」', () => {
+    const { errors, core } = check(INC + 'Rule ap given f, n as Int, produce Int:\n  Return f(n).\n\nRule main given n as Int, produce Int:\n  Return ap(inc, n).\n');
+    assert.deepEqual(errors, []);
+    assert.equal(runsOk(core, { n: 1 }), 2);
+  });
+
+  it('数值拓宽统一放行：Int → Long / Float、Long → Float，含字面量与容器元素', () => {
+    const DECLS = 'Rule toL given x as Long, produce Int:\n  Return 1.\n\nRule toF given x as Float, produce Int:\n  Return 1.\n\n' +
+      'Rule toLF given xs as List of Float, produce Int:\n  Return 1.\n\nRule toOF given x as Option of Float, produce Int:\n  Return 1.\n\n';
+    for (const call of ['toL(n)', 'toL(5)', 'toF(5)', 'toF(l)', 'toLF(xs)', 'toLF([1, 2])', 'toOF(Some(n))']) {
+      const { errors } = check(DECLS + `Rule main given n as Int, l as Long, xs as List of Int, produce Int:\n  Return ${call}.\n`);
+      assert.deepEqual(mismatches(errors), [], call);
+    }
+  });
+
+  it('收窄仍报：Float 实参传给 Int 形参', () => {
+    const { errors } = check(INC + 'Rule main given x as Float, produce Int:\n  Return inc(x).\n');
+    assert.deepEqual(mismatches(errors), [{ expected: 'Int', actual: 'Double' }]);
   });
 });
