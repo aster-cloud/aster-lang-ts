@@ -10,6 +10,7 @@
   （`Return amount`、`Return Some(amount)`、`P with total set to amount` 不再报错）。aster-lang-test 语料消失 80 条 E012。
 - `Return`（规则与 lambda）与实参同一套可赋值规则：数值拓宽（`produce Float` 时 `Return 1`、Int → Long / Decimal）、
   T → T?、None → T? 放行；收窄（Float → Int、T? → T、Double ↔ Decimal）仍报 E003。
+  泛型规则体内的 Return 不检查（`Rule bad of T … produce T: Return 1.` 不报，与 Java 一致；类型参数之间不做合一）。
 - truffle `Builtins.canonicalName` 归一化的单词别名（`plus` `minus` `times` `divide` `modulo` `equals` `is` `under`
   `over`，不区分大小写）与规范 builtin 名一样，同名的非函数局部名被调用时不报「调用非函数局部名」
   （`given over as Int … over(3, 2)`），与 aster-lang-core `CallTargetBuiltins.ALIASES` 一致。

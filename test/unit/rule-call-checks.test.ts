@@ -208,8 +208,7 @@ describe('#266 审查跟进：能正常运行的调用不新增 E001', () => {
     }
   });
 
-  // Decimal 形参目前被降级为类型变量（#276），任何实参都放行，断言没有意义；#276 修复后去掉 skip
-  it('数值拓宽：Int / Long 实参传给 Decimal 形参放行，Double 传 Decimal 报错（ADR 0025）', { skip: '#276 Decimal 形参被降级为类型变量' }, () => {
+  it('数值拓宽：Int / Long 实参传给 Decimal 形参放行，Double 传 Decimal 报错（ADR 0025）', () => {
     const DECLS = 'Rule toD given x as Decimal, produce Int:\n  Return 1.\n\n';
     for (const call of ['toD(n)', 'toD(l)', 'toD(5)']) {
       const { errors } = check(DECLS + `Rule main given n as Int, l as Long, produce Int:\n  Return ${call}.\n`);
