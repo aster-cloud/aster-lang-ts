@@ -2,7 +2,7 @@ import type { Core } from '../types.js';
 import { DefaultCoreVisitor } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { TypeSystem } from './type_system.js';
-import { NAMED_BUILTIN_OPS } from '../config/semantic.js';
+import { callTargetBuiltin } from '../config/semantic.js';
 import { isFieldTypeInferred, isLambdaParamTypeInferred } from '../core/inferred_fields.js';
 import type { FunctionSignature, ModuleContext, TypecheckWalkerContext } from './context.js';
 import { defineSymbol } from './context.js';
@@ -11,7 +11,6 @@ import { SymbolTable } from './symbol_table.js';
 import { typecheckBlock } from './statement.js';
 import {
   formatType,
-  isAssignable,
   isUnknown,
   normalizeType,
   argumentFits,
@@ -209,8 +208,9 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
             continue;
           }
           const valueType = typeOfExpr(module, symbols, field.expr, diagnostics);
-          // 与规则调用实参同一套兼容规则：数值拓宽、可空、Maybe/Option 互通、Unknown/类型变量占位放行
-          if (!argumentFits(schemaField.type as Core.Type, valueType)) {
+          // 与规则调用实参同一套兼容规则：数值拓宽、可空、Maybe/Option 互通、Unknown/类型变量占位放行。
+          // 未写类型的字段（类型按字段名推断）视为未知，不作约束；按名字推断类型的值由 argumentFits 放行（aster-lang-core#232）。
+          if (!isFieldTypeInferred(schemaField) && !argumentFits(schemaField.type as Core.Type, valueType)) {
             diagnostics.error(ErrorCode.FIELD_TYPE_MISMATCH, originToSpan(field.expr.origin) ?? originToSpan(expression.origin), {
               field: field.name,
               expected: formatType(schemaField.type as Core.Type),
@@ -260,7 +260,8 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
             );
           });
           const bodyType = typecheckBlock(module, symbols, expression.body, diagnostics);
-          if (!isUnknown(bodyType) && !isUnknown(ret) && !isAssignable(ret, bodyType)) {
+          // 与规则 Return 同一套可赋值规则（数值拓宽、T → T?，aster-lang-core#232）
+          if (!isUnknown(bodyType) && !isUnknown(ret) && !argumentFits(ret, bodyType)) {
             diagnostics.error(ErrorCode.RETURN_TYPE_MISMATCH, originToSpan(expression.origin), {
               expected: formatType(ret),
               actual: formatType(bodyType),
@@ -545,8 +546,9 @@ function checkUserCall(
   const span = originToSpan(call.origin) ?? originToSpan(call.target.origin);
   const local = symbols.lookup(callee);
   // 单段具名 builtin 名不算「调用非函数局部名」：truffle Loader 在没有同名规则时直接调用 builtin，
-  // 不看同名局部变量。与 aster-lang-core CallTargetBuiltins 一致，不论是否有同名规则（TS 不比 Java 严）。
-  const builtinName = Object.hasOwn(NAMED_BUILTIN_OPS, callee);
+  // 不看同名局部变量。与 aster-lang-core CallTargetBuiltins 一致，不论是否有同名规则（TS 不比 Java 严）；
+  // 含 truffle 归一化的单词别名（over、divide、equals …，不区分大小写，aster-lang-core#234）。
+  const builtinName = callTargetBuiltin(callee) !== null;
   if (local && !local.typeInferred && !builtinName && !mayBeCallable(local.type)) {
     diagnostics.error(ErrorCode.TYPE_MISMATCH, span, {
       expected: 'a function',

@@ -16,7 +16,7 @@
 
 import type { Core as CoreTypes } from '../types.js';
 import Decimal from 'decimal.js';
-import { BUILTIN_OPS, NAMED_BUILTIN_OPS } from '../config/semantic.js';
+import { BUILTIN_OPS, NAMED_BUILTIN_OPS, callTargetBuiltin } from '../config/semantic.js';
 
 // Decimal 精确十进制配置（ADR 0025）：锁死 precision/rounding，**不依赖默认**，避免环境差异
 // 与双引擎不一致。precision 设高（80）让 plus/minus/times 不被有效数字上下文截断（v1 输入
@@ -797,6 +797,14 @@ function dateToCivil(epochDay: unknown): { y: number; m: number; d: number } {
 /**
  * Core IR tree-walk 解释器
  */
+/**
+ * 值是否为可空 T? 的裸载荷（#277）：非 null，且不是 Some / None / Ok / Err 构造值。
+ * data 构造值、枚举成员等照常算裸载荷（`Person?` 位置直接放 Person）。与 truffle MatchNode.isBareOptionalPayload 一致。
+ */
+function isBareOptionalPayload(value: unknown): boolean {
+  return value !== null && value !== undefined && !isVariantValue(value);
+}
+
 class Interpreter {
   /** 模块中所有函数声明（按名称索引） */
   private readonly funcs: Map<string, CoreTypes.Func>;
@@ -985,6 +993,8 @@ class Interpreter {
         // - 小写开头（绑定变量，如 x/value）→ catch-all，匹配任意非 null 值并绑定。
         const isVariant = /^[A-Z]/.test(pattern.name);
         if (isVariant) {
+          // `When None` 也匹配可空值 T? 的裸 null（#277，与 truffle MatchNode 一致）
+          if (pattern.name === 'None' && (value === null || value === undefined)) return true;
           if (value === null || value === undefined) return false;
           if (typeof value === 'string') return value === pattern.name;
           if (typeof value === 'object') {
@@ -1002,6 +1012,15 @@ class Interpreter {
       case 'PatInt':
         return value === pattern.value;
       case 'PatCtor': {
+        // 可空值 T? 的裸表示（#277）：宿主传入或 T → T? 直接传入的值不带 Some/None 标签。
+        // 裸的非 null 值按 Some(值) 匹配，null 按 None 匹配；带 __type 标签的值仍走下方原逻辑（与 truffle MatchNode 一致）。
+        if (pattern.typeName === 'Some' && isBareOptionalPayload(value)) {
+          return this.matchPattern({ __type: 'Some', value }, pattern, env);
+        }
+        if (pattern.typeName === 'None' && (value === null || value === undefined) &&
+            pattern.names.length === 0 && !(pattern as { args?: readonly unknown[] }).args?.length) {
+          return true;
+        }
         // 构造器模式匹配（如 Ok(value)、Err(err)、Some(x)、User(id, name)）。
         // 与 aster-lang-truffle MatchNode.PatCtorNode 对齐：按位置（非按名）把
         // 构造体的非 __type 字段值依序绑定到模式的 bind 名——因为 Ok(value)/
@@ -1207,13 +1226,15 @@ class Interpreter {
       const funcName = call.target.name;
       // 调用目标的分派顺序（与 truffle Loader、类型检查一致）：
       //   1. 局部值是函数（闭包 / 函数值）→ 调用局部值，即使与 builtin 同名（`given gt as (Int, Int) -> Bool`）；
-      //   2. 单段具名 builtin（add / sub / gt …）且没有同名规则 → 调用 builtin，同名的非函数局部变量不影响；
+      //   2. 单段具名 builtin（add / sub / gt …，含 over / divide 等单词别名）且没有同名规则 → 调用 builtin，
+      //      同名的非函数局部变量不影响；
       //   3. 其余局部名遮蔽同名规则：局部值不是函数时报错，不改调同名规则（#268）。
       const bound = env.has(funcName) ? env.get(funcName) : undefined;
       if (bound instanceof Closure) {
         return this.applyClosure(bound, call.args.map(arg => this.evalExpr(arg, env)));
       }
-      const namedOp = Object.hasOwn(NAMED_BUILTIN_OPS, funcName) ? NAMED_BUILTIN_OPS[funcName] : null;
+      const builtin = callTargetBuiltin(funcName);
+      const namedOp = builtin === null ? null : NAMED_BUILTIN_OPS[builtin];
       if (namedOp && !this.funcs.has(funcName)) {
         return this.evalBuiltinOp(namedOp, call.args, env);
       }

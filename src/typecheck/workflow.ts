@@ -127,11 +127,12 @@ export function typecheckStep(
   step: Core.Step,
   effectCache?: Map<Core.Step, Set<'io' | 'cpu'>>
 ): Core.Type {
-  const bodyType = typecheckBlock(context.module, context.symbols, step.body, context.diagnostics);
+  // step 体与 compensate 体各有独立作用域（与 truffle#163 一致，#279）：体内 Let 不外泄，跨 step 读取报未定义
+  const bodyType = typecheckScopedBlock(context, step.body);
   const effects = collectEffects(context.module, step.body);
 
   if (step.compensate) {
-    const compensateType = typecheckBlock(context.module, context.symbols, step.compensate, context.diagnostics);
+    const compensateType = typecheckScopedBlock(context, step.compensate);
     validateCompensateBlock(context, step, bodyType, compensateType);
     // 合并 compensate 块的效应
     const compensateEffects = collectEffects(context.module, step.compensate);
@@ -297,4 +298,14 @@ function validateWorkflowMetadata(workflow: Core.Workflow, diagnostics: Diagnost
 function stepHasSideEffects(step: Core.Step, effects: Set<'io' | 'cpu'>): boolean {
   if (effects.has('io')) return true;
   return step.effectCaps.some(cap => isIoClassCapability(cap));
+}
+
+/** 在独立的块作用域中检查代码块；finally 退出，异常也不把作用域留在栈上。 */
+function typecheckScopedBlock(context: TypecheckWalkerContext, block: Core.Block): Core.Type {
+  context.symbols.enterScope('block');
+  try {
+    return typecheckBlock(context.module, context.symbols, block, context.diagnostics);
+  } finally {
+    context.symbols.exitScope();
+  }
 }

@@ -188,6 +188,18 @@ export function isAssignable(
 }
 
 /**
+ * 只按名字推断出的类型实例（未写类型的形参 / lambda 形参，及经 Let 传递的同一实例），按对象身份登记。
+ * 与 Java BaseTypeChecker.uncheckedForCalls 同一做法：实例随 Let、Set、Some(...)、规则返回值原样传播，
+ * argumentFits 遇到登记的实例（任一侧、任一层）即放行（aster-lang-core#232）。WeakSet 不阻止 GC，也不进 IR。
+ */
+const NAME_INFERRED_TYPES = new WeakSet<object>();
+
+/** 登记一个只按名字推断出的类型实例（共享的 Unknown 单例无需登记）。 */
+export function markNameInferredType(type: Core.Type): void {
+  if (type !== UNKNOWN_TYPE) NAME_INFERRED_TYPES.add(type);
+}
+
+/**
  * 数值拓宽：整数可传给小数 / 更宽的整数形参（用户裁决，Java 侧对齐见 aster-lang-core#229）。
  * Float 在类型检查中规范化为 Double，两者同列。
  */
@@ -199,14 +211,15 @@ const NUMERIC_WIDENING: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
- * 值能否放进期望类型的位置（规则调用实参 E001、字段构造 E012、Set E002 共用），按结构逐层比较；拿不准时放行。
+ * 值能否放进期望类型的位置（规则调用实参 E001、字段构造 E012、Set E002、Return E003 共用），按结构逐层比较；拿不准时放行。
  * 原则：能正常运行的程序不新增类型错误，TS 不比 Java 严（aster-lang-core#231 与此同一套规则）。
- * - 任一侧为 Unknown、或含类型变量（泛型规则、推断失败的返回类型占位 TypeVar 'Unknown'）：放行；
+ * - 任一侧为 Unknown、只按名字推断出的类型实例（markNameInferredType）、或含类型变量（泛型规则、推断失败的返回类型占位 TypeVar 'Unknown'）：放行；
  * - PII 包装先剥掉；Maybe 与 Option 视为同一种类，T 可传给 T?（None 的类型为 Option of Unknown）；
  * - List / Map / Result / TypeApp 逐个比较元素类型；函数类型参数位逆变、不比较效应；
  * - 类型名：相等（含 TS 既有的 DateTime ≈ Text 宽松）或按 NUMERIC_WIDENING 拓宽。
  */
 export function argumentFits(param: Core.Type, arg: Core.Type): boolean {
+  if (NAME_INFERRED_TYPES.has(param) || NAME_INFERRED_TYPES.has(arg)) return true;
   const p = unwrapPii(param);
   const a = unwrapPii(arg);
   if (isUnknown(p) || isUnknown(a) || containsTypeVar(p) || containsTypeVar(a)) return true;
