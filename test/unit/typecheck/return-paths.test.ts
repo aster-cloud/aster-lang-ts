@@ -27,15 +27,9 @@ function errorsOf(source: string): [string, number][] {
     .map((d): [string, number] => [d.code, d.span?.start.line ?? -1]);
 }
 
-// 夹具本身无法在本引擎解析的条目：`Define A has …` 里的单字母类型名 `A` 被英文冠词移除删掉
-// （canonicalizer 的冠词跟随词表不含 has，core 端 Canonicalizer 同一张表），与返回路径检查无关，记为 todo。
-const PARSE_BLOCKED = new Map([
-  ['unknown_field_early', '单字母类型名 A 被当作冠词移除，夹具解析失败（与本 issue 无关）'],
-]);
-
 describe('#283 每条返回路径与声明返回类型比对（共享夹具）', () => {
   for (const fx of FIXTURES) {
-    it(fx.name, { todo: PARSE_BLOCKED.get(fx.name) }, () => {
+    it(fx.name, () => {
       const errors = errorsOf(fx.source);
       assert.equal(errors.length === 0, fx.success, `success 不符：${JSON.stringify(errors)}`);
       assert.deepEqual(errors, fx.errors);
@@ -58,12 +52,6 @@ describe('#283 其他返回路径', () => {
     assert.ok(errs.some(([c]) => c === 'E008'), JSON.stringify(errs));
     assert.ok(errs.some(([c, l]) => c === 'E003' && l === 6), JSON.stringify(errs));
     assert.ok(errs.every(([, l]) => l > 1), JSON.stringify(errs));
-  });
-
-  it('同一语义改用多字母类型名：未写类型的字段（Unknown）作提前 Return 不报错', () => {
-    const src =
-      'Module m.\nDefine Ab has score, label.\nRule r given a as Ab, produce Int:\n  If a.score greater than 700\n    Return a.label.\n  Return 0.\n';
-    assert.deepEqual(errorsOf(src), []);
   });
 
   it('workflow step 内的 Return 是 step 结果，不与规则声明类型比较', () => {
