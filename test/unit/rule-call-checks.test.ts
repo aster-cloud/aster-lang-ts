@@ -14,7 +14,7 @@ import { join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
 import { compileAndTypecheck, evaluate, EN_US } from '../../src/browser.js';
 import type { Core } from '../../src/types.js';
-import { NAMED_BUILTIN_OPS } from '../../src/config/semantic.js';
+import { CALL_TARGET_BUILTIN_ALIASES, NAMED_BUILTIN_OPS } from '../../src/config/semantic.js';
 
 const INC = 'Rule inc given x as Int, produce Int:\n  Return x plus 1.\n\n';
 const GREET = 'Rule greet given name as Text, produce Text:\n  Return name.\n\n';
@@ -314,15 +314,22 @@ describe('core#231 审查跟进：TS 不比 Java 严', () => {
     assert.deepEqual(codes(errors), ['E032']);
   });
 
-  it('F1 交叉核对：单段 builtin 名单与 aster-lang-core CallTargetBuiltins.NAMES 一致（找不到 core 即失败）', () => {
+  it('F1 交叉核对：单段 builtin 名单与别名表与 aster-lang-core CallTargetBuiltins.NAMES / ALIASES 一致（找不到 core 即失败）', () => {
     // CI 的 test job 把 core 检出到工作区内 ./aster-lang-core；本地可用 ASTER_CORE_DIR 指定，或放在兄弟目录 ../aster-lang-core
     const RELATIVE = 'src/main/java/aster/core/typecheck/CallTargetBuiltins.java';
     const roots = [process.env['ASTER_CORE_DIR'], resolve(process.cwd(), 'aster-lang-core'), resolve(process.cwd(), '..', 'aster-lang-core')];
     const file = roots.filter((r): r is string => !!r).map((r) => join(r, RELATIVE)).find((f) => existsSync(f));
     assert.ok(file, `找不到 aster-lang-core 的 ${RELATIVE}（CI 检出 ./aster-lang-core；本地用 ASTER_CORE_DIR 指定）`);
-    const block = /Set\.of\(([^)]*)\)/.exec(readFileSync(file, 'utf8'));
+    const source = readFileSync(file, 'utf8');
+    const block = /Set\.of\(([^)]*)\)/.exec(source);
     assert.ok(block, 'CallTargetBuiltins.NAMES 的 Set.of(...) 未找到');
     const names = [...block[1]!.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
     assert.deepEqual([...new Set(names)].sort(), Object.keys(NAMED_BUILTIN_OPS).sort());
+    // core#234：单词别名表（ALIASES = Map.of("plus", "add", …)）同样逐项一致
+    const aliasBlock = /ALIASES\s*=\s*Map\.of\(([^)]*)\)/.exec(source);
+    assert.ok(aliasBlock, 'CallTargetBuiltins.ALIASES 的 Map.of(...) 未找到');
+    const flat = [...aliasBlock[1]!.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+    const aliases = Object.fromEntries(flat.flatMap((v, i) => (i % 2 === 0 ? [[v, flat[i + 1]!]] : [])));
+    assert.deepEqual(aliases, { ...CALL_TARGET_BUILTIN_ALIASES });
   });
 });

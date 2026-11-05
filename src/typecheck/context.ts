@@ -8,7 +8,7 @@ import { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
 import type { SymbolInfo, SymbolKind } from './symbol_table.js';
 import { TypeSystem } from './type_system.js';
-import { argumentFits, formatType, typesEqual } from './pure.js';
+import { argumentFits, formatType, markNameInferredType, typesEqual } from './pure.js';
 
 // 类型检查上下文模块：集中管理模块/函数上下文字段以及符号定义与赋值操作。
 
@@ -76,7 +76,11 @@ export function defineSymbol(
   }
   const options: { span?: Span; mutable?: boolean; typeInferred?: boolean } = {};
   if (span) options.span = span;
-  if (typeInferred) options.typeInferred = true;
+  if (typeInferred) {
+    options.typeInferred = true;
+    // 按名字推断出的类型实例：在 argumentFits 中视为未知，随 Let、Set、Some(...)、返回值原样传播（aster-lang-core#232）
+    markNameInferredType(type);
+  }
   // ADR 0052：只有 Let 绑定可被 Set 赋值；形参、lambda 形参、模式绑定不可变（与 Java BaseTypeChecker 一致）。
   options.mutable = kind === 'var';
   context.symbols.define(name, type, kind, options);

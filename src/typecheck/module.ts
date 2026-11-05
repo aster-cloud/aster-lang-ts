@@ -24,6 +24,7 @@ import { DiagnosticBuilder } from './diagnostics.js';
 import { checkGovernance } from './governance.js';
 import { SymbolTable } from './symbol_table.js';
 import {
+  argumentFits,
   formatType,
   isUnknown,
   buildFieldTypeMap,
@@ -33,7 +34,6 @@ import {
   normalizeModuleSearchPaths,
   normalizeType,
   signatureParamTypes,
-  typesEqual,
   unknownType,
 } from './utils.js';
 import { checkAsyncDiscipline } from './async.js';
@@ -272,7 +272,8 @@ function typecheckFunc(ctx: ModuleContext, f: Core.Func, diagnostics: Diagnostic
   const bodyReturn = f.body ? typecheckBlock(ctx, symbols, f.body, diagnostics) : unknownType();
   const retTypeInferred = (f as { retTypeInferred?: boolean }).retTypeInferred === true;
 
-  if (!retTypeInferred && !typesEqual(bodyReturn, declaredReturn)) {
+  // Return 与实参同一套可赋值规则：数值拓宽、T → T?、None → T? 放行，收窄仍报错（aster-lang-core#232）
+  if (!retTypeInferred && !argumentFits(declaredReturn, bodyReturn)) {
     diagnostics.error(ErrorCode.RETURN_TYPE_MISMATCH, f.body?.span ?? f.ret?.span ?? f.span, {
       expected: formatType(declaredReturn),
       actual: formatType(bodyReturn),

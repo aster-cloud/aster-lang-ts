@@ -385,7 +385,7 @@ export const BUILTIN_OPS: ReadonlySet<string> = new Set([
  * 单段具名 builtin（与 aster-lang-core CallTargetBuiltins.NAMES、aster-lang-truffle Builtins 注册的单段名一致，
  * 交叉核对见 rule-call-checks 测试）。调用位置的分派：局部值是函数时调用局部值；否则在没有同名规则时调用 builtin，
  * 同名的非函数局部变量不影响。类型检查不把这些名字算作「调用非函数局部名」（aster-lang-core#231、truffle#158）。
- * 规范名之外的别名（divide、over、equals …）未列入，见 aster-lang-core#234。
+ * 规范名之外的单词别名见 CALL_TARGET_BUILTIN_ALIASES。
  * 值为 TS 解释器 evalBuiltinOp 使用的运算符写法；null 表示 TS 解释器不在调用位置路由（await 另有处理）。
  */
 export const NAMED_BUILTIN_OPS: Readonly<Record<string, string | null>> = {
@@ -394,6 +394,26 @@ export const NAMED_BUILTIN_OPS: Readonly<Record<string, string | null>> = {
   and: 'and', or: 'or', not: 'not',
   await: null,
 };
+
+/**
+ * truffle `Builtins.canonicalName` 归一化的单词别名 → 规范 builtin 名（aster-lang-core#234）。
+ * truffle 先把调用目标名转小写再查这张表，所以别名不区分大小写；规范名本身（add、gt …）区分大小写。
+ * 与 aster-lang-core CallTargetBuiltins.ALIASES 一致（交叉核对见 rule-call-checks 测试）。
+ */
+export const CALL_TARGET_BUILTIN_ALIASES: Readonly<Record<string, string>> = {
+  plus: 'add', minus: 'sub', times: 'mul', divide: 'div', modulo: 'mod',
+  equals: 'eq', is: 'eq', under: 'lt', over: 'gt',
+};
+
+/**
+ * 调用目标名在运行期按哪个单段 builtin 分派：规范名原样返回，单词别名（不区分大小写）返回规范名，否则 null。
+ * 与 truffle Loader 的 `Builtins.has(name)` 判定一致。
+ */
+export function callTargetBuiltin(name: string): string | null {
+  if (Object.hasOwn(NAMED_BUILTIN_OPS, name)) return name;
+  const lower = name.toLowerCase();
+  return Object.hasOwn(CALL_TARGET_BUILTIN_ALIASES, lower) ? CALL_TARGET_BUILTIN_ALIASES[lower]! : null;
+}
 
 /**
  * 验证是否为内置异步函数。

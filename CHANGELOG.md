@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased（1.2.5）
+
+### 类型检查放宽（与 aster-lang-core#232 #233 #234 同步）
+
+- 按名字推断出的类型一律视为未知：未写类型的 data 字段（`Define Decision has approved, collateralRequired.`）
+  不再按推断类型检查构造值（此前 `collateralRequired set to 1` 报 E012 `expects Text, got Int`）；未写类型的形参 /
+  lambda 形参的类型实例在实参、字段、`Set`、`Return` 位置不作约束，并随 Let、`Set`、`Some(...)`、规则返回值传播
+  （`Return amount`、`Return Some(amount)`、`P with total set to amount` 不再报错）。aster-lang-test 语料消失 80 条 E012。
+- `Return`（规则与 lambda）与实参同一套可赋值规则：数值拓宽（`produce Float` 时 `Return 1`、Int → Long / Decimal）、
+  T → T?、None → T? 放行；收窄（Float → Int、T? → T、Double ↔ Decimal）仍报 E003。
+- truffle `Builtins.canonicalName` 归一化的单词别名（`plus` `minus` `times` `divide` `modulo` `equals` `is` `under`
+  `over`，不区分大小写）与规范 builtin 名一样，同名的非函数局部名被调用时不报「调用非函数局部名」
+  （`given over as Int … over(3, 2)`），与 aster-lang-core `CallTargetBuiltins.ALIASES` 一致。
+
+### 修复
+
+- 类型检查：`Decimal` 是内置标量，不再被当作隐式类型参数（#276）。此前 `x as Decimal` 形参降级为类型变量，任何实参
+  都能传入，`produce Decimal` 还会误报 `expected Decimal, got Decimal`（语料 10 条）。现在 Int / Long → Decimal 放行，
+  Text / Float / Double → Decimal、Decimal → Int / Double 报 E001（ADR 0025）。Core IR 中 Decimal 签名的 `typeParams`
+  由 `["Decimal"]` 变为 `[]`，与 Java 一致。
+- 解释器：`T?` 的裸值与 `Some` / `None` 模式（#277）。宿主传入或 T → T? 直接传入的值不带 Some/None 标签，此前
+  `When Some(v)` / `When None` 都不匹配，Match 静默返回 null。现在裸的非 null 值匹配 `Some(v)`，null 匹配 `None`；
+  Some/None/Ok/Err 构造值不变。truffle 同步修复（aster-lang-truffle 同名分支）。
+- 解释器：未声明的单词别名调用按 builtin 分派（`divide(10, 2)` → 5，与 truffle 一致；此前报 `Undefined function`）。
+
 ## 1.2.4
 
 ### 破坏性变更（类型检查）
