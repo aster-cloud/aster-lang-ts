@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased（1.2.5）
+## 1.2.5
 
 ### 类型检查放宽（与 aster-lang-core#232 #233 #234 同步）
 
