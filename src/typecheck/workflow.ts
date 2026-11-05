@@ -16,7 +16,7 @@ import {
   unknownType,
 } from './pure.js';
 import { collectEffects } from './effects.js';
-import { typecheckBlock } from './statement.js';
+import { typecheckBlock, withoutReturnExpectation } from './statement.js';
 
 const RETRY_RECOMMENDED_MAX_ATTEMPTS = 10;
 const RETRY_BASE_DELAY_MS = 1_000;
@@ -107,9 +107,13 @@ export function typecheckWorkflow(context: TypecheckWalkerContext, workflow: Cor
 
   let resultType: Core.Type = unknownType();
   const stepEffects = new Map<Core.Step, Set<'io' | 'cpu'>>();
-  for (const step of workflow.steps) {
-    resultType = typecheckStep(context, step, stepEffects);
-  }
+  // step / compensate 体内的 Return 是该 step 的结果（如 `Return ok of y`），不是外层规则的返回路径，
+  // 不与规则声明的返回类型比较（aster-lang-ts#283）
+  withoutReturnExpectation(() => {
+    for (const step of workflow.steps) {
+      resultType = typecheckStep(context, step, stepEffects);
+    }
+  });
 
   checkWorkflowDependencies(workflow, context.diagnostics);
   validateWorkflowMetadata(workflow, context.diagnostics);

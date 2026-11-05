@@ -24,8 +24,6 @@ import { DiagnosticBuilder } from './diagnostics.js';
 import { checkGovernance } from './governance.js';
 import { SymbolTable } from './symbol_table.js';
 import {
-  argumentFits,
-  formatType,
   isUnknown,
   buildFieldTypeMap,
   checkEntryRuleUniqueness,
@@ -34,10 +32,9 @@ import {
   normalizeModuleSearchPaths,
   normalizeType,
   signatureParamTypes,
-  unknownType,
 } from './utils.js';
 import { checkAsyncDiscipline } from './async.js';
-import { typecheckBlock } from './statement.js';
+import { typecheckFunctionBody } from './statement.js';
 import {
   collectCapabilities,
   checkCapabilities,
@@ -269,16 +266,9 @@ function typecheckFunc(ctx: ModuleContext, f: Core.Func, diagnostics: Diagnostic
   }
 
   const declaredReturn = normalizeType(f.ret as Core.Type);
-  const bodyReturn = f.body ? typecheckBlock(ctx, symbols, f.body, diagnostics) : unknownType();
   const retTypeInferred = (f as { retTypeInferred?: boolean }).retTypeInferred === true;
-
-  // Return 与实参同一套可赋值规则：数值拓宽、T → T?、None → T? 放行，收窄仍报错（aster-lang-core#232）
-  if (!retTypeInferred && !argumentFits(declaredReturn, bodyReturn)) {
-    diagnostics.error(ErrorCode.RETURN_TYPE_MISMATCH, f.body?.span ?? f.ret?.span ?? f.span, {
-      expected: formatType(declaredReturn),
-      actual: formatType(bodyReturn),
-    });
-  }
+  // 每条 Return 路径都与声明类型比较，另有函数级兜底（aster-lang-ts#283）
+  const bodyReturn = typecheckFunctionBody(ctx, symbols, f, declaredReturn, retTypeInferred, diagnostics);
 
   checkEffects(ctx, f, diagnostics);
   checkCapabilityInferredEffects(f, diagnostics);

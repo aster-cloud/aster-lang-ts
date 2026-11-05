@@ -1,4 +1,4 @@
-import type { Core } from '../types.js';
+import type { Core, Span } from '../types.js';
 import { DefaultCoreVisitor } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { ModuleContext, TypecheckWalkerContext } from './context.js';
@@ -7,6 +7,7 @@ import { originToSpan } from './pure.js';
 import { SymbolTable } from './symbol_table.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
 import {
+  argumentFits,
   formatType,
   isUnknown,
   typesEqual,
@@ -48,6 +49,7 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
       }
       case 'Return': {
         this.result = typeOfExpr(module, symbols, statement.expr, diagnostics);
+        checkReturnAgainstDeclared(this.result, statement.span ?? originToSpan(statement.origin), diagnostics);
         return;
       }
       case 'If': {
@@ -66,7 +68,7 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
           this.result = thenType;
         } else {
           if (!typesEqual(thenType, elseType)) {
-            diagnostics.error(ErrorCode.IF_BRANCH_MISMATCH, statement.span, {
+            diagnostics.error(ErrorCode.IF_BRANCH_MISMATCH, statement.span ?? originToSpan(statement.origin), {
               thenType: formatType(thenType),
               elseType: formatType(elseType),
             });
@@ -220,10 +222,86 @@ export function typecheckCase(
   try {
     bindPattern(ctx, symbols, caseClause.pattern, scrutineeType, diagnostics);
     if (caseClause.body.kind === 'Return') {
-      return typeOfExpr(ctx, symbols, caseClause.body.expr, diagnostics);
+      const type = typeOfExpr(ctx, symbols, caseClause.body.expr, diagnostics);
+      checkReturnAgainstDeclared(
+        type,
+        caseClause.body.span ?? originToSpan(caseClause.body.origin) ?? caseClause.span ?? originToSpan(caseClause.origin),
+        diagnostics,
+      );
+      return type;
     }
     return typecheckBlock(ctx, symbols, caseClause.body, diagnostics);
   } finally {
     symbols.exitScope();
   }
+}
+
+/**
+ * 当前正在检查的函数的声明返回类型（栈顶）。null 表示不检查：返回类型按名推断，或处于 lambda 体内
+ * （lambda 的 Return 属于 lambda，由 lambda 自己的返回类型检查负责）。
+ */
+interface ReturnExpectation {
+  declared: Core.Type;
+  /** 是否已有某条 Return 报过 E003：函数级的兜底比较据此去重 */
+  reported: boolean;
+}
+const returnExpectations: (ReturnExpectation | null)[] = [];
+
+/**
+ * 每条 Return 语句都与声明返回类型比较（aster-lang-ts#283）：任意嵌套 If、Match 分支、workflow step
+ * 里的提前 Return 都是函数可能的返回路径，不能只看函数体块的最后一个结果类型。
+ * 比较用可赋值规则（Unknown、按名推断、数值拓宽放行），E003 落在该 Return 的位置。
+ */
+function checkReturnAgainstDeclared(actual: Core.Type, span: Span | undefined, diagnostics: DiagnosticBuilder): void {
+  const expectation = returnExpectations[returnExpectations.length - 1];
+  if (!expectation || argumentFits(expectation.declared, actual)) return;
+  expectation.reported = true;
+  diagnostics.error(ErrorCode.RETURN_TYPE_MISMATCH, span, {
+    expected: formatType(expectation.declared),
+    actual: formatType(actual),
+  });
+}
+
+/** 在不检查 Return 的上下文中执行（lambda 体）：其 Return 不与外层函数的声明类型比较。 */
+export function withoutReturnExpectation<T>(run: () => T): T {
+  returnExpectations.push(null);
+  try {
+    return run();
+  } finally {
+    returnExpectations.pop();
+  }
+}
+
+/**
+ * 检查函数体并比较返回类型：逐条 Return 比较（见 checkReturnAgainstDeclared）；
+ * 若没有任何 Return 报错，仍对块的结果类型做一次兜底比较（如末尾不是 Return 的函数体），
+ * span 取函数体最后一条语句，避免落到第 1 行。返回块结果类型，供泛型参数统一使用。
+ */
+export function typecheckFunctionBody(
+  ctx: ModuleContext,
+  symbols: SymbolTable,
+  f: Core.Func,
+  declaredReturn: Core.Type,
+  retTypeInferred: boolean,
+  diagnostics: DiagnosticBuilder,
+): Core.Type {
+  if (!f.body) return unknownType();
+  const expectation: ReturnExpectation | null = retTypeInferred ? null : { declared: declaredReturn, reported: false };
+  returnExpectations.push(expectation);
+  let bodyReturn: Core.Type;
+  try {
+    bodyReturn = typecheckBlock(ctx, symbols, f.body, diagnostics);
+  } finally {
+    returnExpectations.pop();
+  }
+  // Return 与实参同一套可赋值规则：数值拓宽、T → T?、None → T? 放行，收窄仍报错（aster-lang-core#232）
+  if (expectation && !expectation.reported && !argumentFits(declaredReturn, bodyReturn)) {
+    const last = f.body.statements[f.body.statements.length - 1];
+    const span = (last && (last.span ?? originToSpan(last.origin))) ?? f.body.span ?? f.ret?.span ?? f.span;
+    diagnostics.error(ErrorCode.RETURN_TYPE_MISMATCH, span, {
+      expected: formatType(declaredReturn),
+      actual: formatType(bodyReturn),
+    });
+  }
+  return bodyReturn;
 }
