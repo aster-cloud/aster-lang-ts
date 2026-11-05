@@ -51,7 +51,7 @@ describe('泛型诊断', () => {
     );
   });
 
-  it('疑似类型变量但未声明应触发 TYPEVAR_LIKE_UNDECLARED', () => {
+  it('疑似类型变量的未知类型名不触发 TYPEVAR_LIKE_UNDECLARED（与 Java 一致，#281）', () => {
     const typeName = (name: string) => ({ kind: 'TypeName', name }) as Core.TypeName;
     const func: Core.Func = {
       kind: 'Func',
@@ -80,8 +80,8 @@ describe('泛型诊断', () => {
     const diagnostics = typecheckModule(mod);
     assert.equal(
       diagnostics.some(d => d.code === ErrorCode.TYPEVAR_LIKE_UNDECLARED),
-      true,
-      '看似类型变量的未声明类型名应提示错误'
+      false,
+      'Core 不含类型别名声明，未知类型名可能是别名，不应报 E006'
     );
   });
 });

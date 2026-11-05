@@ -1,16 +1,12 @@
 import type { Core, Span } from '../types.js';
 import { isCpuClassCapability, isIoClassCapability } from '../config/semantic.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
-import { TypeSystem } from './type_system.js';
 import type { TypecheckWalkerContext } from './context.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
 import {
   CPU_EFFECT_TYPE,
   IO_EFFECT_TYPE,
   PURE_EFFECT_TYPE,
-  UNIT_TYPE,
-  formatType,
-  isUnknown,
   normalizeType,
   originToSpan,
   unknownType,
@@ -136,8 +132,8 @@ export function typecheckStep(
   const effects = collectEffects(context.module, step.body);
 
   if (step.compensate) {
-    const compensateType = typecheckScopedBlock(context, step.compensate);
-    validateCompensateBlock(context, step, bodyType, compensateType);
+    // compensate 体的返回值运行时被丢弃，Java 不检查其类型，这里也只检查体内语句（aster-lang-ts#281）
+    typecheckScopedBlock(context, step.compensate);
     // 合并 compensate 块的效应
     const compensateEffects = collectEffects(context.module, step.compensate);
     for (const eff of compensateEffects) {
@@ -155,42 +151,6 @@ export function typecheckStep(
   }
 
   return bodyType;
-}
-
-function validateCompensateBlock(
-  context: TypecheckWalkerContext,
-  step: Core.Step,
-  bodyType: Core.Type,
-  compensateType: Core.Type
-): void {
-  const expected = normalizeType(bodyType);
-  if (expected.kind !== 'Result') return;
-
-  const expectedErr = normalizeType(expected.err as Core.Type);
-  const targetSpan = originToSpan(step.compensate?.origin ?? step.origin);
-
-  if (compensateType.kind !== 'Result') {
-    context.diagnostics.error(ErrorCode.WORKFLOW_COMPENSATE_TYPE, targetSpan, {
-      step: step.name,
-      expectedErr: formatType(expectedErr),
-      actual: formatType(compensateType),
-    });
-    return;
-  }
-
-  const okMatchesUnit =
-    TypeSystem.equals(compensateType.ok as Core.Type, UNIT_TYPE) || isUnknown(compensateType.ok as Core.Type);
-  const errMatches =
-    TypeSystem.equals(normalizeType(compensateType.err as Core.Type), expectedErr) ||
-    TypeSystem.isSubtype(normalizeType(compensateType.err as Core.Type), expectedErr);
-
-  if (!okMatchesUnit || !errMatches) {
-    context.diagnostics.error(ErrorCode.WORKFLOW_COMPENSATE_TYPE, targetSpan, {
-      step: step.name,
-      expectedErr: formatType(expectedErr),
-      actual: formatType(compensateType),
-    });
-  }
 }
 
 function workflowEffectType(

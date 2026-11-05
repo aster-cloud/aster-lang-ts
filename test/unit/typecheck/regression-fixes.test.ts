@@ -507,7 +507,7 @@ describe('回归测试：KNOWN_SCALARS 扩展', () => {
     );
   });
 
-  it('未知类型名应触发 TYPEVAR_LIKE_UNDECLARED（负例验证）', () => {
+  it('Core 中的未知类型名不触发 TYPEVAR_LIKE_UNDECLARED（可能是类型别名，未声明的类型由 E800 报告，#281）', () => {
     // 使用一个未在 KNOWN_SCALARS 中且未定义的类型名
     const func: CoreTypes.Func = {
       kind: 'Func',
@@ -536,8 +536,8 @@ describe('回归测试：KNOWN_SCALARS 扩展', () => {
 
     const diagnostics = typecheckModule(mod);
     assert.ok(
-      diagnostics.some(d => d.code === ErrorCode.TYPEVAR_LIKE_UNDECLARED),
-      '未知类型名 UnknownCustomType 应触发 TYPEVAR_LIKE_UNDECLARED 错误'
+      !diagnostics.some(d => d.code === ErrorCode.TYPEVAR_LIKE_UNDECLARED),
+      '未知类型名 UnknownCustomType 不应触发 TYPEVAR_LIKE_UNDECLARED（Java 亦不报）'
     );
   });
 });

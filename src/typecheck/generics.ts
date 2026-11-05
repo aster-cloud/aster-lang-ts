@@ -67,20 +67,8 @@ export function checkGenericTypeParameters(
     }
   }
 
-  // 查找疑似类型变量的未知类型名
-  const unknowns = new Set<string>();
-  const finder = new UnknownTypeFinder();
-  for (const p of f.params) finder.visitType(p.type, { unknowns, ctx });
-  finder.visitType(f.ret, { unknowns, ctx });
-
-  for (const nm of unknowns) {
-    if (!declared.has(nm)) {
-      diagnostics.error(ErrorCode.TYPEVAR_LIKE_UNDECLARED, f.span, {
-        name: nm,
-        func: f.name,
-      });
-    }
-  }
+  // 不再按「首字母大写的未知类型名」猜测类型变量（E006）：Core 不含类型别名声明，签名里的别名名会被误报；
+  // 未声明的类型名在名称解析阶段已报 E800，Java 亦不报 E006（aster-lang-ts#281）。
 
   // 效应类型参数声明与使用校验
   const effectParams = (f as unknown as { effectParams?: readonly string[] }).effectParams ?? [];
@@ -149,18 +137,3 @@ export const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set([
   VERDICT_TYPE_NAME,
 ]);
 
-class UnknownTypeFinder extends DefaultTypeVisitor<{ unknowns: Set<string>; ctx: ModuleContext }> {
-  private static readonly isMaybeTypeVarLike = (name: string): boolean => /^[A-Z][A-Za-z0-9_]*$/.test(name);
-
-  override visitTypeName(n: Core.TypeName, context: { unknowns: Set<string>; ctx: ModuleContext }): void {
-    const nm = n.name;
-    if (
-      !BUILTIN_TYPE_NAMES.has(nm) &&
-      !context.ctx.datas.has(nm) &&
-      !context.ctx.enums.has(nm) &&
-      UnknownTypeFinder.isMaybeTypeVarLike(nm)
-    ) {
-      context.unknowns.add(nm);
-    }
-  }
-}

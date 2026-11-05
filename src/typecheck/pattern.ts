@@ -4,7 +4,7 @@ import type { ModuleContext } from './context.js';
 import { defineSymbol } from './context.js';
 import { SymbolTable } from './symbol_table.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
-import { formatType, isUnknown, unknownType } from './pure.js';
+import { formatType, isNameInferredType, isUnknown, unknownType } from './pure.js';
 
 export function bindPattern(
   ctx: ModuleContext,
@@ -19,10 +19,9 @@ export function bindPattern(
   }
   if (pattern.kind === 'PatNull') return;
   if (pattern.kind === 'PatInt') {
-    const isInt =
-      !isUnknown(scrutineeType) &&
-      scrutineeType.kind === 'TypeName' &&
-      scrutineeType.name === 'Int';
+    // 未知或只按名字推断的 scrutinee 拿不准类型，放行（TS 不比 Java 严，aster-lang-ts#281）
+    if (isUnknown(scrutineeType) || isNameInferredType(scrutineeType)) return;
+    const isInt = scrutineeType.kind === 'TypeName' && scrutineeType.name === 'Int';
     if (!isInt) {
       diagnostics.error(ErrorCode.INTEGER_PATTERN_TYPE, pattern.span, {
         scrutineeType: formatType(scrutineeType),
