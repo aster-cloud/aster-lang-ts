@@ -199,6 +199,11 @@ export function markNameInferredType(type: Core.Type): void {
   if (type !== UNKNOWN_TYPE) NAME_INFERRED_TYPES.add(type);
 }
 
+/** 是否为只按名字推断出的类型实例（markNameInferredType 登记过），这类类型按未知处理。 */
+export function isNameInferredType(type: Core.Type): boolean {
+  return NAME_INFERRED_TYPES.has(type);
+}
+
 /**
  * 数值拓宽：整数可传给小数 / 更宽的整数形参（用户裁决，Java 侧对齐见 aster-lang-core#229）。
  * Float 在类型检查中规范化为 Double，两者同列。
