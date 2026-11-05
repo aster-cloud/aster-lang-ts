@@ -8,7 +8,7 @@ import type { FunctionSignature, ModuleContext, TypecheckWalkerContext } from '.
 import { defineSymbol } from './context.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
 import { SymbolTable } from './symbol_table.js';
-import { typecheckBlock } from './statement.js';
+import { typecheckBlock, withoutReturnExpectation } from './statement.js';
 import {
   formatType,
   isUnknown,
@@ -259,7 +259,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
               isLambdaParamTypeInferred(param),
             );
           });
-          const bodyType = typecheckBlock(module, symbols, expression.body, diagnostics);
+          const bodyType = withoutReturnExpectation(() => typecheckBlock(module, symbols, expression.body, diagnostics));
           // 与规则 Return 同一套可赋值规则（数值拓宽、T → T?，aster-lang-core#232）
           if (!isUnknown(bodyType) && !isUnknown(ret) && !argumentFits(ret, bodyType)) {
             diagnostics.error(ErrorCode.RETURN_TYPE_MISMATCH, originToSpan(expression.origin), {

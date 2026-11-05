@@ -122,17 +122,14 @@ import {
 // utils.ts 含 loadPrefixes → require('node:module'), 不适合 browser bundle.
 // 改 import from './pure.js' (browser-safe leaf).
 import {
-  argumentFits,
   buildFieldTypeMap,
   checkEntryRuleUniqueness,
-  formatType,
   isUnknown,
   normalizeType,
   signatureParamTypes,
-  unknownType,
 } from './pure.js';
 import { checkAsyncDiscipline } from './async.js';
-import { typecheckBlock } from './statement.js';
+import { typecheckFunctionBody } from './statement.js';
 import { checkCapabilities } from './capabilities.js';
 import { checkEffects, checkCapabilityInferredEffects } from './effects.js';
 import { unifyTypeParameters, checkGenericTypeParameters } from './generics.js';
@@ -416,17 +413,9 @@ function typecheckFunc(ctx: ModuleContext, f: Core.Func, diagnostics: Diagnostic
 
   // Check function body
   const declaredReturn = normalizeType(f.ret as Core.Type);
-  const bodyReturn = f.body ? typecheckBlock(ctx, symbols, f.body, diagnostics) : unknownType();
   const retTypeInferred = (f as { retTypeInferred?: boolean }).retTypeInferred === true;
-
-  // Check return type match
-  // Return 与实参同一套可赋值规则：数值拓宽、T → T?、None → T? 放行，收窄仍报错（aster-lang-core#232）
-  if (!retTypeInferred && !argumentFits(declaredReturn, bodyReturn)) {
-    diagnostics.error(ErrorCode.RETURN_TYPE_MISMATCH, f.body?.span ?? f.ret?.span ?? f.span, {
-      expected: formatType(declaredReturn),
-      actual: formatType(bodyReturn),
-    });
-  }
+  // 每条 Return 路径都与声明类型比较，另有函数级兜底（aster-lang-ts#283）
+  const bodyReturn = typecheckFunctionBody(ctx, symbols, f, declaredReturn, retTypeInferred, diagnostics);
 
   // Additional checks
   checkEffects(ctx, f, diagnostics);
