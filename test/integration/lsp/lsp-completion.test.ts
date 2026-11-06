@@ -6,7 +6,7 @@
 
 import { registerCompletionHandlers } from '../../../src/lsp/completion.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import type { CompletionItem, SignatureHelp } from 'vscode-languageserver/node.js';
+import type { CompletionItem, CompletionList, SignatureHelp } from 'vscode-languageserver/node.js';
 import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../src/frontend/lexer.js';
 import { parse } from '../../../src/parser.js';
@@ -56,8 +56,9 @@ async function testBasicCompletion(): Promise<void> {
 
   registerCompletionHandlers(mockConnection, mockDocuments, getOrParse);
 
-  const completions: CompletionItem[] = mockConnection.handlers.onCompletion();
-
+  const list: CompletionList = mockConnection.handlers.onCompletion();
+  assert(list.isIncomplete === false, '关键词补全是完整结果');
+  const completions: CompletionItem[] = list.items;
   assert(Array.isArray(completions), '应返回补全项数组');
   assert(completions.length > 20, `应返回多个补全项（实际: ${completions.length}）`);
 
