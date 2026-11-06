@@ -1,18 +1,35 @@
 # Changelog
 
-## Unreleased
+## 1.3.0
 
-### 删除过渡字段 legacyCode（ADR 0051 §16 R56 过渡结束）
+### 破坏性：删除过渡字段 legacyCode（ADR 0051 §16 R56 过渡结束，#300）
 
-- **破坏性**：解析 / 词法诊断不再带 `legacyCode`（`Diagnostic`、`compile().parseErrors`、`validateSyntaxWithSpan()`、
+- 解析 / 词法诊断不再带 `legacyCode`（`Diagnostic`、`compile().parseErrors`、`validateSyntaxWithSpan()`、
   LSP 诊断 `data`），只保留 `code`（E050–E069）与 `params`。消费方必须已改读新码（如原 P005 构造写法现为 E057）。
   aster-cloud 须先部署识别新码的版本，再升级到本版。
-### 新增公共导出（aster-cloud#650）
+
+### 新增公共导出（aster-cloud#650，#293）
 
 - `resolvePolicyTypes()` 的 `functions[]` 新增 `entry: boolean`：该函数是否带 `@entry` 注解，调用方选入口 Rule 不必再解析一次 AST。
 - 新增通用写法解析 `buildSpellingIndex(items, spellingsOf, keyOf)` / `resolveSpelling(index, written)`（及类型
   `SpellingIndex` / `SpellingMatch`），与引擎名称解析同口径：NFC 精确匹配优先，其次折叠键匹配；同一层命中多个不同项
   （按 `keyOf` 去重）为 `conflict`，精确层撞名不退回折叠层。包入口与浏览器入口均导出。
+
+### 规范化
+
+- 冠词删除按语法位置保护声明名：紧跟 `Define` / `Rule`（含 lexicon 别名）且后面紧跟关键词的 a / an / the 视为
+  声明名保留（`Define The has …`、`Rule a given …`），名词短语中的冠词照常删除。与 aster-lang-core#244 同步，
+  共享夹具 `article-declaration-names.json`。此前 `Rule a given …` 编译后函数名变成 `given`（#298，Fixes #297）。
+
+### 解析（放宽，TS 不比 Java 严）
+
+- 未知能力名（`It performs io [Banana]`、`with Blockchain`）不再在解析期报 E069，按原样进入 `effectCaps`，
+  由类型检查给出 INFO；`await` 不再在解析期检查参数个数（E068），与 core 一致（#296，Fixes #294 #295）。
+
+### 诊断译文
+
+- 按 locales / hi 1.0.41 语言包重新生成诊断 overlay，新增 E050–E069 的 zh-CN / de-DE / hi-IN 译文，删除 syntax
+  码缺译豁免（#299）。
 
 ## 1.2.6
 
