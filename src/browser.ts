@@ -168,8 +168,6 @@ export interface ParseError {
    * 消费方应按 code + params 取译文，而不是反查英文 message。
    */
   code?: string;
-  /** 过渡字段：改码前的本地码（P0xx / L0xx），保留一个发版车次。 */
-  legacyCode?: string;
   /** 码表模板的命名参数（关键词 kw.*、抽象 token token.*、字面片段带引号）。 */
   params?: Readonly<Record<string, string | number>>;
   /** Position information (optional, for backward compatibility) */
@@ -179,10 +177,9 @@ export interface ParseError {
   };
 }
 
-/** 解析诊断 → 对外的 ParseError（带码、过渡 legacyCode 与命名参数）。 */
+/** 解析诊断 → 对外的 ParseError（带码与命名参数）。 */
 function toParseError(d: Diagnostic): ParseError {
   const out: ParseError = { message: d.message, span: d.span, code: d.code };
-  if (d.legacyCode !== undefined) out.legacyCode = d.legacyCode;
   if (d.params !== undefined) out.params = d.params;
   return out;
 }
@@ -339,8 +336,6 @@ export interface ValidationError {
    * 消费方应按 code + params 取译文，而不是反查英文 message。
    */
   code?: string;
-  /** 过渡字段：改码前的本地码（P0xx / L0xx），保留一个发版车次。 */
-  legacyCode?: string;
   /** 码表模板的命名参数（关键词 kw.*、抽象 token token.*、字面片段带引号）。 */
   params?: Readonly<Record<string, string | number>>;
   /** Position information (optional) */

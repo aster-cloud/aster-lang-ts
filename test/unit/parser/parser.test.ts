@@ -773,9 +773,9 @@ Rule broken, produce Int:
         const result = parseWithDiag(`Module test.parser.return.missing_period.\n\nRule f, produce Int:\n  ${body}`);
         assert.ok(result.diagnostics.length > 0, '应有诊断信息');
         const diag = result.diagnostics[0]!;
-        // ADR 0051 §16 R56：语句末缺句点 = E059；原本地码 P005 过渡期保留在 legacyCode
+        // ADR 0051 §16 R56：语句末缺句点 = E059
         assert.equal(diag.code, 'E059');
-        assert.equal(diag.legacyCode, 'P005');
+        assert.equal('legacyCode' in diag, false);
         assert.deepEqual(diag.params, { token: "'.'" });
         assert.match(diag.message, /Expected '.' at end of statement/);
         assert.equal(diag.span?.start.line, line);

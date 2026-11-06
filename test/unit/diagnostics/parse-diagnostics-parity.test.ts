@@ -77,7 +77,7 @@ describe('ADR 0051 §16 R56/R57 双引擎诊断 parity 夹具（ts 侧）', () =
     assert.ok(CASES.some((c) => c.name.startsWith('R57') && c.codes.length === 0), '缺 R57 非冲突夹具');
   });
 
-  it('夹具中的 E050–E069 解析诊断都带过渡期 legacyCode 与命名参数', () => {
+  it('夹具中的 E050–E069 解析诊断都带命名参数、不再带 legacyCode', () => {
     for (const c of CASES.filter((x) => x.only !== 'core' && x.codes.some(([code]) => /^E0[56]\d$/.test(code)))) {
       const lexicon = LEXICONS[c.lexicon ?? 'en-US']!;
       let diag;
@@ -87,7 +87,7 @@ describe('ADR 0051 §16 R56/R57 双引擎诊断 parity 夹具（ts 侧）', () =
         diag = (e as DiagnosticError).diagnostic;
       }
       assert.ok(diag, c.name);
-      assert.match(String(diag.legacyCode), /^[PL]\d{3}$/, `${c.name}: legacyCode`);
+      assert.equal('legacyCode' in diag, false, `${c.name}: legacyCode`);
       assert.ok(diag.params !== undefined, `${c.name}: params`);
     }
   });
