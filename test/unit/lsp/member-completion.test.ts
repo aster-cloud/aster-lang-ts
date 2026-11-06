@@ -181,6 +181,37 @@ describe('#258 修补推断的缓存与规模上限', () => {
     assert.equal(tried[0], '  Let x be d plus 1');
   });
 
+  it('★#275 行尾成员前缀（`令 x 定义为 司机.年` / `Let x be d.a`）：先试「删 `.前缀`、补句末标点」，高负载下首次请求即出字段', () => {
+    const filler = Array.from({ length: 1200 }, () => '');
+    const cases: [typeof EN_US, readonly string[], string, string, string[]][] = [
+      [ZH_CN, ZH_LINES.slice(0, 5), '  令 x 定义为 司机.年', '  返回 1。', ['姓名', '年龄']],
+      [EN_US, HEAD, '  Let x be d.a', '  Return 1.', ['age', 'name']],
+    ];
+    for (const [lexicon, head, line, next, expected] of cases) {
+      clearMemberRepairCache();
+      const text = [...head, line, next, ...filler].join('\n');
+      const doc = { text, ...parseDocumentText(text, lexicon, undefined, undefined) };
+      const tried: string[] = [];
+      const parse: typeof parseDocumentWith = (t, lx, vocabulary) => {
+        tried.push(t.split('\n')[5]!);
+        return parseDocumentWith(t, lx, vocabulary);
+      };
+      const items = memberCompletions(doc, { line: 5, character: line.length }, lexicon, { parse, now: ticking(1000), repairBudgetMs: 150 });
+      assert.deepEqual(labels(items), expected.sort(), line);
+      assert.equal(tried.length, 1, `${line}：${JSON.stringify(tried)}`);
+    }
+  });
+
+  it('#275 行中成员访问不补句末标点：仍先删 `.前缀`', () => {
+    const tried: string[] = [];
+    const parse: typeof parseDocumentWith = (text, lexicon, vocabulary) => {
+      tried.push(text.split('\n')[5]!);
+      return parseDocumentWith(text, lexicon, vocabulary);
+    };
+    memberCompletions(docOf([...HEAD, '  Let x be d.a plus 1', '  Return 1.', '']), { line: 5, character: '  Let x be d.a'.length }, EN_US, { parse, now: ticking(0), repairBudgetFromLines: 0 });
+    assert.equal(tried[0], '  Let x be d plus 1');
+  });
+
   /** 前 failures 份修补推断失败、之后正常解析的 parse */
   const failFirst = (failures: number) => {
     let n = 0;

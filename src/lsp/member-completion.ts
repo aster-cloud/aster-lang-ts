@@ -93,6 +93,7 @@ const cut = (line: string, from: number, to: number): string => line.slice(0, fr
 
 /**
  * 修补候选（都只改光标所在行，保持行号与接收者位置不变）：
+ *   0. 成员访问在行尾时：删去 `.前缀` 并补本 lexicon 句末标点（zh `令 x 为 司机.` → `令 x 为 司机。`，#275）；
  *   1. 删去 `.前缀`：行中 `fahrer. plus 1.` → `fahrer plus 1.`；
  *   2. 只删前缀、保留点号：行尾 `Return d.a` → `Return d.`（点号即句末）；
  *   3. 当前行换成 `<缩进><返回> <接收者>.`，并清空其后更深缩进的行：处理 `如果 司机.` 这类
@@ -110,7 +111,12 @@ function candidates(text: string, access: MemberAccess, lexicon: Lexicon, header
   const withLine = (replacement: string, rest: readonly string[] = lines.slice(row + 1)): string =>
     [...lines.slice(0, row), replacement, ...rest].join('\n');
   // 删去而非以空格占位：继续输入前缀时修补文本保持不变，缓存才能命中；接收者在点号之前，位置不受影响
-  out.push({ text: withLine(cut(line, dotEnd.col - 2, memberEnd.col - 1)), receiver });
+  const withoutDot = cut(line, dotEnd.col - 2, memberEnd.col - 1);
+  // 成员访问在行尾（如 zh `令 x 为 司机.`）：前两份修补要么缺句末标点、要么以 `.` 结尾而 zh 句末是 `。`，
+  // 总是不完整；先试「删去 `.前缀`、补本 lexicon 句末标点」，一份即可定出类型（#275）。en / de 下与第 2 份相同
+  const statementEnd = lexicon.punctuation?.statementEnd || '.';
+  if (line.slice(memberEnd.col - 1).trim() === '') out.push({ text: withLine(withoutDot.trimEnd() + statementEnd), receiver });
+  out.push({ text: withLine(withoutDot), receiver });
   out.push({ text: withLine(cut(line, dotEnd.col - 1, memberEnd.col - 1)), receiver });
 
   const indent = /^\s*/.exec(line)![0];
@@ -125,7 +131,8 @@ function candidates(text: string, access: MemberAccess, lexicon: Lexicon, header
     text: withLine(`${indent}${keyword} ${path}.`, rest),
     receiver: { start: { line: receiver.start.line, col: startCol }, end: { line: receiver.start.line, col: startCol + path.length } },
   };
-  return header ? [asReturn, ...out] : [...out, asReturn];
+  const ordered = header ? [asReturn, ...out] : [...out, asReturn];
+  return ordered.filter((c, i) => ordered.findIndex((o) => o.text === c.text) === i);
 }
 
 /**
