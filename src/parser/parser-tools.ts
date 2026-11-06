@@ -65,7 +65,6 @@ export interface ParserTools {
 export function createParserTools(ctx: ParserContext): ParserTools {
   return {
     error(issue: ParseIssue, tok: Token = ctx.peek()): never {
-      // 本地码 P005 作为 legacyCode 保留一个车次（aster-cloud 的启发式仍按 P005 识别）。
       Diagnostics.unexpectedToken(issue.message, tok.start)
         .withErrorCode(issue.code, issue.params)
         .withMessage(issue.message)

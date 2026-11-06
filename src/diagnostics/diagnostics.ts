@@ -118,11 +118,6 @@ export interface Diagnostic {
    * 其余（lowering、包管理等）仍为本地码。
    */
   readonly code: DiagnosticCode | ErrorCode;
-  /**
-   * 过渡字段：被 E050–E069 取代前的本地码（P0xx / L0xx），只保留一个发版车次，
-   * 供尚未改读新码的消费方（aster-cloud 的 P005 启发式等）使用。
-   */
-  readonly legacyCode?: DiagnosticCode;
   /** 码表模板的命名参数（见 {@link ParseDiagnosticParams}）。 */
   readonly params?: ParseDiagnosticParams;
   readonly message: string;
@@ -152,7 +147,6 @@ export class DiagnosticError extends Error {
 export class DiagnosticBuilder {
   private severity: DiagnosticSeverity = DiagnosticSeverity.Error;
   private code?: DiagnosticCode | ErrorCode;
-  private legacyCode?: DiagnosticCode;
   private params?: ParseDiagnosticParams;
   private message?: string;
   private span?: Span;
@@ -182,10 +176,9 @@ export class DiagnosticBuilder {
   }
 
   /**
-   * 换成共享码表的错误码与命名参数；原本地码（若有）转入 legacyCode。
+   * 换成共享码表的错误码与命名参数。
    */
   withErrorCode(code: ErrorCode, params: ParseDiagnosticParams = {}): DiagnosticBuilder {
-    if (this.code !== undefined && !isErrorCode(this.code)) this.legacyCode ??= this.code;
     this.code = code;
     this.params = params;
     return this;
@@ -228,9 +221,6 @@ export class DiagnosticBuilder {
       span: this.span,
     };
 
-    if (this.legacyCode !== undefined) {
-      (diagnostic as { legacyCode?: DiagnosticCode }).legacyCode = this.legacyCode;
-    }
     if (this.params !== undefined) {
       (diagnostic as { params?: ParseDiagnosticParams }).params = this.params;
     }
@@ -400,11 +390,6 @@ export const Diagnostics = {
       .withMessage(`Unknown type kind: ${kind}`)
       .withPosition(pos),
 };
-
-/** 码值是否属于共享码表（E/W 开头），用于区分本地 P/L 码。 */
-function isErrorCode(code: DiagnosticCode | ErrorCode): code is ErrorCode {
-  return /^[EW]\d{3}$/.test(code);
-}
 
 /**
  * 把 TokenKind 名或 token 文本转成命名参数：词法种类（全大写，如 NEWLINE / TYPE_IDENT）
