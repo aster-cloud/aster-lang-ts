@@ -14,6 +14,7 @@ import {
 } from '../../../src/lsp/member-completion.js';
 import type { MemberDocument } from '../../../src/lsp/member-completion.js';
 import { parseDocumentText, parseDocumentWith } from '../../../src/lsp/parse-document.js';
+import { compileAndTypecheck } from '../../../src/browser.js';
 
 const HEAD = ['Module demo.p.', '', 'Define Driver has name as Text, age as Int.', '', 'Rule f given d as Driver, produce Int:'];
 
@@ -260,5 +261,66 @@ describe('#258 修补推断的缓存与规模上限', () => {
     const items = memberCompletions(docOf([...HEAD, '  Return d.', '']), { line: 5, character: '  Return d.'.length }, EN_US, { parse: probe.parse });
     assert.deepEqual(labels(items), ['age', 'name']);
     assert.equal(probe.count(), 0);
+  });
+});
+
+describe('#275 When 模式绑定的成员补全', () => {
+  const head = [
+    'Module demo.w.',
+    '',
+    'Define Driver has name as Text, age as Int.',
+    '',
+    'Define Box has inner as Driver.',
+    '',
+    'Define Pair has left as Box, right as Int.',
+    '',
+  ];
+  const complete = (lines: readonly string[], line: number, character: number) =>
+    memberCompletions(docOf(lines), { line, character }, EN_US);
+
+  it('构造器模式绑定继承字段类型：`When Box(d), Return d.` 出 Driver 字段', () => {
+    const lines = [...head, 'Rule f given b as Box, produce Int:', '  Match b:', '    When Box(d), Return d.', ''];
+    assert.deepEqual(labels(complete(lines, 10, '    When Box(d), Return d.'.length)), ['age', 'name']);
+  });
+
+  // 源码语法没有嵌套构造器模式（`Pair(Box(d), n)` 不可解析）；嵌套指 When 分支体内再 Match 外层模式绑定的名字
+  it('嵌套模式：外层 `When Pair(b, n),` 的分支体内 `Match b: When Box(d), Return d.` 出 Driver 字段', () => {
+    const lines = [
+      ...head,
+      'Rule f given p as Pair, produce Int:',
+      '  Match p:',
+      '    When Pair(b, n),',
+      '      Match b:',
+      '        When Box(d), Return d.',
+      '',
+    ];
+    assert.deepEqual(labels(complete(lines, 12, '        When Box(d), Return d.'.length)), ['age', 'name']);
+  });
+
+  it('外层绑定：`When Pair(b, n), Return b.` 出 Box 字段', () => {
+    const lines = [...head, 'Rule f given p as Pair, produce Int:', '  Match p:', '    When Pair(b, n), Return b.', ''];
+    assert.deepEqual(labels(complete(lines, 10, '    When Pair(b, n), Return b.'.length)), ['inner']);
+  });
+
+  it('无类型信息（scrutinee 未写类型）：不给字段补全', () => {
+    const lines = [...head, 'Rule f given b, produce Int:', '  Match b:', '    When Box(d), Return d.', ''];
+    assert.equal(complete(lines, 10, '    When Box(d), Return d.'.length), null);
+  });
+
+  it('无效字段：绑定到 Int 字段的名字没有可补全的字段', () => {
+    const lines = [...head, 'Rule f given p as Pair, produce Int:', '  Match p:', '    When Pair(b, n), Return n.', ''];
+    assert.equal(complete(lines, 10, '    When Pair(b, n), Return n.'.length), null);
+  });
+
+  it('模式绑定的类型只供补全：R2 名称解析不因此新增诊断（Java R2 按未知类型声明模式绑定）', () => {
+    // right 是 Pair 的字段而非 Driver 的；R2 对未知类型接收者接受任一 Data 的规范字段名，字段归属由类型检查判定
+    const src = [...head, 'Rule f given b as Box, produce Int:', '  Match b:', '    When Box(d), Return d.right.', ''].join('\n');
+    const r = compileAndTypecheck(src, { lexicon: EN_US });
+    assert.deepEqual((r.resolutionDiagnostics ?? []).map((d) => (d as { code: string }).code), []);
+  });
+
+  it('已写出不存在的成员前缀：仍按接收者类型列字段（由客户端过滤）', () => {
+    const lines = [...head, 'Rule f given b as Box, produce Int:', '  Match b:', '    When Box(d), Return d.zzz.', ''];
+    assert.deepEqual(labels(complete(lines, 10, '    When Box(d), Return d.zzz'.length)), ['age', 'name']);
   });
 });
