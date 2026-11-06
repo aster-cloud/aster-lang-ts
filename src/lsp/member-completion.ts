@@ -240,22 +240,40 @@ export function memberCompletions(
   lexicon: Lexicon | undefined,
   options: MemberCompletionOptions = {},
 ): CompletionItem[] | null {
+  return memberCompletionResult(entry, pos, lexicon, options).items;
+}
+
+/** 成员补全结果；incomplete 表示修补推断因耗时预算提前截断而未定出类型（再次请求可能得到字段） */
+export interface MemberCompletionResult {
+  readonly items: CompletionItem[] | null;
+  readonly incomplete: boolean;
+}
+
+/** 同 {@link memberCompletions}，另报告修补推断是否被预算截断（供 CompletionList.isIncomplete，#275）。 */
+export function memberCompletionResult(
+  entry: MemberDocument,
+  pos: { line: number; character: number },
+  lexicon: Lexicon | undefined,
+  options: MemberCompletionOptions = {},
+): MemberCompletionResult {
   const access = memberAccessAt(entry.tokens, pos);
-  if (!access) return null;
-  const data = inferData(entry, access.receiver) ?? firstRepair(entry, access, lexicon, options);
-  return data ? fieldItems(data, entry.vocabulary, access, pos, options.insertReplace === true) : null;
+  if (!access) return { items: null, incomplete: false };
+  const direct = inferData(entry, access.receiver);
+  const { data, truncated } = direct ? { data: direct, truncated: false } : firstRepair(entry, access, lexicon, options);
+  if (!data) return { items: null, incomplete: truncated };
+  return { items: fieldItems(data, entry.vocabulary, access, pos, options.insertReplace === true), incomplete: false };
 }
 
 /**
  * 原文推断失败时依次尝试修补文本，返回第一份能定出接收者 Data 的结果。
- * 命中缓存的修补不计耗时；未命中的修补在累计耗时超过预算后不再尝试。
+ * 命中缓存的修补不计耗时；未命中的修补在累计耗时超过预算后不再尝试，此时 truncated 为真。
  */
 function firstRepair(
   entry: MemberDocument,
   access: MemberAccess,
   lexicon: Lexicon | undefined,
   options: MemberCompletionOptions,
-): Core.Data | undefined {
+): { readonly data: Core.Data | undefined; readonly truncated: boolean } {
   const parse = options.parse ?? parseDocumentWith;
   const now = options.now ?? ((): number => performance.now());
   const budgeted = lineCount(entry.text) >= (options.repairBudgetFromLines ?? MEMBER_REPAIR_BUDGET_FROM_LINES);
@@ -268,16 +286,16 @@ function firstRepair(
     const key = `${coordKey(c.receiver.start)}-${coordKey(c.receiver.end)}\u0000${c.text}`;
     const cached = lookupRepair(key, lexicon, entry.vocabulary);
     if (cached) {
-      if (cached.data) return cached.data;
+      if (cached.data) return { data: cached.data, truncated: false };
       continue;
     }
-    if (parsed > 0 && now() - start > budget) return undefined;
+    if (parsed > 0 && now() - start > budget) return { data: undefined, truncated: true };
     parsed += 1;
     const data = inferData(parse(c.text, lexicon, entry.vocabulary), c.receiver);
     storeRepair({ key, lexicon, vocabulary: entry.vocabulary, data });
-    if (data) return data;
+    if (data) return { data, truncated: false };
   }
-  return undefined;
+  return { data: undefined, truncated: false };
 }
 
 function fieldItems(

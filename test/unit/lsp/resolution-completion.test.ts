@@ -18,15 +18,15 @@ import type { Doc } from './resolution-fixture.js';
 interface Item { label: string; kind?: number; detail?: string }
 
 function completeAt(doc: Doc, line: number, character: number): Item[] {
-  let handler: ((params: unknown) => Item[]) | undefined;
+  let handler: ((params: unknown) => { isIncomplete: boolean; items: Item[] }) | undefined;
   const connection = {
-    onCompletion: (fn: (params: unknown) => Item[]) => { handler = fn; },
+    onCompletion: (fn: (params: unknown) => { isIncomplete: boolean; items: Item[] }) => { handler = fn; },
     onCompletionResolve() {},
     onRequest() {},
   };
   registerCompletionHandlers(connection as never, documentsOf(doc), getOrParseWith(ZH_CN) as never, () => ZH_CN);
   assert.ok(handler, 'onCompletion 未注册');
-  return handler!({ textDocument: { uri: doc.uri }, position: { line, character } });
+  return handler!({ textDocument: { uri: doc.uri }, position: { line, character } }).items;
 }
 
 /** 在 DECLS 之后加一个函数，body 为 lines；返回补全位置为 body 第 0 行末尾。 */
@@ -132,10 +132,10 @@ describe('构造字段补全（`T with …` 的字段名位置，#248）', () =>
     const lines = ['Module m.', '', 'Define Driver has age as Int, name as Text.', '', 'Rule f given n as Int, produce Driver:',
       '  Return Driver with age set to n, ', ''];
     const doc = docOf(lines);
-    let handler: ((params: unknown) => Item[]) | undefined;
-    const connection = { onCompletion: (fn: (params: unknown) => Item[]) => { handler = fn; }, onCompletionResolve() {}, onRequest() {} };
+    let handler: ((params: unknown) => { items: Item[] }) | undefined;
+    const connection = { onCompletion: (fn: (params: unknown) => { items: Item[] }) => { handler = fn; }, onCompletionResolve() {}, onRequest() {} };
     registerCompletionHandlers(connection as never, documentsOf(doc), getOrParseWith(EN_US, EMPTY_VOCAB) as never, () => undefined);
-    const items = handler!({ textDocument: { uri: doc.uri }, position: { line: 5, character: lines[5]!.length } });
+    const items = handler!({ textDocument: { uri: doc.uri }, position: { line: 5, character: lines[5]!.length } }).items;
     assert.deepEqual(labels(items), ['name']);
   });
 });

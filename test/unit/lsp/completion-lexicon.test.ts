@@ -26,9 +26,9 @@ function makeStubConnection(): {
   connection: any;
   invoke: (uri: string) => { label: string }[];
 } {
-  let handler: ((params: any) => { label: string }[]) | undefined;
+  let handler: ((params: any) => { items: { label: string }[] }) | undefined;
   const connection = {
-    onCompletion(fn: (params: any) => { label: string }[]) { handler = fn; },
+    onCompletion(fn: (params: any) => { items: { label: string }[] }) { handler = fn; },
     onCompletionResolve() { /* 本测试不关心 */ },
     // registerCompletionHandlers 还会注册若干自定义请求；这里只需让它们可被调用。
     onRequest() { /* 本测试不关心 */ },
@@ -37,7 +37,7 @@ function makeStubConnection(): {
     connection,
     invoke: (uri: string) => {
       assert.ok(handler, 'onCompletion 未被注册——接线断了');
-      return handler!({ textDocument: { uri } });
+      return handler!({ textDocument: { uri } }).items;
     },
   };
 }

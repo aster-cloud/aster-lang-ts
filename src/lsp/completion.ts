@@ -3,7 +3,7 @@
  * 提供代码补全、补全项解析和函数签名提示功能
  */
 
-import type { Connection, CompletionItem, SignatureHelp } from 'vscode-languageserver/node.js';
+import type { Connection, CompletionItem, CompletionList, SignatureHelp } from 'vscode-languageserver/node.js';
 import {
   CompletionItemKind,
   SignatureInformation,
@@ -28,7 +28,7 @@ import { foldKey, nfc } from '../config/lexicons/identifiers/casefold.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 import { EN_US } from '../config/lexicons/en-US.js';
 import { resolveDocument } from './resolution.js';
-import { localizedField, memberCompletions } from './member-completion.js';
+import { localizedField, memberCompletionResult } from './member-completion.js';
 import type { MemberCompletionOptions } from './member-completion.js';
 
 /*
@@ -137,19 +137,24 @@ export function constructFieldCompletions(
   });
 }
 
-/** 按补全请求求字段补全（`x.` 之后或构造字段名位置）；请求缺字段、文档不存在或不在这两类位置时返回 null。 */
+/**
+ * 按补全请求求字段补全（`x.` 之后或构造字段名位置）；请求缺字段、文档不存在或不在这两类位置时 items 为 null。
+ * incomplete：成员位置的类型推断被耗时预算截断（见 memberCompletionResult）。
+ */
 function fieldCompletionsAt(
   documents: { get(uri: string): TextDocument | undefined },
   getOrParse: (doc: TextDocument) => CompletionDocument,
   params: { textDocument?: { uri: string }; position?: { line: number; character: number } } | undefined,
   lexicon: Lexicon | undefined,
   options: MemberCompletionOptions,
-): CompletionItem[] | null {
-  if (!params?.textDocument || !params.position) return null;
+): { items: CompletionItem[] | null; incomplete: boolean } {
+  if (!params?.textDocument || !params.position) return { items: null, incomplete: false };
   const doc = documents.get(params.textDocument.uri);
-  if (!doc) return null;
+  if (!doc) return { items: null, incomplete: false };
   const entry = getOrParse(doc);
-  return memberCompletions(entry, params.position, lexicon, options) ?? constructFieldCompletions(entry, params.position, lexicon);
+  const member = memberCompletionResult(entry, params.position, lexicon, options);
+  if (member.items) return member;
+  return { items: constructFieldCompletions(entry, params.position, lexicon), incomplete: member.incomplete };
 }
 
 const CONTROL_ARG = /@control\(\s*"([^"]*)$/;
@@ -360,76 +365,81 @@ function findCallInfoAt(
   return null;
 }
 
+/** 通用补全：该文档 lexicon 的关键词（含别名）、常见类型与注解名。 */
+function keywordCompletions(lexicon: Lexicon | undefined): CompletionItem[] {
+  // ★关键词必须取自**该文档的 lexicon**，而不是硬编码的英文 KW。
+  //
+  //   此前是 `Object.values(KW)` —— KW 是 config/semantic.ts 里写死的英文
+  //   规范拼写（module / use / define …）。于是写 zh-CN 的用户敲出补全，
+  //   拿到的是 `module, use, as`，而他实际要写的是 `模块, 引用, 作为`：
+  //   **补全给的每一个词都是错的**，选中即产生解析错误。
+  //   诊断/跳转/代码操作三条路径都已正确接收 getLexiconForDoc，唯独补全漏了。
+  //
+  //   别名（ADR 0022）一并纳入：识别侧本就多对一接受别名
+  //   （见 types.ts 的 buildKeywordIndex / getMultiWordKeywords），
+  //   补全若只给规范拼写，用户就发现不了自己可以写更自然的别名。
+  //   ★当前四个内置 lexicon 的 aliases 均为空，故这段暂时是**无操作**——
+  //   但接线必须现在做好，否则将来某个 lexicon 一加别名，补全又会静默落后。
+  const keywords = lexicon
+    ? [
+        ...Object.values(lexicon.keywords),
+        ...(lexicon.aliases ? Object.values(lexicon.aliases).flat() : []),
+      ]
+    : Object.values(KW); // 无 lexicon 上下文时回退英文规范拼写
+  const completions: CompletionItem[] = [...new Set(keywords)].map(keyword => ({
+    label: keyword,
+    kind: CompletionItemKind.Keyword,
+    data: keyword,
+  }));
+
+  // 添加常见类型补全
+  const types = ['Text', 'Int', 'Bool', 'Float', 'User', 'Result', 'Option', 'Maybe', 'Verdict'];
+  types.forEach(type => {
+    completions.push({
+      label: type,
+      kind: CompletionItemKind.Class,
+      data: type,
+    });
+  });
+
+  // 添加注解名称补全
+  const annotations = ['NotEmpty', 'Range', 'Pattern'];
+  annotations.forEach(annotation => {
+    completions.push({
+      label: annotation,
+      kind: CompletionItemKind.Keyword,
+      data: `annotation:${annotation}`,
+      detail: 'annotation',
+    });
+  });
+
+  return completions;
+}
+
 /**
  * 注册 Completion 相关的 LSP 处理器
  * @param connection LSP 连接对象
  * @param documents 文档管理器，提供 get 方法按 URI 获取文档
  * @param getOrParse 文档解析函数，返回文本、词法标记和 AST
- * @param clientOptions 由客户端能力决定的补全选项（如是否支持 InsertReplaceEdit）
+ * @param clientOptions 由客户端能力决定的补全选项（如是否支持 InsertReplaceEdit）；测试可注入修补预算与计时
  */
 export function registerCompletionHandlers(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined },
   getOrParse: (doc: TextDocument) => CompletionDocument,
   getLexiconForDoc?: (uri: string) => Lexicon | undefined,
-  clientOptions: Pick<MemberCompletionOptions, 'insertReplace'> = {},
+  clientOptions: MemberCompletionOptions = {},
 ): void {
-  // 代码补全：提供关键字和类型补全
-  connection.onCompletion((params): CompletionItem[] => {
+  // 代码补全：返回 CompletionList（LSP 允许数组或列表，客户端须都接受）。只有成员类型推断被耗时预算
+  // 提前截断时 isIncomplete 为 true，客户端继续输入会重新请求（修补结果有缓存，下次从未解析的修补继续，#275）
+  connection.onCompletion((params): CompletionList => {
     // 位于 @control(" 字符串内时只提供注册表键，不混入关键字补全
     const controls = controlCompletionsAt(documents, params);
-    if (controls) return controls;
+    if (controls) return { isIncomplete: false, items: controls };
     // `x.` 之后且接收者类型已知、或位于构造的字段名位置：只列该 struct 的字段
     const fields = fieldCompletionsAt(documents, getOrParse, params, getLexiconForDoc?.(params.textDocument.uri), clientOptions);
-    if (fields) return fields;
-    // ★关键词必须取自**该文档的 lexicon**，而不是硬编码的英文 KW。
-    //
-    //   此前是 `Object.values(KW)` —— KW 是 config/semantic.ts 里写死的英文
-    //   规范拼写（module / use / define …）。于是写 zh-CN 的用户敲出补全，
-    //   拿到的是 `module, use, as`，而他实际要写的是 `模块, 引用, 作为`：
-    //   **补全给的每一个词都是错的**，选中即产生解析错误。
-    //   诊断/跳转/代码操作三条路径都已正确接收 getLexiconForDoc，唯独补全漏了。
-    //
-    //   别名（ADR 0022）一并纳入：识别侧本就多对一接受别名
-    //   （见 types.ts 的 buildKeywordIndex / getMultiWordKeywords），
-    //   补全若只给规范拼写，用户就发现不了自己可以写更自然的别名。
-    //   ★当前四个内置 lexicon 的 aliases 均为空，故这段暂时是**无操作**——
-    //   但接线必须现在做好，否则将来某个 lexicon 一加别名，补全又会静默落后。
-    const lexicon = getLexiconForDoc?.(params.textDocument.uri);
-    const keywords = lexicon
-      ? [
-          ...Object.values(lexicon.keywords),
-          ...(lexicon.aliases ? Object.values(lexicon.aliases).flat() : []),
-        ]
-      : Object.values(KW); // 无 lexicon 上下文时回退英文规范拼写
-    const completions: CompletionItem[] = [...new Set(keywords)].map(keyword => ({
-      label: keyword,
-      kind: CompletionItemKind.Keyword,
-      data: keyword,
-    }));
-
-    // 添加常见类型补全
-    const types = ['Text', 'Int', 'Bool', 'Float', 'User', 'Result', 'Option', 'Maybe', 'Verdict'];
-    types.forEach(type => {
-      completions.push({
-        label: type,
-        kind: CompletionItemKind.Class,
-        data: type,
-      });
-    });
-
-    // 添加注解名称补全
-    const annotations = ['NotEmpty', 'Range', 'Pattern'];
-    annotations.forEach(annotation => {
-      completions.push({
-        label: annotation,
-        kind: CompletionItemKind.Keyword,
-        data: `annotation:${annotation}`,
-        detail: 'annotation',
-      });
-    });
-
-    return completions;
+    if (fields.items) return { isIncomplete: false, items: fields.items };
+    return { isIncomplete: fields.incomplete, items: keywordCompletions(getLexiconForDoc?.(params.textDocument.uri)) };
   });
 
   // 补全项解析：为选中的补全项提供额外信息

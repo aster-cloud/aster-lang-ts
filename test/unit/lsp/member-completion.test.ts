@@ -10,6 +10,7 @@ import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
 import {
   clearMemberRepairCache,
+  memberCompletionResult,
   memberCompletions,
 } from '../../../src/lsp/member-completion.js';
 import type { MemberDocument } from '../../../src/lsp/member-completion.js';
@@ -146,6 +147,25 @@ describe('#258 修补推断的缓存与规模上限', () => {
     const items = memberCompletions(docOf(broken('')), at(''), EN_US, { parse: probe.parse, now: ticking(1000), repairBudgetMs: 150, repairBudgetFromLines: 0 });
     assert.equal(items, null);
     assert.equal(probe.count(), 1, '第一份修补总会尝试，之后超预算即停止');
+  });
+
+  it('#275 预算提前截断：memberCompletionResult 标记 incomplete，后续请求可继续', () => {
+    const probe = failingParse();
+    const r = memberCompletionResult(docOf(broken('')), at(''), EN_US, { parse: probe.parse, now: ticking(1000), repairBudgetMs: 150, repairBudgetFromLines: 0 });
+    assert.deepEqual(r, { items: null, incomplete: true });
+  });
+
+  it('#275 修补全部尝试完仍定不出类型（未截断）：incomplete 为 false', () => {
+    const probe = failingParse();
+    const r = memberCompletionResult(docOf(broken('')), at(''), EN_US, { parse: probe.parse, now: ticking(0), repairBudgetFromLines: 0 });
+    assert.deepEqual(r, { items: null, incomplete: false });
+    assert.ok(probe.count() > 1, '未截断时所有修补都应尝试');
+  });
+
+  it('#275 定出字段：incomplete 为 false', () => {
+    const r = memberCompletionResult(docOf(broken('')), at(''), EN_US, { now: ticking(1000), repairBudgetMs: 150, repairBudgetFromLines: 0 });
+    assert.deepEqual(labels(r.items), ['age', 'name']);
+    assert.equal(r.incomplete, false);
   });
 
   it('★#267 块头行（如果/If/Match/Otherwise 开头）先试「换成 返回 接收者.」：高负载下首次请求即出字段', () => {
