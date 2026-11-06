@@ -5,10 +5,10 @@
 
 import { KW, TokenKind } from '../frontend/tokens.js';
 import { kwq } from './keyword-display.js';
-import type { Token } from '../types.js';
 import type { ParserContext } from './context.js';
 import { kwParts } from './context.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
+import { Issue, kwParam, lit, tokenName, type ParseErrorFn } from './parse-issue.js';
 
 /**
  * 解析点号分隔的标识符（用于模块名和导入名）
@@ -20,7 +20,7 @@ import { Diagnostics } from '../diagnostics/diagnostics.js';
  */
 export function parseDottedIdent(
   ctx: ParserContext,
-  _error: (msg: string, tok?: Token) => never
+  _error: ParseErrorFn
 ): string {
   const parts: string[] = [];
 
@@ -62,7 +62,7 @@ export function parseDottedIdent(
  */
 export function parseModuleHeader(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never,
+  error: ParseErrorFn,
   expectDot: () => void
 ): void {
   // 期望: Module
@@ -97,14 +97,14 @@ export function atProfileDecl(ctx: ParserContext): boolean {
  */
 export function parseProfileDecl(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never,
+  error: ParseErrorFn,
   expectDot: () => void
 ): void {
   ctx.next();
   const idTok = ctx.peek();
-  if (!ctx.at(TokenKind.STRING)) error('Expected profile id string after Profile', idTok);
+  if (!ctx.at(TokenKind.STRING)) error(Issue.expectedAfter(tokenName('profileId'), lit('Profile'), 'Expected profile id string after Profile'), idTok);
   const id = ctx.next().value as string;
-  if (!PROFILE_ID.test(id)) error(`Profile id must match ${PROFILE_ID_REGEX}: ${id}`, idTok);
+  if (!PROFILE_ID.test(id)) error(Issue.invalidValue(tokenName('profileId'), lit(id), PROFILE_ID_REGEX, `Profile id must match ${PROFILE_ID_REGEX}: ${id}`), idTok);
   expectDot();
   ctx.moduleProfile = id;
 }
@@ -121,7 +121,7 @@ export function parseProfileDecl(
  */
 export function parseImport(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never,
+  error: ParseErrorFn,
   expectDot: () => void,
   parseIdent: () => string
 ): { name: string; version: number | null; asName: string | null } {
@@ -137,7 +137,7 @@ export function parseImport(
   if (ctx.isKeyword(KW.VERSION)) {
     ctx.nextWord();
     if (!ctx.at(TokenKind.INT)) {
-      error(`Expected integer after ${kwq(ctx, KW.VERSION)}`, ctx.peek());
+      error(Issue.expectedAfter(tokenName('integer'), kwParam(KW.VERSION), `Expected integer after ${kwq(ctx, KW.VERSION)}`), ctx.peek());
     }
     version = ctx.next().value as number;
   }

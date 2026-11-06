@@ -12,6 +12,7 @@ import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../src/frontend/lexer.js';
 import { parse, type ParseResult } from '../../../src/parser.js';
 import { DiagnosticCode } from '../../../src/diagnostics/diagnostics.js';
+import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
 import { MAX_RECURSION_DEPTH } from '../../../src/parser/context.js';
 
 describe('parser depth limit', () => {
@@ -32,11 +33,11 @@ describe('parser depth limit', () => {
       'expected at least one diagnostic for over-deep nesting'
     );
     const hasDepthDiag = result!.diagnostics.some(
-      (d) => d.code === DiagnosticCode.P015_NestingTooDeep
+      (d) => d.code === ErrorCode.PARSE_NESTING_TOO_DEEP && d.legacyCode === DiagnosticCode.P015_NestingTooDeep
     );
     assert.ok(
       hasDepthDiag,
-      `expected a P015_NestingTooDeep diagnostic, got: ${result!.diagnostics.map((d) => d.code).join(', ')}`
+      `expected an E054 (legacy P015) nesting diagnostic, got: ${result!.diagnostics.map((d) => d.code).join(', ')}`
     );
   });
 
@@ -46,7 +47,7 @@ describe('parser depth limit', () => {
     const source = `Module test.shallow.\n\nRule ok, produce Int:\n  return ${'('.repeat(depth)}1${')'.repeat(depth)}.\n`;
     const result = parse(lex(canonicalize(source)));
     const hasDepthDiag = result.diagnostics.some(
-      (d) => d.code === DiagnosticCode.P015_NestingTooDeep
+      (d) => d.code === ErrorCode.PARSE_NESTING_TOO_DEEP && d.legacyCode === DiagnosticCode.P015_NestingTooDeep
     );
     assert.strictEqual(hasDepthDiag, false, 'shallow nesting should not trip the depth limit');
   });

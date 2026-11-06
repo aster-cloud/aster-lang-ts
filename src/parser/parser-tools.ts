@@ -6,6 +6,8 @@
 import { TokenKind } from '../frontend/tokens.js';
 import type { Token } from '../types.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
+import { ErrorCode } from '../diagnostics/error_codes.js';
+import type { ParseErrorFn, ParseIssue } from './parse-issue.js';
 import type { ParserContext } from './context.js';
 import { tryReadTranslatedIdent } from './context.js';
 
@@ -15,17 +17,17 @@ import { tryReadTranslatedIdent } from './context.js';
 export interface ParserTools {
   /**
    * 报告解析错误并中止
-   * @param msg 错误消息
+   * @param issue 错误码、命名参数与英文消息（见 parse-issue.ts）
    * @param tok 可选的错误位置 token（默认使用当前 token）
    */
-  error: (msg: string, tok?: Token) => never;
+  error: ParseErrorFn;
 
   /**
    * 期望并消费指定关键字
    * @param kw 期望的关键字
-   * @param msg 错误消息
+   * @param issue 缺失时报告的诊断
    */
-  expectKeyword: (kw: string, msg: string) => void;
+  expectKeyword: (kw: string, issue: ParseIssue) => void;
 
   /**
    * 期望并消费点号
@@ -62,20 +64,29 @@ export interface ParserTools {
  */
 export function createParserTools(ctx: ParserContext): ParserTools {
   return {
-    error(msg: string, tok: Token = ctx.peek()): never {
-      Diagnostics.unexpectedToken(msg, tok.start).withMessage(msg).throw();
+    error(issue: ParseIssue, tok: Token = ctx.peek()): never {
+      // 本地码 P005 作为 legacyCode 保留一个车次（aster-cloud 的启发式仍按 P005 识别）。
+      Diagnostics.unexpectedToken(issue.message, tok.start)
+        .withErrorCode(issue.code, issue.params)
+        .withMessage(issue.message)
+        .throw();
       throw new Error('unreachable');
     },
 
-    expectKeyword(kw: string, msg: string): void {
+    expectKeyword(kw: string, issue: ParseIssue): void {
       if (!ctx.isKeyword(kw))
-        Diagnostics.expectedKeyword(kw, ctx.peek().start).withMessage(msg).throw();
+        Diagnostics.expectedKeyword(kw, ctx.peek().start)
+          .withErrorCode(issue.code, issue.params)
+          .withMessage(issue.message)
+          .throw();
       ctx.nextWord();
     },
 
     expectDot(): void {
       if (!ctx.at(TokenKind.DOT))
-        Diagnostics.expectedPunctuation('.', ctx.peek().start).throw();
+        Diagnostics.expectedPunctuation('.', ctx.peek().start)
+          .withErrorCode(ErrorCode.PARSE_EXPECTED_STATEMENT_END, { token: "'.'" })
+          .throw();
       ctx.next();
     },
 
@@ -87,7 +98,9 @@ export function createParserTools(ctx: ParserContext): ParserTools {
 
     expectNewline(): void {
       if (!ctx.at(TokenKind.NEWLINE))
-        Diagnostics.expectedToken('newline', ctx.peek().kind, ctx.peek().start).throw();
+        Diagnostics.expectedToken('newline', ctx.peek().kind, ctx.peek().start)
+          .withErrorCode(ErrorCode.PARSE_EXPECTED, { token: 'token.newline' })
+          .throw();
       ctx.next();
     },
 
@@ -109,7 +122,9 @@ export function createParserTools(ctx: ParserContext): ParserTools {
       // In English, type names are capitalized (User, Order) -> TYPE_IDENT
       // In Chinese, type names look like regular words (用户, 订单) -> IDENT
       if (!ctx.at(TokenKind.TYPE_IDENT) && !ctx.at(TokenKind.IDENT))
-        Diagnostics.expectedToken('Type identifier', ctx.peek().kind, ctx.peek().start).throw();
+        Diagnostics.expectedToken('Type identifier', ctx.peek().kind, ctx.peek().start)
+          .withErrorCode(ErrorCode.PARSE_EXPECTED, { token: 'token.typeName' })
+          .throw();
       return ctx.next().value as string;
     },
   };

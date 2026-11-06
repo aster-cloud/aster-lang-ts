@@ -8,6 +8,8 @@ import { Diagnostics } from '../diagnostics/diagnostics.js';
 import { isCapabilityKind, parseLegacyCapability } from '../effects/capabilities.js';
 import type { CapabilityKind } from '../config/semantic.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
+import { ErrorCode } from '../diagnostics/error_codes.js';
+import { Issue, kwParam, lit, tokenName, type ParseErrorFn } from './parse-issue.js';
 
 /**
  * 控制流/声明关键词集合——在类型位置出现时不应被视为类型名。
@@ -36,7 +38,7 @@ function isControlKeyword(value: string): boolean {
  */
 export function parseEffectList(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): string[] {
   const effs: string[] = [];
 
@@ -57,7 +59,7 @@ export function parseEffectList(
 
     // First capability after 'with'
     if (!ctx.at(TokenKind.TYPE_IDENT)) {
-      error(`Expected capability name (capitalized identifier) after ${kwq(ctx, KW.WITH)}`);
+      error(Issue.expectedAfter(tokenName('capabilityName'), kwParam(KW.WITH), `Expected capability name (capitalized identifier) after ${kwq(ctx, KW.WITH)}`));
     }
     const cap = ctx.next().value as string;
     effs.push(cap);
@@ -66,7 +68,7 @@ export function parseEffectList(
     while (ctx.isKeyword(KW.AND)) {
       ctx.nextWord(); // consume 'and'
       if (!ctx.at(TokenKind.TYPE_IDENT)) {
-        error(`Expected capability name (capitalized identifier) after ${kwq(ctx, KW.AND)}`);
+        error(Issue.expectedAfter(tokenName('capabilityName'), kwParam(KW.AND), `Expected capability name (capitalized identifier) after ${kwq(ctx, KW.AND)}`));
       }
       const cap2 = ctx.next().value as string;
       effs.push(cap2);
@@ -93,7 +95,7 @@ export function parseEffectList(
         effs.push('cpu');
         continue;
       }
-      error(`Expected capability name (capitalized identifier) after ${kwq(ctx, KW.AND)}`);
+      error(Issue.expectedAfter(tokenName('capabilityName'), kwParam(KW.AND), `Expected capability name (capitalized identifier) after ${kwq(ctx, KW.AND)}`));
     }
     const cap = ctx.next().value as string;
     effs.push(cap);
@@ -105,7 +107,7 @@ export function parseEffectList(
     while (!ctx.at(TokenKind.RBRACKET) && !ctx.at(TokenKind.EOF)) {
       // Capabilities are TYPE_IDENT (capitalized names like Http, Sql, Time)
       if (!ctx.at(TokenKind.TYPE_IDENT)) {
-        error("Expected capability name (capitalized identifier)");
+        error(Issue.expected(tokenName('capabilityName'), "Expected capability name (capitalized identifier)"));
       }
       const cap = ctx.next().value as string;
       effs.push(cap);
@@ -116,7 +118,7 @@ export function parseEffectList(
         break;
       }
     }
-    if (!ctx.at(TokenKind.RBRACKET)) error("Expected ']' after capability list");
+    if (!ctx.at(TokenKind.RBRACKET)) error(Issue.expectedAfter(lit(']'), tokenName('capabilityList'), "Expected ']' after capability list"));
     ctx.next(); // consume ']'
   }
 
@@ -131,7 +133,7 @@ export function parseEffectList(
  */
 export function separateEffectsAndCaps(
   effects: string[],
-  error: (msg: string) => never,
+  error: ParseErrorFn,
   effectVars?: ReadonlySet<string>
 ): {
   baseEffects: string[];
@@ -177,7 +179,7 @@ export function separateEffectsAndCaps(
         if (!effectVarRefs.includes(capText)) effectVarRefs.push(capText);
         continue;
       }
-      error(`Unknown capability '${capText}'`);
+      error(Issue.unknownName(tokenName('capability'), lit(capText), `Unknown capability '${capText}'`));
     }
   } else {
     for (const eff of baseEffects) {
@@ -227,7 +229,7 @@ function atArrow(ctx: ParserContext): boolean {
  */
 function parseParenOrFuncType(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Type {
   const lparen = ctx.next();
   const params: Type[] = [];
@@ -237,7 +239,7 @@ function parseParenOrFuncType(
     annotated ||= ctx.at(TokenKind.AT);
     params.push(parseType(ctx, error));
   } while (ctx.at(TokenKind.COMMA));
-  if (!ctx.at(TokenKind.RPAREN)) error("Expected ')' after type");
+  if (!ctx.at(TokenKind.RPAREN)) error(Issue.expectedAfter(lit(')'), tokenName('type'), "Expected ')' after type"));
   ctx.next(); // 消费 ')'
 
   if (atArrow(ctx)) {
@@ -248,14 +250,14 @@ function parseParenOrFuncType(
     assignSpan(node, spanFromSources(lparen, ret));
     return node;
   }
-  if (params.length > 1) error("Expected '->' after function parameter types");
-  if (annotated) error("Expected '->' after annotated function parameter type");
+  if (params.length > 1) error(Issue.expectedAfter(lit('->'), tokenName('functionParameterTypes'), "Expected '->' after function parameter types"));
+  if (annotated) error(Issue.expectedAfter(lit('->'), tokenName('annotatedFunctionParameterType'), "Expected '->' after annotated function parameter type"));
   return params[0]!;
 }
 
 function parseTypePrimary(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Type {
   if (ctx.at(TokenKind.LPAREN)) return parseParenOrFuncType(ctx, error);
 
@@ -315,6 +317,7 @@ function parseTypePrimary(
     const keyType = parseType(ctx, error);
     if (!ctx.isKeyword(KW.TO_WORD)) {
       Diagnostics.expectedKeyword(KW.TO_WORD, ctx.peek().start)
+        .withErrorCode(ErrorCode.PARSE_EXPECTED_IN, { token: kwParam(KW.TO_WORD), context: tokenName('mapType') })
         .withMessage(`Expected ${kwq(ctx, KW.TO_WORD)} in map type`)
         .throw();
     }
@@ -409,12 +412,12 @@ function parseTypePrimary(
     return node;
   }
 
-  error('Expected type');
+  error(Issue.expected(tokenName('type'), 'Expected type'));
 }
 
 export function parseType(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Type {
   // ★类型递归的深度护栏（issue #145）。
   //
@@ -438,34 +441,34 @@ export function parseType(
 
 function parseTypeInner(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Type {
   let annotation: PiiAnnotation | null = null;
   if (ctx.at(TokenKind.AT)) {
     const atTok = ctx.next();
     if (!ctx.isKeyword('pii')) {
-      error("Expected 'pii' after '@'");
+      error(Issue.expectedAfter(lit('pii'), lit('@'), "Expected 'pii' after '@'"));
     }
     ctx.nextWord(); // consume 'pii'
     if (!ctx.at(TokenKind.LPAREN)) {
-      error("Expected '(' after '@pii'");
+      error(Issue.expectedAfter(lit('('), lit('@pii'), "Expected '(' after '@pii'"));
     }
     ctx.next(); // consume '('
 
     if (!ctx.at(TokenKind.TYPE_IDENT) && !ctx.at(TokenKind.IDENT)) {
-      error("Expected PII level (e.g., L1, L2, L3)");
+      error(Issue.expected(tokenName('piiLevel'), 'Expected PII level (e.g., L1, L2, L3)'));
     }
     const levelTok = ctx.next();
     if (!ctx.at(TokenKind.COMMA)) {
-      error("Expected ',' after PII level");
+      error(Issue.expectedAfter(lit(','), tokenName('piiLevel'), "Expected ',' after PII level"));
     }
     ctx.next(); // consume ','
     if (!ctx.at(TokenKind.IDENT)) {
-      error("Expected PII category (e.g., email, phone, ssn)");
+      error(Issue.expected(tokenName('piiCategory'), 'Expected PII category (e.g., email, phone, ssn)'));
     }
     const categoryTok = ctx.next();
     if (!ctx.at(TokenKind.RPAREN)) {
-      error("Expected ')' after PII category");
+      error(Issue.expectedAfter(lit(')'), tokenName('piiCategory'), "Expected ')' after PII category"));
     }
     ctx.next(); // consume ')'
 

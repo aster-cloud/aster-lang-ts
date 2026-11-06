@@ -668,7 +668,7 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
         // BigDecimal 精确 → 双引擎分歧（Codex 审查 P1）。硬拒以保 parity 与确定性。
         const sigDigits = canonical.replace(/[.-]/g, '').replace(/^0+(?=\d)/, '').length;
         if (sigDigits > 38) {
-          Diagnostics.decimalTooManyDigits(sigDigits, start).throw();
+          Diagnostics.decimalTooManyDigits(sigDigits, start, `${num}m`).throw();
         }
         push(TokenKind.DECIMAL, canonical, start);
         continue;
