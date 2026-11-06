@@ -1010,6 +1010,9 @@ class Interpreter {
         return true;
       }
       case 'PatInt':
+        // Decimal 按精确数值比较（不看 scale、不经 double），0.00 命中 When 0；
+        // 与 truffle PatIntNode 的 BigDecimal.compareTo 一致（#289 / truffle#166）。
+        if (isDecimalValue(value)) return value.comparedTo(pattern.value) === 0;
         return value === pattern.value;
       case 'PatCtor': {
         // 可空值 T? 的裸表示（#277）：宿主传入或 T → T? 直接传入的值不带 Some/None 标签。
