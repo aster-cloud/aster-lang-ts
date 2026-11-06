@@ -230,9 +230,15 @@ function isOpaque(r: Resolver, t: Static): boolean {
 
 // ---- 作用域 ----
 
+/**
+ * 局部名。type 参与 R2 解析；hint 只供观察者（LSP 补全 / 悬停）报告类型，不影响解析与诊断：
+ * 模式绑定（`When Box(d)`）在 Java R2 中按未知类型声明，若让其类型参与解析，字段段的判定会比 Java 严
+ * （aster-lang-ts#275）。普通绑定的 hint 与 type 相同。
+ */
 interface Local {
   readonly name: string;
   readonly type?: Static;
+  readonly hint?: Static;
 }
 
 interface Scope {
@@ -251,8 +257,8 @@ function child(f: Frame): Frame {
   return { ...f, scope: { parent: f.scope, locals: [] } };
 }
 
-function declare(f: Frame, name: string, type?: Static): void {
-  f.scope.locals.push(type === undefined ? { name } : { name, type });
+function declare(f: Frame, name: string, type?: Static, hint: Static = type): void {
+  f.scope.locals.push({ name, ...(type === undefined ? {} : { type }), ...(hint === undefined ? {} : { hint }) });
 }
 
 function visibleLocals(scope: Scope | undefined): Local[] {
@@ -276,9 +282,11 @@ function findLocal(scope: Scope, written: string): { choice: Choice; local?: Loc
 // ---- 静态类型（§4 类型来源表） ----
 
 /** 规范名路径的类型：首段局部名的声明类型，逐段取字段声明类型；不产生诊断。 */
-function pathType(r: Resolver, scope: Scope, name: string): Static {
+/** hinted 为真时局部名取观察者用的 hint 类型（见 {@link Local}），否则取参与解析的 type。 */
+function pathType(r: Resolver, scope: Scope, name: string, hinted = false): Static {
   const [head, ...tail] = name.split('.');
-  let type = visibleLocals(scope).find((l) => l.name === head)?.type;
+  const local = visibleLocals(scope).find((l) => l.name === head);
+  let type = hinted ? local?.hint : local?.type;
   for (const seg of tail) {
     if (isOpaque(r, type)) return DYNAMIC;
     const s = dataOf(r, type);
@@ -298,10 +306,10 @@ function declaredRet(f: Core.Func | undefined): Core.Type | undefined {
 }
 
 /** 已解析表达式的 R2 静态类型；表外的一切为未知。 */
-function typeOf(r: Resolver, scope: Scope, e: Core.Expression): Static {
+function typeOf(r: Resolver, scope: Scope, e: Core.Expression, hinted = false): Static {
   switch (e.kind) {
     case 'Name':
-      return pathType(r, scope, e.name);
+      return pathType(r, scope, e.name, hinted);
     case 'Construct':
       return { kind: 'TypeName', name: e.typeName };
     case 'Call':
@@ -546,7 +554,7 @@ function resolveExpr(r: Resolver, f: Frame, e: Core.Expression, expected?: Core.
 /** 向观察者报告已解析名字的 §4 静态类型（不透明 / 动态视为未知）。 */
 function observeTyped(r: Resolver, f: Frame, n: Core.Name): Core.Name {
   const onTyped = r.observer?.onTypedName;
-  if (onTyped) onTyped(n, asType(typeOf(r, f.scope, n)));
+  if (onTyped) onTyped(n, asType(typeOf(r, f.scope, n, true)));
   return n;
 }
 
@@ -633,7 +641,7 @@ function resolveStmt(r: Resolver, f: Frame, s: Core.Statement): Core.Statement {
   switch (s.kind) {
     case 'Let': {
       const expr = resolveExpr(r, f, s.expr);
-      declare(f, s.name, typeOf(r, f.scope, expr));
+      declare(f, s.name, typeOf(r, f.scope, expr), typeOf(r, f.scope, expr, true));
       return { ...s, expr };
     }
     case 'Set':
@@ -684,12 +692,13 @@ function resolveWorkflow(r: Resolver, f: Frame, s: Core.Workflow): Core.Workflow
 function resolveMatch(r: Resolver, f: Frame, s: Core.Match): Core.Match {
   const expr = resolveExpr(r, f, s.expr);
   const subject = typeOf(r, f.scope, expr);
-  const cases = s.cases.map((c) => resolveCase(r, child(f), c, subject));
+  const hint = typeOf(r, f.scope, expr, true);
+  const cases = s.cases.map((c) => resolveCase(r, child(f), c, subject, hint));
   return { ...s, expr, cases };
 }
 
-function resolveCase(r: Resolver, f: Frame, c: Core.Case, subject: Static): Core.Case {
-  const pattern = resolvePattern(r, f, c.pattern, subject);
+function resolveCase(r: Resolver, f: Frame, c: Core.Case, subject: Static, hint: Static): Core.Case {
+  const pattern = resolvePattern(r, f, c.pattern, subject, hint);
   const body: Core.Return | Core.Block =
     c.body.kind === 'Block' ? resolveBlock(r, f, c.body) : { ...c.body, expr: resolveExpr(r, f, c.body.expr, f.ret) };
   return { ...c, pattern, body };
@@ -697,14 +706,15 @@ function resolveCase(r: Resolver, f: Frame, c: Core.Case, subject: Static): Core
 
 // ---- 模式 ----
 
-function resolvePattern(r: Resolver, f: Frame, p: Core.Pattern, subject: Static): Core.Pattern {
+/** subject 参与解析（嵌套模式的主语为未知，同 Java）；hint 为观察者用的主语类型，用于给绑定名标类型。 */
+function resolvePattern(r: Resolver, f: Frame, p: Core.Pattern, subject: Static, hint: Static): Core.Pattern {
   switch (p.kind) {
     case 'PatName':
     case 'PatternName':
-      return resolvePatName(r, f, p, subject);
+      return resolvePatName(r, f, p, subject, hint);
     case 'PatCtor':
     case 'PatternCtor':
-      return resolvePatCtor(r, f, p, subject);
+      return resolvePatCtor(r, f, p, subject, hint);
     case 'PatNull':
     case 'PatternNull':
     case 'PatInt':
@@ -723,11 +733,11 @@ function resolvePattern(r: Resolver, f: Frame, p: Core.Pattern, subject: Static)
  * 其余为绑定名。模式名是声明而非引用，故不经过 LOCAL 层。
  * 首字母不是 ASCII 大写的成员产出无参数 PatCtor（裁决 R55，见 {@link isCased}）。
  */
-function resolvePatName(r: Resolver, f: Frame, p: Core.PatName, subject: Static): Core.Pattern {
+function resolvePatName(r: Resolver, f: Frame, p: Core.PatName, subject: Static, hint: Static): Core.Pattern {
   const mark = consume(p);
   const asMember = mark ? patNameMember(r, p, mark, subject) : undefined;
   if (asMember) return asMember === p || isCased(asMember.name) ? asMember : variantCtor(asMember);
-  declare(f, p.name);
+  declare(f, p.name, undefined, hint);
   return p;
 }
 
@@ -787,12 +797,22 @@ function allMembers(r: Resolver): Entry[] {
   return [...decls, ...vocab];
 }
 
-function resolvePatCtor(r: Resolver, f: Frame, p: Core.PatCtor, subject: Static): Core.PatCtor {
+function resolvePatCtor(r: Resolver, f: Frame, p: Core.PatCtor, subject: Static, hint: Static): Core.PatCtor {
   const mark = consume(p);
-  const args = p.args?.map((a) => resolvePattern(r, f, a, undefined));
-  for (const n of p.names) declare(f, n);
-  const base: Core.PatCtor = args ? { ...p, args } : { ...p };
-  return mark ? ctorResolution(r, base, mark, subject) : base;
+  const head = mark ? ctorResolution(r, { ...p }, mark, subject) : { ...p };
+  const fields = ctorFieldHints(r, head.typeName, hint);
+  const args = p.args?.map((a, i) => resolvePattern(r, f, a, undefined, fields[i]));
+  p.names.forEach((n, i) => declare(f, n, undefined, fields[i]));
+  return args ? { ...head, args } : head;
+}
+
+/**
+ * 构造器模式各位置绑定的观察者类型：主语类型（hint）正是该构造器的源码 Data 时，按字段声明顺序取字段类型；
+ * 主语类型未知（含按名推断）时不给，避免凭构造器名猜类型。
+ */
+function ctorFieldHints(r: Resolver, typeName: string, hint: Static): Static[] {
+  const fields = typeNameOf(hint) === typeName ? r.t.datas.get(typeName) : undefined;
+  return fields ? [...fields.keys()].map((name) => fieldType(r, typeName, name)) : [];
 }
 
 /** 构造器模式按主语类型的三种情形：候选来源与歧义 / 未命中时的诊断码。 */
