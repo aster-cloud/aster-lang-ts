@@ -35,13 +35,6 @@ const TABLE = Object.values(
 );
 const LOCALIZED = ['de-DE', 'hi-IN', 'zh-CN'] as const;
 
-/**
- * 解析诊断码 E050–E069（category=syntax，ADR 0051 §16 R56）按发版顺序先于语言包译文发布：
- * 引擎同车次加码 → aster-lang-locales 发布 overlay 译文。两步之间允许缺译（回退英文），
- * 但已有的译文仍须占位符一致。locales 发版并重新生成 overlay 后删除本豁免。
- */
-const PENDING_TRANSLATION_CATEGORY = 'syntax';
-
 function placeholders(text: string): string[] {
   return [...new Set([...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!))].sort();
 }
@@ -52,7 +45,6 @@ function coverageProblems(texts: Readonly<Partial<Record<string, string>>> | und
   for (const spec of TABLE) {
     const text = texts[spec.code];
     if (!text || text.trim() === '') {
-      if (spec.category === PENDING_TRANSLATION_CATEGORY) continue;
       problems.push(`${spec.code}: 缺少译文`);
     } else if (placeholders(text).join() !== placeholders(pick(spec)).join()) {
       problems.push(`${spec.code}: 占位符 ${placeholders(text)} 与英文 ${placeholders(pick(spec))} 不一致`);
