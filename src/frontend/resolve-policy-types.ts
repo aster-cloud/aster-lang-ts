@@ -29,6 +29,8 @@ export interface PolicyTypes {
     written: string;
     params: Array<{ name: string; type: TypeRef }>;
     returnType?: TypeRef;
+    /** 是否带 `@entry` 注解（入口 Rule 选择用） */
+    entry: boolean;
   }>;
 }
 
@@ -80,7 +82,8 @@ function collect(ast: AST.Module, core: Core.Module): PolicyTypes {
     } else if (d.kind === 'Func' && src.kind === 'Func') {
       const params = d.params.map((p) => ({ name: p.name, type: typeRef(p.type) }));
       const returnType = d.retTypeInferred ? {} : { returnType: typeRef(d.ret) };
-      types.functions.push({ canonical: d.name, written: writtenOf(src.resolved, d.name), params, ...returnType });
+      const entry = (src.annotations ?? []).some((a) => a.name === 'entry');
+      types.functions.push({ canonical: d.name, written: writtenOf(src.resolved, d.name), params, ...returnType, entry });
     }
   });
   return types;

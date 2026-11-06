@@ -46,6 +46,12 @@ export {
   type VocabularyScopeErrorCode,
 } from './scopes.js';
 export { foldKey } from './casefold.js';
+export {
+  buildSpellingIndex,
+  resolveSpelling,
+  type SpellingIndex,
+  type SpellingMatch,
+} from './spelling.js';
 
 // 注册中心导出
 export {
