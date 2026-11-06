@@ -557,6 +557,63 @@ describe('resolveDeclarations（R1）', () => {
     });
   });
 
+  describe('R57：顶层类型、枚举、类型别名与导入别名共用一个命名空间（ADR 0051 §16.2）', () => {
+    const resolveEn = (source: string) => resolveDeclarations(parse(source, EN_US), ctxOf([]));
+
+    it('导入别名在前、同名枚举在后 → E807 落在枚举上（#248 M1，不再静默遮蔽）', () => {
+      const r = resolveEn('Module m.\n\nUse lib.status as Status.\n\nDefine Status as one of Active, Closed.\n');
+      assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
+      assert.equal(r.diagnostics[0]!.span?.start.line, 5);
+      assert.equal((r.diagnostics[0]!.data as { written: string }).written, 'Status');
+    });
+
+    it('同名 Data 在前、导入别名在后 → E807 落在 Use 上', () => {
+      const r = resolveEn('Module m.\n\nDefine Status has v as Int.\n\nUse lib.status as Status.\n');
+      assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
+      assert.equal(r.diagnostics[0]!.span?.start.line, 5);
+    });
+
+    it('无 as 时以模块末段为可见名参与查重', () => {
+      const r = resolveEn('Module m.\n\nUse lib.Status.\n\nType Status as Int.\n');
+      assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
+      assert.equal(r.diagnostics[0]!.span?.start.line, 5);
+    });
+
+    it('别名与函数同名不冲突（函数在另一命名空间）', () => {
+      const r = resolveEn('Module m.\n\nUse lib.calc as calc.\n\nRule calc given x as Int, produce Int:\n  Return x.\n');
+      assert.deepEqual(codes(r), []);
+    });
+
+    it('别名与类型不同名时行为不变', () => {
+      const r = resolveEn('Module m.\n\nUse lib.status as Lib.\n\nDefine Status as one of Active, Closed.\n');
+      assert.deepEqual(codes(r), []);
+    });
+
+    it('本地化写法与规范名冲突：别名写本地名、类型写规范名 → E807', () => {
+      const m = parse('Module m.\n\nUse lib.status as Zustand.\n\nDefine Status as one of Active, Closed.\n', EN_US);
+      const r = resolveDeclarations(m, ctxOf([struct('Status', 'Zustand')]));
+      assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
+      assert.equal(r.diagnostics[0]!.span?.start.line, 5);
+    });
+
+    it('本地化写法与规范名冲突：类型写本地名、别名写规范名 → E807', () => {
+      const m = parse('Module m.\n\nDefine Zustand as one of Active, Closed.\n\nUse lib.status as Status.\n', EN_US);
+      const r = resolveDeclarations(m, ctxOf([struct('Status', 'Zustand')]));
+      assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
+      assert.equal(r.diagnostics[0]!.span?.start.line, 5);
+    });
+
+    it('大小写不同且词汇未把两者归到同一规范名时不冲突', () => {
+      const r = resolveEn('Module m.\n\nUse lib.status as status.\n\nDefine Status as one of Active, Closed.\n');
+      assert.deepEqual(codes(r), []);
+    });
+
+    it('两个同名导入别名不报 E807（重复导入别名另由 Java E103 处理，不在本命名空间规则内）', () => {
+      const r = resolveEn('Module m.\n\nUse lib.a as Lib.\n\nUse lib.b as Lib.\n');
+      assert.deepEqual(codes(r), []);
+    });
+  });
+
   it('不修改输入 AST', () => {
     const m = parse('Modul m.\n\nDefiniere Fahrer hat alter als Ganzzahl.\n');
     const before = JSON.stringify(m);

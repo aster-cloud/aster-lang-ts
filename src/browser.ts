@@ -146,7 +146,7 @@ import { localizeDiagnostics } from './typecheck/diagnostics.js';
 import type { ControlRegistry } from './governance/controls.js';
 import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
 import { attachTypeInferenceRules } from './config/lexicons/type-inference-rules.js';
-import { DiagnosticError } from './diagnostics/diagnostics.js';
+import { DiagnosticError, type Diagnostic } from './diagnostics/diagnostics.js';
 import { buildVocabularyScopes } from './config/lexicons/identifiers/scopes.js';
 import type { VocabularyScopes } from './config/lexicons/identifiers/scopes.js';
 import type { DomainVocabulary } from './config/lexicons/identifiers/types.js';
@@ -159,11 +159,28 @@ import { hasErrors, parseSource, resolveAndLower } from './compile-pipeline.js';
 export interface ParseError {
   /** Error message */
   message: string;
+  /**
+   * 诊断身份：解析 / 词法错误为共享码表 E050–E069（ADR 0051 §16 R56）。
+   * 消费方应按 code + params 取译文，而不是反查英文 message。
+   */
+  code?: string;
+  /** 过渡字段：改码前的本地码（P0xx / L0xx），保留一个发版车次。 */
+  legacyCode?: string;
+  /** 码表模板的命名参数（关键词 kw.*、抽象 token token.*、字面片段带引号）。 */
+  params?: Readonly<Record<string, string | number>>;
   /** Position information (optional, for backward compatibility) */
   span?: {
     start: { line: number; col: number };
     end: { line: number; col: number };
   };
+}
+
+/** 解析诊断 → 对外的 ParseError（带码、过渡 legacyCode 与命名参数）。 */
+function toParseError(d: Diagnostic): ParseError {
+  const out: ParseError = { message: d.message, span: d.span, code: d.code };
+  if (d.legacyCode !== undefined) out.legacyCode = d.legacyCode;
+  if (d.params !== undefined) out.params = d.params;
+  return out;
 }
 
 /**
@@ -256,7 +273,7 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     const scopes = vocabularyScopesOf(options);
     const parsed = parseSource(source, lexicon, scopes);
     const tokens = parsed.tokens;
-    const parseErrors = parsed.diagnostics.map(d => ({ message: d.message, span: d.span }));
+    const parseErrors = parsed.diagnostics.map(toParseError);
 
     // Parse 诊断分级：error 必须导致 success=false（即使部分 decl 可恢复），
     // warning 不阻塞编译。原实现仅在 decls 全空时才报失败，导致调用方在
@@ -288,14 +305,7 @@ export function compile(source: string, options?: CompileOptions): CompileResult
   } catch (error) {
     // Handle DiagnosticError with position information
     if (error instanceof DiagnosticError) {
-      const diagnostic = error.diagnostic;
-      return {
-        success: false,
-        parseErrors: [{
-          message: diagnostic.message,
-          span: diagnostic.span,
-        }],
-      };
+      return { success: false, parseErrors: [toParseError(error.diagnostic)] };
     }
     return {
       success: false,
@@ -320,6 +330,15 @@ export function compile(source: string, options?: CompileOptions): CompileResult
 export interface ValidationError {
   /** Error message */
   message: string;
+  /**
+   * 诊断身份：解析 / 词法错误为共享码表 E050–E069（ADR 0051 §16 R56）。
+   * 消费方应按 code + params 取译文，而不是反查英文 message。
+   */
+  code?: string;
+  /** 过渡字段：改码前的本地码（P0xx / L0xx），保留一个发版车次。 */
+  legacyCode?: string;
+  /** 码表模板的命名参数（关键词 kw.*、抽象 token token.*、字面片段带引号）。 */
+  params?: Readonly<Record<string, string | number>>;
   /** Position information (optional) */
   span?: {
     start: { line: number; col: number };
@@ -354,21 +373,14 @@ export function validateSyntaxWithSpan(source: string, lexicon?: Lexicon): Valid
 
     // 错误恢复模式：直接返回收集到的诊断
     if (result.diagnostics.length > 0) {
-      return result.diagnostics.map(d => ({
-        message: d.message,
-        span: d.span,
-      }));
+      return result.diagnostics.map(toParseError);
     }
 
     return [];
   } catch (error) {
     // Handle DiagnosticError with position information
     if (error instanceof DiagnosticError) {
-      const diagnostic = error.diagnostic;
-      return [{
-        message: diagnostic.message,
-        span: diagnostic.span,
-      }];
+      return [toParseError(error.diagnostic)];
     }
     return [{ message: error instanceof Error ? error.message : String(error) }];
   }

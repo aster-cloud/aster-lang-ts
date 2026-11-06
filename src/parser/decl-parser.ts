@@ -25,6 +25,7 @@ import { parseBlock, parseExplicitBlock, parseParamList } from './expr-stmt-pars
 import { parseFieldList, parseVariantList } from './field-variant-parser.js';
 import { assignSpan, spanFromSources, lastConsumedToken, lastNonLayoutToken, spanFromTokens } from './span-utils.js';
 import type { Span } from '../types.js';
+import { Issue, kwParam, lit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 /**
  * R30+ audit P1：原本写满 14 处 {@code (node as any).nameSpan = ...} / variantSpans。
@@ -50,7 +51,7 @@ function attachVariantSpans<T extends object>(node: T, variantSpans: readonly Sp
 function parseEffectParams(
   ctx: ParserContext,
   skipLayoutTrivia: () => void,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): string[] {
   if (!ctx.at(TokenKind.LT)) return [];
   const names: string[] = [];
@@ -60,7 +61,7 @@ function parseEffectParams(
   while (more) {
     skipLayoutTrivia();
     if (!ctx.at(TokenKind.TYPE_IDENT)) {
-      error("Expected effect type parameter (capitalized identifier)");
+      error(Issue.expected(tokenName('effectTypeParameter'), "Expected effect type parameter (capitalized identifier)"));
     }
     names.push(ctx.next().value as string);
     skipLayoutTrivia();
@@ -77,14 +78,14 @@ function parseEffectParams(
     more = false;
   }
   if (!ctx.at(TokenKind.GT)) {
-    error("Expected '>' after effect parameter list");
+    error(Issue.expectedAfter(lit('>'), tokenName('effectParameterList'), "Expected '>' after effect parameter list"));
   }
   ctx.next(); // consume '>'
   skipLayoutTrivia();
   return names;
 }
 
-function parseAnnotationValue(ctx: ParserContext, error: (msg: string, tok?: Token) => never): AnnotationValue {
+function parseAnnotationValue(ctx: ParserContext, error: ParseErrorFn): AnnotationValue {
   const tok = ctx.peek();
   switch (tok.kind) {
     case TokenKind.STRING:
@@ -100,7 +101,7 @@ function parseAnnotationValue(ctx: ParserContext, error: (msg: string, tok?: Tok
       ctx.next();
       return tok.value as string;
     default:
-      error('Expected annotation argument value', tok);
+      error(Issue.expected(tokenName('annotationArgumentValue'), 'Expected annotation argument value'), tok);
   }
 }
 
@@ -109,7 +110,7 @@ function isNamedAnnotationArg(ctx: ParserContext): boolean {
   return (ctx.at(TokenKind.IDENT) || ctx.at(TokenKind.TYPE_IDENT)) && ctx.peek(1)?.kind === TokenKind.COLON;
 }
 
-function parseAnnotationArgs(ctx: ParserContext, error: (msg: string, tok?: Token) => never): readonly AnnotationArg[] | undefined {
+function parseAnnotationArgs(ctx: ParserContext, error: ParseErrorFn): readonly AnnotationArg[] | undefined {
   if (!ctx.at(TokenKind.LPAREN)) return undefined;
   ctx.next();
   const args: AnnotationArg[] = [];
@@ -132,7 +133,7 @@ function parseAnnotationArgs(ctx: ParserContext, error: (msg: string, tok?: Toke
     break;
   }
   if (!ctx.at(TokenKind.RPAREN)) {
-    error("Expected ')' after annotation arguments");
+    error(Issue.expectedAfter(lit(')'), tokenName('annotationArguments'), "Expected ')' after annotation arguments"));
   }
   ctx.next();
   return args;
@@ -140,7 +141,7 @@ function parseAnnotationArgs(ctx: ParserContext, error: (msg: string, tok?: Toke
 
 function parseDeclAnnotations(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never
+  error: ParseErrorFn
 ): { annotations: readonly Annotation[]; startTok?: Token } {
   const annotations: Annotation[] = [];
   let startTok: Token | undefined;
@@ -148,7 +149,7 @@ function parseDeclAnnotations(
     const atTok = ctx.next();
     startTok ??= atTok;
     if (!ctx.at(TokenKind.IDENT) && !ctx.at(TokenKind.TYPE_IDENT)) {
-      error("Expected annotation name after '@'");
+      error(Issue.expectedAfter(tokenName('annotationName'), lit('@'), "Expected annotation name after '@'"));
     }
     const name = String(ctx.next().value);
     const args = parseAnnotationArgs(ctx, error);
@@ -170,7 +171,7 @@ function parseDeclAnnotations(
  */
 export function parseDataDecl(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never,
+  error: ParseErrorFn,
   expectDot: () => void,
   parseTypeIdent: () => string
 ): Declaration {
@@ -183,7 +184,7 @@ export function parseDataDecl(
 
   // 期望: with / has
   if (!ctx.isKeywordSeq(KW.WITH) && !ctx.isKeywordSeq(KW.HAS)) {
-    error(`Expected ${kwq(ctx, KW.HAS)} after type name in data definition`);
+    error(Issue.expectedAfterIn(kwParam(KW.HAS), tokenName('typeName'), tokenName('dataDefinition'), `Expected ${kwq(ctx, KW.HAS)} after type name in data definition`));
   }
   ctx.nextWord();
 
@@ -217,7 +218,7 @@ export function parseDataDecl(
  */
 export function parseEnumDecl(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never,
+  error: ParseErrorFn,
   expectDot: () => void,
   parseTypeIdent: () => string
 ): Declaration {
@@ -230,7 +231,7 @@ export function parseEnumDecl(
 
   // 期望: as one of
   if (!ctx.isKeywordSeq(KW.ONE_OF)) {
-    error(`Expected ${kwq(ctx, KW.ONE_OF)} after type name in enum definition`);
+    error(Issue.expectedAfterIn(kwParam(KW.ONE_OF), tokenName('typeName'), tokenName('enumDefinition'), `Expected ${kwq(ctx, KW.ONE_OF)} after type name in enum definition`));
   }
   ctx.nextWords(kwParts(KW.ONE_OF));
 
@@ -271,9 +272,9 @@ export function parseEnumDecl(
  */
 export function parseFuncDecl(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never,
+  error: ParseErrorFn,
   expectCommaOr: () => void,
-  expectKeyword: (kw: string, msg: string) => void,
+  expectKeyword: (kw: string, issue: ParseIssue) => void,
   expectNewline: () => void,
   parseIdent: () => string,
   annotations: readonly Annotation[] = [],
@@ -447,7 +448,7 @@ export function parseFuncDecl(
         ctx.next();
         body = parseColonBody(); // ADR 0028：缩进块或显式块
       } else {
-        error("Expected '.' or ':' after effect clause");
+        error(Issue.expectedAfter(tokenName('dotOrColon'), tokenName('effectClause'), "Expected '.' or ':' after effect clause"));
       }
     }
   }
@@ -465,7 +466,7 @@ export function parseFuncDecl(
       ctx.next();
       body = parseColonBody(); // ADR 0028：缩进块或显式块
     } else {
-      error("Expected '.' or ':' after effect clause");
+      error(Issue.expectedAfter(tokenName('dotOrColon'), tokenName('effectClause'), "Expected '.' or ':' after effect clause"));
     }
   }
   // 场景3: produce Type: ...（直接进入函数体）
@@ -473,7 +474,7 @@ export function parseFuncDecl(
     ctx.next();
     body = parseColonBody(); // ADR 0028：缩进块或显式块
   } else {
-    error("Expected '.' or ':' after return type");
+    error(Issue.expectedAfter(tokenName('dotOrColon'), tokenName('returnType'), "Expected '.' or ':' after return type"));
   }
 
   // 如果没有显式声明类型参数，尝试从类型使用中推断
@@ -683,7 +684,7 @@ export function collectTopLevelDecls(
     try {
       // 解析模块头: Module foo.bar.
       if (ctx.isKeywordSeq(KW.MODULE_IS)) {
-        if (ctx.moduleName !== null || decls.length > 0) tools.error(MODULE_MISPLACED);
+        if (ctx.moduleName !== null || decls.length > 0) tools.error(Issue.misplaced(tokenName('moduleHeader'), tokenName('onceAtFileStart'), MODULE_MISPLACED));
         parseModuleHeader(ctx, tools.error, tools.expectDot);
         // ADR 0046：Profile 只能紧跟模块头（中间可有空行）；模块头唯一，故此处至多解析一条，其余交给下方分支报错
         ctx.consumeNewlines();
@@ -691,7 +692,7 @@ export function collectTopLevelDecls(
       }
       // 其余位置出现的 Profile（重复、模块头之前或声明之间）一律报错
       else if (ctx.isKeyword(KW.PROFILE)) {
-        tools.error(PROFILE_MISPLACED);
+        tools.error(Issue.misplaced(tokenName('profile'), tokenName('onceAfterModuleHeader'), PROFILE_MISPLACED));
       }
       // 解析导入: use foo.bar. 或 use foo.bar as Baz.
       else if (ctx.isKeyword(KW.USE)) {
@@ -736,7 +737,7 @@ export function collectTopLevelDecls(
           ctx.declaredTypes.add(typeName);
           decls.push(en);
         } else {
-          tools.error(`Expected ${kwq(ctx, KW.HAS)} or ${kwq(ctx, KW.ONE_OF)} after type name`);
+          tools.error(Issue.expectedAfter(tokenName('hasOrOneOf'), tokenName('typeName'), `Expected ${kwq(ctx, KW.HAS)} or ${kwq(ctx, KW.ONE_OF)} after type name`));
         }
       }
       // 解析类型别名: Type Score as Int.
@@ -748,7 +749,7 @@ export function collectTopLevelDecls(
       else if (ctx.isKeyword(KW.TYPE)) {
         const startTok = ctx.nextWord(); // 消费 'Type'
         const aliasName = tools.parseTypeIdent();
-        tools.expectKeyword(KW.AS, `Expected ${kwq(ctx, KW.AS)} after type alias name`);
+        tools.expectKeyword(KW.AS, Issue.expectedAfter(kwParam(KW.AS), tokenName('typeAliasName'), `Expected ${kwq(ctx, KW.AS)} after type alias name`));
         const target = parseType(ctx, tools.error);
         tools.expectDot();
         ctx.declaredTypes.add(aliasName);
@@ -758,7 +759,7 @@ export function collectTopLevelDecls(
       else if (ctx.at(TokenKind.AT)) {
         const { annotations, startTok } = parseDeclAnnotations(ctx, tools.error);
         if (!ctx.isKeyword(KW.RULE)) {
-          tools.error(`Expected ${kwq(ctx, KW.RULE, 'Rule')} after declaration annotations`);
+          tools.error(Issue.expectedAfter(kwParam(KW.RULE), tokenName('declarationAnnotations'), `Expected ${kwq(ctx, KW.RULE, 'Rule')} after declaration annotations`));
         }
         decls.push(parseFuncDecl(ctx, tools.error, tools.expectCommaOr, tools.expectKeyword, tools.expectNewline, tools.parseIdent, annotations, startTok));
       }
@@ -772,7 +773,7 @@ export function collectTopLevelDecls(
       }
       // 其他情况报错
       else {
-        tools.error('Unexpected token at top level');
+        tools.error(Issue.unexpectedConstruct(tokenName('topLevelToken'), 'Unexpected token at top level'));
       }
     } catch (e) {
       diagnostics.push(toDiagnostic(e));

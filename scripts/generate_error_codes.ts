@@ -25,7 +25,7 @@ interface ErrorSpec {
   help: string;
 }
 
-type ErrorCategoryLiteral = 'type' | 'scope' | 'effect' | 'capability' | 'pii' | 'async' | 'governance' | 'other';
+type ErrorCategoryLiteral = 'type' | 'syntax' | 'scope' | 'effect' | 'capability' | 'pii' | 'async' | 'governance' | 'other';
 type ErrorSeverityLiteral = 'error' | 'warning' | 'info';
 
 interface ErrorTable {
@@ -333,6 +333,7 @@ function renderJava(entries: Array<{ name: string } & ErrorSpec>): string {
     '',
     '  public enum Category {',
     '    TYPE,',
+    '    SYNTAX,',
     '    SCOPE,',
     '    EFFECT,',
     '    CAPABILITY,',
@@ -377,6 +378,8 @@ function toJavaCategory(category: ErrorCategoryLiteral): string {
   switch (category) {
     case 'type':
       return 'TYPE';
+    case 'syntax':
+      return 'SYNTAX';
     case 'scope':
       return 'SCOPE';
     case 'effect':

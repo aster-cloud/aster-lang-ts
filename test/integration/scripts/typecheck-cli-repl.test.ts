@@ -145,7 +145,8 @@ describe('repl', () => {
   it('词法错误按诊断格式输出位置', () => {
     const r = run(REPL, [], { input: replInput('Module m.\nRule g, produce Text:\n  Return "abc.') });
     assert.equal(r.status, 0);
-    assert.match(r.stderr, /L002/);
+    // ADR 0051 §16 R56：未闭合字符串 = E051（原本地码 L002）
+    assert.match(r.stderr, /E051/);
     assert.match(r.stderr, /3:10/);
   });
 

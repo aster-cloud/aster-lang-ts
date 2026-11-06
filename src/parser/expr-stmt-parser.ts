@@ -32,6 +32,7 @@ import {
   spanFromSources,
   spanFromTokens,
 } from './span-utils.js';
+import { Issue, kwParam, lit, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 const WAIT_FOR_PARTS = kwParts(KW.WAIT_FOR);
 const MAX_ATTEMPTS_PARTS = kwParts(KW.MAX_ATTEMPTS);
@@ -79,12 +80,19 @@ const SUGAR_OUTCOMES: ReadonlyMap<string, string> = new Map([
   [`${KW.ESCALATE} _`, 'Verdict.escalate'],
   [`${KW.REQUIRE_APPROVAL_BY} _ ${KW.BECAUSE} _`, 'Verdict.require_approval'],
 ]);
-const SUGAR_OUTCOME_ERROR =
-  'Expected allow, deny, escalate or require approval by … because … after When/Otherwise';
-const OTHERWISE_NOT_LAST = 'Otherwise must be the last statement of its block';
+const SUGAR_OUTCOME_ERROR = Issue.expectedAfter(
+  tokenName('verdictOutcome'),
+  tokenName('whenOrOtherwise'),
+  'Expected allow, deny, escalate or require approval by … because … after When/Otherwise',
+);
+const OTHERWISE_NOT_LAST = Issue.misplaced(
+  kwParam(KW.OTHERWISE),
+  tokenName('lastInBlock'),
+  'Otherwise must be the last statement of its block',
+);
 
 /** 语法糖结论非法时的报告方式：立即抛错，或记下待块结束再报。 */
-type OutcomeErrorSink = (msg: string) => void;
+type OutcomeErrorSink = (issue: ParseIssue, tok?: Token) => void;
 
 /**
  * 块内语句解析器，错误次序对齐 Java AstBuilder：先查本块的 Otherwise 收尾（requireOtherwiseLast），
@@ -93,21 +101,23 @@ type OutcomeErrorSink = (msg: string) => void;
  */
 function blockStatementParser(
   ctx: ParserContext,
-  error: (msg: string) => never,
+  error: ParseErrorFn,
   statements: Statement[]
 ): { next: () => void; finish: () => void } {
-  let closed = false;
-  let pendingOutcomeError: string | undefined;
-  const deferOutcomeError: OutcomeErrorSink = (msg) => { pendingOutcomeError ??= msg; };
+  // Otherwise 收尾的位置：其后再有语句时错误落在该 Otherwise 上（与 Java requireOtherwiseLast 一致）
+  let closedBy: Token | undefined;
+  // 记下 token：错误落在结论起点（与 Java AstBuilder 报在 sugarOutcome 上下文一致），而非块末
+  let pendingOutcomeError: { issue: ParseIssue; tok: Token | undefined } | undefined;
+  const deferOutcomeError: OutcomeErrorSink = (issue, tok) => { pendingOutcomeError ??= { issue, tok }; };
   return {
     next: (): void => {
-      if (closed) error(OTHERWISE_NOT_LAST);
+      if (closedBy !== undefined) error(OTHERWISE_NOT_LAST, closedBy);
       // 语句开头的 Otherwise/else 必走 parseOtherwiseSugar（If 的 else 分支由 If 自身消费）
-      closed = isElseWord(ctx);
+      if (isElseWord(ctx)) closedBy = ctx.peek();
       statements.push(parseStatement(ctx, error, deferOutcomeError));
     },
     finish: (): void => {
-      if (pendingOutcomeError !== undefined) error(pendingOutcomeError);
+      if (pendingOutcomeError !== undefined) error(pendingOutcomeError.issue, pendingOutcomeError.tok);
     },
   };
 }
@@ -120,7 +130,7 @@ function blockStatementParser(
  */
 export function parseBlock(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Block {
   const statements: Statement[] = [];
   const blockParser = blockStatementParser(ctx, error, statements);
@@ -137,7 +147,7 @@ export function parseBlock(
       blockParser.next();
       ctx.consumeNewlines();
     }
-    if (!ctx.at(TokenKind.DEDENT)) error('Expected dedent');
+    if (!ctx.at(TokenKind.DEDENT)) error(Issue.expected(tokenName('dedent'), 'Expected dedent'));
     blockParser.finish();
     const endTok = ctx.peek();
     ctx.next();
@@ -160,7 +170,7 @@ export function parseBlock(
       blockParser.next();
       ctx.consumeNewlines();
     }
-    if (statements.length === 0) error('Expected at least one statement in function body');
+    if (statements.length === 0) error(Issue.emptyBlock(tokenName('functionBody'), tokenName('statement'), 'Expected at least one statement in function body'));
     blockParser.finish();
     const endTok = ctx.tokens[ctx.index - 1] || startTok;
     const b = Node.Block(statements);
@@ -186,7 +196,7 @@ export function parseBlock(
  */
 export function parseExplicitBlock(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Block {
   const statements: Statement[] = [];
   const blockParser = blockStatementParser(ctx, error, statements);
@@ -195,8 +205,8 @@ export function parseExplicitBlock(
     blockParser.next();
     ctx.consumeNewlines();
   }
-  if (!ctx.at(TokenKind.BLOCK_END)) error("Expected explicit block end word (e.g. '毕')");
-  if (statements.length === 0) error('Expected at least one statement in explicit block');
+  if (!ctx.at(TokenKind.BLOCK_END)) error(Issue.expected(tokenName('blockEndWord'), "Expected explicit block end word (e.g. '毕')"));
+  if (statements.length === 0) error(Issue.emptyBlock(tokenName('explicitBlock'), tokenName('statement'), 'Expected at least one statement in explicit block'));
   blockParser.finish();
   ctx.next(); // consume BLOCK_END
   const b = Node.Block(statements);
@@ -213,9 +223,9 @@ export function parseExplicitBlock(
  */
 function expectPeriodEnd(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): void {
-  if (!ctx.at(TokenKind.DOT)) error("Expected '.' at end of statement");
+  if (!ctx.at(TokenKind.DOT)) error(Issue.expectedStatementEnd(lit('.'), "Expected '.' at end of statement"));
   ctx.next();
 }
 
@@ -258,14 +268,14 @@ function skipInlineElseLayout(ctx: ParserContext): void {
  */
 function parseInlineIf(
   ctx: ParserContext,
-  error: (msg: string) => never,
+  error: ParseErrorFn,
   cond: Expression
 ): If {
   skipInlineThenLayout(ctx);
-  if (!ctx.isKeyword(KW.THEN)) error(`Expected ${kwq(ctx, KW.THEN)} in inline if`);
+  if (!ctx.isKeyword(KW.THEN)) error(Issue.expectedIn(kwParam(KW.THEN), tokenName('inlineIf'), `Expected ${kwq(ctx, KW.THEN)} in inline if`));
   ctx.nextWord();
   // then 分支：单个 return（内联，不带句点；句点由整条 inline-if 末尾的 return 承担）。
-  if (!ctx.isKeyword(KW.RETURN)) error(`Expected ${kwq(ctx, KW.RETURN)} after ${kwq(ctx, KW.THEN)}`);
+  if (!ctx.isKeyword(KW.RETURN)) error(Issue.expectedAfter(kwParam(KW.RETURN), kwParam(KW.THEN), `Expected ${kwq(ctx, KW.RETURN)} after ${kwq(ctx, KW.THEN)}`));
   const thenRetTok = ctx.peek();
   ctx.nextWord();
   const thenExpr = parseExpr(ctx, error);
@@ -293,7 +303,7 @@ function parseInlineIf(
       assignSpan(elseBlock, spanFromSources(nested));
     } else {
       // else return X.（末尾 return，带句点）。
-      if (!ctx.isKeyword(KW.RETURN)) error(`Expected ${kwq(ctx, KW.RETURN)} or ${kwq(ctx, KW.IF)} after ${kwKindq(ctx, SemanticTokenKind.OTHERWISE, 'else')}`);
+      if (!ctx.isKeyword(KW.RETURN)) error(Issue.expectedAfter(tokenName('returnOrIf'), kwParam(KW.OTHERWISE), `Expected ${kwq(ctx, KW.RETURN)} or ${kwq(ctx, KW.IF)} after ${kwKindq(ctx, SemanticTokenKind.OTHERWISE, 'else')}`));
       const elseRetTok = ctx.peek();
       ctx.nextWord();
       const elseExpr = parseExpr(ctx, error);
@@ -342,12 +352,12 @@ const OUTCOME_BAD_START: ReadonlyMap<TokenKind, string> = new Map([[TokenKind.CO
  */
 function parseSugarOutcome(
   ctx: ParserContext,
-  error: (msg: string) => never,
+  error: ParseErrorFn,
   reportOutcomeError: OutcomeErrorSink
 ): Return {
   const startTok = ctx.peek();
   const badStart = OUTCOME_BAD_START.get(startTok.kind);
-  if (badStart !== undefined) error(`Unexpected '${badStart}' where an outcome was expected`);
+  if (badStart !== undefined) error(Issue.unexpected(lit(badStart), `Unexpected '${badStart}' where an outcome was expected`));
   const shape: string[] = [];
   const args: Expression[] = [];
   for (let tok = ctx.peek(); !OUTCOME_END.has(tok.kind); tok = ctx.peek()) {
@@ -361,7 +371,7 @@ function parseSugarOutcome(
   }
   // 查表落空时 target 为空串：错误若被延后，整次解析终将失败，该节点不会流出
   const target = SUGAR_OUTCOMES.get(shape.join(' ')) ?? '';
-  if (target === '') reportOutcomeError(SUGAR_OUTCOME_ERROR);
+  if (target === '') reportOutcomeError(SUGAR_OUTCOME_ERROR, startTok);
   // 与 Java 一致：合成的 Name/Call/Return 共用结论词范围（不含句点）
   const span = spanFromTokens(startTok, lastNonLayoutToken(ctx));
   const call = assignSpan(Node.Call(assignSpan(Node.Name(target), span), args), span);
@@ -371,12 +381,12 @@ function parseSugarOutcome(
 /** ADR 0046：`When <cond>, <outcome>.` → `If <cond>: Return Verdict.*(…)`（无 else）。 */
 function parseWhenSugar(
   ctx: ParserContext,
-  error: (msg: string) => never,
+  error: ParseErrorFn,
   reportOutcomeError: OutcomeErrorSink
 ): If {
   const whenTok = ctx.nextWord();
   const cond = parseExpr(ctx, error);
-  if (!ctx.at(TokenKind.COMMA)) error("Expected ',' after When condition");
+  if (!ctx.at(TokenKind.COMMA)) error(Issue.expectedAfter(lit(','), tokenName('whenCondition'), "Expected ',' after When condition"));
   ctx.next();
   const ret = parseSugarOutcome(ctx, error, reportOutcomeError);
   expectPeriodEnd(ctx, error);
@@ -388,7 +398,7 @@ function parseWhenSugar(
 /** ADR 0046：`Otherwise <outcome>.` → `Return Verdict.*(…)`；须收尾所在块由 blockStatementParser 检查。 */
 function parseOtherwiseSugar(
   ctx: ParserContext,
-  error: (msg: string) => never,
+  error: ParseErrorFn,
   reportOutcomeError: OutcomeErrorSink
 ): Return {
   ctx.nextWord();
@@ -399,7 +409,7 @@ function parseOtherwiseSugar(
 
 export function parseStatement(
   ctx: ParserContext,
-  error: (msg: string) => never,
+  error: ParseErrorFn,
   reportOutcomeError: OutcomeErrorSink = error
 ): Statement {
   // ADR 0046：语句位置的 When / Otherwise 是治理结论语法糖（Match 分支的 When 由 parseCases 自行消费）
@@ -410,14 +420,14 @@ export function parseStatement(
     ctx.nextWord();
     const nameTok = ctx.peek();
     const name = parseIdent(ctx, error);
-    expectKeyword(ctx, error, KW.BE, `Use ${kwq(ctx, KW.BE)} in bindings: '${kw(ctx, KW.LET, 'Let')} x ${kw(ctx, KW.BE)} ...'.`);
+    expectKeyword(ctx, error, KW.BE, Issue.expectedIn(kwParam(KW.BE), tokenName('binding'), `Use ${kwq(ctx, KW.BE)} in bindings: '${kw(ctx, KW.LET, 'Let')} x ${kw(ctx, KW.BE)} ...'.`));
     // Special-case lambda block form to avoid trailing '.'
     if ((ctx.isKeyword('a') && tokLowerAt(ctx, ctx.index + 1) === 'function') || ctx.isKeyword('function')) {
       if (ctx.isKeyword('a')) ctx.nextWord(); // optional 'a'
       const functionTok = ctx.nextWord(); // 'function'
       const params = parseParamList(ctx, error);
       expectCommaOr(ctx);
-      expectKeyword(ctx, error, KW.PRODUCE, `Expected ${kwq(ctx, KW.PRODUCE)} and return type`);
+      expectKeyword(ctx, error, KW.PRODUCE, Issue.expected(kwParam(KW.PRODUCE), `Expected ${kwq(ctx, KW.PRODUCE)} and return type`));
       let retType: Type;
       if (ctx.at(TokenKind.COLON)) {
         retType = Node.TypeName('Unknown');
@@ -425,7 +435,7 @@ export function parseStatement(
       } else {
         retType = parseType(ctx, error);
       }
-      if (!ctx.at(TokenKind.COLON)) error("Expected ':' after return type in lambda");
+      if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfterIn(lit(':'), tokenName('returnType'), tokenName('lambda'), "Expected ':' after return type in lambda"));
       ctx.next();
       expectNewline(ctx, error);
       const body = parseBlock(ctx, error);
@@ -449,7 +459,7 @@ export function parseStatement(
     const setTok = ctx.peek();
     ctx.nextWord();
     const name = parseIdent(ctx, error);
-    expectKeyword(ctx, error, KW.TO_WORD, `Use ${kwq(ctx, KW.TO_WORD)} in assignments: '${kw(ctx, KW.SET, 'Set')} x ${kw(ctx, KW.TO_WORD)} ...'.`);
+    expectKeyword(ctx, error, KW.TO_WORD, Issue.expectedIn(kwParam(KW.TO_WORD), tokenName('assignment'), `Use ${kwq(ctx, KW.TO_WORD)} in assignments: '${kw(ctx, KW.SET, 'Set')} x ${kw(ctx, KW.TO_WORD)} ...'.`));
     const expr = parseExpr(ctx, error);
     expectPeriodEnd(ctx, error);
     const nd = Node.Set(name, expr);
@@ -481,9 +491,9 @@ export function parseStatement(
   }
   if (ctx.isKeyword(KW.AWAIT)) {
     const awaitTok = ctx.nextWord();
-    if (!ctx.at(TokenKind.LPAREN)) error("Expected '(' after await");
+    if (!ctx.at(TokenKind.LPAREN)) error(Issue.expectedAfter(lit('('), lit('await'), "Expected '(' after await"));
     const args = parseArgList(ctx, error);
-    if (args.length !== 1) error('await(expr) takes exactly one argument');
+    if (args.length !== 1) error(Issue.callArity(lit('await'), 1, args.length, 'await(expr) takes exactly one argument'));
     const target = assignTokenSpan(Node.Name('await'), awaitTok);
     const callSpanEnd = lastNonLayoutToken(ctx);
     const aw = Node.Call(target, args);
@@ -526,7 +536,7 @@ export function parseStatement(
     const mTok = ctx.peek();
     ctx.nextWord();
     const expr = parseExpr(ctx, error);
-    if (!ctx.at(TokenKind.COLON)) error("Expected ':' after match expression");
+    if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), tokenName('matchExpression'), "Expected ':' after match expression"));
     ctx.next();
     expectNewline(ctx, error);
     const cases = parseCases(ctx, error);
@@ -560,8 +570,8 @@ export function parseStatement(
   }
   if (ctx.isKeyword(KW.WITHIN)) {
     ctx.nextWord();
-    expectKeyword(ctx, error, KW.SCOPE, `Expected ${kwq(ctx, KW.SCOPE)} after ${kwq(ctx, KW.WITHIN, 'Within')}`);
-    if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.SCOPE)}`);
+    expectKeyword(ctx, error, KW.SCOPE, Issue.expectedAfter(kwParam(KW.SCOPE), kwParam(KW.WITHIN), `Expected ${kwq(ctx, KW.SCOPE)} after ${kwq(ctx, KW.WITHIN, 'Within')}`));
+    if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), kwParam(KW.SCOPE), `Expected ':' after ${kwq(ctx, KW.SCOPE)}`));
     ctx.next();
     expectNewline(ctx, error);
     return parseBlock(ctx, error); // Lowering later
@@ -569,8 +579,8 @@ export function parseStatement(
   if (ctx.isKeyword(KW.START)) {
     const startTok = ctx.nextWord();
     const name = parseIdent(ctx, error);
-    expectKeyword(ctx, error, KW.AS, `Expected ${kwq(ctx, KW.AS)} after name`);
-    expectKeyword(ctx, error, KW.ASYNC, `Expected ${kwq(ctx, KW.ASYNC)}`);
+    expectKeyword(ctx, error, KW.AS, Issue.expectedAfter(kwParam(KW.AS), tokenName('name'), `Expected ${kwq(ctx, KW.AS)} after name`));
+    expectKeyword(ctx, error, KW.ASYNC, Issue.expected(kwParam(KW.ASYNC), `Expected ${kwq(ctx, KW.ASYNC)}`));
     const expr = parseExpr(ctx, error);
     expectPeriodEnd(ctx, error);
     const nd = Node.Start(name, expr);
@@ -599,19 +609,19 @@ export function parseStatement(
     return nd as Statement;
   }
 
-  error('Unknown statement');
+  error(Issue.unexpectedConstruct(tokenName('statement'), 'Unknown statement'));
 }
 
 function parseWorkflow(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): WorkflowStmt {
   const workflowTok = ctx.peek();
-  expectKeyword(ctx, error, KW.WORKFLOW, `Expected ${kwq(ctx, KW.WORKFLOW)}`);
-  if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.WORKFLOW)}`);
+  expectKeyword(ctx, error, KW.WORKFLOW, Issue.expected(kwParam(KW.WORKFLOW), `Expected ${kwq(ctx, KW.WORKFLOW)}`));
+  if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), kwParam(KW.WORKFLOW), `Expected ':' after ${kwq(ctx, KW.WORKFLOW)}`));
   ctx.next();
   expectNewline(ctx, error);
-  if (!ctx.at(TokenKind.INDENT)) error('Expected indent after workflow header');
+  if (!ctx.at(TokenKind.INDENT)) error(Issue.expectedAfter(tokenName('indent'), tokenName('workflowHeader'), 'Expected indent after workflow header'));
   ctx.next();
   ctx.consumeNewlines();
   const steps: StepStmt[] = [];
@@ -619,7 +629,7 @@ function parseWorkflow(
     steps.push(parseStep(ctx, error));
     ctx.consumeNewlines();
   }
-  if (steps.length === 0) error('Workflow must declare at least one step');
+  if (steps.length === 0) error(Issue.emptyBlock(kwParam(KW.WORKFLOW), kwParam(KW.STEP), 'Workflow must declare at least one step'));
   let retry: RetryPolicy | undefined;
   if (ctx.isKeyword(KW.RETRY)) {
     retry = parseRetryPolicy(ctx, error);
@@ -630,7 +640,7 @@ function parseWorkflow(
     timeout = parseTimeout(ctx, error);
     ctx.consumeNewlines();
   }
-  if (!ctx.at(TokenKind.DEDENT)) error('Expected dedent after workflow body');
+  if (!ctx.at(TokenKind.DEDENT)) error(Issue.expectedAfter(tokenName('dedent'), tokenName('workflowBody'), 'Expected dedent after workflow body'));
   ctx.next();
   ctx.consumeNewlines();
   expectPeriodEnd(ctx, error);
@@ -642,20 +652,20 @@ function parseWorkflow(
 
 function parseStep(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): StepStmt {
   const stepTok = ctx.peek();
-  expectKeyword(ctx, error, KW.STEP, `Expected ${kwq(ctx, KW.STEP)}`);
+  expectKeyword(ctx, error, KW.STEP, Issue.expected(kwParam(KW.STEP), `Expected ${kwq(ctx, KW.STEP)}`));
   const name = parseIdent(ctx, error);
   const dependencies: string[] = [];
   if (ctx.isKeyword(KW.DEPENDS)) {
     ctx.nextWord();
-    expectKeyword(ctx, error, KW.ON, `Expected ${kwq(ctx, KW.ON)} after ${kwq(ctx, KW.DEPENDS)}`);
-    if (!ctx.at(TokenKind.LBRACKET)) error(`Expected '[' after '${kw(ctx, KW.DEPENDS)} ${kw(ctx, KW.ON)}'`);
+    expectKeyword(ctx, error, KW.ON, Issue.expectedAfter(kwParam(KW.ON), kwParam(KW.DEPENDS), `Expected ${kwq(ctx, KW.ON)} after ${kwq(ctx, KW.DEPENDS)}`));
+    if (!ctx.at(TokenKind.LBRACKET)) error(Issue.expectedAfter(lit('['), kwParam(KW.DEPENDS), `Expected '[' after '${kw(ctx, KW.DEPENDS)} ${kw(ctx, KW.ON)}'`));
     ctx.next();
     if (!ctx.at(TokenKind.RBRACKET)) {
       while (true) {
-        if (!ctx.at(TokenKind.STRING)) error('Expected string dependency name');
+        if (!ctx.at(TokenKind.STRING)) error(Issue.expected(tokenName('dependencyName'), 'Expected string dependency name'));
         const depTok = ctx.next();
         dependencies.push(depTok.value as string);
         if (ctx.at(TokenKind.COMMA)) {
@@ -665,13 +675,13 @@ function parseStep(
         if (ctx.at(TokenKind.RBRACKET)) {
           break;
         }
-        error("Expected ',' or ']' after dependency name");
+        error(Issue.expectedAfter(tokenName('commaOrCloseBracket'), tokenName('dependencyName'), "Expected ',' or ']' after dependency name"));
       }
     }
-    if (!ctx.at(TokenKind.RBRACKET)) error("Expected ']' to close dependency list");
+    if (!ctx.at(TokenKind.RBRACKET)) error(Issue.expectedIn(lit(']'), tokenName('dependencyList'), "Expected ']' to close dependency list"));
     ctx.next();
   }
-  if (!ctx.at(TokenKind.COLON)) error("Expected ':' after step name");
+  if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), tokenName('stepName'), "Expected ':' after step name"));
   ctx.next();
   expectNewline(ctx, error);
   const body = parseBlock(ctx, error);
@@ -679,7 +689,7 @@ function parseStep(
   let compensate: Block | undefined;
   if (ctx.isKeyword(KW.COMPENSATE)) {
     ctx.nextWord();
-    if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.COMPENSATE)}`);
+    if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), kwParam(KW.COMPENSATE), `Expected ':' after ${kwq(ctx, KW.COMPENSATE)}`));
     ctx.next();
     expectNewline(ctx, error);
     compensate = parseBlock(ctx, error);
@@ -693,13 +703,15 @@ function parseStep(
 
 function parseRetryPolicy(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): RetryPolicy {
-  expectKeyword(ctx, error, KW.RETRY, `Expected ${kwq(ctx, KW.RETRY)}`);
-  if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.RETRY)}`);
+  // 缺必填指令的错误落在 retry 关键词上（与 Java AstBuilder 报在 retrySection 上一致），而非区块末尾
+  const retryTok = ctx.peek();
+  expectKeyword(ctx, error, KW.RETRY, Issue.expected(kwParam(KW.RETRY), `Expected ${kwq(ctx, KW.RETRY)}`));
+  if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), kwParam(KW.RETRY), `Expected ':' after ${kwq(ctx, KW.RETRY)}`));
   ctx.next();
   expectNewline(ctx, error);
-  if (!ctx.at(TokenKind.INDENT)) error('Expected indent for retry policy');
+  if (!ctx.at(TokenKind.INDENT)) error(Issue.expectedIn(tokenName('indent'), tokenName('retryPolicy'), 'Expected indent for retry policy'));
   ctx.next();
   ctx.consumeNewlines();
   let maxAttempts: number | null = null;
@@ -707,50 +719,50 @@ function parseRetryPolicy(
   while (!ctx.at(TokenKind.DEDENT)) {
     if (ctx.isKeywordSeq(MAX_ATTEMPTS_PARTS)) {
       ctx.nextWords(MAX_ATTEMPTS_PARTS);
-      if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.MAX_ATTEMPTS)}`);
+      if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), kwParam(KW.MAX_ATTEMPTS), `Expected ':' after ${kwq(ctx, KW.MAX_ATTEMPTS)}`));
       ctx.next();
-      if (!ctx.at(TokenKind.INT)) error(`Expected integer after ${kwq(ctx, KW.MAX_ATTEMPTS)}`);
+      if (!ctx.at(TokenKind.INT)) error(Issue.expectedAfter(tokenName('integer'), kwParam(KW.MAX_ATTEMPTS), `Expected integer after ${kwq(ctx, KW.MAX_ATTEMPTS)}`));
       const attempts = ctx.next().value as number;
-      if (attempts <= 0) error(`${kwq(ctx, KW.MAX_ATTEMPTS)} must be greater than zero`);
+      if (attempts <= 0) error(Issue.invalidValue(kwParam(KW.MAX_ATTEMPTS), attempts, tokenName('positiveInteger'), `${kwq(ctx, KW.MAX_ATTEMPTS)} must be greater than zero`));
       maxAttempts = attempts;
       expectPeriodEnd(ctx, error);
     } else if (ctx.isKeyword(KW.BACKOFF)) {
       ctx.nextWord();
-      if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.BACKOFF)}`);
+      if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), kwParam(KW.BACKOFF), `Expected ':' after ${kwq(ctx, KW.BACKOFF)}`));
       ctx.next();
       const modeTok = ctx.nextWord();
       const mode = String(modeTok.value ?? '').toLowerCase();
       if (mode !== 'exponential' && mode !== 'linear') {
-        error("Backoff must be either 'exponential' or 'linear'");
+        error(Issue.invalidValue(kwParam(KW.BACKOFF), tokenLit(modeTok), tokenName('exponentialOrLinear'), "Backoff must be either 'exponential' or 'linear'"));
       }
       backoff = mode as RetryPolicy['backoff'];
       expectPeriodEnd(ctx, error);
     } else {
-      error('Unknown retry directive');
+      error(Issue.unknownName(tokenName('retryDirective'), tokenLit(ctx.peek()), 'Unknown retry directive'));
     }
     ctx.consumeNewlines();
   }
   ctx.next();
-  if (maxAttempts === null) error(`Retry section must include ${kwq(ctx, KW.MAX_ATTEMPTS)}`);
-  if (backoff === null) error(`Retry section must include ${kwq(ctx, KW.BACKOFF)}`);
+  if (maxAttempts === null) error(Issue.emptyBlock(kwParam(KW.RETRY), kwParam(KW.MAX_ATTEMPTS), `Retry section must include ${kwq(ctx, KW.MAX_ATTEMPTS)}`), retryTok);
+  if (backoff === null) error(Issue.emptyBlock(kwParam(KW.RETRY), kwParam(KW.BACKOFF), `Retry section must include ${kwq(ctx, KW.BACKOFF)}`), retryTok);
   return { maxAttempts, backoff };
 }
 
 function parseTimeout(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Timeout {
-  expectKeyword(ctx, error, KW.TIMEOUT, `Expected ${kwq(ctx, KW.TIMEOUT)}`);
-  if (!ctx.at(TokenKind.COLON)) error(`Expected ':' after ${kwq(ctx, KW.TIMEOUT)}`);
+  expectKeyword(ctx, error, KW.TIMEOUT, Issue.expected(kwParam(KW.TIMEOUT), `Expected ${kwq(ctx, KW.TIMEOUT)}`));
+  if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), kwParam(KW.TIMEOUT), `Expected ':' after ${kwq(ctx, KW.TIMEOUT)}`));
   ctx.next();
-  if (!ctx.at(TokenKind.INT)) error('Expected integer timeout value');
+  if (!ctx.at(TokenKind.INT)) error(Issue.expected(tokenName('timeoutInteger'), 'Expected integer timeout value'));
   const secondsTok = ctx.next();
   const seconds = secondsTok.value as number;
-  if (seconds < 0) error('Timeout value must be non-negative');
+  if (seconds < 0) error(Issue.invalidValue(kwParam(KW.TIMEOUT), seconds, tokenName('nonNegativeInteger'), 'Timeout value must be non-negative'));
   if (!(ctx.isKeyword('seconds') || ctx.isKeyword('second'))) {
     // 'seconds' 不做本地化：所有 locale 的词表都没有时间单位的本地拼写，
     // zh/de 作者同样只能写英文 seconds，报错里的 'seconds' 正是作者该写的词。
-    error("Timeout must specify time unit 'seconds'");
+    error(Issue.invalidValue(tokenName('timeoutUnit'), tokenLit(ctx.peek()), lit('seconds'), "Timeout must specify time unit 'seconds'"));
   }
   ctx.nextWord();
   expectPeriodEnd(ctx, error);
@@ -765,7 +777,7 @@ function parseTimeout(
  */
 function parseCases(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Case[] {
   const cases: Case[] = [];
 
@@ -773,16 +785,16 @@ function parseCases(
   ctx.pushCompoundContext(KW.MATCH);
 
   try {
-    if (!ctx.at(TokenKind.INDENT)) error('Expected indent for cases');
+    if (!ctx.at(TokenKind.INDENT)) error(Issue.expectedIn(tokenName('indent'), tokenName('matchCases'), 'Expected indent for cases'));
     ctx.next();
     while (!ctx.at(TokenKind.DEDENT)) {
       if (!ctx.isKeyword(KW.WHEN)) {
         // 改进的错误消息，提示复合模式关系
-        error(`Expected ${kwq(ctx, KW.WHEN, 'When')} (若...为 pattern requires '为' after '若')`);
+        error(Issue.expectedIn(kwParam(KW.WHEN), tokenName('matchCase'), `Expected ${kwq(ctx, KW.WHEN, 'When')} (若...为 pattern requires '为' after '若')`));
       }
       const whenTok = ctx.nextWord();
       const pat = parsePattern(ctx, error);
-      if (!ctx.at(TokenKind.COMMA)) error("Expected ',' after pattern");
+      if (!ctx.at(TokenKind.COMMA)) error(Issue.expectedAfter(lit(','), tokenName('pattern'), "Expected ',' after pattern"));
       ctx.next();
       const body = parseCaseBody(ctx, error);
       const caseNode = Node.Case(pat, body);
@@ -807,7 +819,7 @@ function parseCases(
  */
 function parseCaseBody(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Block | import('../types.js').Return {
   if (ctx.isKeyword(KW.RETURN)) {
     const retTok = ctx.nextWord();
@@ -829,7 +841,7 @@ function parseCaseBody(
  */
 export function parseExpr(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression {
   // Enforce a max nesting depth. Every parenthesized sub-expression re-enters
   // parseExpr, so counting here bounds the recursive-descent stack and turns a
@@ -856,21 +868,23 @@ export function parseExpr(
  */
 function parseIfExpr(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression {
   const startTok = ctx.peek();
   ctx.nextWord(); // 消费 IF
   const cond = parseOr(ctx, error);
   skipInlineThenLayout(ctx);
-  if (!ctx.isKeyword(KW.THEN)) error(`Expected ${kwq(ctx, KW.THEN)} in if-expression`);
+  if (!ctx.isKeyword(KW.THEN)) error(Issue.expectedIn(kwParam(KW.THEN), tokenName('ifExpression'), `Expected ${kwq(ctx, KW.THEN)} in if-expression`));
   ctx.nextWord(); // 消费 THEN
   const thenE = parseExpr(ctx, error);
   skipInlineElseLayout(ctx);
   if (!ctx.isKeyword(KW.ELSE) && !ctx.isKeyword(KW.OTHERWISE)) {
-    error(
+    error(Issue.expectedIn(
+      kwParam(KW.OTHERWISE),
+      tokenName('ifExpression'),
       `Expected ${kwKindq(ctx, SemanticTokenKind.OTHERWISE, 'else')} in if-expression ` +
         `(${kwKind(ctx, SemanticTokenKind.OTHERWISE, 'else')} is mandatory for expression-level if)`,
-    );
+    ));
   }
   ctx.nextWord(); // 消费 ELSE / OTHERWISE
   const elseE = parseExpr(ctx, error);
@@ -960,7 +974,7 @@ function skipOperandContinuation(ctx: ParserContext): void {
  */
 function parseOr(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression {
   let left = parseAnd(ctx, error);
   while (ctx.isKeyword(KW.OR) || tryContinuation(ctx, () => ctx.isKeyword(KW.OR))) {
@@ -981,7 +995,7 @@ function parseOr(
  */
 function parseAnd(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression {
   let left = parseNot(ctx, error);
   const isAndOp = (): boolean => ctx.isKeyword(KW.AND) && !isListSeparatorAnd(ctx);
@@ -1005,7 +1019,7 @@ function parseAnd(
  */
 function parseNot(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression {
   // 「not equal to」是比较运算符，不是一元 not——交给 parseComparison 处理
   if (ctx.isKeyword(KW.NOT) && !ctx.isKeywordSeq(['not', 'equal', 'to'])) {
@@ -1027,7 +1041,7 @@ function parseNot(
  */
 function parseComparison(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression {
   let left = parseAddition(ctx, error);
 
@@ -1177,7 +1191,7 @@ function parseComparison(
  */
 function parseAddition(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression {
   let left = parseMultiplication(ctx, error);
 
@@ -1225,7 +1239,7 @@ function parseAddition(
  */
 function parseMultiplication(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression {
   let left = parseApplyOrPrimary(ctx, error);
 
@@ -1354,12 +1368,12 @@ function isValidCallTargetWord(word: string): boolean {
 
 function parseApplyOrPrimary(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression {
   if (ctx.isKeyword(KW.APPLY) && applyLooksLikeCall(ctx)) {
     const applyTok = ctx.nextWord();
     const fn = parseCallTargetName(ctx, error);
-    expectKeyword(ctx, error, KW.TO_WORD, `Use '${kw(ctx, KW.APPLY)} <fn> ${kw(ctx, KW.TO_WORD)} <arg>' (expected ${kwq(ctx, KW.TO_WORD)}).`);
+    expectKeyword(ctx, error, KW.TO_WORD, Issue.expectedIn(kwParam(KW.TO_WORD), kwParam(KW.APPLY), `Use '${kw(ctx, KW.APPLY)} <fn> ${kw(ctx, KW.TO_WORD)} <arg>' (expected ${kwq(ctx, KW.TO_WORD)}).`));
     const arg = parseExpr(ctx, error);
     const call = Node.Call(fn, [arg]);
     assignSpan(call, spanFromSources(applyTok, arg));
@@ -1396,11 +1410,11 @@ function applyLooksLikeCall(ctx: ParserContext): boolean {
 /** 解析调用目标名：裸名或限定名点链（不吃 `(`、不构造 Call/Construct）。与 Java callTarget 对齐。 */
 function parseCallTargetName(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression {
   const startTok = ctx.peek();
   if (!ctx.at(TokenKind.IDENT) && !ctx.at(TokenKind.TYPE_IDENT)) {
-    error(`Expected a function name after ${kwq(ctx, KW.APPLY)}.`);
+    error(Issue.expectedAfter(tokenName('functionName'), kwParam(KW.APPLY), `Expected a function name after ${kwq(ctx, KW.APPLY)}.`));
   }
   const consumed: Token[] = [ctx.peek()];
   let full = ctx.at(TokenKind.IDENT) ? parseIdent(ctx, error) : (ctx.next().value as string);
@@ -1475,13 +1489,13 @@ function operatorWordBeforeParen(ctx: ParserContext, english: boolean): string |
  */
 function parseOperatorWordCall(
   ctx: ParserContext,
-  error: (msg: string) => never,
+  error: ParseErrorFn,
   word: string,
   english: boolean
 ): Expression {
   const symbol = english ? null : OPERATOR_WORD_SYMBOLS.get(word);
   if (!symbol) {
-    error(`运算符词 ${kwq(ctx, word)} 不能用作前缀调用；只有符号运算符 ${PREFIX_SYMBOL_LIST} 可以写成 op(a, b)`);
+    error(Issue.invalidValue(tokenName('prefixOperator'), kwParam(word), lit(PREFIX_SYMBOL_LIST), `运算符词 ${kwq(ctx, word)} 不能用作前缀调用；只有符号运算符 ${PREFIX_SYMBOL_LIST} 可以写成 op(a, b)`));
   }
   return parsePrefixOperatorCall(ctx, error, symbol, kwParts(word).length);
 }
@@ -1489,21 +1503,21 @@ function parseOperatorWordCall(
 /** 前缀运算符调用：恰好 2 个实参，降为与中缀相同的 Call(Name(op), [a, b])。运算符可占多个 token。 */
 function parsePrefixOperatorCall(
   ctx: ParserContext,
-  error: (msg: string) => never,
+  error: ParseErrorFn,
   op: string,
   opTokenCount = 1
 ): Expression {
   const opTok = ctx.next();
   for (let k = 1; k < opTokenCount; k++) ctx.next();
   const args = parseArgList(ctx, error);
-  if (args.length !== 2) error(`前缀操作符调用需要 2 个参数，但实际为 ${args.length}`);
+  if (args.length !== 2) error(Issue.callArity(tokenName('prefixOperatorCall'), 2, args.length, `前缀操作符调用需要 2 个参数，但实际为 ${args.length}`));
   const target = assignTokenSpan(Node.Name(op), opTok);
   return assignSpan(Node.Call(target, args), spanFromTokens(opTok, lastNonLayoutToken(ctx)));
 }
 
 function parsePrimary(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression {
   const prefixOp = PREFIX_OPERATORS.get(ctx.peek().kind);
   if (prefixOp !== undefined && ctx.peek(1).kind === TokenKind.LPAREN) {
@@ -1521,7 +1535,7 @@ function parsePrimary(
     const functionTok = ctx.nextWord(); // 'function'
     const params = parseParamList(ctx, error);
     expectCommaOr(ctx);
-    expectKeyword(ctx, error, KW.PRODUCE, `Expected ${kwq(ctx, KW.PRODUCE)} and return type`);
+    expectKeyword(ctx, error, KW.PRODUCE, Issue.expected(kwParam(KW.PRODUCE), `Expected ${kwq(ctx, KW.PRODUCE)} and return type`));
     let retType: Type;
     if (ctx.at(TokenKind.COLON)) {
       retType = Node.TypeName('Unknown');
@@ -1529,7 +1543,7 @@ function parsePrimary(
     } else {
       retType = parseType(ctx, error);
     }
-    if (!ctx.at(TokenKind.COLON)) error("Expected ':' after return type in lambda");
+    if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfterIn(lit(':'), tokenName('returnType'), tokenName('lambda'), "Expected ':' after return type in lambda"));
     ctx.next();
     expectNewline(ctx, error);
     const body = parseBlock(ctx, error);
@@ -1681,7 +1695,7 @@ function parsePrimary(
   if (ctx.isKeyword(KW.AWAIT)) {
     const awaitTok = ctx.nextWord();
     const args = parseArgList(ctx, error);
-    if (args.length !== 1) error('await(expr) takes exactly one argument');
+    if (args.length !== 1) error(Issue.callArity(lit('await'), 1, args.length, 'await(expr) takes exactly one argument'));
     const target = assignTokenSpan(Node.Name('await'), awaitTok);
     const call = Node.Call(target, args);
     const endTok = lastNonLayoutToken(ctx);
@@ -1705,7 +1719,7 @@ function parsePrimary(
         break;
       }
     }
-    if (!ctx.at(TokenKind.RBRACKET)) error("Expected ']' to close list literal");
+    if (!ctx.at(TokenKind.RBRACKET)) error(Issue.expectedIn(lit(']'), tokenName('listLiteral'), "Expected ']' to close list literal"));
     const rbrackTok = ctx.next();
     const list = Node.ListLit(elements);
     assignSpan(list, spanFromSources(lbrackTok, rbrackTok));
@@ -1716,7 +1730,7 @@ function parsePrimary(
   if (ctx.at(TokenKind.LPAREN)) {
     const lparenTok = ctx.next();
     const expr = parseExpr(ctx, error);
-    if (!ctx.at(TokenKind.RPAREN)) error("Expected ')' after expression");
+    if (!ctx.at(TokenKind.RPAREN)) error(Issue.expectedAfter(lit(')'), tokenName('expression'), "Expected ')' after expression"));
     const rparenTok = ctx.next();
     assignSpanFromSources(expr, lparenTok, rparenTok, expr);
     return expr;
@@ -1735,7 +1749,7 @@ function parsePrimary(
       const withTok = ctx.nextWord();
       const fields: ConstructField[] = [];
       let hasMore = true;
-      const setToMissing = `Expected '${kw(ctx, KW.SET)} ${kw(ctx, KW.TO_WORD)}' in construction`;
+      const setToMissing = Issue.expectedIn(kwParam(KW.SET), tokenName('construction'), `Expected '${kw(ctx, KW.SET)} ${kw(ctx, KW.TO_WORD)}' in construction`);
       while (hasMore) {
         const nameTok = ctx.peek();
         // 字段位置不是名字（如 `helper with 10` 这种 with 调用后缀）：与 Java 引擎
@@ -1746,7 +1760,7 @@ function parsePrimary(
         if (!ctx.isKeyword(KW.SET)) error(setToMissing);
         const equalsTok = ctx.peek();
         ctx.nextWord();
-        if (!ctx.isKeyword(KW.TO_WORD)) error(`Expected ${kwq(ctx, KW.TO_WORD)} after ${kwq(ctx, KW.SET)} in construction`);
+        if (!ctx.isKeyword(KW.TO_WORD)) error(Issue.expectedAfterIn(kwParam(KW.TO_WORD), kwParam(KW.SET), tokenName('construction'), `Expected ${kwq(ctx, KW.TO_WORD)} after ${kwq(ctx, KW.SET)} in construction`));
         ctx.nextWord();
         const e = parseExpr(ctx, error);
         const fld: ConstructField = {
@@ -1790,7 +1804,7 @@ function parsePrimary(
         consumedTokens.push(partTok);
         full += '.' + (partTok.value as string);
       } else {
-        error('Expected identifier after dot');
+        error(Issue.expectedAfter(tokenName('identifier'), lit('.'), 'Expected identifier after dot'));
       }
     }
     const target = Node.Name(full);
@@ -1801,10 +1815,11 @@ function parsePrimary(
       // 直到运行时才抛 Undefined function；在此于编译期就报错并给出正确写法。
       // 仅拦截裸类型名（无点链后缀），点链形态（如 SomeType.method(...)）不受影响。
       if (full === typeName && ctx.declaredRecordTypes.has(typeName)) {
-        error(
+        error(Issue.unexpectedConstruct(
+          tokenName('positionalConstruction'),
           `Cannot construct '${typeName}' with positional arguments. ` +
           `Use named fields instead: '${typeName} ${kw(ctx, KW.WITH)} <field> ${kw(ctx, KW.SET)} ${kw(ctx, KW.TO_WORD)} <value> ${kw(ctx, KW.AND)} ...'`,
-        );
+        ));
       }
       const args = parseArgList(ctx, error);
       const call = Node.Call(target, args);
@@ -1843,10 +1858,11 @@ function parsePrimary(
     if (ctx.at(TokenKind.LPAREN)) {
       // 同 TYPE_IDENT 分支：拦截对已声明类型的位置式构造（无大小写语言里类型名是 IDENT）。
       if (full === name && ctx.declaredRecordTypes.has(name)) {
-        error(
+        error(Issue.unexpectedConstruct(
+          tokenName('positionalConstruction'),
           `Cannot construct '${name}' with positional arguments. ` +
           `Use named fields instead: '${name} ${kw(ctx, KW.WITH)} <field> ${kw(ctx, KW.SET)} ${kw(ctx, KW.TO_WORD)} <value> ${kw(ctx, KW.AND)} ...'`,
-        );
+        ));
       }
       const args = parseArgList(ctx, error);
       const call = Node.Call(target, args);
@@ -1857,7 +1873,7 @@ function parsePrimary(
     return target;
   }
 
-  error('Unexpected expression');
+  error(Issue.unexpectedConstruct(tokenName('expression'), 'Unexpected expression'));
 }
 
 /**
@@ -1868,9 +1884,9 @@ function parsePrimary(
  */
 export function parseArgList(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Expression[] {
-  if (!ctx.at(TokenKind.LPAREN)) error("Expected '('");
+  if (!ctx.at(TokenKind.LPAREN)) error(Issue.expected(lit('('), "Expected '('"));
   ctx.next();
   const args: Expression[] = [];
   while (!ctx.at(TokenKind.RPAREN)) {
@@ -1880,7 +1896,7 @@ export function parseArgList(
       continue;
     } else break;
   }
-  if (!ctx.at(TokenKind.RPAREN)) error("Expected ')'");
+  if (!ctx.at(TokenKind.RPAREN)) error(Issue.expected(lit(')'), "Expected ')'"));
   ctx.next();
   return args;
 }
@@ -1893,7 +1909,7 @@ export function parseArgList(
  */
 export function parsePattern(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): Pattern {
   if (ctx.isKeyword(KW.NULL) || ctx.at(TokenKind.NULL)) {
     const tok = ctx.at(TokenKind.NULL) ? ctx.next() : ctx.nextWord();
@@ -1927,7 +1943,7 @@ export function parsePattern(
           continue;
         } else break;
       }
-      if (!ctx.at(TokenKind.RPAREN)) error("Expected ')' in pattern");
+      if (!ctx.at(TokenKind.RPAREN)) error(Issue.expectedIn(lit(')'), tokenName('pattern'), "Expected ')' in pattern"));
       const rparenTok = ctx.next();
       const node = Node.PatternCtor(typeName, names);
       assignSpan(node, spanFromSources(typeTok, lparenTok, rparenTok, ...nameTokens));
@@ -1953,7 +1969,7 @@ export function parsePattern(
  */
 export function parseParamList(
   ctx: ParserContext,
-  error: (msg: string, tok?: import('../types.js').Token) => never
+  error: ParseErrorFn
 ): Parameter[] {
   const params: Parameter[] = [];
   // 'with' / 'given' params — type annotation uses 'as' keyword
@@ -2134,13 +2150,13 @@ export function inferLambdaReturnType(e: Expression): Type {
  */
 function parseIdent(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): string {
   // 标识符位置容忍"被翻译成关键词的标识符"（见 tryReadTranslatedIdent），否则要求 IDENT。
   const recovered = tryReadTranslatedIdent(ctx);
   if (recovered !== null) return recovered;
   if (!ctx.at(TokenKind.IDENT)) {
-    error('Expected identifier');
+    error(Issue.expected(tokenName('identifier'), 'Expected identifier'));
   }
   return ctx.next().value as string;
 }
@@ -2154,11 +2170,11 @@ function parseIdent(
  */
 function expectKeyword(
   ctx: ParserContext,
-  error: (msg: string) => never,
+  error: ParseErrorFn,
   kw: string,
-  msg: string
+  issue: ParseIssue
 ): void {
-  if (!ctx.isKeyword(kw)) error(msg);
+  if (!ctx.isKeyword(kw)) error(issue);
   ctx.nextWord();
 }
 
@@ -2179,8 +2195,8 @@ function expectCommaOr(ctx: ParserContext): void {
  */
 function expectNewline(
   ctx: ParserContext,
-  error: (msg: string) => never
+  error: ParseErrorFn
 ): void {
-  if (!ctx.at(TokenKind.NEWLINE)) error('Expected newline');
+  if (!ctx.at(TokenKind.NEWLINE)) error(Issue.expected(tokenName('newline'), 'Expected newline'));
   ctx.next();
 }
