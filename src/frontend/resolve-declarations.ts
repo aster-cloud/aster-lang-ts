@@ -137,6 +137,8 @@ function declare(r: Resolver, written: string, role: ResolvedRole, maps: readonl
 interface DeclaredSite {
   readonly resolved: Resolved;
   readonly span: Span | undefined;
+  /** 导入别名（R57：只参与查重，不登记为类型）。 */
+  readonly importAlias?: boolean;
 }
 
 /** 同角色同作用域两个声明解析到同一规范名 → E807（报在后一处）。 */
@@ -164,6 +166,21 @@ function bySourceOrder(a: DeclaredSite, b: DeclaredSite): number {
   return pa.line - pb.line || pa.col - pb.col;
 }
 
+/**
+ * R57（ADR 0051 §16.2）：导入别名（`Use … as X` 的 X；无 as 时为模块路径末段）与顶层类型、枚举、
+ * 类型别名共用一个命名空间，按源码顺序与它们一起查重，冲突报 E807，无优先级。
+ * 别名只参与查重，不登记为类型（导入模块的类型仍由 registerImports 提供）；两个同名导入别名
+ * 之间不在本规则内（只保留第一个参与查重，避免对重复导入重复报 E807）。
+ */
+function importAliasSite(d: AST.Import, typeSites: readonly DeclaredSite[]): DeclaredSite | null {
+  const visible = d.asName ?? d.name.split('.').pop() ?? '';
+  if (visible === '') return null;
+  const canonical = nfc(visible);
+  const isImport = (s: DeclaredSite): boolean => s.importAlias === true && s.resolved.canonical === canonical;
+  if (typeSites.some(isImport)) return null;
+  return { resolved: { canonical, role: 'TYPE_DECL', written: visible }, span: d.span, importAlias: true };
+}
+
 /** 预先解析全部声明名，建立模块符号表（含导入），供后续引用位置使用。 */
 interface DeclNames {
   readonly byDecl: Map<AST.Declaration, Resolved>;
@@ -185,7 +202,11 @@ function declareTopLevel(r: Resolver, module: AST.Module): DeclNames {
     r.table.types.push(refEntry(resolved, 'TYPE'));
   });
   for (const d of module.decls) {
-    if (d.kind === 'Import') continue;
+    if (d.kind === 'Import') {
+      const site = importAliasSite(d, typeSites);
+      if (site) typeSites.push(site);
+      continue;
+    }
     const isFunc = d.kind === 'Func';
     const resolved = isFunc
       ? declare(r, d.name, 'FUNC_DECL', vocabFunctions(r), d.span)
