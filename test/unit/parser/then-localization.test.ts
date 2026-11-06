@@ -89,7 +89,7 @@ function stripDerived(o: unknown): unknown {
 
 function compileCore(source: string, lexicon: Lexicon): Core.Module {
   const result = compile(source, { lexicon });
-  assert.equal(result.success, true, `${lexicon.id}: ${JSON.stringify(result.parseErrors ?? result.loweringErrors)}`);
+  assert.equal(result.success, true, `${lexicon.id}: ${JSON.stringify(result.parseErrors ?? result.loweringDiagnostics)}`);
   assert.ok(result.core, `${lexicon.id}: 应产出 Core IR`);
   return result.core;
 }
@@ -105,7 +105,7 @@ function parseWithLexiconCore(source: string, lexicon: Lexicon): Core.Module {
 
 function expectCompiles(source: string, lexicon: Lexicon): void {
   const result = compile(source, { lexicon });
-  assert.equal(result.success, true, `${lexicon.id}: ${JSON.stringify(result.parseErrors ?? result.loweringErrors)}`);
+  assert.equal(result.success, true, `${lexicon.id}: ${JSON.stringify(result.parseErrors ?? result.loweringDiagnostics)}`);
 }
 
 describe('ADR 0029 — then 连接词四语本地化', () => {
@@ -133,7 +133,7 @@ describe('ADR 0029 — then 连接词四语本地化', () => {
   it('compile() token translation 把本地 THEN 归一为英文 then', () => {
     for (const c of CASES.slice(1)) {
       const result = compile(c.source, { lexicon: c.lexicon, includeIntermediates: true });
-      assert.equal(result.success, true, `${c.name}: ${JSON.stringify(result.parseErrors ?? result.loweringErrors)}`);
+      assert.equal(result.success, true, `${c.name}: ${JSON.stringify(result.parseErrors ?? result.loweringDiagnostics)}`);
       assert.ok(result.tokens?.some((t) => t.value === 'then'), `${c.name}: 应出现翻译后的 then token`);
       assert.equal(
         result.tokens?.some((t) => t.value === c.thenWord),
@@ -169,7 +169,7 @@ describe('ADR 0029 — then 连接词四语本地化', () => {
       ].join('\n'),
       { lexicon: ZH_CN, includeIntermediates: true },
     );
-    assert.equal(result.success, true, JSON.stringify(result.parseErrors ?? result.loweringErrors));
+    assert.equal(result.success, true, JSON.stringify(result.parseErrors ?? result.loweringDiagnostics));
     assert.ok(result.tokens?.some((t) => t.value === '那么值'), '连写词应作为一个标识符保留');
     assert.equal(result.tokens?.some((t) => t.value === 'then'), false, '那么值 不应产生 then token');
   });

@@ -52,7 +52,7 @@ describe('hi-IN（Hindi/天城文）第四语种', () => {
       ].join('\n');
 
       const result = compile(source, { lexicon: HI_IN });
-      assert.ok(result.success, `应编译成功，错误：${JSON.stringify(result.parseErrors ?? result.loweringErrors)}`);
+      assert.ok(result.success, `应编译成功，错误：${JSON.stringify(result.parseErrors ?? result.loweringDiagnostics)}`);
       assert.ok(result.core, '应产出 Core IR');
     });
 
@@ -69,7 +69,7 @@ describe('hi-IN（Hindi/天城文）第四语种', () => {
       ].join('\n');
 
       const result = compile(source, { lexicon: HI_IN });
-      assert.ok(result.success, `应编译成功，错误：${JSON.stringify(result.parseErrors ?? result.loweringErrors)}`);
+      assert.ok(result.success, `应编译成功，错误：${JSON.stringify(result.parseErrors ?? result.loweringDiagnostics)}`);
       assert.ok(result.core, '应产出 Core IR');
     });
 
@@ -85,7 +85,7 @@ describe('hi-IN（Hindi/天城文）第四语种', () => {
       ].join('\n');
 
       const result = compile(source, { lexicon: HI_IN });
-      assert.ok(result.success, `应编译成功，错误：${JSON.stringify(result.parseErrors ?? result.loweringErrors)}`);
+      assert.ok(result.success, `应编译成功，错误：${JSON.stringify(result.parseErrors ?? result.loweringDiagnostics)}`);
       assert.ok(result.core, '应产出 Core IR');
     });
   });

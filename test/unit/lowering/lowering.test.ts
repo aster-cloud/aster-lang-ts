@@ -6,6 +6,8 @@ import { parse } from '../../../src/parser.js';
 import { lowerModule } from '../../../src/lower_to_core.js';
 import { CapabilityKind } from '../../../src/config/semantic.js';
 import { Node } from '../../../src/ast/ast.js';
+import { DiagnosticError } from '../../../src/diagnostics/diagnostics.js';
+import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
 import type { Core } from '../../../src/types.js';
 import type {
   Module as AstModule,
@@ -285,7 +287,11 @@ Rule makeIdentity, produce Fn1:
     const moduleAst = Node.Module('test.lowering.effectcaps.unknown', null, [funcDecl]);
     assert.throws(
       () => lowerAst(moduleAst),
-      /Unknown effect/
+      (e: unknown) =>
+        e instanceof DiagnosticError &&
+        e.diagnostic.code === ErrorCode.LOWER_UNKNOWN_EFFECT &&
+        e.diagnostic.params?.effect === 'teleport' &&
+        /^Unknown effect 'teleport', valid values: /.test(e.message)
     );
   });
 

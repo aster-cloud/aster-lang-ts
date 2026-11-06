@@ -89,6 +89,9 @@ function generateDocs(errorCodes: ErrorCodes): string {
 - **E300-E399**: 能力系统错误
 - **E400-E499**: PII 隐私相关错误
 - **E500-E599**: 异步编程错误
+- **E600-E699**: 降级（AST → Core IR）错误，lowering 阶段的 AST 不变量守卫与内部异常
+- **E700-E799**: 治理（ADR 0039）与 Cedar 导出错误
+- **E800-E899**: 名称解析（ADR 0051）错误
 - **W0xx**: 警告级别错误码（使用 W 前缀）
 
 ---
@@ -108,6 +111,7 @@ function getCategoryDisplayName(category: string): string {
     scope: '作用域与导入',
     pii: 'PII 隐私保护',
     syntax: '语法',
+    lowering: '降级（AST → Core IR）',
     semantic: '语义',
   };
   return names[category] || category;

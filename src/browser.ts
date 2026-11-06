@@ -151,6 +151,7 @@ import type { ControlRegistry } from './governance/controls.js';
 import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
 import { attachTypeInferenceRules } from './config/lexicons/type-inference-rules.js';
 import { DiagnosticError, type Diagnostic } from './diagnostics/diagnostics.js';
+import { toLoweringDiagnostic } from './diagnostics/lowering.js';
 import { buildVocabularyScopes } from './config/lexicons/identifiers/scopes.js';
 import type { VocabularyScopes } from './config/lexicons/identifiers/scopes.js';
 import type { DomainVocabulary } from './config/lexicons/identifiers/types.js';
@@ -194,8 +195,12 @@ export interface CompileResult {
   core?: CoreTypes.Module;
   /** Parse errors (if any) - now includes position information */
   parseErrors?: ParseError[];
-  /** Lowering errors (if any) */
-  loweringErrors?: string[];
+  /**
+   * lowering（AST → Core IR）诊断（E600–E606，aster-lang-ts#302），仅在非空时出现，此时 success 为 false
+   * 且不产出 core。与 resolutionDiagnostics / typeErrors 同形：`data` 为码表模板的命名参数，
+   * 消费方按 code + data 取译文；传入 lexicon 时已按语言包 overlay 本地化（缺译回退英文）。
+   */
+  loweringDiagnostics?: TypecheckDiagnostic[];
   /**
    * 名称解析诊断（ADR 0051 E800–E807 / W800–W801），仅在非空时出现。
    * 含 error 时 success 为 false 且不产出 core；只有 warning 时编译成功。
@@ -304,14 +309,11 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     }
     return result;
   } catch (error) {
-    // Handle DiagnosticError with position information
-    if (error instanceof DiagnosticError) {
-      return { success: false, parseErrors: [toParseError(error.diagnostic)] };
-    }
-    return {
-      success: false,
-      loweringErrors: [error instanceof Error ? error.message : String(error)],
-    };
+    // lowering 守卫（E600–E605）与其它异常（E606）→ 结构化 lowering 诊断；
+    // 解析阶段抛出的 DiagnosticError 仍按解析诊断返回。
+    const lowering = toLoweringDiagnostic(error);
+    if (lowering) return { success: false, loweringDiagnostics: localizeDiagnostics([lowering], options?.lexicon) };
+    return { success: false, parseErrors: [toParseError((error as DiagnosticError).diagnostic)] };
   }
 }
 

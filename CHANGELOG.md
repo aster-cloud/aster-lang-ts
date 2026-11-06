@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### 破坏性：lowering 诊断进入共享错误码表（E600–E606，#302，与 aster-lang-core 同车次）
+
+- 共享码表新增 category=`lowering` 的 E600–E605（AST → Core IR 的不变量守卫：未知声明 / 效果 / 语句 /
+  表达式 / 模式 / 类型种类）与 E606（lowering 阶段内部异常，`detail` 为异常消息）。守卫的英文 `message`
+  原句不变，诊断的 `code` 由本地码 L101–L106 改为新码并带命名参数（`params`）。
+- `compile()` / `compileAndTypecheck()` 删除 `loweringErrors?: string[]`，改为
+  `loweringDiagnostics?: TypecheckDiagnostic[]`（与 `resolutionDiagnostics` / `typeErrors` 同形，`data` 为命名参数，
+  传入 lexicon 时按语言包 overlay 本地化，缺译回退英文）。消费方（aster-cloud `useAsterCompiler` /
+  `seed-compile-gate`）改读 `loweringDiagnostics` 并直接取 `code`，不再映射 E000。
+- 共享 parity 夹具 `shared/lowering_diagnostics_parity.json`（与 core 副本 byte-identical）：每码 en / zh / de 各一例。
+- zh / de / hi 译文待 aster-lang-locales / aster-lang-hi 补齐（locales#126），期间 overlay 校验对 lowering 码豁免缺译。
+
 ## 1.3.0
 
 ### 破坏性：删除过渡字段 legacyCode（ADR 0051 §16 R56 过渡结束，#300）
