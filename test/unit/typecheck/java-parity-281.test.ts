@@ -40,6 +40,15 @@ describe('#281 TS 不比 Java 严', () => {
     assert.deepEqual(errorCodes(src), []);
   });
 
+  // 运行时（aster-lang-truffle MatchNode.PatIntNode）对非数值 scrutinee 只返回「不匹配」并落到后续分支，
+  // 行为有定义、不崩溃；Java 也不报 E010。因此显式非 Int 类型同样放行。
+  for (const ty of ['Float', 'Decimal', 'Text']) {
+    it(`显式 ${ty} scrutinee 上的整数模式不报 E010`, () => {
+      const src = `Module m.\n\nRule f given n as ${ty}, produce Text:\n  Match n:\n    When 0, Return "zero".\n  Return "other".\n`;
+      assert.deepEqual(errorCodes(src), []);
+    });
+  }
+
   it('workflow-compensate：compensate 返回 Result of Text 不报 E022', () => {
     const src = [
       'Module demo.workflow.compensate.',

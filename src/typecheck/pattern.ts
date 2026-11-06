@@ -1,10 +1,9 @@
 import type { Core } from '../types.js';
-import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { ModuleContext } from './context.js';
 import { defineSymbol } from './context.js';
 import { SymbolTable } from './symbol_table.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
-import { formatType, isNameInferredType, isUnknown, unknownType } from './pure.js';
+import { isUnknown, unknownType } from './pure.js';
 
 export function bindPattern(
   ctx: ModuleContext,
@@ -18,17 +17,9 @@ export function bindPattern(
     return;
   }
   if (pattern.kind === 'PatNull') return;
-  if (pattern.kind === 'PatInt') {
-    // 未知或只按名字推断的 scrutinee 拿不准类型，放行（TS 不比 Java 严，aster-lang-ts#281）
-    if (isUnknown(scrutineeType) || isNameInferredType(scrutineeType)) return;
-    const isInt = scrutineeType.kind === 'TypeName' && scrutineeType.name === 'Int';
-    if (!isInt) {
-      diagnostics.error(ErrorCode.INTEGER_PATTERN_TYPE, pattern.span, {
-        scrutineeType: formatType(scrutineeType),
-      });
-    }
-    return;
-  }
+  // 整数模式不检查 scrutinee 类型：运行时（truffle MatchNode.PatIntNode）对非数值只判不匹配、落到后续分支，
+  // Java 也不报 E010；TS 不比 Java 严（aster-lang-ts#281）。
+  if (pattern.kind === 'PatInt') return;
   if (pattern.kind !== 'PatCtor') return;
   bindPatternCtor(ctx, symbols, pattern, scrutineeType, diagnostics);
 }
