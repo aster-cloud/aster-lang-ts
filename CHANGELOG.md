@@ -7,6 +7,12 @@
 - **破坏性**：解析 / 词法诊断不再带 `legacyCode`（`Diagnostic`、`compile().parseErrors`、`validateSyntaxWithSpan()`、
   LSP 诊断 `data`），只保留 `code`（E050–E069）与 `params`。消费方必须已改读新码（如原 P005 构造写法现为 E057）。
   aster-cloud 须先部署识别新码的版本，再升级到本版。
+### 新增公共导出（aster-cloud#650）
+
+- `resolvePolicyTypes()` 的 `functions[]` 新增 `entry: boolean`：该函数是否带 `@entry` 注解，调用方选入口 Rule 不必再解析一次 AST。
+- 新增通用写法解析 `buildSpellingIndex(items, spellingsOf, keyOf)` / `resolveSpelling(index, written)`（及类型
+  `SpellingIndex` / `SpellingMatch`），与引擎名称解析同口径：NFC 精确匹配优先，其次折叠键匹配；同一层命中多个不同项
+  （按 `keyOf` 去重）为 `conflict`，精确层撞名不退回折叠层。包入口与浏览器入口均导出。
 
 ## 1.2.6
 

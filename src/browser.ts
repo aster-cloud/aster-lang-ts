@@ -109,6 +109,8 @@ export {
   buildVocabularyScopes,
   canonicalScopesJson,
   foldKey,
+  buildSpellingIndex,
+  resolveSpelling,
   VocabularyScopeError,
 } from './config/lexicons/identifiers/index.js';
 export type {
@@ -119,6 +121,8 @@ export type {
   Candidate,
   VocabularyScopes,
   VocabularyScopeErrorCode,
+  SpellingIndex,
+  SpellingMatch,
 } from './config/lexicons/identifiers/index.js';
 export { resolvePolicyTypes } from './frontend/resolve-policy-types.js';
 export type {

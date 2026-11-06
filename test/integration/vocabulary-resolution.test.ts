@@ -286,6 +286,7 @@ describe('resolvePolicyTypes', () => {
         written: 'bewerten',
         params: [{ name: 'fahrer', type: { kind: 'TypeName', name: 'Driver' } }],
         returnType: { kind: 'TypeName', name: 'Int' },
+        entry: false,
       },
     ]);
     assert.deepEqual(r.types.enums, []);
@@ -320,6 +321,14 @@ describe('resolvePolicyTypes', () => {
     assert.equal(r.ok, false);
   });
 
+  it('functions[].entry 标出 @entry 注解的 Rule', () => {
+    const src = 'Module m.\n\nRule pick given x as Int, produce Int:\n  Return x.\n\n@entry Rule main given x as Int, produce Int:\n  Return x.\n';
+    const r = resolvePolicyTypes(src, { locale: 'en-US' });
+    assert.equal(r.ok, true, JSON.stringify(r));
+    if (!r.ok) return;
+    assert.deepEqual(r.types.functions.map((f) => [f.canonical, f.entry]), [['pick', false], ['main', true]]);
+  });
+
   it('aliasSet 并入 lexicon 关键词别名后解析', () => {
     const src = 'Module m.\n\nPolicy f given x as Int, produce Int:\n  Return x.\n';
     assert.equal(resolvePolicyTypes(src, { locale: 'en-US' }).ok, false);
@@ -332,7 +341,7 @@ describe('包入口导出', () => {
   for (const [name, entry] of [['browser', browserEntry], ['index', packageEntry]] as const) {
     it(`${name} 导出 buildVocabularyScopes / canonicalScopesJson / foldKey / resolvePolicyTypes`, () => {
       const e = entry as Record<string, unknown>;
-      for (const fnName of ['buildVocabularyScopes', 'canonicalScopesJson', 'foldKey', 'resolvePolicyTypes']) {
+      for (const fnName of ['buildVocabularyScopes', 'canonicalScopesJson', 'foldKey', 'resolvePolicyTypes', 'buildSpellingIndex', 'resolveSpelling']) {
         assert.equal(typeof e[fnName], 'function', fnName);
       }
       const scopes = (e.buildVocabularyScopes as (v: DomainVocabulary) => unknown)(LEVEL_FIELD_VOCAB);
