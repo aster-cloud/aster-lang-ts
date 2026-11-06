@@ -202,6 +202,12 @@ export interface CompileResult {
    */
   loweringDiagnostics?: TypecheckDiagnostic[];
   /**
+   * @deprecated 过渡字段（一个 minor 版本，与 R56 的 legacyCode 同理）：lowering 失败时为
+   * `loweringDiagnostics` 各条的英文 message；前置阶段（规范化 / 词法 / 解析）的非诊断异常仍只出现在这里
+   * （保持改码前行为，不标为 E606）。消费方改读 `loweringDiagnostics` 后于下一 minor 删除。
+   */
+  loweringErrors?: string[];
+  /**
    * 名称解析诊断（ADR 0051 E800–E807 / W800–W801），仅在非空时出现。
    * 含 error 时 success 为 false 且不产出 core；只有 warning 时编译成功。
    * E8xx 失败只出现在这里：此时 parseErrors 为空或只含 warning，
@@ -292,8 +298,17 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       return result;
     }
 
-    // 名称解析：R1 → lower → R2；任一 E8xx 不产出 core
-    const resolved = resolveAndLower(parsed.ast, scopes);
+    // 名称解析：R1 → lower → R2；任一 E8xx 不产出 core。
+    // 只有这一步的异常才是 lowering 诊断：守卫 E600–E605，其它异常 E606（#302）。
+    let resolved: ReturnType<typeof resolveAndLower>;
+    try {
+      resolved = resolveAndLower(parsed.ast, scopes);
+    } catch (error) {
+      const lowering = toLoweringDiagnostic(error);
+      if (!lowering) throw error;
+      const loweringDiagnostics = localizeDiagnostics([lowering], lexicon);
+      return { success: false, loweringDiagnostics, loweringErrors: loweringDiagnostics.map((d) => d.message) };
+    }
     const success = !hasErrors(resolved.diagnostics);
     const result: CompileResult = success ? { success, core: resolved.core } : { success };
     if (parseErrors.length > 0) {
@@ -309,11 +324,15 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     }
     return result;
   } catch (error) {
-    // lowering 守卫（E600–E605）与其它异常（E606）→ 结构化 lowering 诊断；
-    // 解析阶段抛出的 DiagnosticError 仍按解析诊断返回。
-    const lowering = toLoweringDiagnostic(error);
-    if (lowering) return { success: false, loweringDiagnostics: localizeDiagnostics([lowering], options?.lexicon) };
-    return { success: false, parseErrors: [toParseError((error as DiagnosticError).diagnostic)] };
+    // 前置阶段（规范化 / 词法 / 解析）：带位置的 DiagnosticError 按解析诊断返回，
+    // 其它异常保持改码前行为——只给裸消息，不标为 lowering 诊断。
+    if (error instanceof DiagnosticError) {
+      return { success: false, parseErrors: [toParseError(error.diagnostic)] };
+    }
+    return {
+      success: false,
+      loweringErrors: [error instanceof Error ? error.message : String(error)],
+    };
   }
 }
 

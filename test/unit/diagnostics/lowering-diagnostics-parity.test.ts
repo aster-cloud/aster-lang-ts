@@ -117,17 +117,13 @@ describe('lowering 诊断码 E600–E606 双引擎 parity 夹具（ts 侧）', (
 
   for (const c of CASES.filter((x) => x.trigger === 'internal-error')) {
     it(c.name, () => {
-      // 非字符串输入让规范化阶段抛普通异常：compile 不得吞成裸字符串，须给 E606 + detail
-      const result = compile(42 as unknown as string);
-      assert.equal(result.success, false);
-      assert.equal(result.core, undefined);
-      assert.equal(result.parseErrors, undefined);
-      assert.ok(result.loweringDiagnostics, 'loweringDiagnostics');
-      assert.deepEqual(result.loweringDiagnostics.map((d) => [d.code, d.span?.start.line ?? 0]), c.codes);
-      const [d] = result.loweringDiagnostics;
-      assertParams(d!.data as Record<string, unknown>, c.params, c.name);
-      assert.match(d!.message, /^Internal error during lowering: .+/);
-      assert.equal(d!.help, ERROR_METADATA[ErrorCode.LOWER_INTERNAL_ERROR].help);
+      // lowering 阶段的非诊断异常经 toLoweringDiagnostic 统一成 E606（compile() 只对 resolveAndLower 调用做此转换）
+      const d = toLoweringDiagnostic(new Error('boom'));
+      assert.ok(d, 'E606');
+      assert.deepEqual([[d.code, d.span?.start.line ?? 0]], c.codes);
+      assertParams(d.data as Record<string, unknown>, c.params, c.name);
+      assert.match(d.message, /^Internal error during lowering: .+/);
+      assert.equal(d.help, ERROR_METADATA[ErrorCode.LOWER_INTERNAL_ERROR].help);
     });
   }
 
@@ -214,14 +210,24 @@ describe('compile() 的 lowering 诊断（aster-lang-ts#302）', () => {
     assert.deepEqual(s?.data, { detail: 'plain' });
   });
 
-  it('compile 不再有 loweringErrors 字段；lowering 失败走 loweringDiagnostics 且 success=false', () => {
+  it('前置阶段（规范化 / 解析）的非诊断异常保持原行为：只给裸 loweringErrors，不标为 E606', () => {
     const result = compile(42 as unknown as string);
-    assert.equal('loweringErrors' in result, false);
     assert.equal(result.success, false);
-    assert.equal(result.loweringDiagnostics?.length, 1);
+    assert.equal(result.loweringDiagnostics, undefined, '前置阶段异常不是 lowering 诊断');
+    assert.equal(result.parseErrors, undefined);
+    assert.equal(result.loweringErrors?.length, 1);
+    assert.match(result.loweringErrors![0]!, /^(?!Internal error during lowering)/);
     const typed = compileAndTypecheck(42 as unknown as string);
     assert.deepEqual(typed.typeErrors, []);
-    assert.equal(typed.loweringDiagnostics?.[0]?.code, ErrorCode.LOWER_INTERNAL_ERROR);
+    assert.equal(typed.loweringDiagnostics, undefined);
+  });
+
+  it('解析期 DiagnosticError 仍走 parseErrors，不进 loweringDiagnostics', () => {
+    const result = compile('Module m.\n\nRule f given x as Int, produce Int:\n  Return "abc.\n');
+    assert.equal(result.success, false);
+    assert.equal(result.parseErrors?.[0]?.code, ErrorCode.PARSE_UNTERMINATED_STRING);
+    assert.equal(result.loweringDiagnostics, undefined);
+    assert.equal(result.loweringErrors, undefined);
   });
 
   it('正常源码不产生 loweringDiagnostics', () => {

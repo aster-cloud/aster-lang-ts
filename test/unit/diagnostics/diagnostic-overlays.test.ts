@@ -85,6 +85,32 @@ describe('诊断译文 overlay：生成表与注册', () => {
   }
 });
 
+describe('缺译豁免范围（aster-lang-ts#302）', () => {
+  const EXEMPT = TABLE.filter((s) => s.category === PENDING_TRANSLATION_CATEGORY).map((s) => s.code).sort();
+
+  it('豁免恰为 category=lowering 的 E600–E606，不含其它类别', () => {
+    assert.deepEqual(EXEMPT, ['E600', 'E601', 'E602', 'E603', 'E604', 'E605', 'E606']);
+    assert.ok(TABLE.filter((s) => s.category !== PENDING_TRANSLATION_CATEGORY).every((s) => !EXEMPT.includes(s.code)));
+  });
+
+  it('只有 lowering 码允许缺译；其它类别（含 syntax E050–E069）缺译仍报错', () => {
+    const complete: Record<string, string> = Object.fromEntries(TABLE.map((s) => [s.code, s.message]));
+    const withoutLowering = { ...complete };
+    for (const code of EXEMPT) delete withoutLowering[code];
+    assert.deepEqual(coverageProblems(withoutLowering, (s) => s.message), []);
+    for (const code of ['E001', 'E050', 'E069', 'E101', 'E800', 'W800']) {
+      const missing = { ...complete };
+      delete missing[code];
+      assert.deepEqual(coverageProblems(missing, (s) => s.message), [`${code}: 缺少译文`]);
+    }
+  });
+
+  it('已有的 lowering 译文仍须占位符一致（豁免只放过缺译）', () => {
+    const complete: Record<string, string> = Object.fromEntries(TABLE.map((s) => [s.code, s.message]));
+    assert.deepEqual(coverageProblems({ ...complete, E601: '未知效果 {effect}' }, (s) => s.message), ['E601: 占位符 effect 与英文 effect,valid 不一致']);
+  });
+});
+
 describe('generate-diagnostic-overlays 渲染', () => {
   const lexiconsJson = {
     lexicons: {
