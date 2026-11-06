@@ -1,6 +1,7 @@
 // Structured diagnostics with error codes, spans, and fix-its
 
 import type { Position, Span } from '../types.js';
+import { ErrorCode } from './error_codes.js';
 
 export enum DiagnosticSeverity {
   Error = 'error',
@@ -101,9 +102,29 @@ export interface FixIt {
   readonly replacement: string;
 }
 
+/**
+ * 解析诊断的命名参数（ADR 0051 §16 R56）。
+ *
+ * 取值约定：关键词槽位写 `kw.<规范关键词>`（消费方按 lexicon 显示），抽象 token / 语法构造
+ * 写 `token.<名称>`（沿用 syntax-diagnostics 的 token.* 词表），字面片段原样带单引号（如 `'.'`），
+ * 数值写数字。译文从 overlay 按错误码取模板后用这些参数渲染。
+ */
+export type ParseDiagnosticParams = Readonly<Record<string, string | number>>;
+
 export interface Diagnostic {
   readonly severity: DiagnosticSeverity;
-  readonly code: DiagnosticCode;
+  /**
+   * 诊断身份。解析 / 词法诊断为共享码表的 E050–E069（ADR 0051 §16 R56）；
+   * 其余（lowering、包管理等）仍为本地码。
+   */
+  readonly code: DiagnosticCode | ErrorCode;
+  /**
+   * 过渡字段：被 E050–E069 取代前的本地码（P0xx / L0xx），只保留一个发版车次，
+   * 供尚未改读新码的消费方（aster-cloud 的 P005 启发式等）使用。
+   */
+  readonly legacyCode?: DiagnosticCode;
+  /** 码表模板的命名参数（见 {@link ParseDiagnosticParams}）。 */
+  readonly params?: ParseDiagnosticParams;
   readonly message: string;
   readonly span: Span;
   readonly fixIts?: readonly FixIt[];
@@ -130,7 +151,9 @@ export class DiagnosticError extends Error {
 
 export class DiagnosticBuilder {
   private severity: DiagnosticSeverity = DiagnosticSeverity.Error;
-  private code?: DiagnosticCode;
+  private code?: DiagnosticCode | ErrorCode;
+  private legacyCode?: DiagnosticCode;
+  private params?: ParseDiagnosticParams;
   private message?: string;
   private span?: Span;
   private fixIts: FixIt[] = [];
@@ -155,6 +178,16 @@ export class DiagnosticBuilder {
 
   withCode(code: DiagnosticCode): DiagnosticBuilder {
     this.code = code;
+    return this;
+  }
+
+  /**
+   * 换成共享码表的错误码与命名参数；原本地码（若有）转入 legacyCode。
+   */
+  withErrorCode(code: ErrorCode, params: ParseDiagnosticParams = {}): DiagnosticBuilder {
+    if (this.code !== undefined && !isErrorCode(this.code)) this.legacyCode ??= this.code;
+    this.code = code;
+    this.params = params;
     return this;
   }
 
@@ -195,6 +228,13 @@ export class DiagnosticBuilder {
       span: this.span,
     };
 
+    if (this.legacyCode !== undefined) {
+      (diagnostic as { legacyCode?: DiagnosticCode }).legacyCode = this.legacyCode;
+    }
+    if (this.params !== undefined) {
+      (diagnostic as { params?: ParseDiagnosticParams }).params = this.params;
+    }
+
     if (this.fixIts.length > 0) {
       (diagnostic as { fixIts?: readonly FixIt[] }).fixIts = this.fixIts as readonly FixIt[];
     }
@@ -222,26 +262,31 @@ export class DiagnosticBuilder {
 export const Diagnostics = {
   expectedIdentifier: (pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.P001_ExpectedIdentifier)
+      .withErrorCode(ErrorCode.PARSE_EXPECTED, { token: 'token.identifier' })
       .withMessage('Expected identifier')
       .withPosition(pos),
 
   expectedToken: (expected: string, actual: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.P003_ExpectedToken)
+      .withErrorCode(ErrorCode.PARSE_UNEXPECTED_EXPECTING, { token: tokenParam(actual), expected: tokenParam(expected) })
       .withMessage(`Expected '${expected}', got '${actual}'`)
       .withPosition(pos),
 
   expectedKeyword: (keyword: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.P004_ExpectedKeyword)
+      .withErrorCode(ErrorCode.PARSE_EXPECTED, { token: `kw.${keyword}` })
       .withMessage(`Expected keyword '${keyword}'`)
       .withPosition(pos),
 
   unexpectedToken: (token: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.P005_UnexpectedToken)
+      .withErrorCode(ErrorCode.PARSE_UNEXPECTED_TOKEN, { token: tokenParam(token) })
       .withMessage(`Unexpected token '${token}'`)
       .withPosition(pos),
 
   nestingTooDeep: (limit: number, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.P015_NestingTooDeep)
+      .withErrorCode(ErrorCode.PARSE_NESTING_TOO_DEEP, { limit })
       .withMessage(`Expression/statement nesting too deep (exceeds limit of ${limit})`)
       .withPosition(pos),
 
@@ -251,6 +296,7 @@ export const Diagnostics = {
     fixIt?: { span: Span; replacement: string }
   ): DiagnosticBuilder => {
     const builder = DiagnosticBuilder.error(DiagnosticCode.P006_ExpectedPunctuation)
+      .withErrorCode(ErrorCode.PARSE_EXPECTED, { token: `'${punct}'` })
       .withMessage(`Expected '${punct}'`)
       .withPosition(pos);
 
@@ -263,24 +309,28 @@ export const Diagnostics = {
 
   unterminatedString: (pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L002_UnterminatedString)
+      .withErrorCode(ErrorCode.PARSE_UNTERMINATED_STRING)
       .withMessage('Unterminated string literal')
       .withPosition(pos),
 
   invalidIndentation: (pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L003_InvalidIndentation)
+      .withErrorCode(ErrorCode.PARSE_INDENTATION)
       .withMessage('Indentation must be multiples of 2 spaces')
       .withPosition(pos)
       .withFixIt('Use 2-space indentation', { start: pos, end: pos }, '  '),
 
   inconsistentDedent: (pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L004_InconsistentDedent)
+      .withErrorCode(ErrorCode.PARSE_INDENTATION)
       .withMessage('Inconsistent dedent level')
       .withPosition(pos),
 
   // Decimal 字面量有效位上限（ADR 0025 v1：≤38 位）。超限会让 decimal.js（precision 80）
   // 在乘法时静默按有效位舍入、而 Java BigDecimal 精确 → 双引擎分歧。硬拒以保 parity。
-  decimalTooManyDigits: (digits: number, pos: Position): DiagnosticBuilder =>
+  decimalTooManyDigits: (digits: number, pos: Position, raw: string = ''): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L005_DecimalTooManyDigits)
+      .withErrorCode(ErrorCode.PARSE_LITERAL_OUT_OF_RANGE, { kind: 'Decimal', literal: raw })
       .withMessage(`Decimal literal has ${digits} significant digits; the v1 maximum is 38 (ADR 0025). Split or round the value.`)
       .withPosition(pos),
 
@@ -289,6 +339,7 @@ export const Diagnostics = {
   // → 同一份源码在两引擎一个能跑一个崩。按 Decimal 的既定约定「两侧硬拒」保 parity。
   intLiteralOutOfRange: (raw: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L006_IntLiteralOutOfRange)
+      .withErrorCode(ErrorCode.PARSE_LITERAL_OUT_OF_RANGE, { kind: 'Int', literal: raw })
       .withMessage(
         `Integer literal ${raw} is out of range for Int (-2147483648..2147483647). ` +
         `Add the 'L' suffix for a 64-bit Long, or use a Decimal literal.`)
@@ -296,6 +347,7 @@ export const Diagnostics = {
 
   longLiteralOutOfRange: (raw: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L007_LongLiteralOutOfRange)
+      .withErrorCode(ErrorCode.PARSE_LITERAL_OUT_OF_RANGE, { kind: 'Long', literal: raw })
       .withMessage(
         `Long literal ${raw} is out of range for Long ` +
         `(-9223372036854775808..9223372036854775807). Use a Decimal literal instead.`)
@@ -305,6 +357,7 @@ export const Diagnostics = {
   // 合法值继续参与运算。硬拒，避免"看起来算出来了"的错误结果。
   floatLiteralNotFinite: (raw: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L008_FloatLiteralNotFinite)
+      .withErrorCode(ErrorCode.PARSE_LITERAL_OUT_OF_RANGE, { kind: 'Float', literal: raw })
       .withMessage(
         `Float literal ${raw} overflows to Infinity and is not a finite Float. ` +
         `Use a Decimal literal for values beyond the double range.`)
@@ -312,6 +365,7 @@ export const Diagnostics = {
 
   unexpectedCharacter: (char: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L001_UnexpectedCharacter)
+      .withErrorCode(ErrorCode.PARSE_UNEXPECTED_CHARACTER, { char: `'${char}'` })
       .withMessage(`Unexpected character '${char}'`)
       .withPosition(pos),
 
@@ -347,6 +401,20 @@ export const Diagnostics = {
       .withPosition(pos),
 };
 
+/** 码值是否属于共享码表（E/W 开头），用于区分本地 P/L 码。 */
+function isErrorCode(code: DiagnosticCode | ErrorCode): code is ErrorCode {
+  return /^[EW]\d{3}$/.test(code);
+}
+
+/**
+ * 把 TokenKind 名或 token 文本转成命名参数：词法种类（全大写，如 NEWLINE / TYPE_IDENT）
+ * 写成 `token.<小写名>`；其余视为字面片段，带单引号。
+ */
+export function tokenParam(kindOrText: string): string {
+  if (/^[A-Z][A-Z_]*$/.test(kindOrText)) return `token.${kindOrText.toLowerCase()}`;
+  return `'${kindOrText}'`;
+}
+
 /**
  * 将任意错误转换为 Diagnostic 对象
  * 用于错误恢复时收集诊断信息
@@ -355,6 +423,7 @@ export function toDiagnostic(error: unknown): Diagnostic {
   if (error instanceof DiagnosticError) return error.diagnostic;
   const msg = error instanceof Error ? error.message : String(error);
   return DiagnosticBuilder.error(DiagnosticCode.P005_UnexpectedToken)
+    .withErrorCode(ErrorCode.PARSE_UNEXPECTED_TOKEN, { token: 'token.unknown' })
     .withMessage(msg)
     .withPosition(dummyPosition())
     .build();

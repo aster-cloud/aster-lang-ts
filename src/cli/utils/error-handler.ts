@@ -46,7 +46,7 @@ function hintFor(code: DiagnosticCode): string | null {
 function printDiagnostics(diags: Diagnostic[]): void {
   for (const diag of diags) {
     logError(`[${diag.code}] ${diag.message}`);
-    const hint = hintFor(diag.code);
+    const hint = hintFor(diag.legacyCode ?? (diag.code as DiagnosticCode));
     if (hint) {
       logWarn(hint);
     }

@@ -306,6 +306,10 @@ function asterDiagToLspDiag(
     message: d.message,
     source: 'aster',
     code: d.code,
+    // 码表参数与过渡期本地码随诊断下发，供客户端按码本地化（ADR 0051 §16 R56）。
+    ...(d.params !== undefined || d.legacyCode !== undefined
+      ? { data: { ...(d.params !== undefined && { params: d.params }), ...(d.legacyCode !== undefined && { legacyCode: d.legacyCode }) } }
+      : {}),
   };
 }
 

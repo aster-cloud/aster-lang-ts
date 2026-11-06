@@ -11,6 +11,7 @@ import { parseType } from './type-parser.js';
 import { parseConstraints } from './constraint-parser.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
 import { inferFieldType, refineInferredType } from './type-inference.js';
+import { Issue, tokenName, type ParseErrorFn } from './parse-issue.js';
 
 /**
  * 解析字段列表（用于 Data 类型定义）
@@ -41,7 +42,7 @@ import { inferFieldType, refineInferredType } from './type-inference.js';
  */
 export function parseFieldList(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never
+  error: ParseErrorFn
 ): Field[] {
   const fields: Field[] = [];
   let hasMore = true;
@@ -57,7 +58,7 @@ export function parseFieldList(
     let name = tryReadTranslatedIdent(ctx);
     if (name === null) {
       if (!ctx.at(TokenKind.IDENT)) {
-        error("Expected field name", nameTok);
+        error(Issue.expected(tokenName('fieldName'), "Expected field name"), nameTok);
       }
       name = ctx.next().value as string;
     }
@@ -134,7 +135,7 @@ export function parseFieldList(
  */
 export function parseVariantList(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never
+  error: ParseErrorFn
 ): { variants: string[]; variantSpans: Span[] } {
   const vars: string[] = [];
   const spans: Span[] = [];
@@ -146,7 +147,7 @@ export function parseVariantList(
     // 解析变体名（类型标识符或普通标识符）
     // Accept both TYPE_IDENT and IDENT to support languages without capitalization (e.g., Chinese)
     if (!ctx.at(TokenKind.TYPE_IDENT) && !ctx.at(TokenKind.IDENT)) {
-      error("Expected type identifier for variant name", vTok);
+      error(Issue.expected(tokenName('variantName'), "Expected type identifier for variant name"), vTok);
     }
     const v = ctx.next().value as string;
 

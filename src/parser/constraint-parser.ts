@@ -19,6 +19,7 @@ import { KW, TokenKind } from '../frontend/tokens.js';
 import { isLocalizing, kw, kwq } from './keyword-display.js';
 import type { Constraint, ConstraintRequired, ConstraintRange, ConstraintPattern, Span, Token } from '../types.js';
 import type { ParserContext } from './context.js';
+import { Issue, kwParam, lit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 /**
  * 解析约束列表
@@ -36,7 +37,7 @@ export interface ParsedConstraints {
 
 export function parseConstraints(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never
+  error: ParseErrorFn
 ): ParsedConstraints {
   const constraints: Constraint[] = [];
   let lastToken: Token | undefined;
@@ -159,7 +160,7 @@ interface ParsedConstraint {
  */
 function tryParseConstraint(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never
+  error: ParseErrorFn
 ): ParsedConstraint | null {
   const startToken = ctx.peek();
   if (!isConstraintToken(startToken)) {
@@ -199,27 +200,27 @@ function tryParseConstraint(
  */
 function parseBetweenConstraint(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never
+  error: ParseErrorFn
 ): ParsedConstraint {
   const startTok = ctx.next(); // consume 'between'
 
   // 解析最小值
   const minTok = ctx.peek();
   if (!ctx.at(TokenKind.INT) && !ctx.at(TokenKind.FLOAT)) {
-    error(`约束 ${kwq(ctx, KW.BETWEEN)} 后需要数值作为最小值`, minTok);
+    error(Issue.expectedAfter(tokenName('number'), kwParam(KW.BETWEEN), `约束 ${kwq(ctx, KW.BETWEEN)} 后需要数值作为最小值`), minTok);
   }
   const min = ctx.next().value as number;
 
   // 期望 'and'
   if (!ctx.isKeyword(KW.AND)) {
-    error(`约束 '${kw(ctx, KW.BETWEEN)} X' 后需要 '${kw(ctx, KW.AND)} Y' 指定最大值`, ctx.peek());
+    error(Issue.expectedAfter(kwParam(KW.AND), tokenName('rangeMinimum'), `约束 '${kw(ctx, KW.BETWEEN)} X' 后需要 '${kw(ctx, KW.AND)} Y' 指定最大值`), ctx.peek());
   }
   ctx.nextWord(); // consume 'and'
 
   // 解析最大值
   const maxTok = ctx.peek();
   if (!ctx.at(TokenKind.INT) && !ctx.at(TokenKind.FLOAT)) {
-    error(`约束 '${kw(ctx, KW.BETWEEN)} X ${kw(ctx, KW.AND)}' 后需要数值作为最大值`, maxTok);
+    error(Issue.expectedAfter(tokenName('number'), kwParam(KW.AND), `约束 '${kw(ctx, KW.BETWEEN)} X ${kw(ctx, KW.AND)}' 后需要数值作为最大值`), maxTok);
   }
   const max = ctx.next().value as number;
 
@@ -233,7 +234,7 @@ function parseBetweenConstraint(
  */
 function parseAtConstraint(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never
+  error: ParseErrorFn
 ): ParsedConstraint {
   const startTok = ctx.next(); // consume 'at'
 
@@ -252,7 +253,7 @@ function parseAtConstraint(
   // 解析数值
   const valueTok = ctx.peek();
   if (!ctx.at(TokenKind.INT) && !ctx.at(TokenKind.FLOAT)) {
-    error(`约束 ${kwq(ctx, modifier === 'least' ? KW.AT_LEAST : KW.AT_MOST, `at ${modifier}`)} 后需要数值`, valueTok);
+    error(Issue.expectedAfter(tokenName('number'), kwParam(modifier === 'least' ? KW.AT_LEAST : KW.AT_MOST), `约束 ${kwq(ctx, modifier === 'least' ? KW.AT_LEAST : KW.AT_MOST, `at ${modifier}`)} 后需要数值`), valueTok);
   }
   const value = ctx.next().value as number;
 
@@ -273,7 +274,7 @@ function parseAtConstraint(
  */
 function parseMatchingConstraint(
   ctx: ParserContext,
-  error: (msg: string, tok?: Token) => never
+  error: ParseErrorFn
 ): ParsedConstraint {
   const startTok = ctx.next(); // consume 'matching'
 
@@ -285,7 +286,7 @@ function parseMatchingConstraint(
   // 解析正则表达式字符串
   const regexpTok = ctx.peek();
   if (!ctx.at(TokenKind.STRING)) {
-    error(`约束 ${kwq(ctx, KW.MATCHING)} 后需要正则表达式字符串`, regexpTok);
+    error(Issue.expectedAfter(tokenName('regexString'), kwParam(KW.MATCHING), `约束 ${kwq(ctx, KW.MATCHING)} 后需要正则表达式字符串`), regexpTok);
   }
   const regexp = ctx.next().value as string;
 
@@ -299,7 +300,8 @@ function parseMatchingConstraint(
  * en 保持原句；其它 locale 里 at least / at most 是单个词（如 zh 的「至少」「至多」），
  * 拆成 'at' + 'least' 对作者毫无意义，故直接给出完整的本地写法。
  */
-function atModifierMessage(ctx: ParserContext): string {
-  if (!isLocalizing(ctx)) return "'at' 后需要 'least' 或 'most'";
-  return `此处需要 ${kwq(ctx, KW.AT_LEAST)} 或 ${kwq(ctx, KW.AT_MOST)}`;
+function atModifierMessage(ctx: ParserContext): ParseIssue {
+  const token = tokenName('atLeastOrAtMost');
+  if (!isLocalizing(ctx)) return Issue.expectedAfter(token, lit('at'), "'at' 后需要 'least' 或 'most'");
+  return Issue.expectedAfter(token, lit('at'), `此处需要 ${kwq(ctx, KW.AT_LEAST)} 或 ${kwq(ctx, KW.AT_MOST)}`);
 }

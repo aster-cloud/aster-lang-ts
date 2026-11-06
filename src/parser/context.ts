@@ -3,6 +3,7 @@ import type { Lexicon } from '../config/lexicons/types.js';
 import { TokenKind } from '../frontend/tokens.js';
 import { ConfigService } from '../config/config-service.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
+import { ErrorCode } from '../diagnostics/error_codes.js';
 import { createLogger } from '../utils/logger.js';
 
 /**
@@ -254,6 +255,7 @@ export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon)
         tok.kind !== TokenKind.KEYWORD
       ) {
         Diagnostics.unexpectedToken(tok.kind, tok.start)
+          .withErrorCode(ErrorCode.PARSE_EXPECTED, { token: 'token.keywordOrIdentifier' })
           .withMessage('Expected keyword/identifier')
           .throw();
       }

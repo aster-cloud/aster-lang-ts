@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### 解析诊断进入共享错误码表（ADR 0051 §16 R56，与 aster-lang-core 同车次）
+
+- 共享码表新增 E050–E069（category=`syntax`）。所有词法 / 解析错误改发新码与命名参数（`params`），
+  诊断的 `code` 由本地码 P0xx / L0xx 改为新码；原本地码保留在过渡字段 `legacyCode` 一个车次
+  （aster-cloud 的 P005 启发式改读新码后删除）。英文 `message` 原文不变。
+- `compile()` 的 `parseErrors`、`validateSyntaxWithSpan()` 的结果 与 LSP 诊断新增 `code` / `legacyCode` / `params`（LSP 在 `data` 中），
+  供消费方按码取译文。
+- 解析器报错点只接受「码 + 参数 + 消息」（`parse-issue.ts`），不再接受裸字符串，单测守卫。
+- 诊断位置与 Java 对齐（消息不变）：治理结论非法（E056）报在结论起点、`Otherwise` 不在块末（E065）报在该
+  `Otherwise` 上、retry 缺必填指令（E066）报在 `retry` 上（此前分别报在块末 / 下一条语句 / 区块末尾）。
+- 双引擎 parity 夹具 `shared/parse_diagnostics_parity.json`（与 aster-lang-core 副本 byte-identical）。
+
+### 顶层统一命名空间（ADR 0051 §16 R57）
+
+- 导入别名（`Use … as X`；无 `as` 时为路径末段）与顶层类型、枚举、类型别名共用一个命名空间，同名报 E807，
+  不再由枚举静默遮蔽别名（#248 M1）。别名与函数同名不受影响。这是有意变严：aster_api / aster_cloud 生产库扫描均 0 行。
+
 ## 1.2.5
 
 ### 类型检查放宽（与 aster-lang-core#232 #233 #234 同步）

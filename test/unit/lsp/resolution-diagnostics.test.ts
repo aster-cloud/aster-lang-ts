@@ -18,6 +18,8 @@ async function codesOf(lines: readonly string[]): Promise<string[]> {
 }
 
 const isResolution = (code: string) => /^[EW]8\d\d$/.test(code);
+/** 解析 / 词法诊断码（ADR 0051 §16 R56：E050–E069）。 */
+const isParseCode = (code: string) => /^E0[56]\d$/.test(code);
 
 const GOOD = ['规则 检查 给定 x 作为 司机，产出 整数：', '  返回 x.alter。', ''];
 
@@ -44,7 +46,7 @@ describe('诊断：语法不完整时降级', () => {
 
   it('★语法不完整时，完整部分的本地化路径不被误报（R2 跳过，也不拿未解析的 Core 做类型检查）', async () => {
     const codes = await codesOf([...DECLS, ...GOOD, '规则 坏 给定 h 作为 车主，产出 整数：', '  返回 h.fahrer.al', '']);
-    assert.deepEqual(codes.filter((c) => /^E8|^W8|^E0/.test(c) && c !== ''), [], `实际：${codes}`);
+    assert.deepEqual(codes.filter((c) => /^E8|^W8|^E0/.test(c) && !isParseCode(c)), [], `实际：${codes}`);
   });
 
   it('★正在编辑的声明被解析器丢弃时，引用它的完整部分不报 E800 / E802', async () => {
@@ -81,7 +83,7 @@ describe('诊断：语法不完整时降级', () => {
     ]);
     const plain = (d: TextDocument) => ({ ...parseDocumentText(d.getText(), EN_US, undefined, undefined), text: d.getText() });
     const codes = (await computeDiagnostics(doc.document, plain as never, EN_US)).map((d) => String(d.code ?? ''));
-    assert.ok(codes.some((c) => c.startsWith('P')), `夹具应含语法错误：${codes}`);
+    assert.ok(codes.some(isParseCode), `夹具应含语法错误：${codes}`);
     assert.ok(codes.includes('E003'), `返回类型不匹配应仍被报告：${codes}`);
     assert.deepEqual(codes.filter(isResolution), []);
   });
