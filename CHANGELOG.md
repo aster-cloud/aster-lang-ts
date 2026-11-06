@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### 新增公共导出（aster-cloud#650）
+
+- `resolvePolicyTypes()` 的 `functions[]` 新增 `entry: boolean`：该函数是否带 `@entry` 注解，调用方选入口 Rule 不必再解析一次 AST。
+- 新增通用写法解析 `buildSpellingIndex(items, spellingsOf, keyOf)` / `resolveSpelling(index, written)`（及类型
+  `SpellingIndex` / `SpellingMatch`），与引擎名称解析同口径：NFC 精确匹配优先，其次折叠键匹配；同一层命中多个不同项
+  （按 `keyOf` 去重）为 `conflict`，精确层撞名不退回折叠层。包入口与浏览器入口均导出。
+
 ## 1.2.6
 
 ### 解析诊断进入共享错误码表（ADR 0051 §16 R56，与 aster-lang-core 同车次）
