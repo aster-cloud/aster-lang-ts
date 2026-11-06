@@ -492,8 +492,8 @@ export function parseStatement(
   if (ctx.isKeyword(KW.AWAIT)) {
     const awaitTok = ctx.nextWord();
     if (!ctx.at(TokenKind.LPAREN)) error(Issue.expectedAfter(lit('('), lit('await'), "Expected '(' after await"));
+    // 参数个数不在解析期检查（与 aster-lang-core 一致；个数不符由运行时 await 内置报错，#295）
     const args = parseArgList(ctx, error);
-    if (args.length !== 1) error(Issue.callArity(lit('await'), 1, args.length, 'await(expr) takes exactly one argument'));
     const target = assignTokenSpan(Node.Name('await'), awaitTok);
     const callSpanEnd = lastNonLayoutToken(ctx);
     const aw = Node.Call(target, args);
@@ -1694,8 +1694,8 @@ function parsePrimary(
   }
   if (ctx.isKeyword(KW.AWAIT)) {
     const awaitTok = ctx.nextWord();
+    // 参数个数不在解析期检查（与 aster-lang-core 一致；个数不符由运行时 await 内置报错，#295）
     const args = parseArgList(ctx, error);
-    if (args.length !== 1) error(Issue.callArity(lit('await'), 1, args.length, 'await(expr) takes exactly one argument'));
     const target = assignTokenSpan(Node.Name('await'), awaitTok);
     const call = Node.Call(target, args);
     const endTok = lastNonLayoutToken(ctx);

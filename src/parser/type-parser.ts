@@ -179,7 +179,8 @@ export function separateEffectsAndCaps(
         if (!effectVarRefs.includes(capText)) effectVarRefs.push(capText);
         continue;
       }
-      error(Issue.unknownName(tokenName('capability'), lit(capText), `Unknown capability '${capText}'`));
+      // 未知能力名按原样保留、不报错（与 aster-lang-core 一致：core 只在类型检查给 INFO 多余能力，truffle 运行时不读 effectCaps；#294）
+      appendCaps([capText as CapabilityKind]);
     }
   } else {
     for (const eff of baseEffects) {
