@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.6
 
 ### 解析诊断进入共享错误码表（ADR 0051 §16 R56，与 aster-lang-core 同车次）
 
@@ -19,6 +19,29 @@
 - 导入别名（`Use … as X`；无 `as` 时为路径末段）与顶层类型、枚举、类型别名共用一个命名空间，同名报 E807，
   不再由枚举静默遮蔽别名（#248 M1）。别名与函数同名不受影响。这是有意变严：aster_api / aster_cloud 生产库扫描均 0 行。
 
+### 类型检查
+
+- **收紧**：函数体内每条 `Return`（任意嵌套 If / Match 分支）都按可赋值规则（Unknown / 按名推断放行，
+  Int → Float、Decimal 拓宽放行）与声明返回类型比较，E003 报在该 `Return` 语句上；此前只比较函数级推断结果，
+  内层分支的不符 Return 可能漏报或报在第 1 行。没有 Return 报错时保留函数级兜底比较，span 取函数体最后一条语句；
+  lambda 体、workflow step / compensate 内的 `Return` 不参与外层规则比较（#284，与 aster-lang-core#240 同步）。
+- **放宽**（TS 不比 Java 严，#285）：删除 Java 侧从不发出的三条检查——整数模式不再检查 scrutinee 类型（E010）；
+  compensate 块返回值不再检查（E022，运行时丢弃）；删除「首字母大写的未知类型名」启发式（E006，类型别名
+  `Type Score as Int.` 不再误报，未声明类型仍由名称解析报 E800）。
+
+### 解释器
+
+- 整数模式 `When N` 对 Decimal 值按数值精确比较（`0.00m` 匹配 `When 0`，`1.5m` 不匹配任何整数模式），与
+  aster-lang-truffle#167 的 `BigDecimal.compareTo` 一致；Text 等非数值仍不匹配（#290）。
+
+### LSP
+
+- 成员补全：行尾带成员前缀（`令 x 定义为 司机.年`、`Let x be d.a`）时最先尝试「删去 `.前缀`、补句末标点」修补，
+  高负载下首次请求即出字段（#286）。
+- 成员补全：`When Box(d), Return d.` 的模式绑定按主语类型与构造器字段给出字段补全；名称解析与诊断不变（#287）。
+- `onCompletion` 返回 `CompletionList`：成员补全修补推断因耗时预算截断且未定出接收者类型时 `isIncomplete: true`，
+  其余情况为 `false`。LSP 客户端须同时接受数组与 `CompletionList`，aster-cloud 现有适配兼容；导出的
+  `memberCompletions` 签名不变（#288）。
 ## 1.2.5
 
 ### 类型检查放宽（与 aster-lang-core#232 #233 #234 同步）
