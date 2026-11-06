@@ -14,7 +14,8 @@
   前置阶段异常仍只出现在这里）。消费方（aster-cloud `useAsterCompiler` / `seed-compile-gate`）改读
   `loweringDiagnostics` 并直接取 `code`、不再映射 E000 后，**下一 minor 删除 `loweringErrors`**（与 R56 的 legacyCode 过渡同理）。
 - 共享 parity 夹具 `shared/lowering_diagnostics_parity.json`（与 core 副本 byte-identical）：每码 en / zh / de 各一例。
-- zh / de / hi 译文待 aster-lang-locales / aster-lang-hi 补齐（locales#126），期间 overlay 校验对 lowering 码豁免缺译。
+- zh / de / hi 译文按 aster-lang-locales / aster-lang-hi 同名分支（`fix/302-lowering-error-codes`，locales#126）的语言包重新生成
+  diagnostic overlay；overlay 校验对 lowering 码保留缺译豁免（范围断言锁定为 E600–E606），语言包发版后删除。
 
 ## 1.3.0
 
