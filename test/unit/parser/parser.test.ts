@@ -1226,14 +1226,22 @@ Rule sync, produce Int. It performs io and cpu and Http.
       assert.equal(func.effectCapsExplicit, true);
     });
 
-    test('应该在出现未知能力时收集诊断', () => {
-      const result = parseWithDiag(`
+    test('未知能力按原样保留、不报解析错误（与 core 一致，#294）', () => {
+      for (const [header, caps] of [
+        ['It performs io with Blockchain.', ['Blockchain']],
+        ['It performs io [Banana]:\n  Return "x".', ['Banana']],
+        ['It performs io [Http, Banana]:\n  Return "x".', [CapabilityKind.HTTP, 'Banana']],
+      ] as const) {
+        const result = parseWithDiag(`
 Module test.parser.effects.unknown_cap.
 
-Rule risky, produce Text. It performs io with Blockchain.
+Rule risky, produce Text. ${header}
 `);
-      assert.ok(result.diagnostics.length > 0, '应有诊断信息');
-      assert.match(result.diagnostics[0]!.message, /Unknown capability 'Blockchain'/);
+        assert.deepEqual(result.diagnostics, [], header);
+        const func = findFunc(result.ast, 'risky');
+        assert.deepEqual(func.effectCaps, caps, header);
+        assert.equal(func.effectCapsExplicit, true, header);
+      }
     });
 
     test('应该在仅声明 cpu 时推导能力', () => {
@@ -1310,6 +1318,26 @@ Rule sync, produce Text:
       assert.equal(letStmt.expr.target.kind, 'Name');
       assert.equal(letStmt.expr.target.name, 'await');
       assert.equal(letStmt.expr.args.length, 1);
+    });
+
+    test('await 参数个数不在解析期检查（与 core 一致，#295）', () => {
+      for (const [body, argc] of [
+        ['Return await(x, x).', 2],
+        ['Return await().', 0],
+        ['await(x, x).\n  Return x.', 2],
+      ] as const) {
+        const result = parseWithDiag(`
+Module test.parser.misc.await_arity.
+
+Rule f given x as Int, produce Int. It performs io:
+  ${body}
+`);
+        assert.deepEqual(result.diagnostics, [], body);
+        const stmt = findFunc(result.ast, 'f').body?.statements[0];
+        const call = stmt?.kind === 'Return' ? stmt.expr : stmt;
+        assert.ok(call && call.kind === 'Call' && call.target.kind === 'Name' && call.target.name === 'await', body);
+        assert.equal(call.args.length, argc, body);
+      }
     });
 
     test('应该保留裸调用语句', () => {

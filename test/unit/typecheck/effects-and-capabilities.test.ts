@@ -193,6 +193,27 @@ Rule bad, produce Text. It performs io [Http]:
     );
   });
 
+  it('未知能力与 core 同口径：只给信息级多余能力提示、无错误（#294）', () => {
+    const diagnostics = runTypecheck(`
+Module test.typecheck.cap_unknown.
+
+Rule f, produce Int. It performs io [Banana]:
+  Return 1.
+`);
+    assert.deepEqual(diagnostics.filter(d => d.severity === 'error'), []);
+    assert.ok(diagnostics.some(d => d.code === ErrorCode.EFF_CAP_SUPERFLUOUS && d.severity === 'info'));
+  });
+
+  it('await 参数个数不符不在编译期报错（与 core 一致，#295）', () => {
+    const diagnostics = runTypecheck(`
+Module test.typecheck.await_arity.
+
+Rule f given x as Int, produce Int. It performs io:
+  Return await(x, x).
+`);
+    assert.deepEqual(diagnostics.filter(d => d.severity === 'error'), []);
+  });
+
   it('显式能力未使用时应产生信息级别提示', () => {
     const diagnostics = runTypecheck(`
 Module test.typecheck.cap_superfluous.
