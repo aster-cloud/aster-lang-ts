@@ -27,7 +27,7 @@ const fixtures = JSON.parse(
 
 /** 源码里 `Define X` / `Rule X` 写下的声明名（去掉 Define 后的真冠词 `a Customer`）。 */
 function declaredNames(source: string): string[] {
-  return [...source.matchAll(/^(?:Define|Rule) (?:(?:a|an|the) (?=[A-Z]\w* has))?(\w+)/gm)].map((m) => m[1]!);
+  return [...source.matchAll(/^(?:Define|Rule) (?:(?:a|an|the) (?=[A-Z]\w* (?:has|with)))?(\w+)/gm)].map((m) => m[1]!);
 }
 
 describe('冠词删除 vs 声明名（共享夹具）', () => {
