@@ -169,13 +169,16 @@ function bySourceOrder(a: DeclaredSite, b: DeclaredSite): number {
 /**
  * R57（ADR 0051 §16.2）：导入别名（`Use … as X` 的 X；无 as 时为模块路径末段）与顶层类型、枚举、
  * 类型别名共用一个命名空间，按源码顺序与它们一起查重，冲突报 E807，无优先级。
+ * 规范名与类型声明同口径（经类型词汇解析），故本地化写法与规范名写法互相冲突。
  * 别名只参与查重，不登记为类型（导入模块的类型仍由 registerImports 提供）；两个同名导入别名
  * 之间不在本规则内（只保留第一个参与查重，避免对重复导入重复报 E807）。
  */
-function importAliasSite(d: AST.Import, typeSites: readonly DeclaredSite[]): DeclaredSite | null {
+function importAliasSite(r: Resolver, d: AST.Import, typeSites: readonly DeclaredSite[]): DeclaredSite | null {
   const visible = d.asName ?? d.name.split('.').pop() ?? '';
   if (visible === '') return null;
-  const canonical = nfc(visible);
+  // 与类型声明同一套规范名：词汇精确 / 折叠唯一命中取规范名，否则取原写法（歧义不在此处报 E804）
+  const picked = chooseVocab(vocabTypes(r), visible);
+  const canonical = picked.kind === 'hit' ? picked.entry.canonical : nfc(visible);
   const isImport = (s: DeclaredSite): boolean => s.importAlias === true && s.resolved.canonical === canonical;
   if (typeSites.some(isImport)) return null;
   return { resolved: { canonical, role: 'TYPE_DECL', written: visible }, span: d.span, importAlias: true };
@@ -203,7 +206,7 @@ function declareTopLevel(r: Resolver, module: AST.Module): DeclNames {
   });
   for (const d of module.decls) {
     if (d.kind === 'Import') {
-      const site = importAliasSite(d, typeSites);
+      const site = importAliasSite(r, d, typeSites);
       if (site) typeSites.push(site);
       continue;
     }

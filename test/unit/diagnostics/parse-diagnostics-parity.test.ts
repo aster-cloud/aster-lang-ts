@@ -21,12 +21,15 @@ import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
 import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 import type { Lexicon } from '../../../src/config/lexicons/types.js';
+import { buildVocabularyScopes } from '../../../src/config/lexicons/identifiers/scopes.js';
+import { IdentifierKind } from '../../../src/config/lexicons/identifiers/types.js';
 
 interface ParityCase {
   readonly name: string;
   readonly lexicon?: string;
   readonly only?: 'ts' | 'core';
   readonly source: string;
+  readonly structs?: readonly (readonly [string, string])[];
   readonly codes: readonly (readonly [string, number])[];
 }
 
@@ -43,7 +46,10 @@ function tsCodes(c: ParityCase): [string, number][] {
     const parsed = parseWithLexicon(lex(canonicalize(c.source, lexicon), lexicon), lexicon);
     const first = parsed.diagnostics.find((d) => d.severity === 'error');
     if (first) return [[first.code, first.span.start.line]];
-    const resolved = resolveDeclarations(parsed.ast, { imports: NO_IMPORTS });
+    const structs = (c.structs ?? []).map(([canonical, localized]) => ({ canonical, localized, kind: IdentifierKind.STRUCT }));
+    const scopes = structs.length === 0 ? undefined
+      : buildVocabularyScopes({ id: 't', name: 't', locale: 'de-DE', version: '1', structs, fields: [], functions: [], enumValues: [] });
+    const resolved = resolveDeclarations(parsed.ast, scopes ? { scopes, imports: NO_IMPORTS } : { imports: NO_IMPORTS });
     return resolved.diagnostics
       .filter((d) => d.severity === 'error')
       .map((d) => [d.code, d.span?.start.line ?? 0]);

@@ -589,6 +589,25 @@ describe('resolveDeclarations（R1）', () => {
       assert.deepEqual(codes(r), []);
     });
 
+    it('本地化写法与规范名冲突：别名写本地名、类型写规范名 → E807', () => {
+      const m = parse('Module m.\n\nUse lib.status as Zustand.\n\nDefine Status as one of Active, Closed.\n', EN_US);
+      const r = resolveDeclarations(m, ctxOf([struct('Status', 'Zustand')]));
+      assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
+      assert.equal(r.diagnostics[0]!.span?.start.line, 5);
+    });
+
+    it('本地化写法与规范名冲突：类型写本地名、别名写规范名 → E807', () => {
+      const m = parse('Module m.\n\nDefine Zustand as one of Active, Closed.\n\nUse lib.status as Status.\n', EN_US);
+      const r = resolveDeclarations(m, ctxOf([struct('Status', 'Zustand')]));
+      assert.deepEqual(codes(r), [ErrorCode.DUPLICATE_DECLARATION]);
+      assert.equal(r.diagnostics[0]!.span?.start.line, 5);
+    });
+
+    it('大小写不同且词汇未把两者归到同一规范名时不冲突', () => {
+      const r = resolveEn('Module m.\n\nUse lib.status as status.\n\nDefine Status as one of Active, Closed.\n');
+      assert.deepEqual(codes(r), []);
+    });
+
     it('两个同名导入别名不报 E807（重复导入别名另由 Java E103 处理，不在本命名空间规则内）', () => {
       const r = resolveEn('Module m.\n\nUse lib.a as Lib.\n\nUse lib.b as Lib.\n');
       assert.deepEqual(codes(r), []);
