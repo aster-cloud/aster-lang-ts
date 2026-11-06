@@ -22,6 +22,7 @@
 
 import type { Lexicon } from '../config/lexicons/types.js';
 import { getMultiWordKeywords } from '../config/lexicons/types.js';
+import { SemanticTokenKind } from '../config/token-kind.js';
 import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/index.js';
 import { foldKey } from '../config/lexicons/identifiers/casefold.js';
 import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
@@ -275,6 +276,48 @@ function getArticleRegex(lexicon?: Lexicon): RegExp | null {
   return new RegExp(pattern, 'gi');
 }
 
+/** 声明关键词：其后紧跟的单词是声明名（类型名 / 函数名）。 */
+const DECLARATION_KINDS: readonly SemanticTokenKind[] = [SemanticTokenKind.TYPE_DEF, SemanticTokenKind.FUNC_TO];
+
+/** 某一语义种类的全部单词拼写（主拼写 + 别名，小写）；多词拼写已被 marker 占位，不在此列。 */
+function singleWordSpellings(lexicon: Lexicon, kinds: Iterable<SemanticTokenKind>): Set<string> {
+  const out = new Set<string>();
+  for (const kind of kinds) {
+    for (const w of [lexicon.keywords[kind], ...(lexicon.aliases?.[kind] ?? [])]) {
+      if (w && !/\s/.test(w)) out.add(w.toLowerCase());
+    }
+  }
+  return out;
+}
+
+/**
+ * 冠词替换回调：按语法位置保护声明名（`Define A has …`、`Rule a given …`）。
+ *
+ * 冠词紧跟在声明关键词之后、且其后紧跟一个关键词时，它占的是声明名的位置——
+ * 声明名之后只能是关键词或标点，名词短语 `Define a Customer has …` 之后则是名词。
+ * 这样不需要为每个可能的后继词扩充 follow 词表；后继词集合直接取自 lexicon 的全部关键词。
+ */
+function articleReplacer(lexicon: Lexicon): (match: string, ...rest: unknown[]) => string {
+  const declKeywords = singleWordSpellings(lexicon, DECLARATION_KINDS);
+  const keywords = singleWordSpellings(lexicon, Object.keys(lexicon.keywords) as SemanticTokenKind[]);
+  // 前一个词只在冠词前的有限窗口内找（窗口比最长声明关键词多留空白余量），避免每次替换回扫全文
+  const prevWordRe = /(?:^|\s)(\S+)[ \t]+$/;
+  const nextWordRe = /[ \t]+([^\s.,:;()]+)/y;
+  const window = Math.max(0, ...[...declKeywords].map((w) => w.length)) + 16;
+  return (match, ...rest) => {
+    const text = rest[rest.length - 1] as string;
+    const offset = rest[rest.length - 2] as number;
+    const start = Math.max(0, offset - window);
+    const prev = prevWordRe.exec(text.slice(start, offset));
+    // 窗口起点落在词中间时，该「词」只是某个长词的尾部，不算声明关键词
+    const cut = prev !== null && prev.index === 0 && start > 0 && !/\s/.test(text[start - 1]!);
+    if (!prev || cut || !declKeywords.has(prev[1]!.toLowerCase())) return '';
+    nextWordRe.lastIndex = offset + match.length;
+    const next = nextWordRe.exec(text);
+    return next && keywords.has(next[1]!.toLowerCase()) ? match : '';
+  };
+}
+
 /**
  * 获取有效的词法表（提供的或注册表默认）。
  *
@@ -491,8 +534,9 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
 
   // Step 2: Remove articles in allowed contexts (lightweight; parser will enforce correctness)
   if (articleRe) {
+    const replaceArticle = articleReplacer(effectiveLexicon);
     marked = segmentString(marked, quotes)
-      .map(segment => (segment.inString ? segment.text : segment.text.replace(articleRe, '')))
+      .map(segment => (segment.inString ? segment.text : segment.text.replace(articleRe, replaceArticle)))
       .join('');
   }
 
