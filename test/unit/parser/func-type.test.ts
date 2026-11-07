@@ -150,7 +150,7 @@ describe('FuncType 降级到 Core IR', () => {
   it('函数体中的 FuncType（lambda 参数 / Let 标注）经 lowerType 降级并带 origin', () => {
     const src = 'Module m.\n\nRule mk, produce Int:\n  Let g be function with h as (Int) -> Int, produce Int:\n    Return h(1).\n  Return 1.\n';
     const r = compile(src);
-    assert.equal(r.success, true, JSON.stringify(r.parseErrors ?? r.loweringErrors));
+    assert.equal(r.success, true, JSON.stringify(r.parseErrors ?? r.loweringDiagnostics));
     const json = JSON.stringify(r.core);
     assert.match(json, /"kind":"FuncType","params":\[\{"kind":"TypeName","name":"Int"/);
   });
@@ -162,7 +162,7 @@ describe('FuncType 降级到 Core IR', () => {
       'Module m.\n\nType Op as (Int, Int) -> Int.\n\nRule run given op as Op, produce Int:\n  Return op(1, 2).\n',
     ]) {
       const r = compile(src);
-      assert.equal(r.success, true, `${src}\n${JSON.stringify(r.parseErrors ?? r.loweringErrors ?? r.resolutionDiagnostics)}`);
+      assert.equal(r.success, true, `${src}\n${JSON.stringify(r.parseErrors ?? r.loweringDiagnostics ?? r.resolutionDiagnostics)}`);
     }
   });
 

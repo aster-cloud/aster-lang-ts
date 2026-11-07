@@ -21,7 +21,7 @@ export enum DiagnosticCode {
   L007_LongLiteralOutOfRange = 'L007',
   L008_FloatLiteralNotFinite = 'L008',
 
-  // Lowering errors (L101-L199)
+  // Lowering errors (L101-L199)：仅作构造入口，诊断实际发共享码 E600–E605（见 Diagnostics）
   L101_UnknownDeclKind = 'L101',
   L102_UnknownEffect = 'L102',
   L103_UnknownStmtKind = 'L103',
@@ -114,8 +114,8 @@ export type ParseDiagnosticParams = Readonly<Record<string, string | number>>;
 export interface Diagnostic {
   readonly severity: DiagnosticSeverity;
   /**
-   * 诊断身份。解析 / 词法诊断为共享码表的 E050–E069（ADR 0051 §16 R56）；
-   * 其余（lowering、包管理等）仍为本地码。
+   * 诊断身份。解析 / 词法诊断为共享码表的 E050–E069（ADR 0051 §16 R56），
+   * lowering 诊断为 E600–E605（aster-lang-ts#302）；其余（包管理等）仍为本地码。
    */
   readonly code: DiagnosticCode | ErrorCode;
   /** 码表模板的命名参数（见 {@link ParseDiagnosticParams}）。 */
@@ -359,34 +359,41 @@ export const Diagnostics = {
       .withMessage(`Unexpected character '${char}'`)
       .withPosition(pos),
 
-  // Lowering errors
+  // Lowering 错误（aster-lang-ts#302）：AST 不变量守卫，发共享码表 E600–E605 并带命名参数；
+  // 英文 message 原句不变。本地码 L101–L106 只作构造入口，诊断的 code 为共享码。
   unknownDeclKind: (kind: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L101_UnknownDeclKind)
+      .withErrorCode(ErrorCode.LOWER_UNKNOWN_DECL_KIND, { kind })
       .withMessage(`Unknown declaration kind: ${kind}`)
       .withPosition(pos),
 
   unknownEffect: (effect: string, validEffects: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L102_UnknownEffect)
+      .withErrorCode(ErrorCode.LOWER_UNKNOWN_EFFECT, { effect, valid: validEffects })
       .withMessage(`Unknown effect '${effect}', valid values: ${validEffects}`)
       .withPosition(pos),
 
   unknownStmtKind: (kind: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L103_UnknownStmtKind)
+      .withErrorCode(ErrorCode.LOWER_UNKNOWN_STMT_KIND, { kind })
       .withMessage(`lowerStmt: unhandled statement kind '${kind}'`)
       .withPosition(pos),
 
   unknownExprKind: (kind: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L104_UnknownExprKind)
+      .withErrorCode(ErrorCode.LOWER_UNKNOWN_EXPR_KIND, { kind })
       .withMessage(`Unknown expression kind: ${kind}`)
       .withPosition(pos),
 
   unknownPatternKind: (kind: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L105_UnknownPatternKind)
+      .withErrorCode(ErrorCode.LOWER_UNKNOWN_PATTERN_KIND, { kind })
       .withMessage(`Unknown pattern kind: ${kind}`)
       .withPosition(pos),
 
   unknownTypeKind: (kind: string, pos: Position): DiagnosticBuilder =>
     DiagnosticBuilder.error(DiagnosticCode.L106_UnknownTypeKind)
+      .withErrorCode(ErrorCode.LOWER_UNKNOWN_TYPE_KIND, { kind })
       .withMessage(`Unknown type kind: ${kind}`)
       .withPosition(pos),
 };
