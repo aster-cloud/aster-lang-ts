@@ -5,7 +5,7 @@ import { compile } from '../../src/browser.js';
 /**
  * 类型递归的深度护栏（issue aster-lang-ts#145）。
  *
- * ★真实缺陷：`MAX_RECURSION_DEPTH=300` 的设计目标就是「病态输入不许打爆原生栈」，
+ * ★真实缺陷：`MAX_RECURSION_DEPTH` 的设计目标就是「病态输入不许打爆原生栈」，
  * 但它此前**只接在 `parseExpr` 上**；而 `parseType → parseTypePrimary → parseType`
  * 的类型递归完全无护栏。
  *
@@ -13,7 +13,7 @@ import { compile } from '../../src/browser.js';
  * 「Maximum call stack size exceeded」，被 decl-parser 的 catch-all 转成
  * **span 恒为 1:1 的假诊断**——用户既不知道是哪一行，也不知道真正原因是嵌套过深。
  *
- * 对照：400 层**括号**一直正确报「nesting too deep (exceeds limit of 300)」——
+ * 对照：400 层**括号**一直正确报「nesting too deep (exceeds limit of N)」——
  * 同一份护栏，只是没接到类型这条路径上。
  */
 function parseErrorOf(src: string): string | null {
@@ -37,7 +37,7 @@ describe('类型嵌套深度护栏', () => {
 
   it('★超限即报，且报的是嵌套过深而非别的错', () => {
     const msg = parseErrorOf(nestedMaybe(400));
-    assert.ok(msg, '400 层已超 300 上限，应报错');
+    assert.ok(msg, '400 层已超上限，应报错');
     assert.match(msg!, /nesting too deep/, `实际：${msg}`);
   });
 
@@ -60,7 +60,7 @@ describe('正常类型不受影响（反向护栏）', () => {
   });
 
   it('★接近上限但未超（290 层）仍应通过', () => {
-    // 锁住「上限是 300 而不是被我改小了」——防护栏顺手收紧了合法输入。
-    assert.equal(parseErrorOf(nestedMaybe(290)), null, '290 层未超 300 上限，应通过');
+    // 锁住「类型上限是 300 而不是随表达式上限降到 64」——Java 侧类型嵌套无守卫，TS 不得更严。
+    assert.equal(parseErrorOf(nestedMaybe(290)), null, '290 层未超 300 类型上限，应通过');
   });
 });

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### 解析（与 core 对齐，aster-api#472）
+
+- 表达式嵌套上限 `MAX_RECURSION_DEPTH` 300 → **64**，与 aster-lang-core 两道守卫同值：Java 侧 1MB 线程栈上
+  157–196 层括号就栈溢出，原上限形同虚设，core 下调到 64 后 TS 随之对齐。共享夹具
+  `shared/parse_diagnostics_parity.json` 新增「63 层括号放行 / 64 层 E054」两例。
+- 类型递归（`maybe` / `list of` 链）改用独立上限 `MAX_TYPE_RECURSION_DEPTH`，保持 300：Java 侧类型嵌套无守卫，
+  TS 不得比 Java 更严。`ParserContext.enterRecursion(limit?)` 新增可选上限参数。
+
 ## 1.3.0
 
 ### 破坏性：删除过渡字段 legacyCode（ADR 0051 §16 R56 过渡结束，#300）

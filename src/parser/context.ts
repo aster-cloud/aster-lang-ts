@@ -62,11 +62,11 @@ export interface ParserContext {
   /** 当前递归下降嵌套深度（用于防止栈溢出 / DoS） */
   recursionDepth: number;
   /**
-   * 进入一层递归下降。超过 MAX_RECURSION_DEPTH 时抛出可恢复的
+   * 进入一层递归下降。超过 limit（缺省 MAX_RECURSION_DEPTH）时抛出可恢复的
    * DiagnosticError（而非原生 RangeError），调用方应在 finally 中
-   * 调用 exitRecursion()。
+   * 调用 exitRecursion()。类型递归传 MAX_TYPE_RECURSION_DEPTH。
    */
-  enterRecursion(): void;
+  enterRecursion(limit?: number): void;
   /** 退出一层递归下降。 */
   exitRecursion(): void;
 }
@@ -82,10 +82,24 @@ export interface ParserContext {
  * 选值说明：每层括号嵌套会走完整条表达式优先级链（parseExpr→parseOr→
  * parseAnd→parseNot→parseComparison→parseAddition→parseMultiplication→
  * parsePrimary，外加 peek/assignSpan 等辅助帧），约 10+ 原生栈帧/层。Node
- * 默认原生栈约 ~12500 个简单帧，故每层成本越高，安全上限越低。取 300 在
- * “远高于任何合法源码真实嵌套需求”与“远低于原生溢出阈值”之间留足余量。
+ * 默认原生栈约 ~12500 个简单帧，故每层成本越高，安全上限越低。
+ *
+ * ★与 aster-lang-core 同值（aster-api#472）：Java 侧每层括号在 AstBuilder 里是十几帧
+ * 递归，实测 1MB 线程栈（Linux JVM 默认）上 157–196 层就溢出，原上限 300 形同虚设；
+ * core 把两道守卫下调到 64，本常量随之对齐，双引擎共享夹具 shared/parse_diagnostics_parity.json
+ * 锁定「63 层括号放行、64 层 E054」（Return 的表达式本身占一层）。64 仍远高于任何合法源码的
+ * 真实嵌套需求，且远低于 Node 原生溢出阈值。
  */
-export const MAX_RECURSION_DEPTH = 300;
+export const MAX_RECURSION_DEPTH = 64;
+
+/**
+ * 类型递归（parseType → parseTypePrimary → parseType）的深度上限，沿用原值 300。
+ *
+ * 不随表达式上限一起降到 64：Java 侧的类型嵌套没有解析期守卫（实测 1MB 栈上
+ * `list of` 链约 525 层才溢出），TS 若降到 64 就会比 Java 更严——合法性判定以 Java 为准，
+ * TS 不得先于 Java 拒绝。300 仍远低于 Node 原生溢出阈值（issue #145 的 5000 层照常报 E054）。
+ */
+export const MAX_TYPE_RECURSION_DEPTH = 300;
 
 /**
  * 将关键字短语拆分为单词数组
@@ -306,12 +320,12 @@ export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon)
       return compoundContextStack.includes(opener);
     },
     recursionDepth: 0,
-    enterRecursion: (): void => {
+    enterRecursion: (limit: number = MAX_RECURSION_DEPTH): void => {
       ctx.recursionDepth++;
-      if (ctx.recursionDepth > MAX_RECURSION_DEPTH) {
+      if (ctx.recursionDepth > limit) {
         // Throw a recoverable DiagnosticError (NOT a raw RangeError) so the
         // decl-parser recovery loop can catch it and continue.
-        Diagnostics.nestingTooDeep(MAX_RECURSION_DEPTH, ctx.peek().start).throw();
+        Diagnostics.nestingTooDeep(limit, ctx.peek().start).throw();
       }
     },
     exitRecursion: (): void => {
