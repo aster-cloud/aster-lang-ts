@@ -1,15 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
 
-### 解析（与 core 对齐，aster-api#472）
-
-- 表达式嵌套上限 `MAX_RECURSION_DEPTH` 300 → **64**，与 aster-lang-core 两道守卫同值：Java 侧 1MB 线程栈上
-  157–196 层括号就栈溢出，原上限形同虚设，core 下调到 64 后 TS 随之对齐。共享夹具
-  `shared/parse_diagnostics_parity.json` 新增「63 层括号放行 / 64 层 E054」两例。
-- 类型递归（`maybe` / `list of` 链）改用独立上限 `MAX_TYPE_RECURSION_DEPTH`，保持 300：Java 侧类型嵌套无守卫，
-  TS 不得比 Java 更严。`ParserContext.enterRecursion(limit?)` 新增可选上限参数。
-### lowering 诊断进入共享错误码表（E600–E606，#302，与 aster-lang-core 同车次）
+### lowering 诊断进入共享错误码表（E600–E606，#302 / #303，与 aster-lang-core#248 同车次）
 
 - 共享码表新增 category=`lowering` 的 E600–E605（AST → Core IR 的不变量守卫：未知声明 / 效果 / 语句 /
   表达式 / 模式 / 类型种类）与 E606（lowering 阶段内部异常，`detail` 为异常消息）。守卫的英文 `message`
@@ -23,6 +16,14 @@
 - 共享 parity 夹具 `shared/lowering_diagnostics_parity.json`（与 core 副本 byte-identical）：每码 en / zh / de 各一例。
 - zh / de / hi 译文按 aster-lang-locales / aster-lang-hi 同名分支（`fix/302-lowering-error-codes`，locales#126）的语言包重新生成
   diagnostic overlay；overlay 校验对 lowering 码保留缺译豁免（范围断言锁定为 E600–E606），语言包发版后删除。
+
+### 解析（收紧，与 core 对齐，aster-api#472，#305）
+
+- 表达式嵌套上限 `MAX_RECURSION_DEPTH` 300 → **64**，与 aster-lang-core 两道守卫同值：Java 侧 1MB 线程栈上
+  157–196 层括号就栈溢出，原上限形同虚设，core 下调到 64 后 TS 随之对齐。共享夹具
+  `shared/parse_diagnostics_parity.json` 新增「63 层括号放行 / 64 层 E054」两例。
+- 类型递归（`maybe` / `list of` 链）改用独立上限 `MAX_TYPE_RECURSION_DEPTH`，保持 300：Java 侧类型嵌套无守卫，
+  TS 不得比 Java 更严。`ParserContext.enterRecursion(limit?)` 新增可选上限参数。
 
 ## 1.3.0
 
