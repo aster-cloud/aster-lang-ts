@@ -151,6 +151,7 @@ import type { ControlRegistry } from './governance/controls.js';
 import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
 import { attachTypeInferenceRules } from './config/lexicons/type-inference-rules.js';
 import { DiagnosticError, type Diagnostic } from './diagnostics/diagnostics.js';
+import { toLoweringDiagnostic } from './diagnostics/lowering.js';
 import { buildVocabularyScopes } from './config/lexicons/identifiers/scopes.js';
 import type { VocabularyScopes } from './config/lexicons/identifiers/scopes.js';
 import type { DomainVocabulary } from './config/lexicons/identifiers/types.js';
@@ -194,7 +195,17 @@ export interface CompileResult {
   core?: CoreTypes.Module;
   /** Parse errors (if any) - now includes position information */
   parseErrors?: ParseError[];
-  /** Lowering errors (if any) */
+  /**
+   * lowering（AST → Core IR）诊断（E600–E606，aster-lang-ts#302），仅在非空时出现，此时 success 为 false
+   * 且不产出 core。与 resolutionDiagnostics / typeErrors 同形：`data` 为码表模板的命名参数，
+   * 消费方按 code + data 取译文；传入 lexicon 时已按语言包 overlay 本地化（缺译回退英文）。
+   */
+  loweringDiagnostics?: TypecheckDiagnostic[];
+  /**
+   * @deprecated 过渡字段（一个 minor 版本，与 R56 的 legacyCode 同理）：lowering 失败时为
+   * `loweringDiagnostics` 各条的英文 message；前置阶段（规范化 / 词法 / 解析）的非诊断异常仍只出现在这里
+   * （保持改码前行为，不标为 E606）。消费方改读 `loweringDiagnostics` 后于下一 minor 删除。
+   */
   loweringErrors?: string[];
   /**
    * 名称解析诊断（ADR 0051 E800–E807 / W800–W801），仅在非空时出现。
@@ -287,8 +298,17 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       return result;
     }
 
-    // 名称解析：R1 → lower → R2；任一 E8xx 不产出 core
-    const resolved = resolveAndLower(parsed.ast, scopes);
+    // 名称解析：R1 → lower → R2；任一 E8xx 不产出 core。
+    // 只有这一步的异常才是 lowering 诊断：守卫 E600–E605，其它异常 E606（#302）。
+    let resolved: ReturnType<typeof resolveAndLower>;
+    try {
+      resolved = resolveAndLower(parsed.ast, scopes);
+    } catch (error) {
+      const lowering = toLoweringDiagnostic(error);
+      if (!lowering) throw error;
+      const loweringDiagnostics = localizeDiagnostics([lowering], lexicon);
+      return { success: false, loweringDiagnostics, loweringErrors: loweringDiagnostics.map((d) => d.message) };
+    }
     const success = !hasErrors(resolved.diagnostics);
     const result: CompileResult = success ? { success, core: resolved.core } : { success };
     if (parseErrors.length > 0) {
@@ -304,7 +324,8 @@ export function compile(source: string, options?: CompileOptions): CompileResult
     }
     return result;
   } catch (error) {
-    // Handle DiagnosticError with position information
+    // 前置阶段（规范化 / 词法 / 解析）：带位置的 DiagnosticError 按解析诊断返回，
+    // 其它异常保持改码前行为——只给裸消息，不标为 lowering 诊断。
     if (error instanceof DiagnosticError) {
       return { success: false, parseErrors: [toParseError(error.diagnostic)] };
     }

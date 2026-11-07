@@ -25,7 +25,7 @@ interface ErrorSpec {
   help: string;
 }
 
-type ErrorCategoryLiteral = 'type' | 'syntax' | 'scope' | 'effect' | 'capability' | 'pii' | 'async' | 'governance' | 'other';
+type ErrorCategoryLiteral = 'type' | 'syntax' | 'scope' | 'effect' | 'capability' | 'pii' | 'async' | 'lowering' | 'governance' | 'other';
 type ErrorSeverityLiteral = 'error' | 'warning' | 'info';
 
 interface ErrorTable {
@@ -390,6 +390,8 @@ function toJavaCategory(category: ErrorCategoryLiteral): string {
       return 'PII';
     case 'async':
       return 'ASYNC';
+    case 'lowering':
+      return 'LOWERING';
     case 'governance':
       return 'GOVERNANCE';
     default:

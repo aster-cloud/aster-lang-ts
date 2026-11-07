@@ -2,7 +2,7 @@
 // 源数据: shared/error_codes.json
 
 
-export type ErrorCategory = 'type' | 'syntax' | 'effect' | 'capability' | 'scope' | 'pii' | 'async' | 'governance';
+export type ErrorCategory = 'type' | 'syntax' | 'effect' | 'capability' | 'scope' | 'pii' | 'async' | 'lowering' | 'governance';
 export type ErrorSeverity = 'error' | 'warning' | 'info';
 
 export const enum ErrorCode {
@@ -94,6 +94,13 @@ export const enum ErrorCode {
   ASYNC_DUPLICATE_START = "E502",
   ASYNC_DUPLICATE_WAIT = "E503",
   ASYNC_WAIT_BEFORE_START = "E504",
+  LOWER_UNKNOWN_DECL_KIND = "E600",
+  LOWER_UNKNOWN_EFFECT = "E601",
+  LOWER_UNKNOWN_STMT_KIND = "E602",
+  LOWER_UNKNOWN_EXPR_KIND = "E603",
+  LOWER_UNKNOWN_PATTERN_KIND = "E604",
+  LOWER_UNKNOWN_TYPE_KIND = "E605",
+  LOWER_INTERNAL_ERROR = "E606",
   PII_IMPLICIT_UPLEVEL = "W071",
   PII_SINK_UNKNOWN = "W074",
   WORKFLOW_RETRY_INCONSISTENT = "W105",
@@ -220,6 +227,13 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.ASYNC_DUPLICATE_START]: "Async task '{task}' started multiple times ({count} occurrences)",
   [ErrorCode.ASYNC_DUPLICATE_WAIT]: "Async task '{task}' waited multiple times ({count} occurrences)",
   [ErrorCode.ASYNC_WAIT_BEFORE_START]: "Wait for async task '{task}' occurs before any matching start",
+  [ErrorCode.LOWER_UNKNOWN_DECL_KIND]: "Unknown declaration kind: {kind}",
+  [ErrorCode.LOWER_UNKNOWN_EFFECT]: "Unknown effect '{effect}', valid values: {valid}",
+  [ErrorCode.LOWER_UNKNOWN_STMT_KIND]: "lowerStmt: unhandled statement kind '{kind}'",
+  [ErrorCode.LOWER_UNKNOWN_EXPR_KIND]: "Unknown expression kind: {kind}",
+  [ErrorCode.LOWER_UNKNOWN_PATTERN_KIND]: "Unknown pattern kind: {kind}",
+  [ErrorCode.LOWER_UNKNOWN_TYPE_KIND]: "Unknown type kind: {kind}",
+  [ErrorCode.LOWER_INTERNAL_ERROR]: "Internal error during lowering: {detail}",
   [ErrorCode.PII_IMPLICIT_UPLEVEL]: "Implicit PII level escalation detected: {source} -> {target}",
   [ErrorCode.PII_SINK_UNKNOWN]: "PII data may flow to {sinkKind} without annotation",
   [ErrorCode.WORKFLOW_RETRY_INCONSISTENT]: "Workflow retry configuration may be unreasonable: {reason}",
@@ -865,6 +879,55 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     severity: 'error',
     message: "Wait for async task '{task}' occurs before any matching start",
     help: "Execute start before wait, and ensure both are on compatible control paths.",
+  },
+  [ErrorCode.LOWER_UNKNOWN_DECL_KIND]: {
+    code: ErrorCode.LOWER_UNKNOWN_DECL_KIND,
+    category: 'lowering',
+    severity: 'error',
+    message: "Unknown declaration kind: {kind}",
+    help: "The lowering stage received a declaration node it does not recognize. This is an engine defect, not a problem with the policy; report it together with the source.",
+  },
+  [ErrorCode.LOWER_UNKNOWN_EFFECT]: {
+    code: ErrorCode.LOWER_UNKNOWN_EFFECT,
+    category: 'lowering',
+    severity: 'error',
+    message: "Unknown effect '{effect}', valid values: {valid}",
+    help: "Declare only the supported effects (io, cpu) or an effect variable declared on the rule.",
+  },
+  [ErrorCode.LOWER_UNKNOWN_STMT_KIND]: {
+    code: ErrorCode.LOWER_UNKNOWN_STMT_KIND,
+    category: 'lowering',
+    severity: 'error',
+    message: "lowerStmt: unhandled statement kind '{kind}'",
+    help: "The lowering stage received a statement node it does not recognize. This is an engine defect, not a problem with the policy; report it together with the source.",
+  },
+  [ErrorCode.LOWER_UNKNOWN_EXPR_KIND]: {
+    code: ErrorCode.LOWER_UNKNOWN_EXPR_KIND,
+    category: 'lowering',
+    severity: 'error',
+    message: "Unknown expression kind: {kind}",
+    help: "The lowering stage received an expression node it does not recognize. This is an engine defect, not a problem with the policy; report it together with the source.",
+  },
+  [ErrorCode.LOWER_UNKNOWN_PATTERN_KIND]: {
+    code: ErrorCode.LOWER_UNKNOWN_PATTERN_KIND,
+    category: 'lowering',
+    severity: 'error',
+    message: "Unknown pattern kind: {kind}",
+    help: "The lowering stage received a pattern node it does not recognize. This is an engine defect, not a problem with the policy; report it together with the source.",
+  },
+  [ErrorCode.LOWER_UNKNOWN_TYPE_KIND]: {
+    code: ErrorCode.LOWER_UNKNOWN_TYPE_KIND,
+    category: 'lowering',
+    severity: 'error',
+    message: "Unknown type kind: {kind}",
+    help: "The lowering stage received a type node it does not recognize. This is an engine defect, not a problem with the policy; report it together with the source.",
+  },
+  [ErrorCode.LOWER_INTERNAL_ERROR]: {
+    code: ErrorCode.LOWER_INTERNAL_ERROR,
+    category: 'lowering',
+    severity: 'error',
+    message: "Internal error during lowering: {detail}",
+    help: "The compiler failed while lowering the policy to Core IR. This is an engine defect, not a problem with the policy; report it together with the source.",
   },
   [ErrorCode.PII_IMPLICIT_UPLEVEL]: {
     code: ErrorCode.PII_IMPLICIT_UPLEVEL,
