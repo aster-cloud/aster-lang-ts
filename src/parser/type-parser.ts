@@ -1,7 +1,7 @@
 import type { PiiDataCategory, PiiSensitivityLevel, Token, Type } from '../types.js';
 import { kwq } from './keyword-display.js';
 import type { ParserContext } from './context.js';
-import { kwParts } from './context.js';
+import { kwParts, MAX_TYPE_RECURSION_DEPTH } from './context.js';
 import { TokenKind, KW } from '../frontend/tokens.js';
 import { Node } from '../ast/ast.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
@@ -428,11 +428,12 @@ export function parseType(
   //   原生 RangeError，被 decl-parser 的 catch-all 转成 span 恒为 1:1 的**假诊断**
   //   （用户看到「Maximum call stack size exceeded」，既不知道是哪一行、
   //   也不知道真正的原因是嵌套过深）。对照 400 层括号则正确报
-  //   「nesting too deep (exceeds limit of 300)」——同一份护栏，只是没接上。
+  //   「nesting too deep (exceeds limit of N)」——同一份护栏，只是没接上。
   //
   //   接在 parseType 入口即可覆盖全部递归分支（maybe / option of / list of /
-  //   map of / result of 等都经由它回环）。
-  ctx.enterRecursion();
+  //   map of / result of 等都经由它回环）。上限用 MAX_TYPE_RECURSION_DEPTH（300）而非
+  //   表达式的 MAX_RECURSION_DEPTH（64）：Java 侧类型嵌套无守卫，TS 不得比 Java 更严。
+  ctx.enterRecursion(MAX_TYPE_RECURSION_DEPTH);
   try {
     return parseTypeInner(ctx, error);
   } finally {
