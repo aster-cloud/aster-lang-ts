@@ -20,8 +20,12 @@ import { KEYWORD_CTORS } from '../frontend/resolution-choice.js';
 export const MAX_INPUT_REF_SEGMENTS = 8;
 /** 同模块调用内联的最大嵌套层数（§11.2：恰好 8 层可定位，第 9 层为 `*`）。 */
 export const MAX_INLINE_DEPTH = 8;
-/** 单条规则分析中内联调用的总次数上限：防止分支调用链指数展开拖垮编译，超出按 inline-depth 处理。 */
-export const MAX_INLINE_CALLS = 4096;
+/**
+ * 单条规则分析的节点访问预算（共用先序编号计数）：超出即按 inline-depth 产生 `*`，不再展开（与 Java MAX_NODE_VISITS 同值）。
+ * 同模块调用按（调用栈，实参来源）记忆化，正常规则的访问数与源码节点数同阶（语料中最大的规则不足 2 千次）；
+ * 20 万次留出两个数量级余量，同时把恶意扇出（如 64×64 调用链每层重遍历大函数体）的分析耗时限制在毫秒级。
+ */
+export const MAX_NODE_VISITS = 200_000;
 export const INPUT_REFS_STAR = '*';
 
 export type InputRefsConstruct =
@@ -47,6 +51,13 @@ const MAP_KEY_ACCESS: ReadonlySet<string> = new Set(['Map.get', 'Map.contains', 
 const MAP_ITERATION: ReadonlySet<string> = new Set(['Map.keys', 'Map.values']);
 /** 把值整体转为文本或摘要。 */
 const SERIALIZERS: ReadonlySet<string> = new Set(['Bool.toString', 'Crypto.hash', 'Int.toString']);
+/**
+ * 内置函数命名空间（与 truffle Builtins、TS 类型系统登记的内置一致）：只有这些限定名按「内置函数，实参被消费」处理，
+ * 其余未知限定名一律按跨模块调用（`*`）。与 Java BUILTIN_NAMESPACES 同表。
+ */
+const BUILTIN_NAMESPACES: ReadonlySet<string> = new Set([
+  'Bool', 'Crypto', 'Date', 'Decimal', 'IO', 'Int', 'List', 'Map', 'Maybe', 'Option', 'PII', 'Result', 'Text', 'Verdict',
+]);
 
 // ---- 抽象值 ----
 
@@ -85,6 +96,20 @@ function allEmpty(vs: readonly Src[]): boolean {
   return vs.every(isEmpty);
 }
 
+/** 记忆化键：结构相等的来源得到相同的键（路径与字段按 UTF-16 序，不含输入来源的字段不计；与 Java Src.key 同口径）。 */
+function srcKey(v: Src): string {
+  if (v.star) return '*';
+  const fields = [...v.fields.entries()].filter(([, x]) => !isEmpty(x)).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return JSON.stringify([[...v.paths].sort(), fields.map(([k, x]) => [k, srcKey(x)])]);
+}
+
+/** 一次内联的摘要：Return 的来源、被消费的路径、体内第一个产生 * 的构造。 */
+interface Summary {
+  readonly returns: Src;
+  readonly consumed: ReadonlySet<string>;
+  readonly construct: InputRefsConstruct | undefined;
+}
+
 function segments(path: string): number {
   return path.split('.').length;
 }
@@ -118,9 +143,12 @@ class Analyzer {
   private readonly funcs = new Map<string, Core.Func>();
   private readonly importAliases: string[] = [];
   private readonly importPaths: string[] = [];
-  readonly refs = new Set<string>();
+  private readonly funcIds = new Map<Core.Func, number>();
+  /** 当前被消费的路径；内联被调函数体时临时换成该次调用自己的集合，结束后并回调用方。 */
+  refs = new Set<string>();
   private readonly stack: Core.Func[] = [];
-  private inlineCalls = 0;
+  /** 同模块调用的记忆化：（调用栈，被调函数，实参来源）→ 该次内联的摘要。 */
+  private readonly memo = new Map<string, Summary>();
   /** 节点先序编号：进入节点时递增；记录编号最小的产生 * 的节点。 */
   private nodeCounter = 0;
   private firstIndex = Number.MAX_SAFE_INTEGER;
@@ -128,7 +156,10 @@ class Analyzer {
 
   constructor(private readonly module: Pick<Core.Module, 'name' | 'decls'>) {
     for (const d of module.decls ?? []) {
-      if (d.kind === 'Func' && typeof d.name === 'string' && !this.funcs.has(d.name)) this.funcs.set(d.name, d);
+      if (d.kind === 'Func') {
+        this.funcIds.set(d, this.funcIds.size);
+        if (typeof d.name === 'string' && !this.funcs.has(d.name)) this.funcs.set(d.name, d);
+      }
       if (d.kind === 'Import') {
         if (typeof d.asName === 'string') this.importAliases.push(d.asName);
         if (typeof d.name === 'string') this.importPaths.push(d.name);
@@ -219,6 +250,7 @@ class Analyzer {
   private eval(expr: Core.Expression | null | undefined, f: Frame): Src {
     if (!expr) return EMPTY;
     const index = ++this.nodeCounter;
+    if (index > MAX_NODE_VISITS) return this.produce(index, 'inline-depth');
     switch (expr.kind) {
       case 'Name':
         return this.name(expr.name, index, f);
@@ -304,8 +336,10 @@ class Analyzer {
     if (MAP_KEY_ACCESS.has(t) && c.args?.length === 2) return this.mapKey(c, index, f);
     if (MAP_ITERATION.has(t)) return this.producesIfAny(this.evalAll(c.args, f), index, 'map-iteration');
     if (SERIALIZERS.has(t)) return this.producesIfAny(this.evalAll(c.args, f), index, 'whole-input-serialized');
-    if (!t.includes('.') || this.isImported(t)) return this.producesIfAny(this.evalAll(c.args, f), index, 'cross-module-call');
-    // 其余限定名是内置函数（Text.* / List.* / Verdict.* …）：实参被消费
+    if (!t.includes('.') || this.isImported(t) || !BUILTIN_NAMESPACES.has(t.slice(0, t.indexOf('.')))) {
+      return this.producesIfAny(this.evalAll(c.args, f), index, 'cross-module-call');
+    }
+    // 内置命名空间的限定名（Text.* / List.* / Verdict.* …）：实参被消费
     return this.consumeAll(this.evalAll(c.args, f));
   }
 
@@ -341,16 +375,42 @@ class Analyzer {
     return isEmpty(map) ? EMPTY : this.produce(index, 'dynamic-map-key');
   }
 
+  /**
+   * 同模块调用：形参绑定到实参来源后内联被调函数体。结果按（调用栈，被调函数，实参来源）记忆化——同一调用点的
+   * 重复展开不再重遍历函数体；体内产生的 * 在实参之后、调用点之后的节点之前按先序登记（取新编号）。
+   */
   private inline(callee: Core.Func, args: readonly Src[], index: number, f: Frame): Src {
     if (allEmpty(args)) return EMPTY;
     if (this.stack.includes(callee)) return this.produce(index, 'recursion');
-    if (f.depth + 1 > MAX_INLINE_DEPTH || ++this.inlineCalls > MAX_INLINE_CALLS) return this.produce(index, 'inline-depth');
-    const frame: Frame = { env: new Map(), mode: 'callee', depth: f.depth + 1, returns: EMPTY };
+    if (f.depth + 1 > MAX_INLINE_DEPTH) return this.produce(index, 'inline-depth');
+    const key = `${this.stack.map((fn) => this.funcIds.get(fn)).join(',')}>${this.funcIds.get(callee)}|${JSON.stringify(args.map(srcKey))}`;
+    let s = this.memo.get(key);
+    if (s === undefined) {
+      s = this.summarize(callee, args, f.depth + 1);
+      this.memo.set(key, s);
+    }
+    for (const p of s.consumed) this.refs.add(p);
+    if (s.construct !== undefined) this.produce(++this.nodeCounter, s.construct);
+    return s.returns;
+  }
+
+  private summarize(callee: Core.Func, args: readonly Src[], depth: number): Summary {
+    const outerRefs = this.refs;
+    const outerIndex = this.firstIndex;
+    const outerConstruct = this.firstConstruct;
+    this.refs = new Set();
+    this.firstIndex = Number.MAX_SAFE_INTEGER;
+    this.firstConstruct = undefined;
+    const frame: Frame = { env: new Map(), mode: 'callee', depth, returns: EMPTY };
     (callee.params ?? []).forEach((p, i) => bind(frame, p.name, args[i] ?? EMPTY));
     this.stack.push(callee);
     this.walk(callee.body, frame);
     this.stack.pop();
-    return frame.returns;
+    const s: Summary = { returns: frame.returns, consumed: this.refs, construct: this.firstConstruct };
+    this.refs = outerRefs;
+    this.firstIndex = outerIndex;
+    this.firstConstruct = outerConstruct;
+    return s;
   }
 
   private producesIfAny(args: readonly Src[], index: number, construct: InputRefsConstruct): Src {

@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseSource, resolveAndLowerChecked } from '../../../src/compile-pipeline.js';
 import { analyzeInputRefs } from '../../../src/governance/input-refs.js';
 import type { Core } from '../../../src/types.js';
@@ -90,4 +92,49 @@ test('分析是纯函数', () => {
   const m = resolveSrc(`${HEAD}Rule decide given req as Req, produce Verdict:\n`
     + '  If req.action equals to "x":\n    Return Verdict.deny("d").\n  Return Verdict.allow().\n');
   assert.deepEqual(analyzeInputRefs(m, func(m, 'decide')), analyzeInputRefs(m, func(m, 'decide')));
+});
+
+/** 评审复现（I1）：64×64 扇出、h3 约 1500 行 Let、150 条 Verdict 规则。修复前 TS 约 22 分钟。与 Java 同构。 */
+function fanOutRepro(lets: number, rules: number, fan: number): string {
+  let b = 'Module dos.repro.\nProfile "governed".\n\nDefine Ctx has amount as Decimal.\nDefine Req has context as Ctx.\n\n'
+    + 'Rule h3 given c as Ctx, produce Bool:\n';
+  for (let i = 0; i < lets; i++) b += `  Let x${i} be c.amount plus ${i}.\n`;
+  b += '  Return c.amount greater than 0.\n\n';
+  for (const [h, callee] of [['h2', 'h3'], ['h1', 'h2']]) {
+    b += `Rule ${h} given c as Ctx, produce Bool:\n`;
+    for (let i = 0; i < fan; i++) b += `  Let y${i} be ${callee}(c).\n`;
+    b += '  Return true.\n\n';
+  }
+  for (let r = 0; r < rules; r++) {
+    b += `@id("R-${r}")\nRule r${r} given req as Req, produce Verdict:\n  If h1(req.context):\n    Return Verdict.deny("x").\n  Return Verdict.allow().\n\n`;
+  }
+  return b;
+}
+
+test('评审复现的扇出调用链分析在一秒内完成', () => {
+  const m = resolveSrc(fanOutRepro(1500, 150, 64));
+  const start = performance.now();
+  let rules = 0;
+  for (const d of m.decls) {
+    if (d.kind === 'Func' && d.name.startsWith('r')) {
+      assert.deepEqual(analyzeInputRefs(m, d).inputRefs, ['context.amount']);
+      rules++;
+    }
+  }
+  const ms = performance.now() - start;
+  assert.equal(rules, 150);
+  assert.ok(ms < 1000, `150 条规则的分析耗时 ${ms} ms`);
+});
+
+test('节点预算耗尽为 inline-depth 且在一秒内完成', () => {
+  const fx = JSON.parse(readFileSync(resolve(process.cwd(), 'shared', 'governance_input_refs_parity.json'), 'utf8')) as {
+    cases: { name: string; source: string }[];
+  };
+  const src = fx.cases.find((c) => c.name === 'node-visit-budget')!.source;
+  const m = resolveSrc(src);
+  const start = performance.now();
+  const r = analyzeInputRefs(m, func(m, 'decide'));
+  const ms = performance.now() - start;
+  assert.equal(r.construct, 'inline-depth');
+  assert.ok(ms < 1000, `节点预算用例的分析耗时 ${ms} ms`);
 });

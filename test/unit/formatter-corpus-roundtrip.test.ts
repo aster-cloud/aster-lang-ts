@@ -56,6 +56,7 @@ const ALLOW_LIST: ReadonlyMap<string, string> = new Map([
   ['corpus/tier1-parity/vocab-zh/set-writeback.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-parity/vocab-zh/block-scope-shadowing.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-parity/vocab-zh/cjk-pattern-binding.aster', CJK_IDENTIFIERS],
+  ['corpus/tier1-parity/vocab-zh/governance-input-refs.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-reject/vocab-e804-zh-member-vs-rule.aster', CJK_IDENTIFIERS],
 ]);
 
