@@ -138,3 +138,17 @@ test('节点预算耗尽为 inline-depth 且在一秒内完成', () => {
   assert.equal(r.construct, 'inline-depth');
   assert.ok(ms < 1000, `节点预算用例的分析耗时 ${ms} ms`);
 });
+
+// 第三轮审查 C1：记忆化键必须按结构比较（与 Java 同场景）。用户提交的 Core IR 可以在点路径段里带控制字符，
+// 字符串拼接键会把 {"context.meta.a\u0001zone"} 与 {"context.meta.a", "zone"} 当成同一实参。
+test('记忆化键按结构比较：路径段含控制字符也不碰撞', () => {
+  const src = 'Module guard.memo.\nProfile "governed".\n\n'
+    + 'Define Ctx has meta as Map Text to Text.\nDefine Req has context as Ctx, zone as Text.\n\n'
+    + 'Rule g given m as Text, produce Bool:\n  Return m equals to "x".\n\n'
+    + 'Rule decide given req as Req, produce Verdict:\n'
+    + '  Let b be [Maybe.withDefault(Map.get(req.context.meta, "a"), ""), req.zone].\n'
+    + '  Let r1 be g(b).\n  Let a be req.context.meta.aXzone.\n  Let r2 be g(a).\n'
+    + '  If r1 and r2:\n    Return Verdict.deny("x").\n  Return Verdict.allow().\n';
+  const m = JSON.parse(JSON.stringify(resolveSrc(src)).replaceAll('aXzone', 'a\\u0001zone')) as Core.Module;
+  assert.deepEqual(analyzeInputRefs(m, func(m, 'decide')).inputRefs, ['context.meta.a', 'context.meta.a\u0001zone', 'zone']);
+});

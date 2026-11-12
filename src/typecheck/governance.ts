@@ -157,11 +157,10 @@ function checkProfile(
 
 /**
  * ADR 0046 §11 D2 第 2 条：档案要求 verifiedInputs 时，规则的输入引用必须静态可知，否则 E708。
- * IR 已带 inputRefs 且不是 ["*"] 时直接判定不报；否则（["*"] 需要 construct，或旧 IR 不带该字段）由分析器重算。
+ * 一律由分析器重算，不信任 IR 自带的 inputRefs（与 Java 一致：aster-api 接受用户提交的 Core IR，其中的 inputRefs 可以伪造）。
+ * 分析带记忆化与节点预算，重算的代价可以接受；也兼容不带该字段的旧 IR。
  */
 function checkInputRefs(module: GovernanceModule, func: Core.Func, p: ProfileDef, b: DiagnosticBuilder): void {
-  const refs = func.inputRefs;
-  if (refs !== undefined && !(refs.length === 1 && refs[0] === '*')) return;
   const { construct } = analyzeInputRefs(module, func);
   if (construct === undefined) return;
   b.error(ErrorCode.GOV_PROFILE_INPUT_UNRESOLVABLE, originToSpan(func.origin), { rule: String(func.name), profile: p.id, construct });

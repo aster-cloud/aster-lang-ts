@@ -52,12 +52,17 @@ const MAP_ITERATION: ReadonlySet<string> = new Set(['Map.keys', 'Map.values']);
 /** 把值整体转为文本或摘要。 */
 const SERIALIZERS: ReadonlySet<string> = new Set(['Bool.toString', 'Crypto.hash', 'Int.toString']);
 /**
- * 内置函数命名空间（与 truffle Builtins、TS 类型系统登记的内置一致）：只有这些限定名按「内置函数，实参被消费」处理，
- * 其余未知限定名一律按跨模块调用（`*`）。与 Java BUILTIN_NAMESPACES 同表。
+ * 内置函数命名空间：只有这些限定名按「内置函数，实参被消费」处理，其余未知限定名一律按跨模块调用（`*`）。
+ * 来源：truffle Builtins 与本仓类型系统（Bool … Verdict）；两引擎的效果 / 能力 / PII 表（Console、Http、Log、UUID）；
+ * 只出现在本仓效果 / PII / LSP 表中的 Consent、Db、GDPR、Set 也列入，两引擎同表（parity）。与 Java BUILTIN_NAMESPACES 同表。
  */
 const BUILTIN_NAMESPACES: ReadonlySet<string> = new Set([
-  'Bool', 'Crypto', 'Date', 'Decimal', 'IO', 'Int', 'List', 'Map', 'Maybe', 'Option', 'PII', 'Result', 'Text', 'Verdict',
+  'Bool', 'Consent', 'Console', 'Crypto', 'Date', 'Db', 'Decimal', 'GDPR', 'Http', 'IO', 'Int', 'List', 'Log', 'Map',
+  'Maybe', 'Option', 'PII', 'Result', 'Set', 'Text', 'UUID', 'Verdict',
 ]);
+
+/** 字面量 Map 键能否作为一段点路径：非空、不含点、不含控制字符 U+0000–U+001F（与 Java representableKey 一致）。 */
+const UNREPRESENTABLE_KEY_CHAR = /[.\u0000-\u001f]/;
 
 // ---- 抽象值 ----
 
@@ -368,7 +373,7 @@ class Analyzer {
     const key = this.eval(keyExpr, f);
     if (keyExpr.kind === 'String' && typeof keyExpr.value === 'string') {
       if (isEmpty(map)) return EMPTY;
-      if (keyExpr.value === '' || keyExpr.value.includes('.')) return this.produce(index, 'unrepresentable-key');
+      if (keyExpr.value === '' || UNREPRESENTABLE_KEY_CHAR.test(keyExpr.value)) return this.produce(index, 'unrepresentable-key');
       return this.select(map, keyExpr.value, index);
     }
     this.consume(key);
