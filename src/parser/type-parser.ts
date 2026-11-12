@@ -31,6 +31,21 @@ function isControlKeyword(value: string): boolean {
 }
 
 /**
+ * aster-lang-core 词法（AsterLexer.g4）保留为关键词 token、因而不是 IDENT 的小写单词。
+ * core 文法 `IT PERFORMS IDENT` 在效果名位置拒绝它们；ts 词法把它们当 IDENT，
+ * 所以接受未知效果名时须按同一集合排除，保持两端结论一致（#304）。
+ * 只列 core 的保留词：ts 的软关键词（如 maybe、profile、in）在 core 是 IDENT，照常接受。
+ * true / false / null 在 ts 已是字面量 token，不会走到这里。
+ */
+const CORE_RESERVED_WORDS: ReadonlySet<string> = new Set([
+  'times', 'modulo', 'plus', 'minus', 'module', 'rule', 'given', 'to', 'with', 'and', 'or',
+  'produce', 'has', 'set', 'define', 'type', 'as', 'one', 'of', 'use', 'version', 'let', 'be',
+  'return', 'apply', 'if', 'then', 'else', 'otherwise', 'match', 'when', 'not', 'start', 'wait',
+  'for', 'async', 'workflow', 'step', 'retry', 'timeout', 'depends', 'on', 'compensate', 'max',
+  'attempts', 'backoff', 'seconds', 'second', 'required', 'between', 'function', 'performs',
+]);
+
+/**
  * 解析效果列表（io, cpu, 能力等）
  * @param ctx Parser 上下文
  * @param error 错误报告函数
@@ -50,6 +65,12 @@ export function parseEffectList(
   if (ctx.isKeyword(KW.CPU)) {
     ctx.nextWord();
     effs.push('cpu');
+  }
+  // 其它基效果名（如 pure、teleport）原样接受，与 aster-lang-core 文法 `IT PERFORMS IDENT` 一致（#304）：
+  // 未知名不在解析期报错，检查阶段按 pure 处理，名字原样保留到 IR。能力名一律是 TYPE_IDENT，不会走到这里；
+  // core 的保留词（return、to、async、with、and 等）不是 IDENT，同样不接受。
+  if (effs.length === 0 && ctx.at(TokenKind.IDENT) && !CORE_RESERVED_WORDS.has(String(ctx.peek().value).toLowerCase())) {
+    effs.push(ctx.next().value as string);
   }
 
   // Parse optional capability list with 'with' keyword
@@ -156,6 +177,11 @@ export function separateEffectsAndCaps(
        effectVarRefs.push(eff);
        continue;
      }
+    // 能力名一律首字母大写（TYPE_IDENT）；其余名字是未知基效果，原样保留（#304）
+    if (!/^[A-Z]/.test(eff)) {
+      baseEffects.push(eff);
+      continue;
+    }
     rawCaps.push(eff);
   }
 

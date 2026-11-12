@@ -21,7 +21,7 @@ import { Core } from './core/core_ir.js';
 import { markFieldTypeInferred, markLambdaParamTypeInferred } from './core/inferred_fields.js';
 import { markForResolution, withResolvedOrigin } from './core/resolution-mark.js';
 import { KEYWORD_CTORS } from './frontend/resolution-choice.js';
-import { parseEffect, getAllEffects, inferCapabilityFromName } from './config/semantic.js';
+import { parseEffect, inferCapabilityFromName } from './config/semantic.js';
 import type { Effect } from './config/semantic.js';
 import { Diagnostics } from './diagnostics/diagnostics.js';
 import type { Span, Origin, Resolved } from './types.js';
@@ -322,25 +322,22 @@ function lowerFunc(f: Func): import('./types.js').Core.Func {
     ...(p.typeInferred ? { typeInferred: true } : {}),
   }));
   const ret = lowerTypeWithVars(f.retType, tvars);
-  // 严格校验效果字符串，拒绝未知值，同时将效应变量保留到声明列表
+  // 已知效果转为枚举；效应变量保留到声明列表。
+  // 未知效果名（如 teleport）与 aster-lang-core 一致（#304）：不报错，名字原样保留在 IR 的
+  // effects / declaredEffects 中（core 的 effects 同样透传），检查阶段按 pure 处理——
+  // 各检查点只认 IO / CPU，效果推断经 normalizeEffectRef 把未知名折算为 PURE。
   const effectParamSet = new Set(f.effectParams ?? []);
   const declaredEffects: Array<Effect | import('./types.js').Core.EffectVar> = [];
   const effects: Effect[] = [];
   for (const e of f.effects ?? []) {
-    const effect = parseEffect(e.toLowerCase());
-    if (effect !== null) {
-      effects.push(effect);
-      declaredEffects.push(effect);
-      continue;
-    }
-    if (effectParamSet.has(e)) {
+    const known = parseEffect(e.toLowerCase());
+    if (known === null && effectParamSet.has(e)) {
       declaredEffects.push({ kind: 'EffectVar', name: e } as import('./types.js').Core.EffectVar);
       continue;
     }
-    const validEffects = getAllEffects().join(', ');
-    const { span } = extractMetadata(f);
-    Diagnostics.unknownEffect(e, validEffects, span?.start ?? { line: 0, col: 0 }).throw();
-    throw new Error('unreachable'); // For TypeScript's control flow analysis
+    const effect = known ?? (e as Effect);
+    effects.push(effect);
+    declaredEffects.push(effect);
   }
   const body = f.body ? lowerBlock(f.body) : Core.Block([]);
   const out = Core.Func(

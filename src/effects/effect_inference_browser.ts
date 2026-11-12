@@ -299,11 +299,14 @@ function effectRefKey(ref: EffectRef): string {
   return String(ref);
 }
 
+const KNOWN_EFFECTS: ReadonlySet<Effect> = new Set(Object.values(Effect));
+
 function normalizeEffectRef(effect: Effect | Core.EffectVar): EffectRef {
   if ((effect as { kind?: string }).kind === 'EffectVar') {
     return { kind: 'EffectVar', name: (effect as Core.EffectVar).name };
   }
-  return effect as Effect;
+  // IR 中原样保留的未知效果名（#304）在检查阶段按 pure 处理，与 core EffectChecker 一致
+  return KNOWN_EFFECTS.has(effect as Effect) ? (effect as Effect) : Effect.PURE;
 }
 
 function initBindings(params: Set<string>): Map<string, EffectBinding> {
