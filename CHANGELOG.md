@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### 类型嵌套上限 300 → 64（收紧，行为变化，与 aster-lang-core#250 同车次）
+
+- `MAX_TYPE_RECURSION_DEPTH` 由 300 降到 **64**，与 core 新增的词法期类型守卫 `AsterCustomLexer.MAX_TYPE_NESTING_DEPTH`
+  同值同单位：每进入一次 `parseType` 计 1（含叶子类型名），`list of` 元素、`Map` 键和值、`result of` 每个分量、
+  `option of` 参数各占一层。core 此前没有类型守卫，1MB 线程栈 `-Xint` 下 `result of Int and result of …` 约 206–211 层
+  即在 ANTLR 解析期栈溢出；64 取在该值一半以下，512K 栈仍有余量。
+- **行为变化**：类型嵌套深度在 65–300 之间的源码，此前 ts 通过，现在报 E054。降低上限的前提是发版前的生产源码
+  gate scan 结果为 0（发版计划 §4 第 6 条）。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 list 链、Map 键 / 值交替、result 失败分量嵌套三种形态的
+  「64 层放行 / 65 层 E054」六例（与 core 副本 byte-identical）。
+
 ### 未知效果名与 core 对齐（放宽，#304）
 
 - `It performs <名字>` 接受任意基效果名（如 `teleport`、`pure`），与 aster-lang-core 文法 `IT PERFORMS IDENT` 一致；

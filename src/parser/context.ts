@@ -62,9 +62,14 @@ export interface ParserContext {
   /** 当前递归下降嵌套深度（用于防止栈溢出 / DoS） */
   recursionDepth: number;
   /**
+   * 当前类型嵌套深度（parseType 的进入次数），与表达式的 recursionDepth 分开计数：
+   * core 的类型守卫只数类型，lambda 等表达式里的类型不能因外层表达式深度而提前超限。
+   */
+  typeRecursionDepth: number;
+  /**
    * 进入一层递归下降。超过 limit（缺省 MAX_RECURSION_DEPTH）时抛出可恢复的
-   * DiagnosticError（而非原生 RangeError），调用方应在 finally 中
-   * 调用 exitRecursion()。类型递归传 MAX_TYPE_RECURSION_DEPTH。
+   * DiagnosticError（而非原生 RangeError），且不计入深度；未抛出时调用方应在 finally 中
+   * 调用 exitRecursion()。
    */
   enterRecursion(limit?: number): void;
   /** 退出一层递归下降。 */
@@ -93,13 +98,17 @@ export interface ParserContext {
 export const MAX_RECURSION_DEPTH = 64;
 
 /**
- * 类型递归（parseType → parseTypePrimary → parseType）的深度上限，沿用原值 300。
+ * 类型递归（parseType → parseTypePrimary → parseType）的深度上限，与 aster-lang-core
+ * `AsterCustomLexer.MAX_TYPE_NESTING_DEPTH` 同值（aster-lang-core#250）。
  *
- * 不随表达式上限一起降到 64：Java 侧的类型嵌套没有解析期守卫（实测 1MB 栈上
- * `list of` 链约 525 层才溢出），TS 若降到 64 就会比 Java 更严——合法性判定以 Java 为准，
- * TS 不得先于 Java 拒绝。300 仍远低于 Node 原生溢出阈值（issue #145 的 5000 层照常报 E054）。
+ * 计数单位两端相同：每进入一次 parseType 计 1（含叶子类型名），`list of` 的元素、`Map` 的键和值、
+ * `result of` 的每个分量、`option of` 的参数都各占一层。core 此前没有类型守卫，实测 1MB 线程栈
+ * `-Xint` 下 `result of Int and result of …` 约 206–211 层、`list of` 链 526 层即在 ANTLR 解析期栈溢出
+ * （512K 栈 91 / 228 层）；core 新增词法期守卫取 64（1MB `-Xint` 最窄形态的一半以下，512K 仍有余量），
+ * 本常量随之从 300 降到 64。共享夹具 shared/parse_diagnostics_parity.json 锁定 list 链、Map 键 / 值交替、
+ * result 失败分量嵌套三种形态的「64 层放行、65 层 E054」。
  */
-export const MAX_TYPE_RECURSION_DEPTH = 300;
+export const MAX_TYPE_RECURSION_DEPTH = 64;
 
 /**
  * 将关键字短语拆分为单词数组
@@ -320,13 +329,15 @@ export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon)
       return compoundContextStack.includes(opener);
     },
     recursionDepth: 0,
+    typeRecursionDepth: 0,
     enterRecursion: (limit: number = MAX_RECURSION_DEPTH): void => {
-      ctx.recursionDepth++;
-      if (ctx.recursionDepth > limit) {
+      if (ctx.recursionDepth + 1 > limit) {
         // Throw a recoverable DiagnosticError (NOT a raw RangeError) so the
         // decl-parser recovery loop can catch it and continue.
+        // 先判后加：抛出时调用方的 finally 尚未建立，若先加会让深度泄漏到同一模块后续的解析。
         Diagnostics.nestingTooDeep(limit, ctx.peek().start).throw();
       }
+      ctx.recursionDepth++;
     },
     exitRecursion: (): void => {
       if (ctx.recursionDepth > 0) ctx.recursionDepth--;

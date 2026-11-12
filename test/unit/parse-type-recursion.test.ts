@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { compile } from '../../src/browser.js';
+import { MAX_TYPE_RECURSION_DEPTH } from '../../src/parser/context.js';
 
 /**
  * 类型递归的深度护栏（issue aster-lang-ts#145）。
@@ -59,8 +60,83 @@ describe('正常类型不受影响（反向护栏）', () => {
     assert.equal(parseErrorOf(nestedMaybe(10)), null, '10 层远低于上限');
   });
 
-  it('★接近上限但未超（290 层）仍应通过', () => {
-    // 锁住「类型上限是 300 而不是随表达式上限降到 64」——Java 侧类型嵌套无守卫，TS 不得更严。
-    assert.equal(parseErrorOf(nestedMaybe(290)), null, '290 层未超 300 类型上限，应通过');
+  it('★深度恰为上限仍应通过', () => {
+    // maybe 链：n 个 maybe + 叶子 Int = n + 1 次 parseType
+    assert.equal(parseErrorOf(nestedMaybe(MAX_TYPE_RECURSION_DEPTH - 1)), null);
+    assert.match(parseErrorOf(nestedMaybe(MAX_TYPE_RECURSION_DEPTH)) ?? '', /nesting too deep/);
+  });
+});
+
+/**
+ * 计数单位与 aster-lang-core 的词法期类型守卫相同（aster-lang-core#250）：每进入一次 parseType 计 1，
+ * 叶子类型名也算一层；Map 的键和值、result of 的每个分量各自都是一次进入。两端在上限放行、上限 + 1 报 E054。
+ */
+describe('类型嵌套计数单位（与 core 对齐）', () => {
+  const L = MAX_TYPE_RECURSION_DEPTH;
+  const src = (type: string): string =>
+    `Module p.\nRule r given x as ${type}, produce Int:\n  Return 1.\n`;
+  const errCode = (type: string): string | null => {
+    const errs = (compile(src(type)) as { parseErrors?: { code?: string }[] }).parseErrors ?? [];
+    return errs.length > 0 ? (errs[0]!.code ?? 'no-code') : null;
+  };
+  /** 深度为 depth 的 Map 值链（叶子 Int 占一层）。 */
+  const mapChain = (depth: number): string => 'Map Text to '.repeat(depth - 1) + 'Int';
+
+  it('上限与 core 同值 64', () => {
+    assert.equal(L, 64);
+  });
+
+  const shapes: Record<string, (depth: number) => string> = {
+    'list of 链': d => 'list of '.repeat(d - 1) + 'Int',
+    'option of 链': d => 'option of '.repeat(d - 1) + 'Int',
+    'Map 值链': mapChain,
+    'Map 键链': d => 'Map '.repeat(d - 1) + 'Int' + ' to Int'.repeat(d - 1),
+    'result of 失败分量链': d => 'result of Int and '.repeat(d - 1) + 'Text',
+    'result of 成功分量链': d => 'result of '.repeat(d - 1) + 'Int' + ' and Text'.repeat(d - 1),
+    '函数类型返回值链': d => '(Int) -> '.repeat(d - 1) + 'Int',
+  };
+  for (const [name, shape] of Object.entries(shapes)) {
+    it(`${name}：上限放行、上限 + 1 报 E054`, () => {
+      assert.equal(errCode(shape(L)), null);
+      assert.equal(errCode(shape(L + 1)), 'E054');
+    });
+  }
+
+  it('Map 的键和值都计入深度', () => {
+    assert.equal(errCode(`Map ${mapChain(L - 1)} to Int`), null);
+    assert.equal(errCode(`Map Int to ${mapChain(L - 1)}`), null);
+    assert.equal(errCode(`Map ${mapChain(L)} to Int`), 'E054');
+    assert.equal(errCode(`Map Int to ${mapChain(L)}`), 'E054');
+  });
+
+  it('result of 的每个分量都计入深度', () => {
+    assert.equal(errCode(`result of ${mapChain(L - 1)} and Text`), null);
+    assert.equal(errCode(`result of Int and ${mapChain(L - 1)}`), null);
+    assert.equal(errCode(`result of ${mapChain(L)} and Text`), 'E054');
+    assert.equal(errCode(`result of Int and ${mapChain(L)}`), 'E054');
+  });
+
+  it('并列的类型不累加：键值、分量、多个参数各自从同一层开始', () => {
+    assert.equal(errCode(`Map ${mapChain(L - 1)} to ${mapChain(L - 1)}`), null);
+    assert.equal(errCode(`result of ${mapChain(L - 1)} and ${mapChain(L - 1)}`), null);
+    const full = mapChain(L);
+    const multi = `Module p.\nRule r given x as ${full}, y as ${full}, produce ${full}:\n  Return x.\n`;
+    assert.deepEqual((compile(multi) as { parseErrors?: unknown[] }).parseErrors ?? [], []);
+  });
+
+  it('lambda 里的类型只数类型深度，不叠加外层表达式深度（与 core 一致）', () => {
+    const lambda = (type: string): string =>
+      `Module p.\nRule r given x as Int, produce Int:\n  Let f be function with y as ${type}, produce Int:\n    Return 1.\n  Return x.\n`;
+    const codes = (s: string): string[] =>
+      ((compile(s) as { parseErrors?: { code?: string }[] }).parseErrors ?? []).map(e => e.code ?? 'no-code');
+    assert.deepEqual(codes(lambda(mapChain(L))), []);
+    assert.deepEqual(codes(lambda(mapChain(L + 1))), ['E054']);
+  });
+
+  it('一处 E054 之后，同一模块里后续上限内的类型照常通过（深度不泄漏）', () => {
+    const two = `Module p.\nRule a given x as ${mapChain(L + 1)}, produce Int:\n  Return 1.\n\n`
+      + `Rule b given x as ${mapChain(L)}, produce Int:\n  Return 1.\n`;
+    const errs = (compile(two) as { parseErrors?: { code?: string }[] }).parseErrors ?? [];
+    assert.deepEqual(errs.map(e => e.code), ['E054']);
   });
 });

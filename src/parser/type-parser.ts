@@ -457,13 +457,17 @@ export function parseType(
   //   「nesting too deep (exceeds limit of N)」——同一份护栏，只是没接上。
   //
   //   接在 parseType 入口即可覆盖全部递归分支（maybe / option of / list of /
-  //   map of / result of 等都经由它回环）。上限用 MAX_TYPE_RECURSION_DEPTH（300）而非
-  //   表达式的 MAX_RECURSION_DEPTH（64）：Java 侧类型嵌套无守卫，TS 不得比 Java 更严。
-  ctx.enterRecursion(MAX_TYPE_RECURSION_DEPTH);
+  //   map of / result of 等都经由它回环）。上限用 MAX_TYPE_RECURSION_DEPTH，与 core 的
+  //   词法期类型守卫同值同单位（aster-lang-core#250）：只数类型，不与表达式深度共用计数器，
+  //   否则 lambda 里的类型会因外层表达式深度提前超限，与 core 不一致。先判后加，抛出时不泄漏深度。
+  if (ctx.typeRecursionDepth + 1 > MAX_TYPE_RECURSION_DEPTH) {
+    Diagnostics.nestingTooDeep(MAX_TYPE_RECURSION_DEPTH, ctx.peek().start).throw();
+  }
+  ctx.typeRecursionDepth++;
   try {
     return parseTypeInner(ctx, error);
   } finally {
-    ctx.exitRecursion();
+    ctx.typeRecursionDepth--;
   }
 }
 
