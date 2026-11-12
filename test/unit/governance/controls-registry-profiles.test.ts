@@ -38,6 +38,19 @@ test('合法档案照常登记', () => {
   assert.deepEqual(hr, { id: 'hr', ruleId: true, registeredControls: false, frameworks: ['EU_AI_ACT'] });
 });
 
+// ADR 0046 §11 D1（R62 X1）：旧解析器必须忽略 requires 中的未知键（如 1.2.0 的 verifiedInputs），
+// 档案照常登记，已知四个字段不受影响。
+test('requires 含未知键时加载成功且忽略', () => {
+  const withUnknown = {
+    id: 'hr',
+    requires: { ruleId: true, registeredControls: false, frameworks: ['EU_AI_ACT'], verifiedInputs: true, futureKey: {} },
+  };
+  const hr = registryWithProfiles([withUnknown]).profile?.('hr');
+  const baseline = registryWithProfiles([profile('hr', true, false, ['EU_AI_ACT'])]).profile?.('hr');
+  assert.deepEqual(hr, { id: 'hr', ruleId: true, registeredControls: false, frameworks: ['EU_AI_ACT'] });
+  assert.deepEqual(hr, baseline);
+});
+
 test('畸形档案不登记且不影响其它档案', () => {
   const good = profile('ok', true, true, []);
   const bad: unknown[] = [
