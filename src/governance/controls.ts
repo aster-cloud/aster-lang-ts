@@ -6,6 +6,8 @@ export interface ProfileDef {
   readonly ruleId: boolean;
   readonly registeredControls: boolean;
   readonly frameworks: readonly string[];
+  /** ADR 0046 §11 D1（registry 1.2.0 起）：要求 Verdict 规则的输入引用静态可知（E708）；注册表缺该键时为 false。 */
+  readonly verifiedInputs: boolean;
 }
 
 /**
@@ -70,16 +72,21 @@ function frameworkIdsOf(frameworks: unknown): Set<string> {
   return ids;
 }
 
-/** id 合乎形态、两个开关为布尔、frameworks 为只含已登记框架 id 的数组，否则为 undefined。 */
+/**
+ * id 合乎形态、两个开关为布尔、frameworks 为只含已登记框架 id 的数组，否则为 undefined。
+ * verifiedInputs 可缺省（缺省为 false，兼容 1.2.0 之前的注册表）；出现但不是布尔时与 ruleId 非布尔同样不登记。
+ * requires 中的其他键忽略（ADR 0046 §11 D1：旧解析器须忽略未知键）。与 Java ControlRegistry.readProfile 一致。
+ */
 function readProfile(p: unknown, frameworkIds: ReadonlySet<string>): ProfileDef | undefined {
   const { id, requires } = (p ?? {}) as { id?: unknown; requires?: unknown };
-  const { ruleId, registeredControls, frameworks } = (requires ?? {}) as Record<string, unknown>;
+  const { ruleId, registeredControls, frameworks, verifiedInputs } = (requires ?? {}) as Record<string, unknown>;
   const shapeOk = typeof id === 'string' && PROFILE_ID.test(id)
-    && typeof ruleId === 'boolean' && typeof registeredControls === 'boolean' && Array.isArray(frameworks);
+    && typeof ruleId === 'boolean' && typeof registeredControls === 'boolean' && Array.isArray(frameworks)
+    && (verifiedInputs === undefined || typeof verifiedInputs === 'boolean');
   if (!shapeOk) return undefined;
   const known = (frameworks as unknown[]).every((f) => typeof f === 'string' && frameworkIds.has(f));
   if (!known) return undefined;
-  return { id, ruleId, registeredControls, frameworks: [...(frameworks as string[])] };
+  return { id, ruleId, registeredControls, frameworks: [...(frameworks as string[])], verifiedInputs: verifiedInputs === true };
 }
 
 export function controlRegistryFrom(data: ControlsRegistryData): ControlRegistry {

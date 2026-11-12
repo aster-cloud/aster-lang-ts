@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### 规则输入引用 `Core.Func.inputRefs`、E708 与控制注册表 1.2.0（ADR 0046 §11 R62，计入 1.5.0，与 aster-lang-core 同车次）
+
+- **新增 `Core.Func.inputRefs?: readonly string[]`**：声明了档案（`Profile "…"`）的模块中，返回 Verdict 的规则写入它对
+  第一个参数读取的源码字段路径（点连接，按 UTF-16 码元字典序去重；`""` 为参数本身，`["*"]` 为无法静态确定，`[]` 为不读输入）。
+  在名称解析 R2 之后计算（`src/governance/input-refs.ts`，Java 镜像 `InputRefsAnalyzer`），zh / de 源码产出规范路径。
+  **未声明档案的模块 IR 逐字节不变**；声明档案模块的 IR 只多出该字段。传播规则见 ADR 0046 §11.2 D2 与 §11.6。
+- **新增 E708 `GOV_PROFILE_INPUT_UNRESOLVABLE`（error）**：档案要求 `verifiedInputs` 且规则的 `inputRefs` 为 `["*"]` 时报告，
+  参数 `{rule, profile, construct}`，`construct` 取先序遍历中第一个产生 `*` 的构造（闭集九项，值不翻译）。
+  `src/diagnostics/error_codes.ts` 与 `docs/error-codes.md` 随共享码表同步；zh / de / hi 译文按 aster-lang-locales /
+  aster-lang-hi 同名分支（`feat/r62-input-refs`）的语言包重新生成 `diagnostic-overlays.generated.ts`。
+- **控制注册表内置副本升到 1.2.0**：两个档案都显式 `"verifiedInputs": false`，因此本版本对任何现有策略**不新增诊断**。
+  `ProfileDef` 新增 `verifiedInputs: boolean`：注册表缺该键时为 `false`，出现但不是布尔时该档案不登记（声明它的模块得到 E705），
+  与 Java `ControlRegistry` 同口径；其余未知键照旧忽略。
+- 共享夹具 `shared/governance_input_refs_parity.json`（与 aster-lang-core 测试资源 byte-identical）：ADR 正反例表逐行、
+  补充规则 (a)–(c)、`Use … as Alias` 与本模块函数同名、两处 `*` 的遍历顺序、非 Verdict 函数、zh / de 规范路径。
+
 ### 类型嵌套上限 300 → 64（收紧，行为变化，与 aster-lang-core#250 同车次）
 
 - `MAX_TYPE_RECURSION_DEPTH` 由 300 降到 **64**，与 core 新增的词法期类型守卫 `AsterCustomLexer.MAX_TYPE_NESTING_DEPTH`

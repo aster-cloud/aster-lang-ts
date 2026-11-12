@@ -10,7 +10,8 @@
  * 同一规则出现多个 @id 也报 E702（@control 可重复）。
  *
  * 档案（ADR 0046 §4）：模块声明的档案不在注册表中报 E705（模块 origin），之后不再做档案检查；
- * 已知档案只约束返回 Verdict 的规则，违反要求报 E706（规则 span），同一规则同一要求只报一次。
+ * 已知档案只约束返回 Verdict 的规则，违反要求报 E706（规则 span），同一规则同一要求只报一次；
+ * 档案要求 verifiedInputs 时，输入引用无法静态确定的规则报 E708（ADR 0046 §11 D2，每条规则至多一条）。
  *
  * 本模块只依赖纯函数与 DiagnosticBuilder，Node / 浏览器两条类型检查路径共用。
  */
@@ -22,6 +23,7 @@ import {
   type ControlRegistry,
   type ProfileDef,
 } from '../governance/controls.js';
+import { analyzeInputRefs } from '../governance/input-refs.js';
 import { DiagnosticBuilder } from './diagnostics.js';
 import { originToSpan } from './pure.js';
 import { VERDICT_TYPE_NAME, isVerdictCall } from './verdict_signatures.js';
@@ -99,6 +101,7 @@ function isRegistered(key: string, registry: ControlRegistry): boolean {
 
 /** 单条规则：E702 注解参数、多个 @id，记录 id 归属或报 W700，W704 未登记控制点，E706 档案要求。 */
 function checkFunc(
+  module: GovernanceModule,
   func: Core.Func,
   idOwners: Map<string, Core.Func[]>,
   b: DiagnosticBuilder,
@@ -126,11 +129,17 @@ function checkFunc(
     if (isRegistered(key, registry)) continue;
     b.warning(ErrorCode.GOV_CONTROL_UNREGISTERED, span, { control: key, rule, version: registry.version });
   }
-  if (profile) checkProfile(func, profile, b, registry);
+  if (profile) checkProfile(module, func, profile, b, registry);
 }
 
 /** ADR 0046 §4：只对 Verdict 规则检查档案要求；同一规则同一要求只报一次。 */
-function checkProfile(func: Core.Func, p: ProfileDef, b: DiagnosticBuilder, registry: ControlRegistry): void {
+function checkProfile(
+  module: GovernanceModule,
+  func: Core.Func,
+  p: ProfileDef,
+  b: DiagnosticBuilder,
+  registry: ControlRegistry
+): void {
   if (!returnsVerdict(func)) return;
   const violation = (requirement: string): void => {
     b.error(ErrorCode.GOV_PROFILE_VIOLATION, originToSpan(func.origin), { rule: String(func.name), profile: p.id, requirement });
@@ -143,6 +152,17 @@ function checkProfile(func: Core.Func, p: ProfileDef, b: DiagnosticBuilder, regi
   if (p.frameworks.length > 0 && !keys.some((k) => coversFramework(k, p, registry))) {
     violation(`no registered control from framework ${p.frameworks.join(', ')}`);
   }
+  if (p.verifiedInputs) checkInputRefs(module, func, p, b);
+}
+
+/**
+ * ADR 0046 §11 D2 第 2 条：档案要求 verifiedInputs 时，规则的输入引用必须静态可知，否则 E708。
+ * 每次都由分析器重算（纯函数，结果与 IR 中的 inputRefs 相同），以便取得产生 * 的 construct，也兼容不带 inputRefs 的旧 IR。
+ */
+function checkInputRefs(module: GovernanceModule, func: Core.Func, p: ProfileDef, b: DiagnosticBuilder): void {
+  const { construct } = analyzeInputRefs(module, func);
+  if (construct === undefined) return;
+  b.error(ErrorCode.GOV_PROFILE_INPUT_UNRESOLVABLE, originToSpan(func.origin), { rule: String(func.name), profile: p.id, construct });
 }
 
 function coversFramework(key: string, p: ProfileDef, registry: ControlRegistry): boolean {
@@ -181,7 +201,7 @@ export interface GovernanceModule {
 
 /**
  * 检查整个模块：E702 注解参数、W700 缺 @id、E701 模块内 @id 重复、W704 未登记控制点、
- * E705/E706 档案（ADR 0046）、Verdict 符号预占。
+ * E705/E706/E708 档案（ADR 0046）、Verdict 符号预占。
  * opts.controls 可注入控制注册表，缺省用内置副本（ADR 0045 §3）。
  */
 export function checkGovernance(
@@ -195,7 +215,7 @@ export function checkGovernance(
   const idOwners = new Map<string, Core.Func[]>();
   for (const decl of module.decls) {
     checkReservedTypeName(decl, b);
-    if (decl.kind === 'Func') checkFunc(decl, idOwners, b, registry, profile);
+    if (decl.kind === 'Func') checkFunc(module, decl, idOwners, b, registry, profile);
   }
   for (const [id, funcs] of idOwners) {
     if (funcs.length < 2) continue;

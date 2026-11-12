@@ -35,20 +35,41 @@ function profileIds(r: ControlRegistry, candidates: readonly string[]): string[]
 
 test('合法档案照常登记', () => {
   const hr = registryWithProfiles([profile('hr', true, false, ['EU_AI_ACT'])]).profile?.('hr');
-  assert.deepEqual(hr, { id: 'hr', ruleId: true, registeredControls: false, frameworks: ['EU_AI_ACT'] });
+  assert.deepEqual(hr, { id: 'hr', ruleId: true, registeredControls: false, frameworks: ['EU_AI_ACT'], verifiedInputs: false });
 });
 
-// ADR 0046 §11 D1（R62 X1）：旧解析器必须忽略 requires 中的未知键（如 1.2.0 的 verifiedInputs），
-// 档案照常登记，已知四个字段不受影响。
+// ADR 0046 §11 D1（R62 X1）：解析器必须忽略 requires 中的未知键，档案照常登记，已知字段不受影响。
+// 1.2.0 起 verifiedInputs 是已知键（见下方用例），这里只用真正的未知键。
 test('requires 含未知键时加载成功且忽略', () => {
   const withUnknown = {
     id: 'hr',
-    requires: { ruleId: true, registeredControls: false, frameworks: ['EU_AI_ACT'], verifiedInputs: true, futureKey: {} },
+    requires: { ruleId: true, registeredControls: false, frameworks: ['EU_AI_ACT'], futureKey: {}, anotherKey: [1] },
   };
   const hr = registryWithProfiles([withUnknown]).profile?.('hr');
   const baseline = registryWithProfiles([profile('hr', true, false, ['EU_AI_ACT'])]).profile?.('hr');
-  assert.deepEqual(hr, { id: 'hr', ruleId: true, registeredControls: false, frameworks: ['EU_AI_ACT'] });
+  assert.deepEqual(hr, { id: 'hr', ruleId: true, registeredControls: false, frameworks: ['EU_AI_ACT'], verifiedInputs: false });
   assert.deepEqual(hr, baseline);
+});
+
+function hrWithVerifiedInputs(value: unknown): unknown {
+  const requires = { ruleId: true, registeredControls: false, frameworks: ['EU_AI_ACT'], verifiedInputs: value, futureKey: {} };
+  return registryWithProfiles([{ id: 'hr', requires }]).profile?.('hr');
+}
+
+// ADR 0046 §11 D1（registry 1.2.0）：verifiedInputs 缺省为 false，为布尔时照读，非布尔则该档案不登记（与 Java 同口径）
+test('verifiedInputs 缺省为 false', () => {
+  assert.equal(registryWithProfiles([profile('hr', true, false, ['EU_AI_ACT'])]).profile?.('hr')?.verifiedInputs, false);
+});
+
+test('verifiedInputs 为 true 时照读且未知键仍忽略', () => {
+  assert.deepEqual(hrWithVerifiedInputs(true), { id: 'hr', ruleId: true, registeredControls: false, frameworks: ['EU_AI_ACT'], verifiedInputs: true });
+  assert.equal((hrWithVerifiedInputs(false) as { verifiedInputs: boolean }).verifiedInputs, false);
+});
+
+test('verifiedInputs 非布尔则档案不登记', () => {
+  for (const v of ['yes', 1, null, {}, []]) {
+    assert.equal(hrWithVerifiedInputs(v), undefined, JSON.stringify(v));
+  }
 });
 
 test('畸形档案不登记且不影响其它档案', () => {

@@ -2,7 +2,7 @@
 
 本文档列出了 Aster 语言编译器和类型检查器使用的所有错误码。
 
-**总计**: 122 个错误码
+**总计**: 123 个错误码
 
 ## 按类别分类
 
@@ -54,7 +54,7 @@
 
 ### governance (governance)
 
-共 13 个错误码
+共 14 个错误码
 
 | 错误码 | 严重性 | 消息模板 | 解决方案 |
 |--------|--------|----------|----------|
@@ -64,6 +64,7 @@
 | **E705** `GOV_PROFILE_UNKNOWN` | 🔴 error | Module '&#123;module&#125;' declares unknown profile '&#123;profile&#125;' (controls registry &#123;version&#125;) | Use a profile defined in aster-lang-locales controls/registry.json, such as governed or eu-ai-act-high-risk. |
 | **E706** `GOV_PROFILE_VIOLATION` | 🔴 error | Rule '&#123;rule&#125;' violates profile '&#123;profile&#125;': &#123;requirement&#125; | Satisfy the profile requirement or remove the Profile declaration. |
 | **E707** `GOV_CHECK_UNAVAILABLE` | 🔴 error | Governance check could not run for module '&#123;module&#125;' (profile '&#123;profile&#125;'); saving is blocked until it succeeds | Retry later; this is a service fault, not a policy violation. |
+| **E708** `GOV_PROFILE_INPUT_UNRESOLVABLE` | 🔴 error | Rule '&#123;rule&#125;' reads inputs that cannot be resolved statically (&#123;construct&#125;); profile '&#123;profile&#125;' requires verified inputs | Read input fields by literal path (for example req.context.amount), or move the dynamic access out of this rule, so its input references are known at compile time. |
 | **E720** `CEDAR_NOT_EXPORTABLE_SHAPE` | 🔴 error | Rule '&#123;rule&#125;' cannot be exported to Cedar: &#123;reason&#125; | Exportable rules need @id, one parameter with the guard request fields (principal_id, principal_type, principal_roles, action, resource_type, resource_id, context, agent_model) and a Verdict result. |
 | **E721** `CEDAR_UNSUPPORTED_CONSTRUCT` | 🔴 error | Rule '&#123;rule&#125;' uses &#123;construct&#125;, which has no Cedar translation | Use comparisons, and/or/not, List.contains on principal_roles and integer arithmetic with literals, or keep this rule Aster-only. |
 | **E722** `CEDAR_UNTYPED_CONTEXT_KEY` | 🔴 error | Context key '&#123;key&#125;' in rule '&#123;rule&#125;' is used as both &#123;first&#125; and &#123;second&#125; | Use each context key with a single type (number, text or boolean). |

@@ -646,6 +646,12 @@ export namespace Core {
     readonly retTypeInferred?: boolean;
     readonly piiLevel?: PiiSensitivityLevel;
     readonly piiCategories?: readonly string[];
+    /**
+     * ADR 0046 §11 D2：返回 Verdict 的规则对第一个参数读取的源码字段路径（点连接，字典序去重；
+     * "" 为参数本身，["*"] 为无法静态确定）。只在声明了档案的模块中写入（R2 之后由 governance/input-refs 计算）；
+     * 其余函数不出现该键，未声明档案的模块 IR 逐字节不变。
+     */
+    readonly inputRefs?: readonly string[];
   }
 
   export interface Parameter extends Base.BaseParameter<Type> {
