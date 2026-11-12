@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.5.0
 
-### 规则输入引用 `Core.Func.inputRefs`、E708 与控制注册表 1.2.0（ADR 0046 §11 R62，计入 1.5.0，与 aster-lang-core 同车次）
+### 规则输入引用 `Core.Func.inputRefs`、E708 与控制注册表 1.2.0（ADR 0046 §11 R62，与 aster-lang-core 同车次）
 
 - **新增 `Core.Func.inputRefs?: readonly string[]`**：声明了档案（`Profile "…"`）的模块中，返回 Verdict 的规则写入它对
   第一个参数读取的源码字段路径（点连接，按 UTF-16 码元字典序去重；`""` 为参数本身，`["*"]` 为无法静态确定，`[]` 为不读输入）。
