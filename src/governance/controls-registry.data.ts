@@ -13,12 +13,12 @@ export interface ControlsRegistryData {
   }>;
   readonly profiles?: ReadonlyArray<{
     readonly id: string; readonly title: LocalizedTitle;
-    readonly requires: { readonly ruleId: boolean; readonly registeredControls: boolean; readonly frameworks: readonly string[] };
+    readonly requires: { readonly ruleId: boolean; readonly registeredControls: boolean; readonly frameworks: readonly string[]; readonly verifiedInputs?: boolean };
   }>;
 }
 
 export const CONTROLS_REGISTRY: ControlsRegistryData = {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "frameworks": [
     { "id": "EU_AI_ACT", "title": { "en": "EU AI Act", "zh": "欧盟人工智能法", "de": "EU-KI-Verordnung" } },
     { "id": "GDPR", "title": { "en": "General Data Protection Regulation", "zh": "通用数据保护条例", "de": "Datenschutz-Grundverordnung" } },
@@ -45,9 +45,9 @@ export const CONTROLS_REGISTRY: ControlsRegistryData = {
   "profiles": [
     { "id": "governed",
       "title": { "en": "Governed rules", "zh": "受治理规则", "de": "Gesteuerte Regeln" },
-      "requires": { "ruleId": true, "registeredControls": true, "frameworks": [] } },
+      "requires": { "ruleId": true, "registeredControls": true, "frameworks": [], "verifiedInputs": false } },
     { "id": "eu-ai-act-high-risk",
       "title": { "en": "EU AI Act high-risk system", "zh": "欧盟人工智能法高风险系统", "de": "Hochrisiko-KI-System nach EU-KI-Verordnung" },
-      "requires": { "ruleId": true, "registeredControls": true, "frameworks": ["EU_AI_ACT"] } }
+      "requires": { "ruleId": true, "registeredControls": true, "frameworks": ["EU_AI_ACT"], "verifiedInputs": false } }
   ]
 };

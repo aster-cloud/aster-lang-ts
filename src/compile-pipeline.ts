@@ -5,7 +5,7 @@
  *
  * ```
  * 源码 ─canonicalize（关键词 / 别名 / 字面量宏 / 空白）─▶ lex ─▶ 关键词翻译 ─▶ parse ─▶ AST
- *      ─▶ R1 resolveDeclarations ─▶ lowerModule ─▶ R2 resolveTypedReferences ─▶ Core（只含规范名）
+ *      ─▶ R1 resolveDeclarations ─▶ lowerModule ─▶ R2 resolveTypedReferences ─▶ inputRefs（仅档案模块）─▶ Core（只含规范名）
  * ```
  *
  * R2 依赖 lower 在同一进程内登记的 ResolutionMark（按对象身份的旁路表），因此必须紧接 lower、
@@ -22,6 +22,8 @@ import { NO_IMPORTS } from './frontend/resolution-context.js';
 import type { ResolutionContext } from './frontend/resolution-context.js';
 import { resolveTypedReferences } from './core/resolve-typed-references.js';
 import type { TypedReferenceObserver } from './core/resolve-typed-references.js';
+import { analyzeInputRefs } from './governance/input-refs.js';
+import { returnsVerdict } from './typecheck/governance.js';
 import type { Lexicon } from './config/lexicons/types.js';
 import type { VocabularyScopes } from './config/lexicons/identifiers/scopes.js';
 import type { Diagnostic } from './diagnostics/diagnostics.js';
@@ -78,7 +80,20 @@ export function resolveAndLower(ast: AstModule, scopes?: VocabularyScopes, obser
   const ctx = contextOf(scopes);
   const r1 = resolveDeclarations(ast, ctx);
   const r2 = resolveTypedReferences(lowerModule(r1.module), ctx, observer);
-  return { ast: r1.module, core: r2.module, diagnostics: [...r1.diagnostics, ...r2.diagnostics] };
+  return { ast: r1.module, core: withInputRefs(r2.module), diagnostics: [...r1.diagnostics, ...r2.diagnostics] };
+}
+
+/**
+ * ADR 0046 §11 D2：为声明了档案的模块中返回 Verdict 的规则写入 inputRefs（与 Java NameResolution.withInputRefs 一致）。
+ * 必须在 R2 之后计算——R2 把本地化名称规范化，之前计算会让 zh / de 源码产出本地化路径。
+ * 未声明档案的模块原样返回（IR 逐字节不变）。
+ */
+export function withInputRefs(core: Core.Module): Core.Module {
+  if (core.profile === undefined) return core;
+  const decls = core.decls.map((d) =>
+    d.kind === 'Func' && returnsVerdict(d) ? { ...d, inputRefs: analyzeInputRefs(core, d).inputRefs } : d
+  );
+  return { ...core, decls };
 }
 
 export function hasErrors(diagnostics: readonly { readonly severity: string }[]): boolean {
