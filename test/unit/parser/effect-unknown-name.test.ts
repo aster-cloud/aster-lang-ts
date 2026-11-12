@@ -7,7 +7,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../src/frontend/lexer.js';
-import { parse } from '../../../src/parser.js';
+import { parse, parseWithLexicon } from '../../../src/parser.js';
+import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
+import type { Lexicon } from '../../../src/config/lexicons/types.js';
 import { lowerModule } from '../../../src/lower_to_core.js';
 import { typecheckModule } from '../../../src/typecheck.js';
 import { compile } from '../../../src/browser.js';
@@ -85,5 +88,31 @@ describe('未知效果名（#304）', () => {
   it('已知效果不受影响：`It performs io` 仍是 IO', () => {
     const fn = firstFunc(lowerSrc(ioBody(' io')));
     assert.deepEqual(fn.effects, ['IO']);
+  });
+
+  // core 词法把这些词识别为关键词 token，`IT PERFORMS IDENT` 拒绝；ts 必须同样拒绝（#304 审查 F1）
+  for (const word of ['return', 'to', 'async', 'with', 'and', 'if', 'performs']) {
+    it(`core 保留词不能当效果名：It performs ${word}`, () => {
+      const { diagnostics } = parseSrc(pureBody(` ${word}`));
+      assert.ok(diagnostics.length > 0, `${word} 应解析失败`);
+    });
+  }
+
+  it('core 不保留的软关键词照常接受（maybe 在 core 是 IDENT）', () => {
+    const { ast, diagnostics } = parseSrc(pureBody(' maybe'));
+    assert.deepEqual(diagnostics, []);
+    assert.deepEqual((ast.decls.find((d) => d.kind === 'Func') as Func).effects, ['maybe']);
+  });
+
+  const parseIn = (src: string, lexicon: Lexicon): readonly unknown[] =>
+    parseWithLexicon(lex(canonicalize(src, lexicon), lexicon), lexicon).diagnostics;
+
+  it('zh-CN / de-DE 的关键词（翻译为同一保留词）同样被拒绝，普通名字照常接受', () => {
+    assert.ok(parseIn('模块 m。\n\n规则 f 给定 x 作为 整数，产出 整数。执行 异步：\n  返回 x。\n', ZH_CN).length > 0);
+    const de = (eff: string): string =>
+      `Modul m.\n\nRegel f gegeben x als Ganzzahl, liefert Ganzzahl. fuehrt aus ${eff}:\n  gib zurueck x.\n`;
+    assert.ok(parseIn(de('asynchron'), DE_DE).length > 0);
+    assert.ok(parseIn(de('gib zurueck'), DE_DE).length > 0);
+    assert.deepEqual(parseIn(de('teleport'), DE_DE), []);
   });
 });
