@@ -6,8 +6,6 @@ import { parse } from '../../../src/parser.js';
 import { lowerModule } from '../../../src/lower_to_core.js';
 import { CapabilityKind } from '../../../src/config/semantic.js';
 import { Node } from '../../../src/ast/ast.js';
-import { DiagnosticError } from '../../../src/diagnostics/diagnostics.js';
-import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
 import type { Core } from '../../../src/types.js';
 import type {
   Module as AstModule,
@@ -273,7 +271,7 @@ Rule makeIdentity, produce Fn1:
     assert.equal(func.effectCapsExplicit, false);
   });
 
-  it('未知 effect 应抛出诊断错误', () => {
+  it('未知 effect 不报错，原样保留在 effects / declaredEffects（#304，与 core 一致）', () => {
     const funcDecl = Node.Func(
       'useUnknownEffect',
       [],
@@ -285,14 +283,10 @@ Rule makeIdentity, produce Fn1:
       Node.Block([Node.Return(Node.Int(1))])
     );
     const moduleAst = Node.Module('test.lowering.effectcaps.unknown', null, [funcDecl]);
-    assert.throws(
-      () => lowerAst(moduleAst),
-      (e: unknown) =>
-        e instanceof DiagnosticError &&
-        e.diagnostic.code === ErrorCode.LOWER_UNKNOWN_EFFECT &&
-        e.diagnostic.params?.effect === 'teleport' &&
-        /^Unknown effect 'teleport', valid values: /.test(e.message)
-    );
+    const core = lowerAst(moduleAst);
+    const func = core.decls[0] as Core.Func;
+    assert.deepEqual(func.effects, ['teleport']);
+    assert.deepEqual((func as { declaredEffects?: unknown }).declaredEffects, ['teleport']);
   });
 
   it('Set 语句应降级为 Core.Set 并保留表达式', () => {

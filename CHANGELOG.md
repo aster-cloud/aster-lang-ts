@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### 未知效果名与 core 对齐（放宽，#304）
+
+- `It performs <名字>` 接受任意基效果名（如 `teleport`、`pure`），与 aster-lang-core 文法 `IT PERFORMS IDENT` 一致；
+  此前 ts 在解析期报错，core 一直接受。能力名（首字母大写）的处理不变。
+- lowering 不再对未知效果抛 E601：名字原样保留在 Core IR 的 `effects` / `declaredEffects`（core 同样透传），
+  检查阶段按 pure 处理（效果推断把未知名折算为 PURE，与 core `EffectChecker` 一致）。E601 仍留在码表中，
+  两引擎都不再有发出点；共享夹具 `shared/lowering_diagnostics_parity.json` 不变，其中 E601 例在 ts 侧改为断言
+  「lowering 接受并保留该名字」，渲染 parity 照旧。
+
 ## 1.4.0
 
 ### lowering 诊断进入共享错误码表（E600–E606，#302 / #303，与 aster-lang-core#248 同车次）

@@ -51,6 +51,11 @@ export function parseEffectList(
     ctx.nextWord();
     effs.push('cpu');
   }
+  // 其它基效果名（如 pure、teleport）原样接受，与 aster-lang-core 文法 `IT PERFORMS IDENT` 一致（#304）：
+  // 未知名不在解析期报错，检查阶段按 pure 处理，名字原样保留到 IR。能力名一律是 TYPE_IDENT，不会走到这里。
+  if (effs.length === 0 && ctx.at(TokenKind.IDENT) && !ctx.isKeyword(KW.WITH) && !ctx.isKeyword(KW.AND)) {
+    effs.push(ctx.next().value as string);
+  }
 
   // Parse optional capability list with 'with' keyword
   // Example: io with Http and Sql and Time
@@ -156,6 +161,11 @@ export function separateEffectsAndCaps(
        effectVarRefs.push(eff);
        continue;
      }
+    // 能力名一律首字母大写（TYPE_IDENT）；其余名字是未知基效果，原样保留（#304）
+    if (!/^[A-Z]/.test(eff)) {
+      baseEffects.push(eff);
+      continue;
+    }
     rawCaps.push(eff);
   }
 

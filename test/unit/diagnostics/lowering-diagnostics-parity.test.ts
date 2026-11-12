@@ -96,8 +96,21 @@ function assertParams(actual: Readonly<Record<string, unknown>> | undefined, exp
   for (const [k, v] of Object.entries(expected)) if (v !== '*') assert.equal(actual[k], v, `${name}: params.${k}`);
 }
 
+// E601（未知效果）两引擎都已没有发出点（#304）：core 一直透传未知效果名，ts 现与之对齐，
+// 名字原样保留在 IR、检查阶段按 pure 处理。该码仍留在码表中，夹具里的 E601 例只做渲染 parity
+// （见下方「模板渲染」用例），ts 侧额外断言 lowering 接受并保留该名字。
+const NO_EMISSION_TRIGGERS: ReadonlySet<Trigger> = new Set(['internal-error', 'unknown-effect']);
+
 describe('lowering 诊断码 E600–E606 双引擎 parity 夹具（ts 侧）', () => {
-  for (const c of CASES.filter((x) => x.only !== 'core' && x.trigger !== 'internal-error')) {
+  for (const c of CASES.filter((x) => x.trigger === 'unknown-effect')) {
+    it(`${c.name}：lowering 不报错并保留效果名（#304）`, () => {
+      const core = lowerModule(mutate(parseClean(c), c.trigger, c.value!));
+      const fn = core.decls.find((d) => d.kind === 'Func') as { effects: readonly string[] };
+      assert.ok(fn.effects.includes(c.value!), `${c.name}: IR effects 应含 ${c.value}`);
+    });
+  }
+
+  for (const c of CASES.filter((x) => x.only !== 'core' && !NO_EMISSION_TRIGGERS.has(x.trigger))) {
     it(c.name, () => {
       const ast = mutate(parseClean(c), c.trigger, c.value!);
       let thrown: unknown;
