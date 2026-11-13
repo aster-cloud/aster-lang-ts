@@ -495,8 +495,10 @@ export function parseFuncDecl(
 
   // 如果没有显式声明类型参数，尝试从类型使用中推断
   if (typeParams.length === 0) {
-    // 与 aster-lang-core AstBuilder.BUILTIN_TYPE_NAMES 一致：Decimal 是内置标量（ADR 0025），不能当作隐式类型参数（#276）
-    const BUILTINS = new Set(['Int', 'Bool', 'Text', 'Long', 'Double', 'Decimal', 'Number', 'Float', 'Option', 'Result', 'List', 'Map', 'Verdict']);
+    // 与 aster-lang-core AstBuilder.BUILTIN_TYPE_NAMES 一致：Decimal 是内置标量（ADR 0025），不能当作隐式类型参数（#276）。
+    // Unknown 是「类型未知」的占位名，源码写 `produce Unknown` 时同样不是类型参数（ADR 0055 #10，X1 裁决：
+    // 任何引擎都不补未声明的类型参数，ret 保持 TypeName Unknown）。
+    const BUILTINS = new Set(['Int', 'Bool', 'Text', 'Long', 'Double', 'Decimal', 'Number', 'Float', 'Option', 'Result', 'List', 'Map', 'Verdict', 'Unknown']);
     const found = new Set<string>();
 
     const visitType = (t: Type): void => {

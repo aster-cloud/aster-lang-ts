@@ -191,8 +191,13 @@ class CnlPrinter {
       case 'Pattern':
         return `matching pattern ${JSON.stringify(c.regexp)}`;
       case 'Range':
-        if (c.min !== undefined && c.max !== undefined) return `between ${c.min} and ${c.max}`;
-        return c.min !== undefined ? `at least ${c.min}` : `at most ${c.max}`;
+        // 有字面量原文时按其精确十进制值输出（ADR 0055 §5），不经 number
+        const bound = (raw: string | undefined, value: number | undefined): string =>
+          raw === undefined ? String(value) : canonicalDecimalFromLiteral(raw);
+        const min = bound(c.minRaw, c.min);
+        const max = bound(c.maxRaw, c.max);
+        if (c.min !== undefined && c.max !== undefined) return `between ${min} and ${max}`;
+        return c.min !== undefined ? `at least ${min}` : `at most ${max}`;
     }
   }
 

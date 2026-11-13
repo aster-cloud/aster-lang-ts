@@ -384,8 +384,10 @@ function parseTypePrimary(
     return node;
   }
   if (ctx.isKeyword(KW.FLOAT)) {
+    // 本地化的浮点类型关键词（de Dezimal、zh 小数）与 en-US 的 Float 降为同一名字 Float，与 Java 一致（X1 裁决）；
+    // 类型检查中 Float 与 Double 互通
     const tok = ctx.nextWord();
-    const node = Node.TypeName('Double');
+    const node = Node.TypeName('Float');
     assignSpan(node, spanFromTokens(tok, tok));
     return node;
   }

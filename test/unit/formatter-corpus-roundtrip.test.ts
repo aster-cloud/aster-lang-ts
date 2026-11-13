@@ -60,6 +60,7 @@ const ALLOW_LIST: ReadonlyMap<string, string> = new Map([
   ['corpus/tier1-reject/vocab-e804-zh-member-vs-rule.aster', CJK_IDENTIFIERS],
   // Core IR v2（ADR 0055 #16）：构造器内嵌套名字与枚举成员同名
   ['corpus/tier1-equivalence/policies/pattern-nested-name-matches-enum-member.aster', CJK_IDENTIFIERS],
+  ['corpus/tier1-parity/vocab-zh/enum-variant-v2.aster', CJK_IDENTIFIERS],
 ]);
 
 function asterFiles(dir: string, out: string[] = []): string[] {

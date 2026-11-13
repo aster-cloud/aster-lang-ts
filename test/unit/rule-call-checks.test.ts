@@ -220,7 +220,8 @@ describe('#266 审查跟进：能正常运行的调用不新增 E001', () => {
 
   it('收窄仍报：Float 实参传给 Int 形参', () => {
     const { errors } = check(INC + 'Rule main given x as Float, produce Int:\n  Return inc(x).\n');
-    assert.deepEqual(mismatches(errors), [{ expected: 'Int', actual: 'Double' }]);
+    // `as Float` 的类型名就是 Float（与 Java 一致，X1 裁决），不再改写为 Double
+    assert.deepEqual(mismatches(errors), [{ expected: 'Int', actual: 'Float' }]);
   });
 });
 

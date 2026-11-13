@@ -305,6 +305,7 @@ export function translateToken(token: Token, index: KeywordTranslationIndex): To
     ...token,
     kind: inferTokenKind(translated, token.kind),
     value: translated,
+    translated: true,
   };
 }
 
@@ -536,6 +537,7 @@ export function translateTokensWithMarkers(
               value: targetWords[k]!,
               start: token.start,
               end: token.end,
+              translated: true,
               ...(k === 0 && keepOriginal
                 ? { originalValue: srcOriginal, transUnitLen: targetWords.length }
                 : {}),
@@ -551,6 +553,7 @@ export function translateTokensWithMarkers(
           value: translated,
           start: token.start,
           end: token.end,
+          translated: true,
           ...(keepOriginal ? { originalValue: srcOriginal } : {}),
         });
         i++;

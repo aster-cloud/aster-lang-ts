@@ -12,6 +12,7 @@ import { parseConstraints } from './constraint-parser.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
 import { inferFieldType, refineInferredType } from './type-inference.js';
 import { Issue, tokenName, type ParseErrorFn } from './parse-issue.js';
+import { ErrorCode } from '../diagnostics/error_codes.js';
 
 /**
  * 解析字段列表（用于 Data 类型定义）
@@ -148,6 +149,12 @@ export function parseVariantList(
     // Accept both TYPE_IDENT and IDENT to support languages without capitalization (e.g., Chinese)
     if (!ctx.at(TokenKind.TYPE_IDENT) && !ctx.at(TokenKind.IDENT)) {
       error(Issue.expected(tokenName('variantName'), "Expected type identifier for variant name"), vTok);
+    }
+    // 由本地化关键词翻译来的词（如 zh「拒绝」→ deny）在源码中是关键词，不能当变体名：与 Java 文法
+    // typeIdent 拒收同一 token 一致，报 E063（参数为该 token 的带引号文本），而不是静默改名（X1 裁决）
+    if (vTok.translated) {
+      const text = String(vTok.value);
+      error({ code: ErrorCode.PARSE_NO_VIABLE, params: { token: `'${text}'` }, message: `no viable alternative at input '${text}'` }, vTok);
     }
     const v = ctx.next().value as string;
 

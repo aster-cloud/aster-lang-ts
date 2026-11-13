@@ -6,6 +6,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, compileAndTypecheck } from '../../../src/browser.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 import type { Lexicon } from '../../../src/config/lexicons/types.js';
 import { readCoreIr } from '../../../src/core/read-core-ir.js';
 import { serializeCoreIr } from '../../../src/core/serialize-core-ir.js';
@@ -124,6 +125,38 @@ describe('Core IR v2 lowering', () => {
     for (const k of [a, b, c]) assert.ok(k!.origin.start.line > 0);
   });
 
+  it('produce_unknown_is_typename_not_type_param', () => {
+    // X1 裁决：任何引擎都不补未声明的类型参数；只有声明的类型参数降为 TypeVar
+    const f = func(lower('Module m.\n\nRule f given x as Int, produce Unknown:\n  Return x.\n'), 'f');
+    assert.deepEqual(f.typeParams, []);
+    assert.deepEqual([f.ret.kind, (f.ret as Core.TypeName).name], ['TypeName', 'Unknown']);
+  });
+
+  it('localized_float_keyword_lowers_like_en_us', () => {
+    // X1 裁决：本地化浮点类型关键词与 en-US 的 Float 降为同一名字（与 Java 一致）
+    const name = (m: Core.Module): string =>
+      ((m.decls.find((d): d is Core.Data => d.kind === 'Data')!.fields[0]!.type) as Core.TypeName).name;
+    assert.equal(name(lower('Module m.\n\nDefine P has a as Float.\n')), 'Float');
+    assert.equal(name(lower('Modul m.\n\nDefiniere P hat a als Dezimal.\n', DE_DE)), 'Float');
+    assert.equal(name(lower('模块 样例。\n\n定义 甲 包含 数额 作为 小数。\n', ZH_CN)), 'Float');
+  });
+
+  it('negative_range_bounds_accepted', () => {
+    // X1 裁决：与 Java rangeBound（MINUS? 数值）一致；-0.0 的规范串为 "0"
+    const m = lower('Module m.\n\nDefine P has a as Double between -0.0 and 2.50, b as Int at least -5, c as Int at most -1.5.\n');
+    const data = m.decls.find((d): d is Core.Data => d.kind === 'Data')!;
+    const ranges = data.fields.map((f) => f.constraints[0] as Core.ConstraintRange);
+    assert.deepEqual(ranges.map((r) => [r.min, r.max]), [['0', '2.5'], ['-5', null], [null, '-1.5']]);
+  });
+
+  it('enum_member_homograph_of_localized_keyword_rejected', () => {
+    // X1 裁决：zh「拒绝」是 deny 关键词，不能静默改名为枚举成员 deny；与 Java 同报 E063
+    const r = compile('模块 样例。\n\n定义 结论 为以下之一 批准、拒绝。\n', { lexicon: ZH_CN });
+    assert.equal(r.success, false);
+    const [err] = (r.parseErrors ?? []) as { code?: string; params?: Record<string, unknown> }[];
+    assert.deepEqual([err?.code, err?.params], ['E063', { token: "'deny'" }]);
+  });
+
   it('effect_param_shadowing_builtin_rejected', () => {
     for (const name of ['IO', 'Cpu', 'Pure', 'Async']) {
       const r = compileAndTypecheck(`Module m.\n\nRule g <${name}> given x as Int, produce Int:\n  Return x.\n`, {});
@@ -174,8 +207,9 @@ describe('Core IR v2 lowering', () => {
   });
 
   it('cjk_enum_variant_lowers_to_patctor', () => {
-    const source = '模块 探针.样例。\n\n定义 结论 为以下之一 批准、拒绝、待定。\n\n'
-      + '规则 打分 给定 c 作为 结论，产出 整数：\n  匹配于 c：\n    当 批准，返回 1。\n    当 拒绝，返回 2。\n    当 待定，返回 3。\n';
+    // 「拒绝」与 deny 关键词同形，不能作成员名（见 enum_member_homograph_of_localized_keyword_rejected），用「驳回」
+    const source = '模块 探针.样例。\n\n定义 结论 为以下之一 批准、驳回、待定。\n\n'
+      + '规则 打分 给定 c 作为 结论，产出 整数：\n  匹配于 c：\n    当 批准，返回 1。\n    当 驳回，返回 2。\n    当 待定，返回 3。\n';
     const ps = patterns(func(lower(source, ZH_CN), '打分'));
     assert.deepEqual(ps.map((p) => [p.kind, (p as Core.PatCtor).args]), [['PatCtor', []], ['PatCtor', []], ['PatCtor', []]]);
   });

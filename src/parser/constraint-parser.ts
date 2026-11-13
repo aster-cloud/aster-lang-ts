@@ -196,6 +196,23 @@ function tryParseConstraint(
 }
 
 /**
+ * 范围约束的边界可带负号（与 Java 文法 `rangeBound: MINUS? (INT_LITERAL | FLOAT_LITERAL)` 一致，ADR 0055 #4）：
+ * 消费可选的 `-`，返回是否带了负号。
+ */
+function consumeMinus(ctx: ParserContext): boolean {
+  if (!ctx.at(TokenKind.MINUS)) return false;
+  ctx.next();
+  return true;
+}
+
+/** 边界的数值与字面量原文（负号拼进原文，规范十进制串由 lowering 求出，`-0.0` 得 "0"）。 */
+function signedBound(tok: Token, negative: boolean): [number, string] {
+  const value = tok.value as number;
+  const raw = tok.raw ?? String(value);
+  return negative ? [-value, `-${raw}`] : [value, raw];
+}
+
+/**
  * 解析 'between X and Y' 约束
  */
 function parseBetweenConstraint(
@@ -205,12 +222,12 @@ function parseBetweenConstraint(
   const startTok = ctx.next(); // consume 'between'
 
   // 解析最小值
+  const minNeg = consumeMinus(ctx);
   const minTok = ctx.peek();
   if (!ctx.at(TokenKind.INT) && !ctx.at(TokenKind.FLOAT)) {
     error(Issue.expectedAfter(tokenName('number'), kwParam(KW.BETWEEN), `约束 ${kwq(ctx, KW.BETWEEN)} 后需要数值作为最小值`), minTok);
   }
-  const min = ctx.next().value as number;
-  const minRaw = minTok.raw ?? String(min);
+  const [min, minRaw] = signedBound(ctx.next(), minNeg);
 
   // 期望 'and'
   if (!ctx.isKeyword(KW.AND)) {
@@ -219,12 +236,12 @@ function parseBetweenConstraint(
   ctx.nextWord(); // consume 'and'
 
   // 解析最大值
+  const maxNeg = consumeMinus(ctx);
   const maxTok = ctx.peek();
   if (!ctx.at(TokenKind.INT) && !ctx.at(TokenKind.FLOAT)) {
     error(Issue.expectedAfter(tokenName('number'), kwParam(KW.AND), `约束 '${kw(ctx, KW.BETWEEN)} X ${kw(ctx, KW.AND)}' 后需要数值作为最大值`), maxTok);
   }
-  const max = ctx.next().value as number;
-  const maxRaw = maxTok.raw ?? String(max);
+  const [max, maxRaw] = signedBound(ctx.next(), maxNeg);
 
   const span: Span = { start: startTok.start, end: maxTok.end };
   const constraint: ConstraintRange = { kind: 'Range', min, max, minRaw, maxRaw, span };
@@ -253,12 +270,12 @@ function parseAtConstraint(
   ctx.next(); // consume 'least' / 'most'
 
   // 解析数值
+  const valueNeg = consumeMinus(ctx);
   const valueTok = ctx.peek();
   if (!ctx.at(TokenKind.INT) && !ctx.at(TokenKind.FLOAT)) {
     error(Issue.expectedAfter(tokenName('number'), kwParam(modifier === 'least' ? KW.AT_LEAST : KW.AT_MOST), `约束 ${kwq(ctx, modifier === 'least' ? KW.AT_LEAST : KW.AT_MOST, `at ${modifier}`)} 后需要数值`), valueTok);
   }
-  const value = ctx.next().value as number;
-  const raw = valueTok.raw ?? String(value);
+  const [value, raw] = signedBound(ctx.next(), valueNeg);
 
   const span: Span = { start: startTok.start, end: valueTok.end };
 
