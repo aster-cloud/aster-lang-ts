@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.6.0
 
-### 控制注册表 1.3.0：`eu-ai-act-high-risk` 要求 verifiedInputs（ADR 0046 §11.4 ⑦，计入 1.6.0，与 aster-lang-core 同车次）
+### 控制注册表 1.3.0：`eu-ai-act-high-risk` 要求 verifiedInputs（ADR 0046 §11.4 ⑦，与 aster-lang-core 同车次）
 
 - **行为变化**：registry 1.3.0：`eu-ai-act-high-risk` 要求 verifiedInputs，输入引用无法静态确定的规则报 E708。
   内置副本 `controls-registry.data.ts` 升到 1.3.0，唯一变化是该档案 `requires.verifiedInputs: true`；`governed` 仍为 `false`。
