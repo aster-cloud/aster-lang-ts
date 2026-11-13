@@ -32,7 +32,8 @@ import type { Core } from '../../src/types.js';
 
 // 编译后从 dist/test/unit 运行：上溯 3 级到仓库根
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', '.git', '.ccg', 'aster-lang-test']);
+// CI 把兄弟仓 checkout 在本仓工作区内：aster-lang-test 的语料另行按相对路径遍历，其余兄弟仓（locales、core、platform）不属于本仓
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage', '.git', '.ccg', 'aster-lang-test', 'aster-lang-locales', 'aster-lang-core', 'aster-lang-platform']);
 const LEXICONS: Readonly<Record<string, Lexicon>> = { 'en-US': EN_US, 'zh-CN': ZH_CN, 'de-DE': DE_DE };
 
 // 源文用中文标识符：格式化器只输出英文 CNL，而 en-US 词法不接受 CJK 标识符字符（lexer isLetter 英文模式），
