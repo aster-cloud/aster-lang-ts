@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### 控制注册表 1.3.0：`eu-ai-act-high-risk` 要求 verifiedInputs（ADR 0046 §11.4 ⑦，计入 1.6.0，与 aster-lang-core 同车次）
+
+- **行为变化**：registry 1.3.0：`eu-ai-act-high-risk` 要求 verifiedInputs，输入引用无法静态确定的规则报 E708。
+  内置副本 `controls-registry.data.ts` 升到 1.3.0，唯一变化是该档案 `requires.verifiedInputs: true`；`governed` 仍为 `false`。
+  声明 `Profile "eu-ai-act-high-risk"` 的模块中，`inputRefs` 为 `["*"]` 的 Verdict 规则（动态键、跨模块调用、函数值、
+  递归、整体序列化等，见 1.5.0 的 construct 闭集）此前无诊断，现在报 E708（error）。未声明档案、声明 `governed`
+  或使用注入注册表的调用方不受影响。W704 / E705 消息里的注册表版本随之变为 `1.3.0`。
+  因默认注册表变化会让既有源码出现新的 error 级诊断，本版按 minor 发布（ADR 0046 §11.7 第 11 条）。
+
 ## 1.5.0
 
 ### 规则输入引用 `Core.Func.inputRefs`、E708 与控制注册表 1.2.0（ADR 0046 §11 R62，与 aster-lang-core 同车次）

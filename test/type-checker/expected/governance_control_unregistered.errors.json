@@ -4,7 +4,7 @@
     {
       "code": "W704",
       "severity": "warning",
-      "message": "Control 'ACME:ART1' on rule 'decide' is not registered (controls registry 1.2.0)"
+      "message": "Control 'ACME:ART1' on rule 'decide' is not registered (controls registry 1.3.0)"
     }
   ]
 }
