@@ -18,7 +18,7 @@ export interface ControlsRegistryData {
 }
 
 export const CONTROLS_REGISTRY: ControlsRegistryData = {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "frameworks": [
     { "id": "EU_AI_ACT", "title": { "en": "EU AI Act", "zh": "欧盟人工智能法", "de": "EU-KI-Verordnung" } },
     { "id": "GDPR", "title": { "en": "General Data Protection Regulation", "zh": "通用数据保护条例", "de": "Datenschutz-Grundverordnung" } },
@@ -48,6 +48,6 @@ export const CONTROLS_REGISTRY: ControlsRegistryData = {
       "requires": { "ruleId": true, "registeredControls": true, "frameworks": [], "verifiedInputs": false } },
     { "id": "eu-ai-act-high-risk",
       "title": { "en": "EU AI Act high-risk system", "zh": "欧盟人工智能法高风险系统", "de": "Hochrisiko-KI-System nach EU-KI-Verordnung" },
-      "requires": { "ruleId": true, "registeredControls": true, "frameworks": ["EU_AI_ACT"], "verifiedInputs": false } }
+      "requires": { "ruleId": true, "registeredControls": true, "frameworks": ["EU_AI_ACT"], "verifiedInputs": true } }
   ]
 };

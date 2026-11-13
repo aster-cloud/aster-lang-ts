@@ -39,7 +39,7 @@ const show = (d: readonly TypecheckDiagnostic[]): string => JSON.stringify(d.map
 test('未知档案报 E705', () => {
   const diags = diagnoseSource('Module m.\nProfile "nope".\n\nRule r produce Int:\n  Return 1.\n');
   assert.equal(count(diags, ErrorCode.GOV_PROFILE_UNKNOWN), 1, show(diags));
-  assert.ok(messages(diags, ErrorCode.GOV_PROFILE_UNKNOWN).includes("unknown profile 'nope' (controls registry 1.2.0)"));
+  assert.ok(messages(diags, ErrorCode.GOV_PROFILE_UNKNOWN).includes("unknown profile 'nope' (controls registry 1.3.0)"));
   const e705 = diags.find((d) => d.code === ErrorCode.GOV_PROFILE_UNKNOWN)!;
   assert.equal(e705.span?.start.line, 1, 'E705 应定位到 Module 声明行');
 });
@@ -145,9 +145,9 @@ test('只含 version/has 的手写注册表视为无档案', () => {
 });
 
 test('默认注册表含档案与框架归属', () => {
-  assert.equal(defaultControlRegistry.version, '1.2.0');
+  assert.equal(defaultControlRegistry.version, '1.3.0');
   assert.deepEqual(defaultControlRegistry.profile?.('governed'), { id: 'governed', ruleId: true, registeredControls: true, frameworks: [], verifiedInputs: false });
-  assert.equal(defaultControlRegistry.profile?.('eu-ai-act-high-risk')?.verifiedInputs, false);
+  assert.equal(defaultControlRegistry.profile?.('eu-ai-act-high-risk')?.verifiedInputs, true);
   assert.deepEqual(defaultControlRegistry.profile?.('eu-ai-act-high-risk')?.frameworks, ['EU_AI_ACT']);
   assert.equal(defaultControlRegistry.profile?.('nope'), undefined);
   assert.equal(defaultControlRegistry.frameworkOf?.('EU_AI_ACT:ART14'), 'EU_AI_ACT');
@@ -169,7 +169,7 @@ test('浏览器类型检查路径同样报 E705', () => {
   const core = lowerModule(parse(lex(canonicalize(src))).ast as AstModule);
   const diags = typecheckBrowser(core);
   assert.equal(count(diags, ErrorCode.GOV_PROFILE_UNKNOWN), 1, show(diags));
-  assert.ok(messages(diags, ErrorCode.GOV_PROFILE_UNKNOWN).includes("unknown profile 'nope' (controls registry 1.2.0)"));
+  assert.ok(messages(diags, ErrorCode.GOV_PROFILE_UNKNOWN).includes("unknown profile 'nope' (controls registry 1.3.0)"));
 });
 
 // ---- ADR 0046 §11 D2 第 2 条：E708（注入要求 verifiedInputs 的注册表；与 Java ProfileCheckTest 同场景） ----
@@ -220,6 +220,15 @@ test('档案不要求 verifiedInputs 时不报 E708', () => {
   assert.equal(count(checkResolved('Profile "hr".\n', registryRequiring(false)), ErrorCode.GOV_PROFILE_INPUT_UNRESOLVABLE), 0);
 });
 
-test('默认注册表下高风险档案不报 E708', () => {
-  assert.equal(count(checkResolved('Profile "eu-ai-act-high-risk".\n'), ErrorCode.GOV_PROFILE_INPUT_UNRESOLVABLE), 0);
+// registry 1.3.0（ADR 0046 §11.4 ⑦）：默认注册表的 eu-ai-act-high-risk 要求 verifiedInputs，governed 不要求。
+test('默认注册表下高风险档案的动态键规则报 E708（defaultRegistryReportsE708ForHighRiskStarRule）', () => {
+  const diags = checkResolved('Profile "eu-ai-act-high-risk".\n');
+  const e708 = diags.filter((d) => d.code === ErrorCode.GOV_PROFILE_INPUT_UNRESOLVABLE);
+  assert.equal(e708.length, 1, show(diags));
+  assert.deepEqual(e708[0]!.data, { rule: 'decide', profile: 'eu-ai-act-high-risk', construct: 'dynamic-map-key' });
+  assert.equal(e708[0]!.severity, 'error');
+});
+
+test('默认注册表下 governed 档案不报 E708', () => {
+  assert.equal(count(checkResolved('Profile "governed".\n'), ErrorCode.GOV_PROFILE_INPUT_UNRESOLVABLE), 0);
 });
