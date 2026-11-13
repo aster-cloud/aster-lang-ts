@@ -29,7 +29,7 @@ ts 与 aster-lang-core 改为产出同一种 Core IR v2：形状由 aster-lang-l
 - **TS 类型**：`Core.*` 是由 schema 生成的 `src/core/core-ir-v2.generated.ts` 的别名（全部 readonly、必填）。
   `Core.EffectVar` 删除；类型检查器内部使用新的宽松类型 `Ty.*`。
 - **诊断**：新增 E213 `EFFECT_PARAM_SHADOWS_BUILTIN`（效应参数与 io / cpu / pure / async 同名，ASCII 大小写不敏感）与
-  E900 `PARSE_DUPLICATE_ANNOTATION_ARG`（同一注解的具名参数重名，解析期）。注解参数值为浮点或 Long 时报 E067；
+  E900 `PARSE_DUPLICATE_ANNOTATION_ARG`（同一注解的具名参数重名，解析期）。注解参数值为浮点、Long 或 null 时报 E067；
   效应位置上未声明的大写效应变量名在解析期报 E210；效应位置现在也可以直接写已声明的效应变量（`It performs E`）。
   zh / de 译文来自 aster-lang-locales；hi 译文待 aster-lang-hi 补齐（在此之前回退英文）。
 - **移除**：`serializeCoreIR` / `deserializeCoreIR` / `isValidCoreIRJson` 与 `CoreIREnvelope`（`version: "1.0"` 外层封装）。

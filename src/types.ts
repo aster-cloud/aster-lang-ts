@@ -64,7 +64,7 @@ export type CapabilityKind = import('./config/semantic.js').CapabilityKind;
 /** Effect capability 列表的统一别名 */
 export type EffectCaps = readonly CapabilityKind[];
 
-/** 注解参数值（ADR 0055 #3）：字符串、Int32 整数或布尔；浮点、Long 与 null 在解析期报错。 */
+/** 注解参数值（ADR 0055 #3）：字符串、Int32 整数或布尔；浮点、Long 与 null 在解析期报 E067。 */
 export type AnnotationValue = string | number | boolean;
 
 export interface AnnotationArg {

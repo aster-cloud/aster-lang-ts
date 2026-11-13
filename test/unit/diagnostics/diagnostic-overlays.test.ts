@@ -43,28 +43,17 @@ const LOCALIZED = ['de-DE', 'hi-IN', 'zh-CN'] as const;
  */
 const PENDING_TRANSLATION_CATEGORY = 'lowering';
 
-/**
- * Core IR v2 新增的 E213 / E900（ADR 0055 #3、#5）：zh / de 译文随 aster-lang-locales 同车次提供，
- * hi 译文在 aster-lang-hi，须在 1.0.46 列车（实施计划 PR 6）之前补上。两步之间 hi-IN 允许缺这两个码
- * （回退英文）；hi 语言包发版并重新生成 overlay 后删除本豁免。
- */
-const PENDING_TRANSLATION_CODES: Readonly<Partial<Record<string, readonly string[]>>> = { 'hi-IN': ['E213', 'E900'] };
-
 function placeholders(text: string): string[] {
   return [...new Set([...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!))].sort();
 }
 
-function coverageProblems(
-  texts: Readonly<Partial<Record<string, string>>> | undefined,
-  pick: (s: Spec) => string,
-  pendingCodes: readonly string[] = [],
-): string[] {
+function coverageProblems(texts: Readonly<Partial<Record<string, string>>> | undefined, pick: (s: Spec) => string): string[] {
   if (!texts) return ['未注册'];
   const problems: string[] = [];
   for (const spec of TABLE) {
     const text = texts[spec.code];
     if (!text || text.trim() === '') {
-      if (spec.category === PENDING_TRANSLATION_CATEGORY || pendingCodes.includes(spec.code)) continue;
+      if (spec.category === PENDING_TRANSLATION_CATEGORY) continue;
       problems.push(`${spec.code}: 缺少译文`);
     } else if (placeholders(text).join() !== placeholders(pick(spec)).join()) {
       problems.push(`${spec.code}: 占位符 ${placeholders(text)} 与英文 ${placeholders(pick(spec))} 不一致`);
@@ -87,11 +76,11 @@ describe('诊断译文 overlay：生成表与注册', () => {
 
   for (const id of LOCALIZED) {
     it(`${id}：message 覆盖全部 ${TABLE.length} 个错误码且占位符与英文一致`, () => {
-      assert.deepEqual(coverageProblems(MESSAGES_BY_LEXICON[id], (s) => s.message, PENDING_TRANSLATION_CODES[id]), []);
+      assert.deepEqual(coverageProblems(MESSAGES_BY_LEXICON[id], (s) => s.message), []);
     });
 
     it(`${id}：help 覆盖全部错误码且占位符与英文一致`, () => {
-      assert.deepEqual(coverageProblems(HELP_BY_LEXICON[id], (s) => s.help, PENDING_TRANSLATION_CODES[id]), []);
+      assert.deepEqual(coverageProblems(HELP_BY_LEXICON[id], (s) => s.help), []);
     });
   }
 });
@@ -114,15 +103,6 @@ describe('缺译豁免范围（aster-lang-ts#302）', () => {
       delete missing[code];
       assert.deepEqual(coverageProblems(missing, (s) => s.message), [`${code}: 缺少译文`]);
     }
-  });
-
-  it('按码豁免只覆盖 hi-IN 的 E213 / E900，且这两个码在码表中存在', () => {
-    assert.deepEqual(PENDING_TRANSLATION_CODES, { 'hi-IN': ['E213', 'E900'] });
-    for (const code of PENDING_TRANSLATION_CODES['hi-IN'] ?? []) assert.ok(TABLE.some((s) => s.code === code), code);
-    const complete: Record<string, string> = Object.fromEntries(TABLE.map((s) => [s.code, s.message]));
-    const missing = { ...complete };
-    delete missing['E213'];
-    assert.deepEqual(coverageProblems(missing, (s) => s.message), ['E213: 缺少译文'], '未登记豁免的语言缺译仍报错');
   });
 
   it('已有的 lowering 译文仍须占位符一致（豁免只放过缺译）', () => {

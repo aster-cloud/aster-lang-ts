@@ -205,8 +205,8 @@ describe('Core IR v2 lowering', () => {
   });
 
   it('annotation_value_float_is_diagnostic', () => {
-    // 与 Java AstBuilder 同码同参数：浮点与 Long → E067（construct token.annotationArgumentValue）；null → E055
-    for (const [value, code] of [['1.5', 'E067'], ['5L', 'E067'], ['null', 'E055']] as const) {
+    // 与 Java AstBuilder 同码同参数：浮点、Long 与 null → E067（construct token.annotationArgumentValue）
+    for (const [value, code] of [['1.5', 'E067'], ['5L', 'E067'], ['null', 'E067']] as const) {
       const result = compile(`Module m.\n\n@x(${value})\nRule f given x as Int, produce Int:\n  Return x.\n`, {});
       const [err] = (result.parseErrors ?? []) as { code?: string; params?: Record<string, unknown> }[];
       assert.equal(err?.code, code, `@x(${value})`);

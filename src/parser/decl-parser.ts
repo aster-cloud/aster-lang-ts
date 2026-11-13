@@ -87,8 +87,8 @@ function parseEffectParams(
 
 /**
  * 注解参数值（ADR 0055 #3）：只接受字符串、Int32 整数、布尔与标识符（按字符串）。
- * 浮点与 Long 字面量在 v2 IR 中没有对应形状，报 E067（与 Java AstBuilder 同码同参数）；
- * null 与其它 token 报「需要注解参数值」。
+ * 浮点、Long 字面量与 null 在 v2 IR 中没有对应形状，报 E067（与 Java AstBuilder 同码同参数，控制裁决）；
+ * 其它 token 报「需要注解参数值」。
  */
 function parseAnnotationValue(ctx: ParserContext, error: ParseErrorFn): AnnotationValue {
   const tok = ctx.peek();
@@ -103,8 +103,9 @@ function parseAnnotationValue(ctx: ParserContext, error: ParseErrorFn): Annotati
       ctx.next();
       return tok.value as string;
     case TokenKind.FLOAT:
-    case TokenKind.LONG: {
-      const text = tok.raw ?? String(tok.value);
+    case TokenKind.LONG:
+    case TokenKind.NULL: {
+      const text = tok.kind === TokenKind.NULL ? 'null' : tok.raw ?? String(tok.value);
       return error(Issue.invalidValue(
         tokenName('annotationArgumentValue'),
         text,
