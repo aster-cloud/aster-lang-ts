@@ -120,14 +120,14 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      - name: Run tests
-        run: pnpm run test
-
-      # golden 默认读兄弟 checkout 的语料（scripts/corpus-loader.ts），须先构建其 loader 产物；
-      # 兄弟仓嵌在本仓工作区内，须忽略本仓 pnpm-workspace.yaml。
+      # 单测（core-ir-conformance 等）与 golden 都读兄弟 checkout 的语料（scripts/corpus-loader.ts），
+      # 须在单测之前构建其 loader 产物；兄弟仓嵌在本仓工作区内，须忽略本仓 pnpm-workspace.yaml。
       - name: Build aster-lang-test corpus loader
         working-directory: aster-lang-test/packages/js
         run: pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
+
+      - name: Run tests
+        run: pnpm run test
 
       - name: Run golden tests
         run: pnpm run test:golden
@@ -176,6 +176,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # prepublishOnly 的全量测试同样读兄弟 checkout 的语料，须先构建其 loader 产物
+      - name: Build aster-lang-test corpus loader
+        working-directory: aster-lang-test/packages/js
+        run: pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
 
       - name: Build
         run: pnpm run build
