@@ -79,6 +79,7 @@ export const enum ErrorCode {
   EFFECT_VAR_UNDECLARED = "E210",
   EFFECT_VAR_UNRESOLVED = "E211",
   EFF_INFER_UNKNOWN_BUILTIN = "E212",
+  EFFECT_PARAM_SHADOWS_BUILTIN = "E213",
   CAPABILITY_NOT_ALLOWED = "E300",
   EFF_CAP_MISSING = "E301",
   EFF_CAP_SUPERFLUOUS = "E302",
@@ -127,6 +128,7 @@ export const enum ErrorCode {
   AMBIGUOUS_FIELD = "E805",
   AMBIGUOUS_PATTERN = "E806",
   DUPLICATE_DECLARATION = "E807",
+  PARSE_DUPLICATE_ANNOTATION_ARG = "E900",
   SHADOWED_VOCABULARY = "W800",
   RESOLVED_WITHOUT_TYPE = "W801",
 }
@@ -213,6 +215,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.EFFECT_VAR_UNDECLARED]: "Effect variable {var} undeclared",
   [ErrorCode.EFFECT_VAR_UNRESOLVED]: "Effect variable {vars} could not be resolved to concrete effects",
   [ErrorCode.EFF_INFER_UNKNOWN_BUILTIN]: "Effect of builtin '{builtin}' called by '{func}' is unknown; it is NOT assumed pure",
+  [ErrorCode.EFFECT_PARAM_SHADOWS_BUILTIN]: "Effect parameter {name} of '{func}' has the same name as a built-in effect",
   [ErrorCode.CAPABILITY_NOT_ALLOWED]: "Function '{func}' requires {cap} capability but manifest for module '{module}' denies it.",
   [ErrorCode.EFF_CAP_MISSING]: "Function '{func}' uses {cap} capability but header declares [{declared}].",
   [ErrorCode.EFF_CAP_SUPERFLUOUS]: "Function '{func}' declares {cap} capability but it is not used.",
@@ -261,6 +264,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.AMBIGUOUS_FIELD]: "Field '{written}' in {role} position is ambiguous between: {candidates}",
   [ErrorCode.AMBIGUOUS_PATTERN]: "Pattern '{written}' in {role} position is ambiguous between: {candidates}",
   [ErrorCode.DUPLICATE_DECLARATION]: "Duplicate declaration of '{written}' in {role} position",
+  [ErrorCode.PARSE_DUPLICATE_ANNOTATION_ARG]: "Annotation @{annotation} repeats the argument {name}",
   [ErrorCode.SHADOWED_VOCABULARY]: "Declaration '{written}' in {role} position shadows a vocabulary entry",
   [ErrorCode.RESOLVED_WITHOUT_TYPE]: "Resolved '{written}' in {role} position without a known receiver type",
 };
@@ -777,6 +781,13 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     message: "Effect of builtin '{builtin}' called by '{func}' is unknown; it is NOT assumed pure",
     help: "Declare it via ASTER_EFFECT_CONFIG prefixes, supply an imported effect signature, or use a known stdlib namespace.",
   },
+  [ErrorCode.EFFECT_PARAM_SHADOWS_BUILTIN]: {
+    code: ErrorCode.EFFECT_PARAM_SHADOWS_BUILTIN,
+    category: 'type',
+    severity: 'error',
+    message: "Effect parameter {name} of '{func}' has the same name as a built-in effect",
+    help: "Rename the effect parameter; the effect names io, cpu, pure and async are reserved in any letter case.",
+  },
   [ErrorCode.CAPABILITY_NOT_ALLOWED]: {
     code: ErrorCode.CAPABILITY_NOT_ALLOWED,
     category: 'capability',
@@ -1111,6 +1122,13 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     severity: 'error',
     message: "Duplicate declaration of '{written}' in {role} position",
     help: "Rename one of the declarations or remove the duplicate.",
+  },
+  [ErrorCode.PARSE_DUPLICATE_ANNOTATION_ARG]: {
+    code: ErrorCode.PARSE_DUPLICATE_ANNOTATION_ARG,
+    category: 'syntax',
+    severity: 'error',
+    message: "Annotation @{annotation} repeats the argument {name}",
+    help: "Give each named argument of an annotation at most once.",
   },
   [ErrorCode.SHADOWED_VOCABULARY]: {
     code: ErrorCode.SHADOWED_VOCABULARY,
