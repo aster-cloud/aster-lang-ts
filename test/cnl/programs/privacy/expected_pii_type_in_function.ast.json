@@ -5,9 +5,6 @@
     {
       "kind": "Func",
       "name": "process_email",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "email",

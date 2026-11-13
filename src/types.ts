@@ -3,6 +3,7 @@
 import { Effect as EffectEnum } from './config/semantic.js';
 import type { ErrorCode } from './diagnostics/error_codes.js';
 import type * as Base from './types/base.js';
+import type * as V2 from './core/core-ir-v2.generated.js';
 
 export interface Position {
   readonly line: number;
@@ -15,14 +16,15 @@ export interface Span {
 }
 
 // Optional file-backed origin info; used for IR provenance and logs
+// Core IR v2 的 origin（Core.Origin）三个可空字段恒输出为 null；它可以赋给这里的宽松形态。
 export interface Origin {
-  readonly file?: string;
+  readonly file?: string | null;
   readonly start: Position;
   readonly end: Position;
   /** ADR 0051：源码原写法，仅在与规范名不同时写入 */
-  readonly written?: string;
+  readonly written?: string | null;
   /** ADR 0051：该写法按哪种角色解析，与 written 同时出现 */
-  readonly role?: ResolvedRole;
+  readonly role?: ResolvedRole | null;
 }
 
 /**
@@ -62,7 +64,8 @@ export type CapabilityKind = import('./config/semantic.js').CapabilityKind;
 /** Effect capability 列表的统一别名 */
 export type EffectCaps = readonly CapabilityKind[];
 
-export type AnnotationValue = string | number | boolean | null;
+/** 注解参数值（ADR 0055 #3）：字符串、Int32 整数或布尔；浮点、Long 与 null 在解析期报 E067。 */
+export type AnnotationValue = string | number | boolean;
 
 export interface AnnotationArg {
   readonly name: string;
@@ -93,6 +96,10 @@ export interface Token {
    * 标识符位置还原 originalValue 后，据此跳过整组拆分 token。
    */
   readonly transUnitLen?: number;
+  /** 数值字面量（INT / FLOAT / LONG）的源码原文（ADR 0055 §5），用于精确求出规范十进制串与诊断。 */
+  readonly raw?: string;
+  /** 本 token 由非英文关键词翻译而来（关键词翻译器设置）；源码写的是关键词，不是用户标识符。 */
+  readonly translated?: true;
 }
 
 export enum TokenKind {
@@ -260,6 +267,10 @@ export interface ConstraintRange {
   readonly kind: 'Range';
   readonly min?: number;
   readonly max?: number;
+  /** 最小值字面量原文（ADR 0055 §5：IR 中的规范十进制串由它求出，不经 number） */
+  readonly minRaw?: string;
+  /** 最大值字面量原文 */
+  readonly maxRaw?: string;
   readonly span: Span;
 }
 
@@ -387,6 +398,8 @@ export interface PatternNull extends Base.BasePatternNull<Span> {
 }
 
 export interface PatternCtor extends Resolvable, Base.BasePatternCtor<Span, Pattern> {
+  /** 各绑定名的 span，与 names 同长（解析器写入；IR 中每个绑定 PatName 的 origin 取自它） */
+  readonly nameSpans?: readonly Span[];
   span: Span;
 }
 
@@ -449,6 +462,8 @@ export interface Long extends Base.BaseLong<Span> {
 }
 
 export interface Double extends Base.BaseDouble<Span> {
+  /** 字面量原文（ADR 0055 §5）：IR 的 Double.value 由它经任意精度十进制求出，不经 number */
+  readonly raw?: string;
   span: Span;
 }
 
@@ -598,237 +613,122 @@ export interface FuncType extends Base.BaseFuncType<Span, Type> {
 }
 
 // Core IR types (distinct from CNL AST)
+/**
+ * Core IR v2（ADR 0055）的 TS 类型：全部是 `core/core-ir-v2.generated.ts`（由 v2 JSON Schema 生成）
+ * 的别名，因此与 schema 逐字段一致（`test/types/core-ir-v2.test-d.ts` 断言双向相等）。
+ * 名称沿用 v1 的 Core.* 以保持调用方不变：Pattern = Pat、Statement = Stmt、Expression = Expr、
+ * Parameter = Param、ConstructField = FieldInit。
+ */
 export namespace Core {
-  export type CoreNode = Base.BaseNode<Origin>;
+  export type Origin = V2.IrOrigin;
+  export type Module = V2.IrModule;
+  export type Declaration = V2.IrDecl;
+  export type Import = V2.IrImport;
+  export type Data = V2.IrData;
+  export type Field = V2.IrField;
+  export type Enum = V2.IrEnum;
+  export type Func = V2.IrFunc;
+  export type Parameter = V2.IrParam;
+  export type Annotation = V2.IrAnnotation;
+  export type AnnotationArg = V2.IrAnnotationArg;
 
-  export interface Module extends Base.BaseModule<Origin, Declaration> {}
+  export type Constraint = V2.IrConstraint;
+  export type ConstraintRequired = V2.IrRequired;
+  export type ConstraintRange = V2.IrRange;
+  export type ConstraintPattern = V2.IrPattern;
 
-  export interface Import extends Base.BaseImport<Origin> {}
+  export type Statement = V2.IrStmt;
+  export type Block = V2.IrBlock;
+  export type Scope = V2.IrScope;
+  export type Let = V2.IrLet;
+  export type Set = V2.IrSet;
+  export type Return = V2.IrReturn;
+  export type If = V2.IrIf;
+  export type Match = V2.IrMatch;
+  export type Case = V2.IrCase;
+  export type Start = V2.IrStart;
+  export type Wait = V2.IrWait;
+  export type Workflow = V2.IrWorkflow;
+  export type Step = V2.IrStep;
+  export type RetryPolicy = V2.IrRetryPolicy;
+  export type Timeout = V2.IrTimeout;
 
-  export interface Data extends Base.BaseData<Origin, Type> {
-    readonly fields: readonly Field[];
-  }
+  export type Pattern = V2.IrPat;
+  export type PatNull = V2.IrPatNull;
+  export type PatCtor = V2.IrPatCtor;
+  export type PatName = V2.IrPatName;
+  export type PatInt = V2.IrPatInt;
 
-  // Core IR 约束类型
-  export interface ConstraintRequired {
-    readonly kind: 'Required';
-  }
-
-  export interface ConstraintRange {
-    readonly kind: 'Range';
-    readonly min?: number;
-    readonly max?: number;
-  }
-
-  export interface ConstraintPattern {
-    readonly kind: 'Pattern';
-    readonly regexp: string;
-  }
-
-  export type Constraint = ConstraintRequired | ConstraintRange | ConstraintPattern;
-
-  export interface Field extends Base.BaseField<Type> {
-    /** CNL 约束列表 */
-    readonly constraints?: readonly Constraint[];
-  }
-
-  export interface Enum extends Base.BaseEnum<Origin> {}
-
-  export interface Func extends Base.BaseFunc<Origin, readonly EffectEnum[], Type> {
-    readonly ret: Type;
-    readonly annotations?: readonly Annotation[];
-    readonly effects: readonly EffectEnum[];
-    readonly body: Block;
-    readonly params: readonly Parameter[];
-    readonly effectParams?: readonly string[];
-    readonly declaredEffects?: readonly (EffectEnum | EffectVar)[];
-    /** 标记返回类型是否为推断得出（用于诊断和文档生成） */
-    readonly retTypeInferred?: boolean;
-    readonly piiLevel?: PiiSensitivityLevel;
-    readonly piiCategories?: readonly string[];
-    /**
-     * ADR 0046 §11 D2：返回 Verdict 的规则对第一个参数读取的源码字段路径（点连接，字典序去重；
-     * "" 为参数本身，["*"] 为无法静态确定）。只在声明了档案的模块中写入（R2 之后由 governance/input-refs 计算）；
-     * 其余函数不出现该键，未声明档案的模块 IR 逐字节不变。
-     */
-    readonly inputRefs?: readonly string[];
-  }
-
-  export interface Parameter extends Base.BaseParameter<Type> {
-    /** CNL 约束列表 */
-    readonly constraints?: readonly Constraint[];
-    /** 标记类型是否为推断得出（用于诊断和文档生成） */
-    readonly typeInferred?: boolean;
-  }
-
-  export interface Block extends Base.BaseBlock<Origin, Statement> {}
-
-  export type Declaration = Import | Data | Enum | Func;
-
-  export interface Start extends Base.BaseStart<Origin, Expression> {}
-
-  export interface Wait extends Base.BaseWait<Origin> {}
-
-  export interface Scope extends Base.BaseScope<Origin, Statement> {}
-
-  export interface Workflow
-    extends Base.BaseWorkflow<Origin, Step, RetryPolicy, Timeout> {
-    readonly effectCaps: EffectCaps;
-  }
-
-  export interface Step extends Base.BaseStep<Origin, Block> {
-    readonly effectCaps: EffectCaps;
-  }
-
-  export interface RetryPolicy extends Base.BaseRetryPolicy {}
-
-  export interface Timeout extends Base.BaseTimeout {}
-
-  export type Statement =
-    | Let
-    | Set
-    | Return
-    | If
-    | Match
-    | Scope
-    | Start
-    | Wait
-    | Workflow;
-
-  export interface Let extends Base.BaseLet<Origin, Expression> {}
-
-  export interface Set extends Base.BaseSet<Origin, Expression> {}
-
-  export interface Return extends Base.BaseReturn<Origin, Expression> {}
-
-  export interface If extends Base.BaseIf<Origin, Expression, Block> {}
-
-  export interface Match extends Base.BaseMatch<Origin, Expression, Case> {}
-
-  export interface Case extends Base.BaseCase<Origin, Pattern, Return | Block> {}
-
-  export type Pattern = PatNull | PatCtor | PatName | PatInt;
-
-  export interface PatNull extends Base.BasePatternNull<Origin> {}
-
-  export interface PatCtor extends Base.BasePatternCtor<Origin, Pattern> {}
-
-  export interface PatName extends Base.BasePatternName<Origin> {}
-
-  export interface PatInt extends Base.BasePatternInt<Origin> {}
-
-  export type Expression =
-    | Name
-    | Bool
-    | Int
-    | Long
-    | Double
-    | Decimal
-    | String
-    | Null
-    | Call
-    | Construct
-    | Ok
-    | Err
-    | Some
-    | None
-    | Lambda
-    | Await
-    | IfExpr
-    | ListLit;
-
-  export interface Name extends Base.BaseName<Origin> {}
-
-  export interface Bool extends Base.BaseBool<Origin> {}
-
-  export interface Int extends Base.BaseInt<Origin> {}
-
-  export interface Long extends Base.BaseLong<Origin> {}
-
-  export interface Double extends Base.BaseDouble<Origin> {}
-
+  export type Expression = V2.IrExpr;
+  export type Name = V2.IrName;
+  export type Bool = V2.IrBool;
+  export type Int = V2.IrInt;
+  export type Long = V2.IrLong;
+  export type Double = V2.IrDouble;
   /** Decimal 字面量（ADR 0025，canonical 十进制字符串值）。 */
-  export interface Decimal extends Base.BaseDecimal<Origin> {}
+  export type Decimal = V2.IrDecimal;
+  export type String = V2.IrString;
+  export type Null = V2.IrNull;
+  export type Call = V2.IrCall;
+  export type Construct = V2.IrConstruct;
+  export type ConstructField = V2.IrFieldInit;
+  export type Ok = V2.IrOk;
+  export type Err = V2.IrErr;
+  export type Some = V2.IrSome;
+  export type None = V2.IrNone;
+  export type Lambda = V2.IrLambda;
+  export type Await = V2.IrAwait;
+  /** 表达式级 if（ADR 0019 G2b）。 */
+  export type IfExpr = V2.IrIfExpr;
+  /** 列表字面量（ADR 0024 C0）。 */
+  export type ListLit = V2.IrListLit;
 
-  export interface String extends Base.BaseString<Origin> {}
+  export type Type = V2.IrType;
+  export type TypeName = V2.IrTypeName;
+  export type TypeVar = V2.IrTypeVar;
+  export type TypeApp = V2.IrTypeApp;
+  export type Maybe = V2.IrMaybe;
+  export type Option = V2.IrOption;
+  export type Result = V2.IrResult;
+  export type List = V2.IrList;
+  export type Map = V2.IrMap;
+  export type FuncType = V2.IrFuncType;
+  /** PII 类型（运行时 PII 数据流跟踪与污点分析）。 */
+  export type PiiType = V2.IrPiiType;
 
-  export interface Null extends Base.BaseNull<Origin> {}
+  /** 任意带 kind 与 origin 的 Core 节点。 */
+  export type CoreNode = { readonly kind: string; readonly origin: Origin };
+}
 
-  export interface Call extends Base.BaseCall<Origin, Expression> {}
-
-  export interface Lambda extends Base.BaseLambda<Origin, Type, Block> {
+/**
+ * 类型检查器内部的类型代数（不是 IR）。类型检查会合成大量不来自源码的类型（`Unknown`、推断结果、
+ * 内置签名），它们没有源码位置；函数类型还携带效应参数与声明效应。因此这里的 origin 可缺，
+ * 并多出 `EffectVar`。IR 的 `Core.Type` 是它的子类型，可以直接传入；反方向不成立——类型检查器
+ * 不向 IR 写类型。
+ */
+export namespace Ty {
+  type At = { readonly origin?: Core.Origin };
+  export type TypeName = At & { readonly kind: 'TypeName'; readonly name: string };
+  export type TypeVar = At & { readonly kind: 'TypeVar'; readonly name: string };
+  export type EffectVar = At & { readonly kind: 'EffectVar'; readonly name: string };
+  export type TypeApp = At & { readonly kind: 'TypeApp'; readonly base: string; readonly args: readonly Type[] };
+  export type Maybe = At & { readonly kind: 'Maybe'; readonly type: Type };
+  export type Option = At & { readonly kind: 'Option'; readonly type: Type };
+  export type List = At & { readonly kind: 'List'; readonly type: Type };
+  export type Result = At & { readonly kind: 'Result'; readonly ok: Type; readonly err: Type };
+  export type Map = At & { readonly kind: 'Map'; readonly key: Type; readonly val: Type };
+  export type FuncType = At & {
+    readonly kind: 'FuncType';
+    readonly params: readonly Type[];
     readonly ret: Type;
-    readonly captures?: readonly string[];
-  }
-
-  export interface Construct extends Base.BaseConstruct<Origin, ConstructField> {}
-
-  export interface ConstructField extends Base.BaseConstructField<Expression> {}
-
-  export interface Ok extends Base.BaseOk<Origin, Expression> {}
-
-  export interface Err extends Base.BaseErr<Origin, Expression> {}
-
-  export interface Some extends Base.BaseSome<Origin, Expression> {}
-
-  export interface None extends Base.BaseNone<Origin> {}
-
-  export interface Await extends Base.BaseAwait<Origin, Expression> {}
-
-  /** 表达式级 if（ADR 0019 G2b，Core IR）。kind="IfExpr"，与 core/truffle 对齐。 */
-  export interface IfExpr extends Base.BaseIfExpr<Origin, Expression> {}
-
-  /** 列表字面量（ADR 0024 C0，Core IR）。kind="ListLit"，与 Java CoreModel.ListE 对齐。 */
-  export interface ListLit extends Base.BaseListLit<Origin, Expression> {}
-
-  // Extended with generics (preview)
-  export type Type =
-    | TypeName
-    | Maybe
-    | Option
-    | Result
-    | List
-    | Map
-    | TypeApp
-    | TypeVar
-    | EffectVar
-    | FuncType
-    | PiiType;
-
-  /**
-   * PII 类型（Core IR 层）
-   * 用于运行时 PII 数据流跟踪和污点分析
-   */
-  export interface PiiType extends CoreNode {
+    readonly effectParams?: readonly string[];
+    readonly declaredEffects?: readonly string[];
+  };
+  export type PiiType = At & {
     readonly kind: 'PiiType';
     readonly baseType: Type;
-    readonly sensitivity: PiiSensitivityLevel;
-    readonly category: PiiDataCategory;
-  }
-
-  export interface TypeName extends Base.BaseTypeName<Origin> {}
-
-  export interface TypeVar extends Base.BaseTypeVar<Origin> {}
-
-  export interface EffectVar extends CoreNode {
-    readonly kind: 'EffectVar';
-    readonly name: string;
-  }
-
-  export interface TypeApp extends Base.BaseTypeApp<Origin, Type> {}
-
-  export interface Maybe extends Base.BaseMaybe<Origin, Type> {}
-
-  export interface Option extends Base.BaseOption<Origin, Type> {}
-
-  export interface Result extends Base.BaseResult<Origin, Type> {}
-
-  export interface List extends Base.BaseList<Origin, Type> {}
-
-  export interface Map extends Base.BaseMap<Origin, Type> {}
-
-  export interface FuncType extends Base.BaseFuncType<Origin, Type> {
-    readonly effectParams?: readonly string[];
-    readonly declaredEffects?: readonly (EffectEnum | string)[];
-  }
+    readonly sensitivity: string;
+    readonly category: string;
+  };
+  export type Type = TypeName | TypeVar | EffectVar | TypeApp | Maybe | Option | List | Result | Map | FuncType | PiiType;
 }

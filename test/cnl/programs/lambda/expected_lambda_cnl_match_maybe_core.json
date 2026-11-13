@@ -1,13 +1,12 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "demo.lambdamatchmaybe",
+  "profile": null,
   "decls": [
     {
       "kind": "Func",
       "name": "fromMaybe",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "value",
@@ -15,6 +14,7 @@
             "kind": "TypeName",
             "name": "Text"
           },
+          "annotations": [],
           "typeInferred": true
         },
         {
@@ -23,16 +23,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -47,13 +53,11 @@
                   "type": {
                     "kind": "TypeName",
                     "name": "Text"
-                  }
+                  },
+                  "annotations": [],
+                  "typeInferred": true
                 }
               ],
-              "retType": {
-                "kind": "TypeName",
-                "name": "Unknown"
-              },
               "ret": {
                 "kind": "TypeName",
                 "name": "Unknown"
@@ -121,8 +125,7 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     }
   ]
 }

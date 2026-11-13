@@ -5,9 +5,6 @@
     {
       "kind": "Func",
       "name": "fromMaybe",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "value",

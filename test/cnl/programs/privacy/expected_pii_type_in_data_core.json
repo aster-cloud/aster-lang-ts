@@ -1,6 +1,8 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "test.pii.in_data",
+  "profile": null,
   "decls": [
     {
       "kind": "Data",
@@ -11,31 +13,37 @@
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          }
+          },
+          "annotations": [],
+          "typeInferred": true
         },
         {
           "name": "name",
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          }
+          },
+          "annotations": [],
+          "typeInferred": true
         }
       ]
     },
     {
       "kind": "Func",
       "name": "create_user",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -63,8 +71,7 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     }
   ]
 }

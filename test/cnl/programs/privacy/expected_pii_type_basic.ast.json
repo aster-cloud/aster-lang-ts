@@ -5,9 +5,6 @@
     {
       "kind": "Func",
       "name": "get_email",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "retType": {
         "kind": "TypeName",

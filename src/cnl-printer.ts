@@ -24,6 +24,7 @@ import type {
   WorkflowStmt,
 } from './types.js';
 import { inferLambdaReturnType } from './parser/expr-stmt-parser.js';
+import { canonicalDecimalFromLiteral } from './core/canonical-decimal.js';
 import { isExplicitTypeParam, signatureTypeNames } from './ast/type-nodes.js';
 
 /** IR 运算符名 → 英文 CNL 词形、优先级（数值越大结合越紧）与元数，与解析器 parseOr…parseMultiplication 各层一致 */
@@ -71,6 +72,11 @@ function precedenceOf(e: Expression): number {
  * Double 按普通十进制输出：词法不接受指数写法，且须保留小数点才读回 Double。
  * 取 JS 最短往返数字串，再把指数展开成补零的普通写法，读回得到同一个值。
  */
+/** 规范十进制串按浮点字面量输出：整数值补 `.0`，保持 Double 字面量的写法。 */
+function plainDecimal(canonical: string): string {
+  return canonical.includes('.') ? canonical : `${canonical}.0`;
+}
+
 function plainDouble(v: number): string {
   const [mantissa, exp] = String(v).split('e');
   const sign = mantissa!.startsWith('-') ? '-' : '';
@@ -185,8 +191,13 @@ class CnlPrinter {
       case 'Pattern':
         return `matching pattern ${JSON.stringify(c.regexp)}`;
       case 'Range':
-        if (c.min !== undefined && c.max !== undefined) return `between ${c.min} and ${c.max}`;
-        return c.min !== undefined ? `at least ${c.min}` : `at most ${c.max}`;
+        // 有字面量原文时按其精确十进制值输出（ADR 0055 §5），不经 number
+        const bound = (raw: string | undefined, value: number | undefined): string =>
+          raw === undefined ? String(value) : canonicalDecimalFromLiteral(raw);
+        const min = bound(c.minRaw, c.min);
+        const max = bound(c.maxRaw, c.max);
+        if (c.min !== undefined && c.max !== undefined) return `between ${min} and ${max}`;
+        return c.min !== undefined ? `at least ${min}` : `at most ${max}`;
     }
   }
 
@@ -323,7 +334,8 @@ class CnlPrinter {
       case 'Long':
         return `${e.value}L`;
       case 'Double':
-        return plainDouble(e.value);
+        // 有字面量原文时按其精确十进制值输出（ADR 0055 §5），不经 number，超出双精度的位数不丢
+        return e.raw === undefined ? plainDouble(e.value) : plainDecimal(canonicalDecimalFromLiteral(e.raw));
       case 'Decimal':
         return `${e.value}m`;
       case 'String':

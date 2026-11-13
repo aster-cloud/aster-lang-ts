@@ -85,23 +85,36 @@ function parseEffectParams(
   return names;
 }
 
+/**
+ * 注解参数值（ADR 0055 #3）：只接受字符串、Int32 整数、布尔与标识符（按字符串）。
+ * 浮点、Long 字面量与 null 在 v2 IR 中没有对应形状，报 E067（与 Java AstBuilder 同码同参数，控制裁决）；
+ * 其它 token 报「需要注解参数值」。
+ */
 function parseAnnotationValue(ctx: ParserContext, error: ParseErrorFn): AnnotationValue {
   const tok = ctx.peek();
   switch (tok.kind) {
     case TokenKind.STRING:
     case TokenKind.INT:
-    case TokenKind.FLOAT:
-    case TokenKind.LONG:
     case TokenKind.BOOL:
-    case TokenKind.NULL:
       ctx.next();
       return tok.value as AnnotationValue;
     case TokenKind.IDENT:
     case TokenKind.TYPE_IDENT:
       ctx.next();
       return tok.value as string;
+    case TokenKind.FLOAT:
+    case TokenKind.LONG:
+    case TokenKind.NULL: {
+      const text = tok.kind === TokenKind.NULL ? 'null' : tok.raw ?? String(tok.value);
+      return error(Issue.invalidValue(
+        tokenName('annotationArgumentValue'),
+        text,
+        'string, Int or Bool',
+        `Annotation argument value must be a string, Int or Bool: ${text}`
+      ), tok);
+    }
     default:
-      error(Issue.expected(tokenName('annotationArgumentValue'), 'Expected annotation argument value'), tok);
+      return error(Issue.expected(tokenName('annotationArgumentValue'), 'Expected annotation argument value'), tok);
   }
 }
 
@@ -110,7 +123,7 @@ function isNamedAnnotationArg(ctx: ParserContext): boolean {
   return (ctx.at(TokenKind.IDENT) || ctx.at(TokenKind.TYPE_IDENT)) && ctx.peek(1)?.kind === TokenKind.COLON;
 }
 
-function parseAnnotationArgs(ctx: ParserContext, error: ParseErrorFn): readonly AnnotationArg[] | undefined {
+function parseAnnotationArgs(ctx: ParserContext, error: ParseErrorFn, annotation: string): readonly AnnotationArg[] | undefined {
   if (!ctx.at(TokenKind.LPAREN)) return undefined;
   ctx.next();
   const args: AnnotationArg[] = [];
@@ -121,7 +134,10 @@ function parseAnnotationArgs(ctx: ParserContext, error: ParseErrorFn): readonly 
       const value = parseAnnotationValue(ctx, error);
       args.push({ name: `$${positionalIndex++}`, value });
     } else {
-      const name = String(ctx.next().value);
+      const nameTok = ctx.next();
+      const name = String(nameTok.value);
+      // ADR 0055 #3：同一注解内参数名重复在解析期报 E900（IR 不变式 dup-annotation-arg 兜底）
+      if (args.some(a => a.name === name)) error(Issue.duplicateAnnotationArg(annotation, name), nameTok);
       ctx.next();
       const value = parseAnnotationValue(ctx, error);
       args.push({ name, value });
@@ -152,7 +168,7 @@ function parseDeclAnnotations(
       error(Issue.expectedAfter(tokenName('annotationName'), lit('@'), "Expected annotation name after '@'"));
     }
     const name = String(ctx.next().value);
-    const args = parseAnnotationArgs(ctx, error);
+    const args = parseAnnotationArgs(ctx, error, name);
     annotations.push(args && args.length > 0 ? { name, args } : { name });
     ctx.consumeNewlines();
   }
@@ -327,7 +343,7 @@ export function parseFuncDecl(
   skipLayoutTrivia();
 
   // 解析可选的类型参数: 'of' TypeId ('and' TypeId)*
-  let typeParams: string[] = [];
+  const typeParams: string[] = [];
   skipLayoutTrivia();
   if (ctx.isKeyword('of')) {
     ctx.nextWord();
@@ -421,7 +437,7 @@ export function parseFuncDecl(
   let effects: string[] = [];
   // 允许在返回类型后声明效果：produce Result ... with IO.
   if (ctx.isKeyword(KW.WITH)) {
-    const retTypeEffects = parseEffectList(ctx, error);
+    const retTypeEffects = parseEffectList(ctx, error, name);
     effects.push(...retTypeEffects);
     skipLayoutTrivia();
   }
@@ -441,7 +457,7 @@ export function parseFuncDecl(
     ) {
       if (!ctx.isKeywordSeq(KW.PERFORMS)) ctx.nextWord();
       ctx.nextWords(kwParts(KW.PERFORMS));
-      effects = parseEffectList(ctx, error);
+      effects = parseEffectList(ctx, error, name);
       if (ctx.at(TokenKind.DOT)) {
         ctx.next();
       } else if (ctx.at(TokenKind.COLON)) {
@@ -459,7 +475,7 @@ export function parseFuncDecl(
   ) {
     if (!ctx.isKeywordSeq(KW.PERFORMS)) ctx.nextWord();
     ctx.nextWords(kwParts(KW.PERFORMS));
-    effects = parseEffectList(ctx, error);
+    effects = parseEffectList(ctx, error, name);
     if (ctx.at(TokenKind.DOT)) {
       ctx.next();
     } else if (ctx.at(TokenKind.COLON)) {
@@ -477,56 +493,8 @@ export function parseFuncDecl(
     error(Issue.expectedAfter(tokenName('dotOrColon'), tokenName('returnType'), "Expected '.' or ':' after return type"));
   }
 
-  // 如果没有显式声明类型参数，尝试从类型使用中推断
-  if (typeParams.length === 0) {
-    // 与 aster-lang-core AstBuilder.BUILTIN_TYPE_NAMES 一致：Decimal 是内置标量（ADR 0025），不能当作隐式类型参数（#276）
-    const BUILTINS = new Set(['Int', 'Bool', 'Text', 'Long', 'Double', 'Decimal', 'Number', 'Float', 'Option', 'Result', 'List', 'Map', 'Verdict']);
-    const found = new Set<string>();
-
-    const visitType = (t: Type): void => {
-      switch (t.kind) {
-        case 'TypeName':
-          if (
-            /^[A-Z][A-Za-z0-9_]*$/.test(t.name) &&
-            !BUILTINS.has(t.name) &&
-            !ctx.declaredTypes.has(t.name)
-          ) {
-            found.add(t.name);
-          }
-          break;
-        case 'TypeApp':
-          t.args.forEach(visitType);
-          break;
-        // R30+ audit P1：TypeScript 在 union 上对 'kind' 已经能精确收窄，
-        // 这里直接用收窄后的 t，不需要 as any。
-        case 'Maybe':
-        case 'Option':
-        case 'List':
-          visitType(t.type);
-          break;
-        case 'Result':
-          visitType(t.ok);
-          visitType(t.err);
-          break;
-        case 'Map':
-          visitType(t.key);
-          visitType(t.val);
-          break;
-        case 'FuncType':
-          t.params.forEach(visitType);
-          visitType(t.ret);
-          break;
-        default:
-          break;
-      }
-    };
-
-    for (const p of params) visitType(p.type);
-    visitType(retType);
-    if (found.size > 0) {
-      typeParams = Array.from(found);
-    }
-  }
+  // typeParams 只含源码 `of T` 声明的类型参数（ADR 0055 #10，与 Java AstBuilder 一致）：不再从签名中
+  // 未声明的大写类型名推断隐式类型参数；查不到的类型名由名称解析 R1 报 E800。
 
   // ★用 lastNonLayoutToken：直接取 ctx.tokens[ctx.index-1] 会把尾随的
   //   NEWLINE/DEDENT 算进 span，使声明范围延伸到下一个声明的起始行（span 重叠）。
@@ -548,7 +516,11 @@ export function parseFuncDecl(
     activeEffectVars
   );
   ctx.currentEffectVars = savedEffectVars;
-  const declaredEffects = [...baseEffects, ...effectVars];
+  // 效应保持源码顺序（基效应与效应变量交错时同样如此，与 Java 按首次出现顺序一致）
+  const declaredNames = new Set([...baseEffects, ...effectVars]);
+  const declaredEffects = effects
+    .map((e) => (['io', 'cpu', 'pure'].includes(e.toLowerCase()) ? e.toLowerCase() : e))
+    .filter((e) => declaredNames.has(e));
 
   // 创建函数节点并附加元数据
   const fn = Node.Func(

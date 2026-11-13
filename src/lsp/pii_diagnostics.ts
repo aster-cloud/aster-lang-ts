@@ -1,7 +1,6 @@
 import type { Diagnostic, Range } from 'vscode-languageserver/node.js';
 import { DiagnosticSeverity } from 'vscode-languageserver/node.js';
 import type { Core, Origin, Span } from '../types.js';
-import { Effect } from '../types.js';
 import { DefaultCoreVisitor } from '../core/visitor.js';
 import { config } from './config.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
@@ -405,10 +404,7 @@ function bindPattern(pattern: Core.Pattern, env: Env, tainted: boolean): void {
       env.set(pattern.name, { tainted });
       break;
     case 'PatCtor':
-      if (pattern.names) {
-        for (const name of pattern.names) env.set(name, { tainted });
-      }
-      if (pattern.args) {
+      {
         for (const arg of pattern.args) bindPattern(arg, env, tainted);
       }
       break;
@@ -586,7 +582,7 @@ function nameHasCapability(name: string, effect: ParsedEffect, ctx: AnalysisCont
   if (!result) {
     const fn = ctx.functions.get(name);
     if (fn) {
-      if (effect.kind === 'io' && fn.effects.some(e => e === Effect.IO)) {
+      if (effect.kind === 'io' && fn.effects.includes('io')) {
         const meta = fn as unknown as {
           effectCaps: readonly import('../config/semantic.js').CapabilityKind[];
           effectCapsExplicit: boolean;
@@ -600,7 +596,7 @@ function nameHasCapability(name: string, effect: ParsedEffect, ctx: AnalysisCont
           result = true;
         }
       }
-      if (effect.kind === 'cpu' && fn.effects.some(e => e === Effect.CPU)) {
+      if (effect.kind === 'cpu' && fn.effects.includes('cpu')) {
         result = true;
       }
       if (!result && blockHasCapability(fn.body, effect, ctx)) {

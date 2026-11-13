@@ -5,7 +5,7 @@
  *
  * 成员还是绑定由 R2 按 R12 判定（主语为枚举时查该枚举的成员，主语类型未知时查全部枚举成员的精确写法，
  * 其余为绑定），两引擎一致；R2 再按判定结果给出统一的 IR 形态：成员为无参数 PatCtor，绑定为 PatName。
- * 首字母为 ASCII 大写的名字 IR 不变；de 变音开头成员与小写 ASCII 成员同样产出 PatCtor。用例与 aster-lang-core 的 CaselessPatternNameTest 同输入同断言，
+ * Core IR v2（ADR 0055 #16）起不再看首字母大小写：ASCII 大写、de 变音开头与小写 ASCII 成员一律产出 PatCtor。用例与 aster-lang-core 的 CaselessPatternNameTest 同输入同断言，
  * 另加解释器求值（core 没有解释器，求值由 truffle 与 aster-lang-test 的 tier1 样本覆盖）。
  */
 import { describe, it } from 'node:test';
@@ -40,8 +40,7 @@ function assertVariant(name: string, p: Core.Pattern | undefined): void {
   assert.equal(p?.kind, 'PatCtor', `成员应为无参数 PatCtor：${name}`);
   const ctor = p as Core.PatCtor;
   assert.equal(ctor.typeName, name);
-  assert.deepEqual([...(ctor.names ?? [])], []);
-  assert.deepEqual([...((ctor as { args?: readonly Core.Pattern[] }).args ?? [])], []);
+  assert.deepEqual([...ctor.args], []);
 }
 
 function assertBinding(name: string, p: Core.Pattern | undefined): void {
@@ -105,7 +104,7 @@ describe('无大小写文字的裸模式名（R55）', () => {
       + '    bei Ärger, gib zurueck Ärger.\n', DE_DE);
     const ps = patterns(core, 'wert');
     assertVariant('Übel', ps[0]);
-    assert.equal(ps[1]?.kind, 'PatName');
+    assertVariant('Gut', ps[1]);
     assertBinding('rest', ps[2]);
     assertBinding('Ärger', patterns(core, 'bind')[1]);
     assert.equal(run(core, 'wAerger', {}), 9);
@@ -120,12 +119,11 @@ describe('无大小写文字的裸模式名（R55）', () => {
     assert.equal(run(core, 'g', {}), 2);
   });
 
-  it('首字母为 ASCII 大写的名字 IR 不变', () => {
-    // en：裸 TYPE_IDENT 在 TS 仍为 PatName（运行时按大写判为变体），小写绑定仍为 PatName，IR 不变
+  it('首字母为 ASCII 大写的成员同样是 0 参 PatCtor（ADR 0055 #16）', () => {
+    // en：成员不再靠首字母大写表达，统一为 PatCtor{typeName, args:[]}；小写绑定仍为 PatName
     const ps = patterns(compileClean('Module demo.cased.\n\nDefine Color as one of Red, Green.\n\n'
       + 'Rule f given c as Color, produce Int:\n  Match c:\n    When Red, Return 1.\n    When other, Return 2.\n'), 'f');
-    assert.equal(ps[0]?.kind, 'PatName');
-    assert.equal((ps[0] as Core.PatName).name, 'Red');
+    assertVariant('Red', ps[0]);
     assertBinding('other', ps[1]);
   });
 });

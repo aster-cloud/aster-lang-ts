@@ -135,6 +135,9 @@ export type {
 // 只导出带检查的出口：原始 lower 与不抛错的 resolveAndLower 为内部实现（可能产出含本地化名的 Core）
 export { parseSource, resolveAndLowerChecked, NameResolutionError } from './compile-pipeline.js';
 export type { ParsedSource, ResolvedCore } from './compile-pipeline.js';
+// Core IR v2 规范序列化与不变式检查（ADR 0055）；严格读入 readCoreIr 依赖 ajv，只在 Node 入口导出
+export { serializeCoreIr, validateCoreIrInvariants } from './core/serialize-core-ir.js';
+export type { CoreIrProblem } from './core/serialize-core-ir.js';
 
 // ============================================================================
 // High-level compilation API (browser-friendly)
@@ -157,6 +160,7 @@ import type { VocabularyScopes } from './config/lexicons/identifiers/scopes.js';
 import type { DomainVocabulary } from './config/lexicons/identifiers/types.js';
 import { vocabularyRegistry, initBuiltinVocabularies } from './config/lexicons/identifiers/registry.js';
 import { hasErrors, parseSource, resolveAndLower } from './compile-pipeline.js';
+import { serializeCoreIr } from './core/serialize-core-ir.js';
 
 /**
  * Parse error with position information
@@ -193,6 +197,11 @@ export interface CompileResult {
   success: boolean;
   /** Compiled Core IR module (if successful) */
   core?: CoreTypes.Module;
+  /**
+   * `core` 的规范字节（Core IR v2，ADR 0055 §5）：`serializeCoreIr(core)`，与 core `CoreIrJson.serialize` 同一契约。
+   * 持久化、哈希或提交给 aster-api `/evaluate-json` 时直接使用它，不要再对 `core` 做 JSON.stringify。
+   */
+  coreJson?: string;
   /** Parse errors (if any) - now includes position information */
   parseErrors?: ParseError[];
   /**
@@ -310,7 +319,9 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       return { success: false, loweringDiagnostics, loweringErrors: loweringDiagnostics.map((d) => d.message) };
     }
     const success = !hasErrors(resolved.diagnostics);
-    const result: CompileResult = success ? { success, core: resolved.core } : { success };
+    const result: CompileResult = success
+      ? { success, core: resolved.core, coreJson: serializeCoreIr(resolved.core) }
+      : { success };
     if (parseErrors.length > 0) {
       // 此时只剩 warning（error 已在上面 short-circuit），保留以便调用方展示
       result.parseErrors = parseErrors;

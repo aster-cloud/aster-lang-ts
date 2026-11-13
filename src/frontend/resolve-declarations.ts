@@ -20,7 +20,6 @@ import type { Resolved, ResolvedRole, Span, TypecheckDiagnostic } from '../types
 import type { ResolutionContext } from './resolution-context.js';
 import { KEYWORD_CTORS, choose, chooseDecl, chooseDeclAcross, chooseVocab, formatCandidates } from './resolution-choice.js';
 import type { Choice, Entry, VocabMap } from './resolution-choice.js';
-import { signatureTypeNames, isExplicitTypeParam } from '../ast/type-nodes.js';
 
 // ---- 模块符号表 ----
 
@@ -403,7 +402,7 @@ function resolveType(r: Resolver, scope: Scope, t: AST.Type): AST.Type {
   const sub = (x: AST.Type): AST.Type => resolveType(r, scope, x);
   switch (t.kind) {
     case 'TypeName':
-      // 隐式推断的类型参数在 TS AST 中仍是 TypeName；经 R13 筛选后仍保留的类型参数不查词汇
+      // 显式声明的类型参数（`of T`）不查词汇
       return scope.typeParams.has(t.name) ? t : { ...t, resolved: resolveTypeName(r, t.name, t.span) };
     case 'TypeApp':
       return { ...t, args: t.args.map(sub), resolved: resolveTypeName(r, t.base, t.span) };
@@ -684,35 +683,13 @@ function rewriteData(r: Resolver, d: AST.Data, resolved: Resolved, fieldNames: r
 }
 
 function rewriteFunc(r: Resolver, d: AST.Func, resolved: Resolved): AST.Func {
-  const typeParams = keptTypeParams(r, d);
+  // typeParams 只含源码 `of T` 声明的类型参数（ADR 0055 #10，取代裁决 R13 的隐式类型参数筛选）
+  const typeParams = d.typeParams;
   const scope = rootScope(typeParams);
   const params = d.params.map((p) => resolveParam(r, scope, p));
   const retType = resolveType(r, scope, d.retType);
   const body = d.body ? resolveBlock(r, scope, d.body) : null;
   return { ...d, typeParams, params, retType, body, resolved };
-}
-
-/**
- * 裁决 R13：TS 解析器把签名中未声明的大写类型名推断为隐式类型参数（其使用仍为 TypeName）；
- * 显式 `of T` 的使用则解析为 TypeVar。隐式参数若能作为 TYPE 命中源码声明 / 导入 / 词汇，
- * 说明它其实是类型名，从 typeParams 中移除；全部未命中的保留为类型参数。
- * 显式参数（含只在函数体内使用的 `of T`）一律保留，与 Java 一致。
- */
-function keptTypeParams(r: Resolver, d: AST.Func): readonly string[] {
-  const names = signatureTypeNames(d);
-  return d.typeParams.filter(
-    (name) => isExplicitTypeParam(names, name) || !isImplicitTypeName(r, name, names.firstTypeNameUse.get(name))
-  );
-}
-
-/**
- * 隐式参数命中类型 → true（应移除）；折叠歧义时报 E804 并保留为类型参数，使编译失败而非静默当作泛型。
- * E804 报在签名里该名字的第一处写法上。
- */
-function isImplicitTypeName(r: Resolver, name: string, span?: Span): boolean {
-  const picked = probeTypeChoice(r, name);
-  if (picked.kind === 'ambiguous') reportAmbiguous(r, name, 'TYPE', picked.candidates, span);
-  return picked.kind === 'hit';
 }
 
 // ---- 入口 ----

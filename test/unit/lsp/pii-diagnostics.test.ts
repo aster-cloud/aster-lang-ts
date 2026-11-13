@@ -1,9 +1,10 @@
 import { before, after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { DiagnosticSeverity } from 'vscode-languageserver/node.js';
-import type { Core, Origin } from '../../../src/types.js';
+import type { Core } from '../../../src/types.js';
 import { checkPiiFlow } from '../../../src/lsp/pii_diagnostics.js';
 import { config, resetConfig } from '../../../src/lsp/config.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 let piiDiagnosticsModule: typeof import('../../../src/lsp/pii_diagnostics.js') | null = null;
 let originalActiveContext: unknown = null;
@@ -35,11 +36,13 @@ after(() => {
   }
 });
 
-function makeOrigin(label: string): Origin {
+function makeOrigin(label: string): Core.Origin {
   return {
     file: `${label}.aster`,
     start: { line: 1, col: 1 },
     end: { line: 1, col: 10 },
+    written: null,
+    role: null,
   };
 }
 
@@ -57,7 +60,7 @@ function makeCall(name: string, args: Core.Expression[] = []): Core.Call {
 }
 
 function makeBlock(statements: Core.Statement[]): Core.Block {
-  return { kind: 'Block', statements };
+  return toV2({ kind: 'Block', statements });
 }
 
 interface FuncOptions {
@@ -68,7 +71,7 @@ interface FuncOptions {
   ret?: Core.Type;
 }
 
-const UNIT_TYPE: Core.TypeName = { kind: 'TypeName', name: 'Unit' };
+const UNIT_TYPE: Core.TypeName = toV2({ kind: 'TypeName', name: 'Unit' });
 
 function makeFunc({
   name,
@@ -77,7 +80,7 @@ function makeFunc({
   body = makeBlock([makeReturn(makeName('unit'))]),
   ret = UNIT_TYPE,
 }: FuncOptions): Core.Func {
-  return {
+  return toV2({
     kind: 'Func',
     name,
     typeParams: [],
@@ -87,25 +90,25 @@ function makeFunc({
     effectCaps: [],
     effectCapsExplicit: false,
     body,
-  };
+  });
 }
 
 function makeReturn(expr: Core.Expression): Core.Return {
-  return { kind: 'Return', expr };
+  return toV2({ kind: 'Return', expr });
 }
 
 function makeLet(name: string, expr: Core.Expression): Core.Let {
-  return { kind: 'Let', name, expr };
+  return toV2({ kind: 'Let', name, expr });
 }
 
 describe('PII Diagnostics', () => {
   describe('checkPiiFlow', () => {
     it('应该对空模块返回空诊断列表', () => {
-      const emptyModule: Core.Module = {
+      const emptyModule: Core.Module = toV2({
         kind: 'Module',
         name: 'TestModule',
         decls: [],
-      };
+      });
       const diagnostics = checkPiiFlow(emptyModule);
       assert.strictEqual(diagnostics.length, 0);
     });
@@ -114,13 +117,13 @@ describe('PII Diagnostics', () => {
       // 确保默认配置（非严格模式）
       resetConfig({ strictPiiMode: false });
 
-      const stringType: Core.TypeName = { kind: 'TypeName', name: 'String' };
-      const piiType: Core.PiiType = {
+      const stringType: Core.TypeName = toV2({ kind: 'TypeName', name: 'String' });
+      const piiType: Core.PiiType = toV2({
         kind: 'PiiType',
         baseType: stringType,
         sensitivity: 'L2',
         category: 'name',
-      };
+      });
       const httpCallWithPii: Core.Call = {
         kind: 'Call',
         target: makeName('Http.post'),
@@ -130,15 +133,15 @@ describe('PII Diagnostics', () => {
 
       const func = makeFunc({
         name: 'leakPii',
-        params: [{ name: 'piiData', type: piiType }],
+        params: [toV2({ name: 'piiData', type: piiType })],
         body: makeBlock([makeReturn(httpCallWithPii)]),
       });
 
-      const module: Core.Module = {
+      const module: Core.Module = toV2({
         kind: 'Module',
         name: 'TestModule',
         decls: [func],
-      };
+      });
 
       const diagnostics = checkPiiFlow(module);
       // 现在返回 2 个诊断：HTTP 泄漏 + 缺失同意检查
@@ -152,13 +155,13 @@ describe('PII Diagnostics', () => {
       // 启用严格模式
       resetConfig({ strictPiiMode: true });
 
-      const stringType: Core.TypeName = { kind: 'TypeName', name: 'String' };
-      const piiType: Core.PiiType = {
+      const stringType: Core.TypeName = toV2({ kind: 'TypeName', name: 'String' });
+      const piiType: Core.PiiType = toV2({
         kind: 'PiiType',
         baseType: stringType,
         sensitivity: 'L2',
         category: 'name',
-      };
+      });
       const httpCallWithPii: Core.Call = {
         kind: 'Call',
         target: makeName('Http.post'),
@@ -168,15 +171,15 @@ describe('PII Diagnostics', () => {
 
       const func = makeFunc({
         name: 'leakPii',
-        params: [{ name: 'piiData', type: piiType }],
+        params: [toV2({ name: 'piiData', type: piiType })],
         body: makeBlock([makeReturn(httpCallWithPii)]),
       });
 
-      const module: Core.Module = {
+      const module: Core.Module = toV2({
         kind: 'Module',
         name: 'TestModule',
         decls: [func],
-      };
+      });
 
       const diagnostics = checkPiiFlow(module);
       // 现在返回 2 个诊断：HTTP 泄漏 + 缺失同意检查
@@ -193,13 +196,13 @@ describe('PII Diagnostics', () => {
       // 启用严格模式以获得 Error 级别诊断
       resetConfig({ strictPiiMode: true });
 
-      const stringType: Core.TypeName = { kind: 'TypeName', name: 'String' };
-      const piiType: Core.PiiType = {
+      const stringType: Core.TypeName = toV2({ kind: 'TypeName', name: 'String' });
+      const piiType: Core.PiiType = toV2({
         kind: 'PiiType',
         baseType: stringType,
         sensitivity: 'L2',
         category: 'email',
-      };
+      });
       const httpCallWithPii: Core.Call = {
         kind: 'Call',
         target: makeName('Http.post'),
@@ -209,15 +212,15 @@ describe('PII Diagnostics', () => {
 
       const func = makeFunc({
         name: 'sendEmail',
-        params: [{ name: 'userEmail', type: piiType }],
+        params: [toV2({ name: 'userEmail', type: piiType })],
         body: makeBlock([makeReturn(httpCallWithPii)]),
       });
 
-      const module: Core.Module = {
+      const module: Core.Module = toV2({
         kind: 'Module',
         name: 'TestModule',
         decls: [func],
-      };
+      });
 
       const diagnostics = checkPiiFlow(module);
       // 现在返回 2 个诊断：HTTP 泄漏 + 缺失同意检查
@@ -243,7 +246,7 @@ describe('PII Diagnostics', () => {
     it('无 PII 泄漏时不应产生诊断', () => {
       resetConfig({ strictPiiMode: true });
 
-      const stringType: Core.TypeName = { kind: 'TypeName', name: 'String' };
+      const stringType: Core.TypeName = toV2({ kind: 'TypeName', name: 'String' });
       const httpCallWithoutPii: Core.Call = {
         kind: 'Call',
         target: makeName('Http.post'),
@@ -253,15 +256,15 @@ describe('PII Diagnostics', () => {
 
       const func = makeFunc({
         name: 'noLeak',
-        params: [{ name: 'safeData', type: stringType }],
+        params: [toV2({ name: 'safeData', type: stringType })],
         body: makeBlock([makeReturn(httpCallWithoutPii)]),
       });
 
-      const module: Core.Module = {
+      const module: Core.Module = toV2({
         kind: 'Module',
         name: 'TestModule',
         decls: [func],
-      };
+      });
 
       const diagnostics = checkPiiFlow(module);
       assert.strictEqual(diagnostics.length, 0);

@@ -1,4 +1,5 @@
-import type { Core, Span } from '../types.js';
+import type { Core, Span, Ty } from '../types.js';
+import { originToSpan } from './pure.js';
 import { DefaultTypeVisitor } from '../ast/ast_visitor.js';
 import { DiagnosticBuilder } from './diagnostics.js';
 import type { ModuleContext } from './context.js';
@@ -8,13 +9,13 @@ import { formatType, typesEqual } from './pure.js';
 import { VERDICT_TYPE_NAME } from './verdict_signatures.js';
 
 export function unifyTypeParameters(
-  expected: Core.Type,
-  actual: Core.Type,
-  bindings: Map<string, Core.Type>,
+  expected: Ty.Type,
+  actual: Ty.Type,
+  bindings: Map<string, Ty.Type>,
   diagnostics: DiagnosticBuilder,
   span: Span | undefined
 ): void {
-  const inferred = new Map<string, Core.Type>();
+  const inferred = new Map<string, Ty.Type>();
   if (!TypeSystem.unify(expected, actual, inferred)) return;
 
   for (const [name, type] of inferred) {
@@ -50,7 +51,7 @@ export function checkGenericTypeParameters(
   // 检查未声明的类型变量使用
   for (const u of used) {
     if (!declared.has(u)) {
-      diagnostics.error(ErrorCode.TYPE_VAR_UNDECLARED, f.span, {
+      diagnostics.error(ErrorCode.TYPE_VAR_UNDECLARED, originToSpan(f.origin), {
         name: u,
         func: f.name,
       });
@@ -60,7 +61,7 @@ export function checkGenericTypeParameters(
   // 检查未使用的类型参数
   for (const tv of declared) {
     if (!used.has(tv)) {
-      diagnostics.warning(ErrorCode.TYPE_PARAM_UNUSED, f.span, {
+      diagnostics.warning(ErrorCode.TYPE_PARAM_UNUSED, originToSpan(f.origin), {
         name: tv,
         func: f.name,
       });
@@ -71,46 +72,57 @@ export function checkGenericTypeParameters(
   // 未声明的类型名在名称解析阶段已报 E800，Java 亦不报 E006（aster-lang-ts#281）。
 
   // 效应类型参数声明与使用校验
-  const effectParams = (f as unknown as { effectParams?: readonly string[] }).effectParams ?? [];
-  const declaredEffectVars = new Set<string>(effectParams);
+  const declaredEffectVars = new Set<string>(f.effectParams);
+  // ADR 0055 #5：效应参数名不得与保留效应名（io、cpu、pure、async，ASCII 大小写不敏感）相同（E213）
+  for (const name of f.effectParams) {
+    if (RESERVED_EFFECT_NAMES.has(asciiLower(name))) {
+      diagnostics.error(ErrorCode.EFFECT_PARAM_SHADOWS_BUILTIN, originToSpan(f.origin), { name, func: f.name });
+    }
+  }
   const usedEffectVars = new Set<string>();
   const effCollector = new EffectParamCollector();
   for (const p of f.params) effCollector.visitType(p.type, usedEffectVars);
   effCollector.visitType(f.ret, usedEffectVars);
 
-  // 同时扫描函数的 declaredEffects，收集其中引用的效应变量
-  const funcDeclaredEffects = (f as unknown as { declaredEffects?: readonly unknown[] }).declaredEffects ?? [];
-  for (const eff of funcDeclaredEffects) {
-    if (typeof eff === 'object' && eff !== null && (eff as { kind?: string }).kind === 'EffectVar') {
-      usedEffectVars.add((eff as { name: string }).name);
-    }
+  // v2 的 effects 只含 io / cpu 与效应变量（ADR 0055 #5）：其余条目都是对效应变量的使用，
+  // 未在 effectParams 中声明的由下方报 E210（对应 IR 不变式 undeclared-effect-var）
+  for (const eff of f.effects) {
+    if (eff !== 'io' && eff !== 'cpu') usedEffectVars.add(eff);
   }
 
   for (const ev of usedEffectVars) {
     if (!declaredEffectVars.has(ev)) {
-      diagnostics.error(ErrorCode.EFFECT_VAR_UNDECLARED, f.span, { func: f.name, var: ev });
+      diagnostics.error(ErrorCode.EFFECT_VAR_UNDECLARED, originToSpan(f.origin), { func: f.name, var: ev });
     }
   }
   for (const ev of declaredEffectVars) {
     if (!usedEffectVars.has(ev)) {
-      diagnostics.warning(ErrorCode.TYPE_PARAM_UNUSED, f.span, { name: ev, func: f.name });
+      diagnostics.warning(ErrorCode.TYPE_PARAM_UNUSED, originToSpan(f.origin), { name: ev, func: f.name });
     }
   }
 }
 
+/** 保留效应名（schema `$defs/ReservedEffectName`）。 */
+const RESERVED_EFFECT_NAMES: ReadonlySet<string> = new Set(['io', 'cpu', 'pure', 'async']);
+
+/** ASCII 大小写不敏感比较用的小写化（保留效应名都是 ASCII）。 */
+function asciiLower(s: string): string {
+  return s.replace(/[A-Z]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 32));
+}
+
 class TypeParamCollector extends DefaultTypeVisitor<Set<string>> {
-  override visitTypeVar(v: Core.TypeVar, ctx: Set<string>): void {
+  override visitTypeVar(v: Ty.TypeVar, ctx: Set<string>): void {
     ctx.add(v.name);
   }
 }
 
 class EffectParamCollector extends DefaultTypeVisitor<Set<string>> {
-  override visitTypeVar(_v: Core.TypeVar, _ctx: Set<string>): void {}
-  override visitEffectVar(ev: Core.EffectVar, ctx: Set<string>): void {
+  override visitTypeVar(_v: Ty.TypeVar, _ctx: Set<string>): void {}
+  override visitEffectVar(ev: Ty.EffectVar, ctx: Set<string>): void {
     // EffectVar 独立于 TypeVar，仍沿用首字母大写约定
     ctx.add(ev.name);
   }
-  override visitFuncType(ft: Core.FuncType, ctx: Set<string>): void {
+  override visitFuncType(ft: Ty.FuncType, ctx: Set<string>): void {
     // 收集函数类型中的 declaredEffects 引用
     if (Array.isArray(ft.declaredEffects)) {
       for (const eff of ft.declaredEffects) {

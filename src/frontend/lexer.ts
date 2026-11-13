@@ -217,6 +217,10 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
     const tokenBase = { kind, value, start, end: { line, col } } as const;
     tokens.push(channel ? { ...tokenBase, channel } : tokenBase);
   };
+  // 数值 token 额外带上字面量原文（ADR 0055 §5：IR 的规范十进制串由原文求出，不经 number；Long 的原文含 L 后缀）
+  const pushNumber = (kind: TokenKind, value: number, start: Position, raw: string): void => {
+    tokens.push({ kind, value, start, end: { line, col }, raw });
+  };
 
   const peek = (): string => input[i] || '';
   const peekAt = (offset: number): string => input[i + offset] || '';
@@ -680,7 +684,7 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
         if (!Number.isFinite(f)) {
           Diagnostics.floatLiteralNotFinite(num, start).throw();
         }
-        push(TokenKind.FLOAT, f, start);
+        pushNumber(TokenKind.FLOAT, f, start, num);
         continue;
       }
       // Look for long suffix 'L' or 'l'
@@ -693,7 +697,7 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
         if (big > LONG_MAX || big < LONG_MIN) {
           Diagnostics.longLiteralOutOfRange(num, start).throw();
         }
-        push(TokenKind.LONG, big.toString(), start);
+        tokens.push({ kind: TokenKind.LONG, value: big.toString(), start, end: { line, col }, raw: num + input[i - 1] });
         continue;
       }
       // 超 Int32 硬拒：Java 侧 Integer.parseInt 抛异常，而 TS 的 parseInt 不但接受，
@@ -702,7 +706,7 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
       if (asBig > INT_MAX || asBig < INT_MIN) {
         Diagnostics.intLiteralOutOfRange(num, start).throw();
       }
-      push(TokenKind.INT, Number(asBig), start);
+      pushNumber(TokenKind.INT, Number(asBig), start, num);
       continue;
     }
 

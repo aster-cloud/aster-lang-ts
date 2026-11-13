@@ -17,6 +17,7 @@ import type { Core as CoreTypes, Span } from '../../../src/types.js';
 import { SymbolTable } from '../../../src/typecheck/symbol_table.js';
 import { DiagnosticBuilder } from '../../../src/typecheck/diagnostics.js';
 import { defineSymbol, type TypecheckWalkerContext, type ModuleContext } from '../../../src/typecheck/context.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 // 辅助函数：创建类型
 const typeName = (name: string): CoreTypes.TypeName => Core.TypeName(name);
@@ -92,31 +93,31 @@ describe('回归测试：重复符号检测', () => {
 
   it('通过完整类型检查流程验证重复参数定义', () => {
     // 构造一个函数有两个同名参数的场景
-    const func: CoreTypes.Func = {
+    const func: CoreTypes.Func = toV2({
       kind: 'Func',
       name: 'badFunc',
       typeParams: [],
       params: [
-        { name: 'x', type: typeName('Int') },
-        { name: 'x', type: typeName('Text') }, // 重复参数名
+        toV2({ name: 'x', type: typeName('Int') }),
+        toV2({ name: 'x', type: typeName('Text') }), // 重复参数名
       ],
       effects: [],
       effectCaps: [],
       effectCapsExplicit: false,
       ret: typeName('Int'),
-      body: {
+      body: toV2({
         kind: 'Block',
         statements: [
-          { kind: 'Return', expr: Core.Int(0) },
+          toV2({ kind: 'Return', expr: Core.Int(0) }),
         ],
-      },
-    };
+      }),
+    });
 
-    const mod: CoreTypes.Module = {
+    const mod: CoreTypes.Module = toV2({
       kind: 'Module',
       name: 'test.regression.duplicate_param',
       decls: [func],
-    };
+    });
 
     const diagnostics = typecheckModule(mod);
     assert.ok(
@@ -129,35 +130,35 @@ describe('回归测试：重复符号检测', () => {
 describe('回归测试：补偿效应推断', () => {
   it('workflow 效应应包含 compensate 块的效应', () => {
     // 创建一个 workflow，其中 step body 是 pure，但 compensate 调用了 io 函数
-    const step: CoreTypes.Step = {
+    const step: CoreTypes.Step = toV2({
       kind: 'step',
       name: 'step1',
       dependencies: [],
       effectCaps: [],
-      body: {
+      body: toV2({
         kind: 'Block',
         statements: [
           // 纯计算，无 IO
-          { kind: 'Return', expr: Core.Ok(Core.Int(42)) },
+          toV2({ kind: 'Return', expr: Core.Ok(Core.Int(42)) }),
         ],
-      },
-      compensate: {
+      }),
+      compensate: toV2({
         kind: 'Block',
         statements: [
           // compensate 调用 IO 函数（使用标准 IO 前缀格式）
           Core.Let('_cleanup', Core.Call(Core.Name('IO.cleanup'), [])),
-          { kind: 'Return', expr: Core.Ok(Core.Null()) },
+          toV2({ kind: 'Return', expr: Core.Ok(Core.Null()) }),
         ],
-      },
-    };
+      }),
+    });
 
-    const workflow: CoreTypes.Workflow = {
+    const workflow: CoreTypes.Workflow = toV2({
       kind: 'workflow',
       steps: [step],
       effectCaps: [],
-    };
+    });
 
-    const func: CoreTypes.Func = {
+    const func: CoreTypes.Func = toV2({
       kind: 'Func',
       name: 'workflowWithCompensate',
       typeParams: [],
@@ -165,22 +166,22 @@ describe('回归测试：补偿效应推断', () => {
       effects: [Effect.IO], // 声明 IO 效应
       effectCaps: [],
       effectCapsExplicit: false,
-      ret: {
+      ret: toV2({
         kind: 'TypeApp',
         base: 'Workflow',
         args: [resultType(typeName('Int'), typeName('Text')), typeName('IO')],
-      },
-      body: {
+      }),
+      body: toV2({
         kind: 'Block',
         statements: [workflow],
-      },
-    };
+      }),
+    });
 
-    const mod: CoreTypes.Module = {
+    const mod: CoreTypes.Module = toV2({
       kind: 'Module',
       name: 'test.regression.compensate_effect',
       decls: [func],
-    };
+    });
 
     const diagnostics = typecheckModule(mod);
 
@@ -196,35 +197,35 @@ describe('回归测试：补偿效应推断', () => {
   it('compensate 块的 IO 效应应触发 EFF_MISSING_IO（正向断言）', () => {
     // 正向断言：如果 compensate 有 IO 但函数未声明 IO，应报错
     // 这证明 compensate 效应确实被合并到函数效应推断中
-    const step: CoreTypes.Step = {
+    const step: CoreTypes.Step = toV2({
       kind: 'step',
       name: 'stepWithIOCompensate',
       dependencies: [],
       effectCaps: [],
-      body: {
+      body: toV2({
         kind: 'Block',
         statements: [
           // 纯计算，无 IO
-          { kind: 'Return', expr: Core.Ok(Core.Int(42)) },
+          toV2({ kind: 'Return', expr: Core.Ok(Core.Int(42)) }),
         ],
-      },
-      compensate: {
+      }),
+      compensate: toV2({
         kind: 'Block',
         statements: [
           // compensate 调用 IO 函数
           Core.Let('_cleanup', Core.Call(Core.Name('IO.cleanup'), [])),
-          { kind: 'Return', expr: Core.Ok(Core.Null()) },
+          toV2({ kind: 'Return', expr: Core.Ok(Core.Null()) }),
         ],
-      },
-    };
+      }),
+    });
 
-    const workflow: CoreTypes.Workflow = {
+    const workflow: CoreTypes.Workflow = toV2({
       kind: 'workflow',
       steps: [step],
       effectCaps: [],
-    };
+    });
 
-    const func: CoreTypes.Func = {
+    const func: CoreTypes.Func = toV2({
       kind: 'Func',
       name: 'workflowMissingIODeclaration',
       typeParams: [],
@@ -232,22 +233,22 @@ describe('回归测试：补偿效应推断', () => {
       effects: [], // 故意不声明 IO 效应
       effectCaps: [],
       effectCapsExplicit: false,
-      ret: {
+      ret: toV2({
         kind: 'TypeApp',
         base: 'Workflow',
         args: [resultType(typeName('Int'), typeName('Text')), typeName('Unit')],
-      },
-      body: {
+      }),
+      body: toV2({
         kind: 'Block',
         statements: [workflow],
-      },
-    };
+      }),
+    });
 
-    const mod: CoreTypes.Module = {
+    const mod: CoreTypes.Module = toV2({
       kind: 'Module',
       name: 'test.regression.compensate_effect_positive',
       decls: [func],
-    };
+    });
 
     const diagnostics = typecheckModule(mod);
 
@@ -259,29 +260,29 @@ describe('回归测试：补偿效应推断', () => {
   });
 
   it('缺少 compensate 的步骤在有副作用时应发出警告', () => {
-    const step: CoreTypes.Step = {
+    const step: CoreTypes.Step = toV2({
       kind: 'step',
       name: 'dangerousStep',
       dependencies: [],
       effectCaps: [],
-      body: {
+      body: toV2({
         kind: 'Block',
         statements: [
           // 调用 IO 函数（使用标准 IO 前缀格式）
           Core.Let('result', Core.Call(Core.Name('IO.write'), [Core.String('data')])),
-          { kind: 'Return', expr: Core.Ok(Core.Int(1)) },
+          toV2({ kind: 'Return', expr: Core.Ok(Core.Int(1)) }),
         ],
-      },
+      }),
       // 无 compensate 块
-    };
+    });
 
-    const workflow: CoreTypes.Workflow = {
+    const workflow: CoreTypes.Workflow = toV2({
       kind: 'workflow',
       steps: [step],
       effectCaps: [],
-    };
+    });
 
-    const func: CoreTypes.Func = {
+    const func: CoreTypes.Func = toV2({
       kind: 'Func',
       name: 'workflowWithoutCompensate',
       typeParams: [],
@@ -289,22 +290,22 @@ describe('回归测试：补偿效应推断', () => {
       effects: [Effect.IO],
       effectCaps: [],
       effectCapsExplicit: false,
-      ret: {
+      ret: toV2({
         kind: 'TypeApp',
         base: 'Workflow',
         args: [resultType(typeName('Int'), typeName('Text')), typeName('IO')],
-      },
-      body: {
+      }),
+      body: toV2({
         kind: 'Block',
         statements: [workflow],
-      },
-    };
+      }),
+    });
 
-    const mod: CoreTypes.Module = {
+    const mod: CoreTypes.Module = toV2({
       kind: 'Module',
       name: 'test.regression.missing_compensate',
       decls: [func],
-    };
+    });
 
     const diagnostics = typecheckModule(mod);
 
@@ -319,16 +320,14 @@ describe('回归测试：补偿效应推断', () => {
 describe('回归测试：效应参数诊断', () => {
   it('未声明的效应变量应触发 EFFECT_VAR_UNDECLARED', () => {
     // 创建一个使用了未声明效应变量的函数
-    // 通过 declaredEffects 在函数上直接使用一个未声明的效应变量
-    const effectVar: CoreTypes.EffectVar = { kind: 'EffectVar', name: 'E' };
-    const func = {
+    // v2 的 effects 中出现一个未在 effectParams 中声明的效应变量（ADR 0055 #5；IR 不变式 undeclared-effect-var）
+    const func = toV2({
       kind: 'Func',
       name: 'funcWithUndeclaredEffect',
       typeParams: [],
       effectParams: [], // 空的效应参数列表
       params: [],
       effects: [],
-      declaredEffects: [effectVar], // 使用了效应变量 E，但未在 effectParams 中声明
       effectCaps: [],
       effectCapsExplicit: false,
       ret: typeName('Unit'),
@@ -338,13 +337,14 @@ describe('回归测试：效应参数诊断', () => {
           { kind: 'Return', expr: Core.Null() },
         ],
       },
-    } as CoreTypes.Func;
+    }) as CoreTypes.Func;
+    (func as { effects: readonly string[] }).effects = ['E'];
 
-    const mod: CoreTypes.Module = {
+    const mod: CoreTypes.Module = toV2({
       kind: 'Module',
       name: 'test.regression.undeclared_effect_var',
       decls: [func],
-    };
+    });
 
     const diagnostics = typecheckModule(mod);
     assert.ok(
@@ -355,15 +355,13 @@ describe('回归测试：效应参数诊断', () => {
 
   it('已声明的效应变量不应报错', () => {
     // 创建一个正确声明了效应变量的函数
-    const effectVar: CoreTypes.EffectVar = { kind: 'EffectVar', name: 'E' };
-    const func = {
+    const func = toV2({
       kind: 'Func',
       name: 'funcWithDeclaredEffect',
       typeParams: [],
       effectParams: ['E'], // 声明效应参数 E
       params: [],
-      effects: [],
-      declaredEffects: [effectVar], // 函数自身使用 E
+      effects: ['E'], // 函数自身使用 E
       effectCaps: [],
       effectCapsExplicit: false,
       ret: typeName('Unit'),
@@ -373,13 +371,13 @@ describe('回归测试：效应参数诊断', () => {
           { kind: 'Return', expr: Core.Null() },
         ],
       },
-    } as CoreTypes.Func;
+    }) as CoreTypes.Func;
 
-    const mod: CoreTypes.Module = {
+    const mod: CoreTypes.Module = toV2({
       kind: 'Module',
       name: 'test.regression.declared_effect_var',
       decls: [func],
-    };
+    });
 
     const diagnostics = typecheckModule(mod);
     assert.ok(
@@ -389,7 +387,7 @@ describe('回归测试：效应参数诊断', () => {
   });
 
   it('声明但未使用的效应变量应触发警告', () => {
-    const func = {
+    const func = toV2({
       kind: 'Func',
       name: 'funcWithUnusedEffect',
       typeParams: [],
@@ -407,13 +405,13 @@ describe('回归测试：效应参数诊断', () => {
           { kind: 'Return', expr: Core.Name('x') },
         ],
       },
-    } as CoreTypes.Func;
+    }) as CoreTypes.Func;
 
-    const mod: CoreTypes.Module = {
+    const mod: CoreTypes.Module = toV2({
       kind: 'Module',
       name: 'test.regression.unused_effect_var',
       decls: [func],
-    };
+    });
 
     const diagnostics = typecheckModule(mod);
     assert.ok(
@@ -425,31 +423,31 @@ describe('回归测试：效应参数诊断', () => {
 
 describe('回归测试：KNOWN_SCALARS 扩展', () => {
   it('使用 Long/Double/Unit 类型不应触发 TYPEVAR_LIKE_UNDECLARED', () => {
-    const func: CoreTypes.Func = {
+    const func: CoreTypes.Func = toV2({
       kind: 'Func',
       name: 'useBuiltinTypes',
       typeParams: [],
       params: [
-        { name: 'a', type: typeName('Long') },
-        { name: 'b', type: typeName('Double') },
+        toV2({ name: 'a', type: typeName('Long') }),
+        toV2({ name: 'b', type: typeName('Double') }),
       ],
       effects: [],
       effectCaps: [],
       effectCapsExplicit: false,
       ret: typeName('Unit'),
-      body: {
+      body: toV2({
         kind: 'Block',
         statements: [
-          { kind: 'Return', expr: Core.Null() },
+          toV2({ kind: 'Return', expr: Core.Null() }),
         ],
-      },
-    };
+      }),
+    });
 
-    const mod: CoreTypes.Module = {
+    const mod: CoreTypes.Module = toV2({
       kind: 'Module',
       name: 'test.regression.known_scalars',
       decls: [func],
-    };
+    });
 
     const diagnostics = typecheckModule(mod);
     assert.ok(
@@ -460,45 +458,45 @@ describe('回归测试：KNOWN_SCALARS 扩展', () => {
 
   it('使用 Result/Option/List/Map/Set/Workflow 类型不应触发 TYPEVAR_LIKE_UNDECLARED', () => {
     // 构造 Map<Text, Int> 类型
-    const mapType: CoreTypes.TypeApp = { kind: 'TypeApp', base: 'Map', args: [typeName('Text'), typeName('Int')] };
+    const mapType: CoreTypes.TypeApp = toV2({ kind: 'TypeApp', base: 'Map', args: [typeName('Text'), typeName('Int')] });
     // 构造 Set<Int> 类型
-    const setType: CoreTypes.TypeApp = { kind: 'TypeApp', base: 'Set', args: [typeName('Int')] };
+    const setType: CoreTypes.TypeApp = toV2({ kind: 'TypeApp', base: 'Set', args: [typeName('Int')] });
     // 构造 Workflow<Result<Int, Text>, Unit> 类型（第二个参数是效应标记，使用 Unit 避免效应类型检查）
-    const workflowType: CoreTypes.TypeApp = {
+    const workflowType: CoreTypes.TypeApp = toV2({
       kind: 'TypeApp',
       base: 'Workflow',
       args: [resultType(typeName('Int'), typeName('Text')), typeName('Unit')],
-    };
+    });
 
-    const func: CoreTypes.Func = {
+    const func: CoreTypes.Func = toV2({
       kind: 'Func',
       name: 'useContainerTypes',
       typeParams: [],
       params: [
-        { name: 'r', type: resultType(typeName('Int'), typeName('Text')) },
-        { name: 'o', type: Core.Option(typeName('Int')) },
-        { name: 'l', type: Core.List(typeName('Int')) },
-        { name: 'm', type: mapType },
-        { name: 's', type: setType },
-        { name: 'w', type: workflowType },
+        toV2({ name: 'r', type: resultType(typeName('Int'), typeName('Text')) }),
+        toV2({ name: 'o', type: Core.Option(typeName('Int')) }),
+        toV2({ name: 'l', type: Core.List(typeName('Int')) }),
+        toV2({ name: 'm', type: mapType }),
+        toV2({ name: 's', type: setType }),
+        toV2({ name: 'w', type: workflowType }),
       ],
       effects: [],
       effectCaps: [],
       effectCapsExplicit: false,
       ret: typeName('Unit'),
-      body: {
+      body: toV2({
         kind: 'Block',
         statements: [
-          { kind: 'Return', expr: Core.Null() },
+          toV2({ kind: 'Return', expr: Core.Null() }),
         ],
-      },
-    };
+      }),
+    });
 
-    const mod: CoreTypes.Module = {
+    const mod: CoreTypes.Module = toV2({
       kind: 'Module',
       name: 'test.regression.container_types',
       decls: [func],
-    };
+    });
 
     const diagnostics = typecheckModule(mod);
     assert.ok(
@@ -509,30 +507,30 @@ describe('回归测试：KNOWN_SCALARS 扩展', () => {
 
   it('Core 中的未知类型名不触发 TYPEVAR_LIKE_UNDECLARED（可能是类型别名，未声明的类型由 E800 报告，#281）', () => {
     // 使用一个未在 KNOWN_SCALARS 中且未定义的类型名
-    const func: CoreTypes.Func = {
+    const func: CoreTypes.Func = toV2({
       kind: 'Func',
       name: 'useUnknownType',
       typeParams: [],
       params: [
-        { name: 'x', type: typeName('UnknownCustomType') },
+        toV2({ name: 'x', type: typeName('UnknownCustomType') }),
       ],
       effects: [],
       effectCaps: [],
       effectCapsExplicit: false,
       ret: typeName('Unit'),
-      body: {
+      body: toV2({
         kind: 'Block',
         statements: [
-          { kind: 'Return', expr: Core.Null() },
+          toV2({ kind: 'Return', expr: Core.Null() }),
         ],
-      },
-    };
+      }),
+    });
 
-    const mod: CoreTypes.Module = {
+    const mod: CoreTypes.Module = toV2({
       kind: 'Module',
       name: 'test.regression.unknown_type',
       decls: [func],
-    };
+    });
 
     const diagnostics = typecheckModule(mod);
     assert.ok(

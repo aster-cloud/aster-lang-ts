@@ -312,10 +312,10 @@ describe('resolveDeclarations（R1）', () => {
     assert.deepEqual(codes(r), []);
   });
 
-  describe('隐式类型参数（裁决 R13）', () => {
-    it('隐式推断的类型参数命中词汇 → 从 typeParams 移除并按 TYPE 解析', () => {
+  describe('类型参数只含源码声明（ADR 0055 #10，取代裁决 R13）', () => {
+    it('未声明的类型名命中词汇 → 按 TYPE 解析，typeParams 为空', () => {
       const m = parse('Modul m.\n\nRegel f gegeben x als Fahrer, liefert Fahrer:\n  gib zurueck x.\n');
-      assert.deepEqual(decl(m, 0, 'Func').typeParams, ['Fahrer'], '前提：解析器把 Fahrer 推断为类型参数');
+      assert.deepEqual(decl(m, 0, 'Func').typeParams, [], '解析器不再推断隐式类型参数');
       const r = resolveDeclarations(m, ctxOf(DRIVER));
       const f = decl(r.module, 0, 'Func');
       assert.deepEqual(f.typeParams, []);
@@ -323,26 +323,25 @@ describe('resolveDeclarations（R1）', () => {
       assert.deepEqual(codes(r), []);
     });
 
-    it('隐式推断且全部未命中 → 保留为类型参数，使用处不写 TYPE resolved、不报 E800', () => {
+    it('未声明且查不到的大写类型名 → 每处写法报 E800（与 Java DeclarationResolver 一致）', () => {
       const m = parse('Modul m.\n\nRegel f gegeben x als Element, liefert Element:\n  gib zurueck x.\n');
       const r = resolveDeclarations(m, ctxOf(DRIVER));
-      const f = decl(r.module, 0, 'Func');
-      assert.deepEqual(f.typeParams, ['Element']);
-      assert.equal('resolved' in f.params[0]!.type, false);
-      assert.equal('resolved' in f.retType, false);
-      assert.deepEqual(codes(r), []);
+      assert.deepEqual(decl(r.module, 0, 'Func').typeParams, []);
+      assert.deepEqual(codes(r), [ErrorCode.UNRESOLVED_TYPE, ErrorCode.UNRESOLVED_TYPE]);
+      const f = decl(m, 0, 'Func');
+      assert.deepEqual(r.diagnostics.map((d) => d.span), [f.params[0]!.type.span, f.retType.span]);
     });
 
-    it('隐式参数在词汇中折叠歧义 → 报 E804 并保留为类型参数', () => {
+    it('未声明的类型名在词汇中折叠歧义 → 报 E804，typeParams 为空', () => {
       const m = parse('Modul m.\n\nRegel f gegeben x als FaHrer, liefert Ganzzahl:\n  gib zurueck 1.\n');
-      assert.deepEqual(decl(m, 0, 'Func').typeParams, ['FaHrer'], '前提：解析器推断为类型参数');
+      assert.deepEqual(decl(m, 0, 'Func').typeParams, []);
       const r = resolveDeclarations(m, ctxOf([struct('Driver', 'Fahrer'), struct('Pilot', 'FAHRER')]));
       assert.deepEqual(codes(r), [ErrorCode.AMBIGUOUS_NAME]);
-      assert.deepEqual(decl(r.module, 0, 'Func').typeParams, ['FaHrer']);
+      assert.deepEqual(decl(r.module, 0, 'Func').typeParams, []);
     });
 
-    it('★隐式参数歧义的 E804 落在签名中第一处写法上，而不是整个函数（#248）', () => {
-      const m = parse('Modul m.\n\nRegel f gegeben y als Ganzzahl, x als FaHrer, liefert FaHrer:\n  gib zurueck x.\n');
+    it('★歧义的 E804 落在签名中该名字的写法上，而不是整个函数（#248）', () => {
+      const m = parse('Modul m.\n\nRegel f gegeben y als Ganzzahl, x als FaHrer, liefert Ganzzahl:\n  gib zurueck 1.\n');
       const r = resolveDeclarations(m, ctxOf([struct('Driver', 'Fahrer'), struct('Pilot', 'FAHRER')]));
       assert.deepEqual(codes(r), [ErrorCode.AMBIGUOUS_NAME]);
       const x = decl(m, 0, 'Func').params[1]!;

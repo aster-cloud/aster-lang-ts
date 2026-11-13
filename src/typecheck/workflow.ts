@@ -1,5 +1,5 @@
-import type { Core, Span } from '../types.js';
-import { isCpuClassCapability, isIoClassCapability } from '../config/semantic.js';
+import type { Core, Span, Ty } from '../types.js';
+import { isCpuClassCapability, isIoClassCapability, type CapabilityKind } from '../config/semantic.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { TypecheckWalkerContext } from './context.js';
 import type { DiagnosticBuilder } from './diagnostics.js';
@@ -97,11 +97,11 @@ export function checkTimeoutSemantics(workflow: Core.Workflow, diagnostics: Diag
   }
 }
 
-export function typecheckWorkflow(context: TypecheckWalkerContext, workflow: Core.Workflow): Core.Type {
+export function typecheckWorkflow(context: TypecheckWalkerContext, workflow: Core.Workflow): Ty.Type {
   checkRetrySemantics(workflow, context.diagnostics);
   checkTimeoutSemantics(workflow, context.diagnostics);
 
-  let resultType: Core.Type = unknownType();
+  let resultType: Ty.Type = unknownType();
   const stepEffects = new Map<Core.Step, Set<'io' | 'cpu'>>();
   // step / compensate 体内的 Return 是该 step 的结果（如 `Return ok of y`），不是外层规则的返回路径，
   // 不与规则声明的返回类型比较（aster-lang-ts#283）
@@ -126,7 +126,7 @@ export function typecheckStep(
   context: TypecheckWalkerContext,
   step: Core.Step,
   effectCache?: Map<Core.Step, Set<'io' | 'cpu'>>
-): Core.Type {
+): Ty.Type {
   // step 体与 compensate 体各有独立作用域（与 truffle#163 一致，#279）：体内 Let 不外泄，跨 step 读取报未定义
   const bodyType = typecheckScopedBlock(context, step.body);
   const effects = collectEffects(context.module, step.body);
@@ -157,9 +157,9 @@ function workflowEffectType(
   context: TypecheckWalkerContext,
   workflow: Core.Workflow,
   cachedEffects?: Map<Core.Step, Set<'io' | 'cpu'>>
-): Core.Type {
-  let hasIOCap = workflow.effectCaps.some(cap => isIoClassCapability(cap));
-  let hasCpuCap = workflow.effectCaps.some(cap => isCpuClassCapability(cap));
+): Ty.Type {
+  let hasIOCap = workflow.effectCaps.some(cap => isIoClassCapability(cap as CapabilityKind));
+  let hasCpuCap = workflow.effectCaps.some(cap => isCpuClassCapability(cap as CapabilityKind));
 
   if (!hasIOCap) {
     for (const step of workflow.steps) {
@@ -261,11 +261,11 @@ function validateWorkflowMetadata(workflow: Core.Workflow, diagnostics: Diagnost
 
 function stepHasSideEffects(step: Core.Step, effects: Set<'io' | 'cpu'>): boolean {
   if (effects.has('io')) return true;
-  return step.effectCaps.some(cap => isIoClassCapability(cap));
+  return step.effectCaps.some(cap => isIoClassCapability(cap as CapabilityKind));
 }
 
 /** 在独立的块作用域中检查代码块；finally 退出，异常也不把作用域留在栈上。 */
-function typecheckScopedBlock(context: TypecheckWalkerContext, block: Core.Block): Core.Type {
+function typecheckScopedBlock(context: TypecheckWalkerContext, block: Core.Block): Ty.Type {
   context.symbols.enterScope('block');
   try {
     return typecheckBlock(context.module, context.symbols, block, context.diagnostics);

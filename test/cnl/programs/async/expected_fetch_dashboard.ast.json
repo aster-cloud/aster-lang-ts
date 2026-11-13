@@ -57,9 +57,6 @@
     {
       "kind": "Func",
       "name": "fetchDashboard",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "u",

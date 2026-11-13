@@ -89,7 +89,7 @@ export function resolveAndLower(ast: AstModule, scopes?: VocabularyScopes, obser
  * 未声明档案的模块原样返回（IR 逐字节不变）。
  */
 export function withInputRefs(core: Core.Module): Core.Module {
-  if (core.profile === undefined) return core;
+  if (core.profile === null) return core;
   const decls = core.decls.map((d) =>
     d.kind === 'Func' && returnsVerdict(d) ? { ...d, inputRefs: analyzeInputRefs(core, d).inputRefs } : d
   );

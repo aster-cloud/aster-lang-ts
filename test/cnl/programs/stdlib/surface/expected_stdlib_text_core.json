@@ -1,13 +1,12 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "std.text",
+  "profile": null,
   "decls": [
     {
       "kind": "Func",
       "name": "concat",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "left",
@@ -15,7 +14,7 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         },
         {
@@ -24,17 +23,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -59,15 +63,11 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "hasSubstring",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "haystack",
@@ -75,7 +75,7 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         },
         {
@@ -84,17 +84,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -119,8 +124,7 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     }
   ]
 }

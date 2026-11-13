@@ -17,7 +17,7 @@ class PrettyCoreVisitor extends DefaultCoreVisitor {
   override visitDeclaration(d: Core.Declaration, _ctx: import('./visitor.js').VisitorContext): void {
     switch (d.kind) {
       case 'Import':
-        this.out.push(`use ${d.name}${d.asName ? ` as ${d.asName}` : ''}`);
+        this.out.push(`use ${d.path}${d.alias ? ` as ${d.alias}` : ''}`);
         return;
       case 'Data': {
         const fields = d.fields.map(f => `${f.name}: ${this.formatType(f.type)}`).join(', ');
@@ -69,10 +69,10 @@ class PrettyCoreVisitor extends DefaultCoreVisitor {
       }
       case 'workflow':
         return this.formatWorkflow(s);
-      case 'Scope': {
-        const inner: Core.Block = { kind: 'Block', statements: s.statements };
-        return `scope ${this.formatBlock(inner)}`;
-      }
+      case 'Scope':
+        return `scope ${this.formatBlock({ ...s, kind: 'Block' })}`;
+      case 'Block':
+        return this.formatBlock(s);
       case 'Start':
         return `val ${s.name} = async { ${this.formatExpr(s.expr)} }`;
       case 'Wait':
@@ -110,9 +110,7 @@ class PrettyCoreVisitor extends DefaultCoreVisitor {
       case 'PatNull': return 'null';
       case 'PatInt': return String(p.value);
       case 'PatCtor': {
-        const pat = p as Core.PatCtor & { args?: readonly Core.Pattern[] };
-        if (pat.args && pat.args.length > 0) return `${pat.typeName}(${pat.args.map(pp => this.formatPattern(pp)).join(', ')})`;
-        return `${pat.typeName}(${pat.names.join(', ')})`;
+        return `${p.typeName}(${p.args.map(pp => this.formatPattern(pp)).join(', ')})`;
       }
       case 'PatName': return p.name;
       default: return '';
@@ -170,7 +168,6 @@ class PrettyCoreVisitor extends DefaultCoreVisitor {
     switch (t.kind) {
       case 'TypeName': return t.name;
       case 'TypeVar': return t.name;
-      case 'EffectVar': return t.name;
       case 'TypeApp': return `${t.base}<${t.args.map(tt => this.formatType(tt)).join(', ')}>`;
       case 'Maybe': return `${this.formatType(t.type)}` + '?';
       case 'Option': return `Option<${this.formatType(t.type)}>`;

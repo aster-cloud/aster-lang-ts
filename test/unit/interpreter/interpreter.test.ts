@@ -2,13 +2,14 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { evaluate } from '../../../src/core/interpreter.js';
 import type { Core } from '../../../src/types.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 // ============================================================================
 // 辅助函数：构造 Core IR 节点
 // ============================================================================
 
 function mkModule(decls: Core.Declaration[]): Core.Module {
-  return { kind: 'Module', name: 'test', decls };
+  return toV2({ kind: 'Module', name: 'test', decls });
 }
 
 function mkFunc(
@@ -16,53 +17,53 @@ function mkFunc(
   params: Core.Parameter[],
   body: Core.Statement[],
 ): Core.Func {
-  return {
+  return toV2({
     kind: 'Func',
     name,
     typeParams: [],
     params,
-    ret: { kind: 'TypeName', name: 'Int' },
+    ret: toV2({ kind: 'TypeName', name: 'Int' }),
     effects: [],
     effectCaps: [],
     effectCapsExplicit: false,
-    body: { kind: 'Block', statements: body },
-  };
+    body: toV2({ kind: 'Block', statements: body }),
+  });
 }
 
 function mkParam(name: string): Core.Parameter {
-  return { name, type: { kind: 'TypeName', name: 'Int' } };
+  return toV2({ name, type: toV2({ kind: 'TypeName', name: 'Int' }) });
 }
 
 function mkInt(value: number): Core.Int {
-  return { kind: 'Int', value };
+  return toV2({ kind: 'Int', value });
 }
 
 function mkDouble(value: number): Core.Double {
-  return { kind: 'Double', value };
+  return toV2({ kind: 'Double', value });
 }
 
 function mkBool(value: boolean): Core.Bool {
-  return { kind: 'Bool', value };
+  return toV2({ kind: 'Bool', value });
 }
 
 function mkStr(value: string): Core.String {
-  return { kind: 'String', value };
+  return toV2({ kind: 'String', value });
 }
 
 function mkName(name: string): Core.Name {
-  return { kind: 'Name', name };
+  return toV2({ kind: 'Name', name });
 }
 
 function mkCall(op: string, args: Core.Expression[]): Core.Call {
-  return { kind: 'Call', target: mkName(op), args };
+  return toV2({ kind: 'Call', target: mkName(op), args });
 }
 
 function mkReturn(expr: Core.Expression): Core.Return {
-  return { kind: 'Return', expr };
+  return toV2({ kind: 'Return', expr });
 }
 
 function mkLet(name: string, expr: Core.Expression): Core.Let {
-  return { kind: 'Let', name, expr };
+  return toV2({ kind: 'Let', name, expr });
 }
 
 function mkIf(
@@ -73,8 +74,9 @@ function mkIf(
   return {
     kind: 'If',
     cond,
-    thenBlock: { kind: 'Block', statements: thenStmts },
-    elseBlock: elseStmts ? { kind: 'Block', statements: elseStmts } : null,
+    thenBlock: toV2({ kind: 'Block', statements: thenStmts }),
+    elseBlock: elseStmts ? toV2({ kind: 'Block', statements: elseStmts }) : null,
+    origin: toV2({ kind: 'Null' }).origin,
   };
 }
 
@@ -82,7 +84,7 @@ function mkConstruct(
   typeName: string,
   fields: { name: string; expr: Core.Expression }[],
 ): Core.Construct {
-  return { kind: 'Construct', typeName, fields };
+  return toV2({ kind: 'Construct', typeName, fields });
 }
 
 // ============================================================================
@@ -120,7 +122,7 @@ describe('Core IR 解释器', () => {
     });
 
     it('返回 null', () => {
-      const mod = mkModule([mkFunc('f', [], [mkReturn({ kind: 'Null' })])]);
+      const mod = mkModule([mkFunc('f', [], [mkReturn(toV2({ kind: 'Null' }))])]);
       const result = evaluate(mod, 'f', {});
       assert.ok(result.success);
       assert.equal(result.value, null);
@@ -584,7 +586,7 @@ describe('Core IR 解释器', () => {
   describe('Ok/Err/Some/None 包装', () => {
     it('Ok 包装', () => {
       const mod = mkModule([
-        mkFunc('f', [], [mkReturn({ kind: 'Ok', expr: mkInt(42) })]),
+        mkFunc('f', [], [mkReturn(toV2({ kind: 'Ok', expr: mkInt(42) }))]),
       ]);
       const result = evaluate(mod, 'f', {});
       assert.ok(result.success);
@@ -597,7 +599,7 @@ describe('Core IR 解释器', () => {
     // JSON 不同，等价性按值比较判为不等。
     it('None 返回 {__type:"None"}（与 truffle 一致）', () => {
       const mod = mkModule([
-        mkFunc('f', [], [mkReturn({ kind: 'None' })]),
+        mkFunc('f', [], [mkReturn(toV2({ kind: 'None' }))]),
       ]);
       const result = evaluate(mod, 'f', {});
       assert.ok(result.success);
@@ -610,7 +612,7 @@ describe('Core IR 解释器', () => {
     // 回归守卫：`return <枚举变体>` 此前抛 `Undefined variable`（resolveName 不认枚举变体，
     // 与 Java 引擎分歧）。修复后求值成枚举值，键名/顺序与 aster-lang-truffle AsterEnumValue
     // 序列化逐字节对齐（{__type:"?", _enum, value, variant, args:[]}），双引擎 eval parity 全等。
-    const enumDecl: Core.Enum = { kind: 'Enum', name: 'Tier', variants: ['Gold', 'Silver'] };
+    const enumDecl: Core.Enum = toV2({ kind: 'Enum', name: 'Tier', variants: ['Gold', 'Silver'] });
 
     it('裸变体引用求值成枚举值（对齐 Java 序列化形状）', () => {
       const mod = mkModule([enumDecl, mkFunc('f', [], [mkReturn(mkName('Gold'))])]);

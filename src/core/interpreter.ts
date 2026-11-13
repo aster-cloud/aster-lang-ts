@@ -987,24 +987,8 @@ class Interpreter {
       case 'PatNull':
         return value === null || value === undefined;
       case 'PatName': {
-        // PatName 双语义，与 Java MatchNode.PatNameNode 对齐：
-        // - 大写开头（枚举变体/类型名，如 NotFound）→ 按名称相等匹配，不绑定。
-        //   否则第一个 PatName 臂会吞掉所有输入（match_enum/enum_wildcard bug）。
-        // - 小写开头（绑定变量，如 x/value）→ catch-all，匹配任意非 null 值并绑定。
-        const isVariant = /^[A-Z]/.test(pattern.name);
-        if (isVariant) {
-          // `When None` 也匹配可空值 T? 的裸 null（#277，与 truffle MatchNode 一致）
-          if (pattern.name === 'None' && (value === null || value === undefined)) return true;
-          if (value === null || value === undefined) return false;
-          if (typeof value === 'string') return value === pattern.name;
-          if (typeof value === 'object') {
-            const o = value as Record<string, unknown>;
-            // 枚举值 { value: "Invalid" } 或构造体 { __type: "Color" }
-            return o.value === pattern.name || o.__type === pattern.name;
-          }
-          return false;
-        }
-        // 小写：catch-all 绑定（Java 端非 null 才匹配）。
+        // ADR 0055 #16：PatName 只用于绑定（枚举变体已由 R2 降为 0 参 PatCtor），不再按首字母大小写区分。
+        // catch-all 绑定：与 truffle PatNameNode 一致，非 null 才匹配。
         if (value === null || value === undefined) return false;
         env.set(pattern.name, value);
         return true;
@@ -1020,17 +1004,15 @@ class Interpreter {
         if (pattern.typeName === 'Some' && isBareOptionalPayload(value)) {
           return this.matchPattern({ __type: 'Some', value }, pattern, env);
         }
-        if (pattern.typeName === 'None' && (value === null || value === undefined) &&
-            pattern.names.length === 0 && !(pattern as { args?: readonly unknown[] }).args?.length) {
+        const bindsNothing = pattern.args.length === 0;
+        if (pattern.typeName === 'None' && (value === null || value === undefined) && bindsNothing) {
           return true;
         }
         // 构造器模式匹配（如 Ok(value)、Err(err)、Some(x)、User(id, name)）。
         // 与 aster-lang-truffle MatchNode.PatCtorNode 对齐：按位置（非按名）把
-        // 构造体的非 __type 字段值依序绑定到模式的 bind 名——因为 Ok(value)/
+        // 构造体的非 __type 字段值依序交给 args 中的子模式——因为 Ok(value)/
         // Err(err) 的载荷统一存于 `value` 字段，绑定名却各异，按名绑定会落空。
-        // 无绑定的构造器模式也匹配枚举成员（同 truffle PatCtorNode）：R2 对无大小写文字的成员名
-        // 产出此形态（ADR 0051 裁决 R55），如中文「当 待处理，」。
-        const bindsNothing = pattern.names.length === 0 && !(pattern as { args?: readonly unknown[] }).args?.length;
+        // 0 参构造器模式也匹配枚举成员（ADR 0055 #16：枚举变体一律是 PatCtor{typeName, args:[]}）。
         if (bindsNothing && typeof value === 'string') return value === pattern.typeName;
         if (value === null || value === undefined || typeof value !== 'object') {
           return false;
@@ -1043,13 +1025,14 @@ class Interpreter {
         const fieldValues = Object.keys(obj)
           .filter((k) => k !== '__type')
           .map((k) => obj[k]);
-        if (pattern.names) {
-          for (let i = 0; i < pattern.names.length; i++) {
-            const bn = pattern.names[i]!;
-            if (bn && bn !== '_') env.set(bn, fieldValues[i]);
+        return pattern.args.every((arg, i) => {
+          // 位置上的名字模式直接绑定（字段值可以为 null），`_` 不绑定；其余子模式递归匹配
+          if (arg.kind === 'PatName') {
+            if (arg.name !== '_') env.set(arg.name, fieldValues[i]);
+            return true;
           }
-        }
-        return true;
+          return this.matchPattern(fieldValues[i], arg, env);
+        });
       }
       default:
         return false;
@@ -1067,7 +1050,8 @@ class Interpreter {
       case 'Int':
         return expr.value;
       case 'Double':
-        return expr.value;
+        // ADR 0055 #18：IR 中是规范十进制串，运行时需要浮点数时再解析
+        return Number(expr.value);
       case 'Decimal':
         // value 是 canonical 十进制字符串（ADR 0025），运行时=decimal.js 实例（精确）。
         return new Decimal(expr.value);

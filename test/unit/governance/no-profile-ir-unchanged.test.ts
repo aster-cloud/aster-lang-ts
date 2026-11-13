@@ -9,8 +9,8 @@ import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 import type { Lexicon } from '../../../src/config/lexicons/types.js';
 
 // ADR 0046 §11 D2：inputRefs 只写入声明了档案的模块（Java NoProfileIrUnchangedTest 的对应物）。对 aster-lang-test
-// 的 tier1 语料逐个编译：未声明档案的模块 IR 不含 inputRefs 键、标注步骤原样返回同一对象（IR 逐字节不变）；
-// 声明档案的模块只有返回 Verdict 的规则带 inputRefs。语料须并列 checkout（CI 同 governance-check 的 W704 黄金）。
+// 的 tier1 语料逐个编译：未声明档案的模块 inputRefs 全为 null（Core IR v2 恒输出，ADR 0055 #12）、标注步骤原样返回同一对象；
+// 声明档案的模块只有返回 Verdict 的规则带 inputRefs 数组。语料须并列 checkout（CI 同 governance-check 的 W704 黄金）。
 
 const LEXICONS: Readonly<Record<string, Lexicon>> = { 'zh-CN': ZH_CN, 'de-DE': DE_DE };
 
@@ -24,7 +24,7 @@ function asterFiles(dir: string): string[] {
   return out;
 }
 
-test('未声明档案的语料 IR 不含 inputRefs', (t) => {
+test('未声明档案的语料 IR 中 inputRefs 全为 null', (t) => {
   const corpus = [join(process.cwd(), '..', 'aster-lang-test', 'corpus'), join(process.cwd(), 'aster-lang-test', 'corpus')]
     .find((c) => existsSync(c));
   if (corpus === undefined) {
@@ -46,15 +46,15 @@ test('未声明档案的语料 IR 不含 inputRefs', (t) => {
     } catch {
       continue; // 语法 / 名称解析失败的样本不产出 IR，与本断言无关
     }
-    if (core.profile === undefined) {
+    if (core.profile === null) {
       noProfile++;
       assert.equal(withInputRefs(core), core, file);
-      if (JSON.stringify(core).includes('"inputRefs"')) leaked.push(file);
+      if (core.decls.some((d) => d.kind === 'Func' && d.inputRefs !== null)) leaked.push(file);
       continue;
     }
     profiled++;
     for (const d of core.decls) {
-      if (d.kind === 'Func') assert.equal(d.inputRefs !== undefined, returnsVerdict(d), `${file} ${d.name}`);
+      if (d.kind === 'Func') assert.equal(d.inputRefs !== null, returnsVerdict(d), `${file} ${d.name}`);
     }
   }
   assert.ok(noProfile > 100, `纳入的无档案语料过少：${noProfile}`);

@@ -1,4 +1,4 @@
-import type { Core } from '../types.js';
+import type { Core, Ty } from '../types.js';
 import { DefaultCoreVisitor } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { TypeSystem } from './type_system.js';
@@ -28,7 +28,7 @@ function qualifiedEnumOf(module: ModuleContext, parts: readonly string[]): Core.
 
 export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext> {
   public handled = false;
-  public result: Core.Type = unknownType();
+  public result: Ty.Type = unknownType();
 
   override visitExpression(expression: Core.Expression, context: TypecheckWalkerContext): void {
     const { module, symbols, diagnostics } = context;
@@ -41,7 +41,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           const baseSymbol = symbols.lookup(baseName);
           const qualifiedEnum = baseSymbol ? undefined : qualifiedEnumOf(module, parts);
           if (qualifiedEnum) {
-            this.result = { kind: 'TypeName', name: qualifiedEnum.name } as Core.TypeName;
+            this.result = { kind: 'TypeName', name: qualifiedEnum.name } as Ty.TypeName;
             this.handled = true;
             return;
           }
@@ -58,7 +58,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
             const expanded = TypeSystem.expand(currentType, symbols.getTypeAliases());
             // Verdict 内置字段 outcome/role/reason 一律为 Text（ADR 0039 §2.1，与 Java 对齐）
             if (isVerdictType(expanded) && isVerdictField(fieldName)) {
-              currentType = { kind: 'TypeName', name: 'Text' } as Core.TypeName;
+              currentType = { kind: 'TypeName', name: 'Text' } as Ty.TypeName;
               continue;
             }
             if (expanded.kind === 'TypeName') {
@@ -85,7 +85,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
                 return;
               }
               // 未声明类型的字段是动态值（ADR 0040 §2.2 的 Action Guard context 即无类型 map）
-              currentType = isFieldTypeInferred(field) ? unknownType() : (field.type as Core.Type);
+              currentType = isFieldTypeInferred(field) ? unknownType() : (field.type as Ty.Type);
             } else {
               diagnostics.error(ErrorCode.UNKNOWN_FIELD, originToSpan(expression.origin), {
                 field: fieldName,
@@ -108,7 +108,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         } else if (signature) {
           // 值位置引用模块规则（`twice(inc, n)`、`Let g be inc`）：函数值，类型为签名的 FuncType。
           // 与 Java TypeChecker 一致——函数签名登记在模块作用域，局部名优先（已在上一分支命中）。
-          this.result = { kind: 'FuncType', params: signature.params, ret: signature.ret } as Core.FuncType;
+          this.result = { kind: 'FuncType', params: signature.params, ret: signature.ret } as Ty.FuncType;
         } else {
           let matched: Core.Enum | undefined;
           for (const en of module.enums.values()) {
@@ -118,7 +118,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
             }
           }
           if (matched) {
-            this.result = { kind: 'TypeName', name: matched.name } as Core.TypeName;
+            this.result = { kind: 'TypeName', name: matched.name } as Ty.TypeName;
           } else {
             diagnostics.undefinedVariable(expression.name, originToSpan(expression.origin));
             this.result = unknownType();
@@ -128,32 +128,32 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         return;
       }
       case 'Bool':
-        this.result = { kind: 'TypeName', name: 'Bool' } as Core.TypeName;
+        this.result = { kind: 'TypeName', name: 'Bool' } as Ty.TypeName;
         this.handled = true;
         return;
       case 'Int':
-        this.result = { kind: 'TypeName', name: 'Int' } as Core.TypeName;
+        this.result = { kind: 'TypeName', name: 'Int' } as Ty.TypeName;
         this.handled = true;
         return;
       case 'Long':
-        this.result = { kind: 'TypeName', name: 'Long' } as Core.TypeName;
+        this.result = { kind: 'TypeName', name: 'Long' } as Ty.TypeName;
         this.handled = true;
         return;
       case 'Double':
-        this.result = { kind: 'TypeName', name: 'Double' } as Core.TypeName;
+        this.result = { kind: 'TypeName', name: 'Double' } as Ty.TypeName;
         this.handled = true;
         return;
       case 'Decimal':
         // Decimal 一等公民（ADR 0025）：m 后缀字面量的静态类型。
-        this.result = { kind: 'TypeName', name: 'Decimal' } as Core.TypeName;
+        this.result = { kind: 'TypeName', name: 'Decimal' } as Ty.TypeName;
         this.handled = true;
         return;
       case 'String':
-        this.result = { kind: 'TypeName', name: 'Text' } as Core.TypeName;
+        this.result = { kind: 'TypeName', name: 'Text' } as Ty.TypeName;
         this.handled = true;
         return;
       case 'Null':
-        this.result = { kind: 'Maybe', type: unknownType() } as Core.Maybe;
+        this.result = { kind: 'Maybe', type: unknownType() } as Ty.Maybe;
         this.handled = true;
         return;
       case 'Ok': {
@@ -162,7 +162,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           kind: 'Result',
           ok: isUnknown(inner) ? unknownType() : inner,
           err: unknownType(),
-        } as Core.Result;
+        } as Ty.Result;
         this.handled = true;
         return;
       }
@@ -172,7 +172,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           kind: 'Result',
           ok: unknownType(),
           err: isUnknown(inner) ? unknownType() : inner,
-        } as Core.Result;
+        } as Ty.Result;
         this.handled = true;
         return;
       }
@@ -181,12 +181,12 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         this.result = {
           kind: 'Option',
           type: isUnknown(inner) ? unknownType() : inner,
-        } as Core.Option;
+        } as Ty.Option;
         this.handled = true;
         return;
       }
       case 'None':
-        this.result = { kind: 'Option', type: unknownType() } as Core.Option;
+        this.result = { kind: 'Option', type: unknownType() } as Ty.Option;
         this.handled = true;
         return;
       case 'Construct': {
@@ -210,10 +210,10 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           const valueType = typeOfExpr(module, symbols, field.expr, diagnostics);
           // 与规则调用实参同一套兼容规则：数值拓宽、可空、Maybe/Option 互通、Unknown/类型变量占位放行。
           // 未写类型的字段（类型按字段名推断）视为未知，不作约束；按名字推断类型的值由 argumentFits 放行（aster-lang-core#232）。
-          if (!isFieldTypeInferred(schemaField) && !argumentFits(schemaField.type as Core.Type, valueType)) {
+          if (!isFieldTypeInferred(schemaField) && !argumentFits(schemaField.type as Ty.Type, valueType)) {
             diagnostics.error(ErrorCode.FIELD_TYPE_MISMATCH, originToSpan(field.expr.origin) ?? originToSpan(expression.origin), {
               field: field.name,
-              expected: formatType(schemaField.type as Core.Type),
+              expected: formatType(schemaField.type as Ty.Type),
               actual: formatType(valueType),
             });
           }
@@ -226,16 +226,16 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
             });
           }
         }
-        this.result = { kind: 'TypeName', name: expression.typeName } as Core.TypeName;
+        this.result = { kind: 'TypeName', name: expression.typeName } as Ty.TypeName;
         this.handled = true;
         return;
       }
       case 'Await': {
         const awaited = typeOfExpr(module, symbols, expression.expr, diagnostics);
         if (!isUnknown(awaited) && awaited.kind === 'Maybe') {
-          this.result = awaited.type as Core.Type;
+          this.result = awaited.type as Ty.Type;
         } else if (!isUnknown(awaited) && awaited.kind === 'Result') {
-          this.result = awaited.ok as Core.Type;
+          this.result = awaited.ok as Ty.Type;
         } else {
           diagnostics.warning(ErrorCode.AWAIT_TYPE, originToSpan(expression.origin), { type: formatType(awaited) });
           this.result = unknownType();
@@ -244,8 +244,8 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         return;
       }
       case 'Lambda': {
-        const params = expression.params.map(param => normalizeType(param.type as Core.Type)) as readonly Core.Type[];
-        const ret = normalizeType(expression.retType as Core.Type);
+        const params = expression.params.map(param => normalizeType(param.type as Ty.Type)) as readonly Ty.Type[];
+        const ret = normalizeType(expression.ret);
         symbols.enterScope('lambda');
         try {
           expression.params.forEach((param, index) => {
@@ -271,7 +271,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
           symbols.exitScope();
         }
         // 函数值的类型：未写类型的形参记为 Unknown，调用方实参不按推断类型比较（#266）
-        const funcType: Core.FuncType = {
+        const funcType: Ty.FuncType = {
           kind: 'FuncType',
           params: expression.params.map((param, index) => (isLambdaParamTypeInferred(param) ? unknownType() : params[index]!)),
           ret,
@@ -309,7 +309,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
               diagnostics,
             );
           }
-          this.result = { kind: 'TypeName', name: 'Bool' } as Core.TypeName;
+          this.result = { kind: 'TypeName', name: 'Bool' } as Ty.TypeName;
           this.handled = true;
           return;
         }
@@ -333,14 +333,14 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
               actual,
             });
           } else {
-            const text = { kind: 'TypeName', name: 'Text' } as Core.TypeName;
+            const text = { kind: 'TypeName', name: 'Text' } as Ty.TypeName;
             argTypes.forEach((t, i) => {
               if (!isUnknown(t) && !TypeSystem.equals(t, text)) {
                 diagnostics.typeMismatch(text, t, originToSpan(expression.args[i]!.origin) ?? originToSpan(expression.origin));
               }
             });
           }
-          this.result = { kind: 'TypeName', name: VERDICT_TYPE_NAME } as Core.TypeName;
+          this.result = { kind: 'TypeName', name: VERDICT_TYPE_NAME } as Ty.TypeName;
           this.handled = true;
           return;
         }
@@ -353,10 +353,10 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         // **比较运算符** == != < <= > >=（lower 为 Call{Name op}）——`1.0m equals to 1.0`
         // TS runtime 当 Int 提升=true，Truffle 区分 Double 抛错 → 双引擎分歧。Int/Long↔Decimal
         // 精确提升放行。
-        const named = (t: Core.Type, n: string): boolean => t.kind === 'TypeName' && t.name === n;
-        const isDec = (t: Core.Type): boolean => named(t, 'Decimal');
-        const isDbl = (t: Core.Type): boolean => named(t, 'Double');
-        const isIntLong = (t: Core.Type): boolean => named(t, 'Int') || named(t, 'Long');
+        const named = (t: Ty.Type, n: string): boolean => t.kind === 'TypeName' && t.name === n;
+        const isDec = (t: Ty.Type): boolean => named(t, 'Decimal');
+        const isDbl = (t: Ty.Type): boolean => named(t, 'Double');
+        const isIntLong = (t: Ty.Type): boolean => named(t, 'Int') || named(t, 'Long');
         const ARITH_OPS = ['+', '-', '*', '/', '//', '%'];
         const COMPARE_OPS = ['==', '!=', '<', '<=', '>', '>='];
         if (
@@ -386,7 +386,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
             ARITH_OPS.includes(op) &&
             (isDec(lhs) || isDec(rhs)) && (isDec(lhs) || isIntLong(lhs)) && (isDec(rhs) || isIntLong(rhs))
           ) {
-            this.result = { kind: 'TypeName', name: 'Decimal' } as Core.TypeName;
+            this.result = { kind: 'TypeName', name: 'Decimal' } as Ty.TypeName;
             this.handled = true;
             return;
           }
@@ -460,9 +460,9 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         if (expression.target.kind === 'Name' && expression.target.name === 'await' && expression.args.length === 1) {
           const awaitedType = typeOfExpr(module, symbols, expression.args[0]!, diagnostics);
           if (!isUnknown(awaitedType) && awaitedType.kind === 'Maybe') {
-            this.result = awaitedType.type as Core.Type;
+            this.result = awaitedType.type as Ty.Type;
           } else if (!isUnknown(awaitedType) && awaitedType.kind === 'Result') {
-            this.result = awaitedType.ok as Core.Type;
+            this.result = awaitedType.ok as Ty.Type;
           } else {
             diagnostics.warning(ErrorCode.AWAIT_TYPE, originToSpan(expression.origin), { type: formatType(awaitedType) });
             this.result = unknownType();
@@ -474,7 +474,7 @@ export class TypeOfExprVisitor extends DefaultCoreVisitor<TypecheckWalkerContext
         if (expression.target.kind === 'Name') {
           // Decimal.* 精确舍入/除法返回 Decimal（ADR 0025 M2），使嵌套混算检查也能看到 Decimal。
           if (expression.target.name === 'Decimal.round' || expression.target.name === 'Decimal.divide') {
-            this.result = { kind: 'TypeName', name: 'Decimal' } as Core.TypeName;
+            this.result = { kind: 'TypeName', name: 'Decimal' } as Ty.TypeName;
             this.handled = true;
             return;
           }
@@ -523,7 +523,7 @@ function inferDataDeclFromField(
 function calleeSignature(module: ModuleContext, symbols: SymbolTable, name: string): FunctionSignature | undefined {
   const local = symbols.lookup(name);
   if (!local) return module.funcSignatures.get(name);
-  return local.type.kind === 'FuncType' ? { params: [...local.type.params] as Core.Type[], ret: local.type.ret as Core.Type } : undefined;
+  return local.type.kind === 'FuncType' ? { params: [...local.type.params] as Ty.Type[], ret: local.type.ret as Ty.Type } : undefined;
 }
 
 /**
@@ -540,7 +540,7 @@ function checkUserCall(
   symbols: SymbolTable,
   call: Core.Call,
   callee: string,
-  argTypes: readonly Core.Type[],
+  argTypes: readonly Ty.Type[],
   diagnostics: DiagnosticBuilder,
 ): void {
   const span = originToSpan(call.origin) ?? originToSpan(call.target.origin);
@@ -581,7 +581,7 @@ function isNameInferredLocal(symbols: SymbolTable, arg: Core.Expression): boolea
 }
 
 /** 局部值可能是函数：函数类型、未知类型、类型变量。 */
-function mayBeCallable(type: Core.Type): boolean {
+function mayBeCallable(type: Ty.Type): boolean {
   return type.kind === 'FuncType' || type.kind === 'TypeVar' || isUnknown(type);
 }
 
@@ -590,7 +590,7 @@ export function typeOfExpr(
   symbols: SymbolTable,
   expr: Core.Expression,
   diagnostics: DiagnosticBuilder
-): Core.Type {
+): Ty.Type {
   const visitor = new TypeOfExprVisitor();
   visitor.visitExpression(expr, { module: ctx, symbols, diagnostics });
   return visitor.result;
@@ -601,11 +601,11 @@ export function typeOfExpr(
  * 时报 TYPE_MISMATCH(expected Bool)。只针对 Verdict，其它类型维持既有宽松行为（不影响语料）。
  */
 export function rejectVerdictInBoolContext(
-  actual: Core.Type,
+  actual: Ty.Type,
   span: ReturnType<typeof originToSpan>,
   diagnostics: DiagnosticBuilder,
 ): void {
   if (isVerdictType(actual)) {
-    diagnostics.typeMismatch({ kind: 'TypeName', name: 'Bool' } as Core.TypeName, actual, span);
+    diagnostics.typeMismatch({ kind: 'TypeName', name: 'Bool' } as Ty.TypeName, actual, span);
   }
 }

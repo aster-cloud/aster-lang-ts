@@ -377,7 +377,8 @@ function emitStatement(
       lines.push(`${indent}}\n`);
       return lines.join('\n');
     }
-    case 'Scope': {
+    case 'Scope':
+    case 'Block': {
         return s.statements.map(st => emitStatement(st, locals, helpers, indent)).join('');
     }
     case 'workflow': {
@@ -570,36 +571,27 @@ function emitNestedPatBinds(
 ): { prefix: string[]; suffix: string[] } {
   const prefix: string[] = [];
   const suffix: string[] = [];
-  const patWithArgs = p as Core.PatCtor & { args?: readonly Core.Pattern[] };
-  const args = patWithArgs.args as undefined | Core.Pattern[];
-  if (args && args.length > 0) {
-    args.forEach((child, idx) => {
-      const field = fieldNameByIndex(p.typeName, helpers, idx);
-      if (child.kind === 'PatName') {
-        prefix.push(`${indent}var ${child.name} = ${baseVar}.${field};`);
-      } else if (child.kind === 'PatCtor') {
-        // open guard and bind child object
-        const tmpVar = `${baseVar}_${idx}`;
-        const nestedRef = qualifyTypeReference((child as Core.PatCtor).typeName, helpers);
-        prefix.push(
-          `${indent}if (${baseVar}.${field} instanceof ${nestedRef}) {`
-        );
-        prefix.push(
-          `${indent}  var ${tmpVar} = ( ${nestedRef} )${baseVar}.${field};`
-        );
-        const rec = emitNestedPatBinds(child as Core.PatCtor, tmpVar, helpers, indent + '  ');
-        prefix.push(...rec.prefix);
-        // close nested guards after body
-        suffix.unshift(...rec.suffix);
-        suffix.unshift(`${indent}}`);
-      }
-    });
-  } else {
-    // Legacy names support
-    (p.names || []).forEach((n, idx) => {
-      prefix.push(`${indent}var ${n} = ${baseVar}.${fieldNameByIndex(p.typeName, helpers, idx)};`);
-    });
-  }
+  p.args.forEach((child, idx) => {
+    const field = fieldNameByIndex(p.typeName, helpers, idx);
+    if (child.kind === 'PatName') {
+      prefix.push(`${indent}var ${child.name} = ${baseVar}.${field};`);
+    } else if (child.kind === 'PatCtor') {
+      // open guard and bind child object
+      const tmpVar = `${baseVar}_${idx}`;
+      const nestedRef = qualifyTypeReference(child.typeName, helpers);
+      prefix.push(
+        `${indent}if (${baseVar}.${field} instanceof ${nestedRef}) {`
+      );
+      prefix.push(
+        `${indent}  var ${tmpVar} = ( ${nestedRef} )${baseVar}.${field};`
+      );
+      const rec = emitNestedPatBinds(child, tmpVar, helpers, indent + '  ');
+      prefix.push(...rec.prefix);
+      // close nested guards after body
+      suffix.unshift(...rec.suffix);
+      suffix.unshift(`${indent}}`);
+    }
+  });
   return { prefix, suffix };
 }
 

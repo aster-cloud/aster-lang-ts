@@ -7,8 +7,10 @@
  * For full effect inference with custom configuration, use the main effect_inference module.
  */
 
-import type { Core, TypecheckDiagnostic, Origin } from '../types.js';
+import type { Core, TypecheckDiagnostic, Origin, Span, Ty } from '../types.js';
+import { originToSpan } from '../typecheck/pure.js';
 import { Effect } from '../types.js';
+import { declaredEffectsOf } from './declared-effects.js';
 // R15 (codex round 14): browser-side effect inference 不得 transitively 拉入
 // typecheck/utils.ts (含 loadPrefixes → require('node:module')). 改用纯 leaf:
 //  - resolveAlias 来自 typecheck/alias.ts (纯字符串/Map 操作)
@@ -114,10 +116,7 @@ export function inferEffects(core: Core.Module, options?: EffectInferenceOptions
     bindings.set(func.name, initBindings(paramSet));
 
     const declared = new Set<EffectRef>();
-    const declaredSource =
-      (func as unknown as { declaredEffects?: readonly (Effect | Core.EffectVar)[] }).declaredEffects ??
-      func.effects;
-    for (const eff of declaredSource) declared.add(normalizeEffectRef(eff));
+    for (const eff of declaredEffectsOf(func)) declared.add(normalizeEffectRef(eff));
 
     const inferred = new Set<EffectRef>(declared);
     const required = new Set<EffectRef>();
@@ -301,9 +300,9 @@ function effectRefKey(ref: EffectRef): string {
 
 const KNOWN_EFFECTS: ReadonlySet<Effect> = new Set(Object.values(Effect));
 
-function normalizeEffectRef(effect: Effect | Core.EffectVar): EffectRef {
+function normalizeEffectRef(effect: Effect | Ty.EffectVar): EffectRef {
   if ((effect as { kind?: string }).kind === 'EffectVar') {
-    return { kind: 'EffectVar', name: (effect as Core.EffectVar).name };
+    return { kind: 'EffectVar', name: (effect as Ty.EffectVar).name };
   }
   // IR 中原样保留的未知效果名（#304）在检查阶段按 pure 处理，与 core EffectChecker 一致
   return KNOWN_EFFECTS.has(effect as Effect) ? (effect as Effect) : Effect.PURE;
@@ -592,7 +591,7 @@ function buildDiagnostics(
         message: `函数 '${name}' 缺少 @io 效果声明，推断要求 IO。`,
         code: ErrorCode.EFF_INFER_MISSING_IO,
         help: '根据推断结果为函数添加 @io 效果。',
-        ...(func.span ? { span: func.span } : {}),
+        ...spanOf(func.origin),
         data: { func: name, effect: 'io' },
       };
       diagnostics.push(diag);
@@ -604,7 +603,7 @@ function buildDiagnostics(
         message: `函数 '${name}' 缺少 @cpu 效果声明，推断要求 CPU（或 @io）。`,
         code: ErrorCode.EFF_INFER_MISSING_CPU,
         help: '根据推断结果补齐 @cpu 或 @io 效果。',
-        ...(func.span ? { span: func.span } : {}),
+        ...spanOf(func.origin),
         data: { func: name, effect: 'cpu' },
       };
       diagnostics.push(diag);
@@ -619,7 +618,7 @@ function buildDiagnostics(
         message: `函数 '${name}' 声明了 @io，但推断未发现 IO 副作用。`,
         code: ErrorCode.EFF_INFER_REDUNDANT_IO,
         help: '确认是否需要保留 @io 声明。',
-        ...(func.span ? { span: func.span } : {}),
+        ...spanOf(func.origin),
         data: { func: name, effect: 'io' },
       };
       diagnostics.push(diag);
@@ -632,7 +631,7 @@ function buildDiagnostics(
           message: `函数 '${name}' 声明了 @cpu，但推断未发现 CPU 副作用。`,
           code: ErrorCode.EFF_INFER_REDUNDANT_CPU,
           help: '若无 CPU 副作用，可删除 @cpu 声明。',
-          ...(func.span ? { span: func.span } : {}),
+          ...spanOf(func.origin),
           data: { func: name, effect: 'cpu' },
         };
         diagnostics.push(diag);
@@ -642,7 +641,7 @@ function buildDiagnostics(
           message: `函数 '${name}' 同时声明 @cpu 和 @io；由于需要 @io，@cpu 可移除。`,
           code: ErrorCode.EFF_INFER_REDUNDANT_CPU_WITH_IO,
           help: '保留 @io 即可满足需求，移除多余的 @cpu。',
-          ...(func.span ? { span: func.span } : {}),
+          ...spanOf(func.origin),
           data: { func: name, effect: 'cpu' },
         };
         diagnostics.push(diag);
@@ -663,7 +662,7 @@ function buildDiagnostics(
           code: ErrorCode.EFFECT_VAR_UNRESOLVED,
           message: `效应变量 ${unresolved.join(', ')} 无法推断出具体效果`,
           help: '参考调用或声明补充明确的效果（pure/cpu/io/workflow），或移除未使用的效应变量。',
-          ...(func.span ? { span: func.span } : {}),
+          ...spanOf(func.origin),
           data: { func: name, vars: unresolved },
         };
         diagnostics.push(diag);
@@ -672,4 +671,10 @@ function buildDiagnostics(
   }
 
   return diagnostics;
+}
+
+/** 有源码位置时给出 `{ span }`，否则不带 span 键（exactOptionalPropertyTypes）。 */
+function spanOf(origin: Origin | undefined): { span?: Span } {
+  const span = originToSpan(origin);
+  return span ? { span } : {};
 }

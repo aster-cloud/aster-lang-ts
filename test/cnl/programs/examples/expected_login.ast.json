@@ -30,36 +30,11 @@
       "variants": [
         "InvalidCreds",
         "Locked"
-      ],
-      "variantSpans": [
-        {
-          "start": {
-            "line": 5,
-            "col": 26
-          },
-          "end": {
-            "line": 5,
-            "col": 38
-          }
-        },
-        {
-          "start": {
-            "line": 5,
-            "col": 40
-          },
-          "end": {
-            "line": 5,
-            "col": 46
-          }
-        }
       ]
     },
     {
       "kind": "Func",
       "name": "login",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "user",

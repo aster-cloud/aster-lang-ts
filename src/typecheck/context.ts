@@ -1,4 +1,4 @@
-import type { Core, Span } from '../types.js';
+import type { Core, Span, Ty } from '../types.js';
 import type { EffectSignature } from '../effects/effect_signature.js';
 import type { ModuleCache } from '../lsp/module_cache.js';
 import type { Lexicon } from '../config/lexicons/types.js';
@@ -13,8 +13,8 @@ import { argumentFits, formatType, markNameInferredType, typesEqual } from './pu
 // 类型检查上下文模块：集中管理模块/函数上下文字段以及符号定义与赋值操作。
 
 export interface FunctionSignature {
-  params: Core.Type[];
-  ret: Core.Type;
+  params: Ty.Type[];
+  ret: Ty.Type;
 }
 
 export interface ModuleContext {
@@ -60,7 +60,7 @@ export interface TypecheckOptions {
 export function defineSymbol(
   context: TypecheckWalkerContext,
   name: string,
-  type: Core.Type,
+  type: Ty.Type,
   kind: SymbolKind,
   span?: Span,
   typeInferred = false,
@@ -104,7 +104,7 @@ function immutableTargetLabel(context: TypecheckWalkerContext, name: string, sym
   return context.symbols.resolvesAcrossLambda(name) ? 'captured variable' : undefined;
 }
 
-export function assignSymbol(context: TypecheckWalkerContext, name: string, type: Core.Type, span?: Span): void {
+export function assignSymbol(context: TypecheckWalkerContext, name: string, type: Ty.Type, span?: Span): void {
   const symbol = context.symbols.lookup(name);
   // 函数名、类型名不是局部名：与 Java 一致按未定义处理（E101）
   if (!symbol || !LOCAL_KINDS.has(symbol.kind)) {

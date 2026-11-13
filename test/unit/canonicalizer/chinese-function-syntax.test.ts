@@ -28,7 +28,8 @@ function header(source: string): unknown {
   const result = compile(source, { lexicon: ZH_CN });
   assert.ok(result.success, `应能编译：${JSON.stringify(result.parseErrors ?? result)}`);
   const func = result.core!.decls[0] as { params: unknown; ret: unknown };
-  return { params: func.params, ret: func.ret };
+  // 两种写法的源码列不同，v2 的类型节点都带 origin（ADR 0055 #17）；这里只比较函数头的形状
+  return JSON.parse(JSON.stringify({ params: func.params, ret: func.ret }, (k, v) => (k === 'origin' ? undefined : v)));
 }
 
 describe('chinese-function-syntax 变换器（与 Java 逐字一致）', () => {

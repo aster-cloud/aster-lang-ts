@@ -128,16 +128,16 @@ describe('FuncType 降级到 Core IR', () => {
   it('Node.FuncType 构造器', () => {
     const t = Node.FuncType([Node.TypeName('Int')], Node.TypeName('Bool'));
     assert.deepEqual(shape(t), { kind: 'FuncType', params: [T('Int')], ret: T('Bool') });
-    assert.deepEqual(CoreCtor.FuncType([CoreCtor.TypeName('Int')], CoreCtor.TypeName('Bool')),
+    assert.deepEqual(shape(CoreCtor.FuncType([CoreCtor.TypeName('Int')], CoreCtor.TypeName('Bool'))),
       { kind: 'FuncType', params: [T('Int')], ret: T('Bool') });
   });
 
-  it('签名中的 FuncType：{kind, params, ret}，不带 effects', () => {
+  it('签名中的 FuncType：{kind, params, ret, origin}，不带 effects', () => {
     const { ast } = parseModule('Module m.\n\nRule apply given f as (Int, Text) -> Bool, produce (Int) -> Int?:\n  Return 1.\n');
     const fn = lowerModule(ast).decls[0] as Core.Func;
     assert.deepEqual(shape(fn.params[0]!.type), { kind: 'FuncType', params: [T('Int'), T('Text')], ret: T('Bool') });
     assert.deepEqual(shape(fn.ret), { kind: 'FuncType', params: [T('Int')], ret: { kind: 'Maybe', type: T('Int') } });
-    assert.deepEqual(Object.keys(fn.params[0]!.type).sort(), ['kind', 'params', 'ret']);
+    assert.deepEqual(Object.keys(fn.params[0]!.type).sort(), ['kind', 'origin', 'params', 'ret']);
   });
 
   it('类型参数在 FuncType 内仍降为 TypeVar', () => {

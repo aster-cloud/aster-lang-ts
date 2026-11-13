@@ -22,20 +22,12 @@ import { createHash } from 'node:crypto';
  *   contentHash = 子树内容指纹     ← 「它变了没有」（change impact 的信号）
  * ```
  *
- * <h2>★跨引擎口径：contentHash 必须对「归一化后」的 IR 取 hash</h2>
+ * <h2>★跨引擎口径：contentHash 对 Core IR v2 取 hash</h2>
  *
- * 两引擎的**原始** Core IR 字段本就不同，且这是 ADR 0016 §B/§C 认定的**合法
- * 分岔**（推导分析层，不是源码结构）：
- *
- * ```
- *   Java 独有   annotations / retAnnotations / piiLevel / piiCategories
- *   TS   独有   retTypeInferred / constraints / typeInferred
- * ```
- *
- * 所以直接对原始 IR 取 hash，两侧**必定**不等。调用方必须先用
- * `@aster-cloud/aster-lang-test/ir-normalize` 的 `normalizeIr` 归一化——那是
- * parity 门禁使用的**同一份**规则（单源，避免「门禁说一致、hash 说不一致」
- * 且两边都不报错的漂移）。
+ * Core IR v2（ADR 0055）起两引擎产出同一形状，ADR 0016 的归一化比较已退役。
+ * 但值层差异仍按 ADR 0055 §6 分期收紧（V1 推断类型、V2 推断能力、V3 闭包捕获、V4 部分结束行），
+ * 在这些类别清空之前，落在豁免位置的子树两侧 contentHash 仍可能不同；跨引擎比较时须对照
+ * parity 门禁的豁免表（aster-lang-test `parity-tier1.mjs` 的 VALUE_EXEMPTIONS）。
  *
  * <h2>与 ADR 0032 anchor 的边界（★不可混用）</h2>
  *
@@ -170,8 +162,7 @@ function segmentOf(element: unknown, index: number): string {
 /**
  * 为一棵 Core IR 计算全部节点的稳定标识。
  *
- * @param ir 建议先经 `normalizeIr` 归一化——跨引擎比较时**必须**先归一化，
- *           否则两侧的 contentHash 恒不相等（见本文件头部说明）。
+ * @param ir Core IR v2 模块（跨引擎比较时注意值层豁免，见本文件头部说明）。
  * @returns nodeId → NodeIdentity，按插入顺序（路径的深度优先序，确定）
  */
 export function computeNodeIds(ir: unknown): ReadonlyMap<string, NodeIdentity> {

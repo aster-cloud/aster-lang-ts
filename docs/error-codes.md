@@ -2,7 +2,7 @@
 
 本文档列出了 Aster 语言编译器和类型检查器使用的所有错误码。
 
-**总计**: 123 个错误码
+**总计**: 125 个错误码
 
 ## 按类别分类
 
@@ -129,7 +129,7 @@
 
 ### 语法 (syntax)
 
-共 20 个错误码
+共 21 个错误码
 
 | 错误码 | 严重性 | 消息模板 | 解决方案 |
 |--------|--------|----------|----------|
@@ -153,10 +153,11 @@
 | **E067** `PARSE_INVALID_VALUE` | 🔴 error | Invalid &#123;construct&#125; &#123;value&#125;; expected &#123;allowed&#125; | Use one of the allowed values. |
 | **E068** `PARSE_CALL_ARITY` | 🔴 error | &#123;callee&#125; takes exactly &#123;expected&#125; argument(s), got &#123;actual&#125; | Pass exactly the required number of arguments. |
 | **E069** `PARSE_UNKNOWN_NAME` | 🔴 error | Unknown &#123;kind&#125; &#123;name&#125; | Check the spelling against the supported names. |
+| **E900** `PARSE_DUPLICATE_ANNOTATION_ARG` | 🔴 error | Annotation @&#123;annotation&#125; repeats the argument &#123;name&#125; | Give each named argument of an annotation at most once. |
 
 ### 类型系统 (type)
 
-共 31 个错误码
+共 32 个错误码
 
 | 错误码 | 严重性 | 消息模板 | 解决方案 |
 |--------|--------|----------|----------|
@@ -189,6 +190,7 @@
 | **E032** `CALL_ARITY_MISMATCH` | 🔴 error | Function '&#123;func&#125;' expects &#123;expected&#125; argument(s), got &#123;actual&#125;. | Adjust the call to pass exactly the declared number of arguments. |
 | **E210** `EFFECT_VAR_UNDECLARED` | 🔴 error | Effect variable &#123;var&#125; undeclared | Add the effect type parameter to the function signature's effect parameter list. |
 | **E211** `EFFECT_VAR_UNRESOLVED` | 🔴 error | Effect variable &#123;vars&#125; could not be resolved to concrete effects | Provide explicit effects (pure/cpu/io/workflow) or remove unused effect variables. |
+| **E213** `EFFECT_PARAM_SHADOWS_BUILTIN` | 🔴 error | Effect parameter &#123;name&#125; of '&#123;func&#125;' has the same name as a built-in effect | Rename the effect parameter; the effect names io, cpu, pure and async are reserved in any letter case. |
 | **W105** `WORKFLOW_RETRY_INCONSISTENT` | 🟡 warning | Workflow retry configuration may be unreasonable: &#123;reason&#125; | Check the combination of total wait time, maxAttempts, and backoff strategy. |
 | **W106** `WORKFLOW_TIMEOUT_UNREASONABLE` | 🟡 warning | Workflow timeout configuration may be unreasonable: &#123;reason&#125; | Check whether the timeout value is too large or too small. |
 

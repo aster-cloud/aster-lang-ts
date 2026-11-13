@@ -1,4 +1,4 @@
-import type { Core, Span, TypecheckDiagnostic } from '../types.js';
+import type { Span, TypecheckDiagnostic, Ty } from '../types.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { attachDiagnosticMessages } from '../config/lexicons/diagnostic-messages.js';
 import { ErrorCode, ERROR_MESSAGES, ERROR_METADATA } from '../diagnostics/error_codes.js';
@@ -66,7 +66,7 @@ export class DiagnosticBuilder {
     return this.add(code, span, params, 'info');
   }
 
-  typeMismatch(expected: Core.Type, actual: Core.Type, span: Span | undefined): this {
+  typeMismatch(expected: Ty.Type, actual: Ty.Type, span: Span | undefined): this {
     return this.error(ErrorCode.TYPE_MISMATCH, span, {
       expected: TypeSystem.format(expected),
       actual: TypeSystem.format(actual),

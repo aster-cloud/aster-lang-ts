@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { Token, Position } from '../../../src/types.js';
 import { TokenKind, type Core } from '../../../src/types.js';
 import { buildIdIndex, exprTypeText } from '../../../src/lsp/utils.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 function makePos(line: number, col: number): Position {
   return { line, col };
@@ -34,7 +35,7 @@ function makeExpr(kind: string, name?: string): Core.Expression {
     case 'Long':
       return { kind: 'Long', value: name ?? '1', origin: DEFAULT_ORIGIN } as Core.Long;
     case 'Double':
-      return { kind: 'Double', value: Number.parseFloat(name ?? '1.1'), origin: DEFAULT_ORIGIN } as Core.Double;
+      return toV2({ kind: 'Double', value: Number.parseFloat(name ?? '1.1'), origin: DEFAULT_ORIGIN }) as Core.Double;
     case 'Float':
       return { kind: 'Float', value: Number.parseFloat(name ?? '1.2'), origin: DEFAULT_ORIGIN } as unknown as Core.Expression;
     case 'Bool':
@@ -42,14 +43,14 @@ function makeExpr(kind: string, name?: string): Core.Expression {
     case 'Null':
       return { kind: 'Null', origin: DEFAULT_ORIGIN } as Core.Null;
     case 'Call':
-      return {
+      return toV2({
         kind: 'Call',
         target: { kind: 'Name', name: name ?? '函数', origin: DEFAULT_ORIGIN } as Core.Name,
         args: [],
         origin: DEFAULT_ORIGIN,
-      } as Core.Call;
+      }) as Core.Call;
     case 'Construct':
-      return { kind: 'Construct', typeName: name ?? '类型', fields: [], origin: DEFAULT_ORIGIN } as Core.Construct;
+      return toV2({ kind: 'Construct', typeName: name ?? '类型', fields: [], origin: DEFAULT_ORIGIN }) as Core.Construct;
     case 'Ok':
       return { kind: 'Ok', expr: makeExpr(name ?? 'String'), origin: DEFAULT_ORIGIN } as Core.Ok;
     case 'Err':

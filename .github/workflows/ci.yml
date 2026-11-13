@@ -56,6 +56,14 @@ jobs:
           repository: aster-cloud/aster-lang-test
           path: aster-lang-test
           token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
+      # Core IR v2（ADR 0055 §3）：schema 副本 parity 与 readCoreIr 负例夹具直读 locales 的
+      # core-ir/，缺失即失败（test/helpers/locales-core-ir.ts）。PR 构建按同名分支检出。
+      - name: Checkout aster-lang-locales
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
+        with:
+          repository: aster-cloud/aster-lang-locales
+          path: aster-lang-locales
+          token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
       - uses: actions/setup-python@v6
         with: { python-version: '3.12' }
       - name: Release-plan drift gate
@@ -89,6 +97,13 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      # golden 与单测中的语料合规测试（core-ir-conformance）默认读兄弟 checkout 的语料（scripts/corpus-loader.ts），
+      # 须在单测之前构建其 loader 产物；
+      # 否则 fail-closed，而不是退回陈旧的 npm 快照。兄弟仓嵌在本仓工作区内，须忽略本仓 pnpm-workspace.yaml。
+      - name: Build aster-lang-test corpus loader
+        working-directory: aster-lang-test/packages/js
+        run: pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
+
       - name: Run unit tests with coverage
         run: pnpm run test:unit:coverage
 
@@ -100,12 +115,6 @@ jobs:
 
       - name: Run integration tests
         run: pnpm run test:integration
-
-      # golden 默认读兄弟 checkout 的语料（scripts/corpus-loader.ts），须先构建其 loader 产物；
-      # 否则 fail-closed，而不是退回陈旧的 npm 快照。兄弟仓嵌在本仓工作区内，须忽略本仓 pnpm-workspace.yaml。
-      - name: Build aster-lang-test corpus loader
-        working-directory: aster-lang-test/packages/js
-        run: pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
 
       - name: Run golden tests
         run: pnpm run test:golden:run

@@ -1,9 +1,9 @@
-import type { Core, Span } from '../types.js';
+import type { Core, Span, Ty } from '../types.js';
 import { hasVerdictPrefix, VERDICT_TYPE_NAME } from './verdict_signatures.js';
 
-export type Type = Core.Type;
+export type Type = Ty.Type;
 
-const UNKNOWN_TYPENAME: Core.TypeName = { kind: 'TypeName', name: 'Unknown' };
+const UNKNOWN_TYPENAME: Ty.TypeName = { kind: 'TypeName', name: 'Unknown' };
 
 function cloneType(type: Type): Type {
   switch (type.kind) {
@@ -30,12 +30,12 @@ function cloneType(type: Type): Type {
     case 'TypeApp':
       return {
         ...type,
-        args: type.args.map(arg => cloneType(arg as Type)) as readonly Core.Type[],
+        args: type.args.map(arg => cloneType(arg as Type)) as readonly Ty.Type[],
       };
     case 'FuncType':
       return {
         ...type,
-        params: type.params.map(param => cloneType(param as Type)) as readonly Core.Type[],
+        params: type.params.map(param => cloneType(param as Type)) as readonly Ty.Type[],
         ret: cloneType(type.ret as Type),
         ...(type.effectParams ? { effectParams: [...type.effectParams] as readonly string[] } : {}),
         ...(type.declaredEffects
@@ -48,7 +48,7 @@ function cloneType(type: Type): Type {
         baseType: cloneType(type.baseType as Type),
       };
     default:
-      // Exhaustiveness check: all Core.Type kinds should be handled above
+      // Exhaustiveness check: all Ty.Type kinds should be handled above
       return type as Type;
   }
 }
@@ -59,7 +59,7 @@ function isUnknown(type: Type | undefined | null): boolean {
   return false;
 }
 
-type EffectDeclaration = NonNullable<Core.FuncType['declaredEffects']>[number];
+type EffectDeclaration = NonNullable<Ty.FuncType['declaredEffects']>[number];
 
 function normalizeEffectList(list: readonly EffectDeclaration[] | undefined): readonly string[] {
   if (!list || list.length === 0) return [];
@@ -90,7 +90,7 @@ function stringListsEqual(a: readonly string[] | undefined, b: readonly string[]
 }
 
 export class TypeSystem {
-  static unknown(): Core.Type {
+  static unknown(): Ty.Type {
     return UNKNOWN_TYPENAME;
   }
 
@@ -127,14 +127,14 @@ export class TypeSystem {
     if (t1.kind !== t2.kind) return false;
     switch (t1.kind) {
       case 'TypeName':
-        return (t1 as Core.TypeName).name === (t2 as Core.TypeName).name;
+        return (t1 as Ty.TypeName).name === (t2 as Ty.TypeName).name;
       case 'TypeVar':
-        return (t1 as Core.TypeVar).name === (t2 as Core.TypeVar).name;
+        return (t1 as Ty.TypeVar).name === (t2 as Ty.TypeVar).name;
       case 'EffectVar':
-        return (t1 as Core.EffectVar).name === (t2 as Core.EffectVar).name;
+        return (t1 as Ty.EffectVar).name === (t2 as Ty.EffectVar).name;
       case 'TypeApp': {
-        const a = t1 as Core.TypeApp;
-        const b = t2 as Core.TypeApp;
+        const a = t1 as Ty.TypeApp;
+        const b = t2 as Ty.TypeApp;
         if (a.base !== b.base) return false;
         if (a.args.length !== b.args.length) return false;
         for (let i = 0; i < a.args.length; i++) {
@@ -145,13 +145,13 @@ export class TypeSystem {
       case 'Maybe':
       case 'Option':
         return TypeSystem.equals(
-          (t1 as Core.Maybe | Core.Option).type as Type,
-          (t2 as Core.Maybe | Core.Option).type as Type,
+          (t1 as Ty.Maybe | Ty.Option).type as Type,
+          (t2 as Ty.Maybe | Ty.Option).type as Type,
           strict
         );
       case 'Result': {
-        const a = t1 as Core.Result;
-        const b = t2 as Core.Result;
+        const a = t1 as Ty.Result;
+        const b = t2 as Ty.Result;
         return (
           TypeSystem.equals(a.ok as Type, b.ok as Type, strict) &&
           TypeSystem.equals(a.err as Type, b.err as Type, strict)
@@ -159,21 +159,21 @@ export class TypeSystem {
       }
       case 'List':
         return TypeSystem.equals(
-          (t1 as Core.List).type as Type,
-          (t2 as Core.List).type as Type,
+          (t1 as Ty.List).type as Type,
+          (t2 as Ty.List).type as Type,
           strict
         );
       case 'Map': {
-        const a = t1 as Core.Map;
-        const b = t2 as Core.Map;
+        const a = t1 as Ty.Map;
+        const b = t2 as Ty.Map;
         return (
           TypeSystem.equals(a.key as Type, b.key as Type, strict) &&
           TypeSystem.equals(a.val as Type, b.val as Type, strict)
         );
       }
       case 'FuncType': {
-        const a = t1 as Core.FuncType;
-        const b = t2 as Core.FuncType;
+        const a = t1 as Ty.FuncType;
+        const b = t2 as Ty.FuncType;
         if (a.params.length !== b.params.length) return false;
         for (let i = 0; i < a.params.length; i++) {
           if (!TypeSystem.equals(a.params[i] as Type, b.params[i] as Type, strict)) return false;
@@ -183,8 +183,8 @@ export class TypeSystem {
         return TypeSystem.equals(a.ret as Type, b.ret as Type, strict);
       }
       case 'PiiType': {
-        const a = t1 as Core.PiiType;
-        const b = t2 as Core.PiiType;
+        const a = t1 as Ty.PiiType;
+        const b = t2 as Ty.PiiType;
         return (
           a.sensitivity === b.sensitivity &&
           a.category === b.category &&
@@ -200,16 +200,16 @@ export class TypeSystem {
     if (isUnknown(t1) || isUnknown(t2)) return true;
 
     if (t1.kind === 'TypeVar') {
-      return TypeSystem.bindTypeVar(t1 as Core.TypeVar, t2, bindings);
+      return TypeSystem.bindTypeVar(t1 as Ty.TypeVar, t2, bindings);
     }
     if (t2.kind === 'TypeVar') {
-      return TypeSystem.bindTypeVar(t2 as Core.TypeVar, t1, bindings);
+      return TypeSystem.bindTypeVar(t2 as Ty.TypeVar, t1, bindings);
     }
     if (t1.kind === 'EffectVar') {
-      return TypeSystem.bindEffectVar(t1 as Core.EffectVar, t2, bindings);
+      return TypeSystem.bindEffectVar(t1 as Ty.EffectVar, t2, bindings);
     }
     if (t2.kind === 'EffectVar') {
-      return TypeSystem.bindEffectVar(t2 as Core.EffectVar, t1, bindings);
+      return TypeSystem.bindEffectVar(t2 as Ty.EffectVar, t1, bindings);
     }
     if (t1.kind !== t2.kind) return false;
 
@@ -217,13 +217,13 @@ export class TypeSystem {
       case 'Maybe':
       case 'Option':
         return TypeSystem.unify(
-          (t1 as Core.Maybe | Core.Option).type as Type,
-          (t2 as Core.Maybe | Core.Option).type as Type,
+          (t1 as Ty.Maybe | Ty.Option).type as Type,
+          (t2 as Ty.Maybe | Ty.Option).type as Type,
           bindings
         );
       case 'Result': {
-        const a = t1 as Core.Result;
-        const b = t2 as Core.Result;
+        const a = t1 as Ty.Result;
+        const b = t2 as Ty.Result;
         return (
           TypeSystem.unify(a.ok as Type, b.ok as Type, bindings) &&
           TypeSystem.unify(a.err as Type, b.err as Type, bindings)
@@ -231,21 +231,21 @@ export class TypeSystem {
       }
       case 'List':
         return TypeSystem.unify(
-          (t1 as Core.List).type as Type,
-          (t2 as Core.List).type as Type,
+          (t1 as Ty.List).type as Type,
+          (t2 as Ty.List).type as Type,
           bindings
         );
       case 'Map': {
-        const a = t1 as Core.Map;
-        const b = t2 as Core.Map;
+        const a = t1 as Ty.Map;
+        const b = t2 as Ty.Map;
         return (
           TypeSystem.unify(a.key as Type, b.key as Type, bindings) &&
           TypeSystem.unify(a.val as Type, b.val as Type, bindings)
         );
       }
       case 'TypeApp': {
-        const a = t1 as Core.TypeApp;
-        const b = t2 as Core.TypeApp;
+        const a = t1 as Ty.TypeApp;
+        const b = t2 as Ty.TypeApp;
         if (a.base !== b.base) return false;
         if (a.args.length !== b.args.length) return false;
         for (let i = 0; i < a.args.length; i++) {
@@ -254,8 +254,8 @@ export class TypeSystem {
         return true;
       }
       case 'FuncType': {
-        const a = t1 as Core.FuncType;
-        const b = t2 as Core.FuncType;
+        const a = t1 as Ty.FuncType;
+        const b = t2 as Ty.FuncType;
         if (a.params.length !== b.params.length) return false;
         for (let i = 0; i < a.params.length; i++) {
           if (!TypeSystem.unify(a.params[i] as Type, b.params[i] as Type, bindings)) return false;
@@ -265,8 +265,8 @@ export class TypeSystem {
         return TypeSystem.unify(a.ret as Type, b.ret as Type, bindings);
       }
       case 'PiiType': {
-        const a = t1 as Core.PiiType;
-        const b = t2 as Core.PiiType;
+        const a = t1 as Ty.PiiType;
+        const b = t2 as Ty.PiiType;
         if (a.sensitivity !== b.sensitivity || a.category !== b.category) return false;
         return TypeSystem.unify(a.baseType as Type, b.baseType as Type, bindings);
       }
@@ -275,7 +275,7 @@ export class TypeSystem {
     }
   }
 
-  private static bindTypeVar(tv: Core.TypeVar, type: Type, bindings: Map<string, Type>): boolean {
+  private static bindTypeVar(tv: Ty.TypeVar, type: Type, bindings: Map<string, Type>): boolean {
     const name = tv.name;
     const current = bindings.get(name);
     if (!current) {
@@ -285,7 +285,7 @@ export class TypeSystem {
     return TypeSystem.equals(current, type);
   }
 
-  private static bindEffectVar(ev: Core.EffectVar, type: Type, bindings: Map<string, Type>): boolean {
+  private static bindEffectVar(ev: Ty.EffectVar, type: Type, bindings: Map<string, Type>): boolean {
     const key = `$effect:${ev.name}`;
     const current = bindings.get(key);
     if (!current) {
@@ -313,16 +313,16 @@ export class TypeSystem {
 
     // Option<T> and Maybe<T> are considered subtypes when inner types match.
     if (sup.kind === 'Option' && sub.kind === 'Maybe') {
-      return TypeSystem.isSubtype((sub as Core.Maybe).type as Type, (sup as Core.Option).type as Type);
+      return TypeSystem.isSubtype((sub as Ty.Maybe).type as Type, (sup as Ty.Option).type as Type);
     }
     if (sup.kind === 'Maybe' && sub.kind === 'Option') {
-      return TypeSystem.isSubtype((sub as Core.Option).type as Type, (sup as Core.Maybe).type as Type);
+      return TypeSystem.isSubtype((sub as Ty.Option).type as Type, (sup as Ty.Maybe).type as Type);
     }
 
     // Result<T, E> subtyping checks both components.
     if (sub.kind === 'Result' && sup.kind === 'Result') {
-      const s = sub as Core.Result;
-      const t = sup as Core.Result;
+      const s = sub as Ty.Result;
+      const t = sup as Ty.Result;
       return (
         TypeSystem.isSubtype(s.ok as Type, t.ok as Type) &&
         TypeSystem.isSubtype(s.err as Type, t.err as Type)
@@ -330,8 +330,8 @@ export class TypeSystem {
     }
 
     if (sub.kind === 'TypeApp' && sup.kind === 'TypeApp') {
-      const s = sub as Core.TypeApp;
-      const t = sup as Core.TypeApp;
+      const s = sub as Ty.TypeApp;
+      const t = sup as Ty.TypeApp;
       if (s.base === 'Workflow' && t.base === 'Workflow' && s.args.length >= 2 && t.args.length >= 2) {
         const [sRes, sEff] = s.args;
         const [tRes, tEff] = t.args;
@@ -380,13 +380,13 @@ export class TypeSystem {
     if (type.kind === 'TypeApp') {
       return {
         ...type,
-        args: type.args.map(arg => TypeSystem.expandRecursive(arg as Type, aliases, visited)) as readonly Core.Type[],
+        args: type.args.map(arg => TypeSystem.expandRecursive(arg as Type, aliases, visited)) as readonly Ty.Type[],
       };
     }
     if (type.kind === 'FuncType') {
       return {
         ...type,
-        params: type.params.map(param => TypeSystem.expandRecursive(param as Type, aliases, visited)) as readonly Core.Type[],
+        params: type.params.map(param => TypeSystem.expandRecursive(param as Type, aliases, visited)) as readonly Ty.Type[],
         ret: TypeSystem.expandRecursive(type.ret as Type, aliases, visited),
       };
     }
@@ -419,8 +419,8 @@ export class TypeSystem {
     params: readonly Core.Parameter[],
     body: readonly Core.Statement[],
     fieldTypes?: ReadonlyMap<string, Type>
-  ): Core.FuncType {
-    const paramTypes = params.map(p => cloneType(p.type as Type)) as readonly Core.Type[];
+  ): Ty.FuncType {
+    const paramTypes = params.map(p => cloneType(p.type as Type)) as readonly Ty.Type[];
     const ret = TypeSystem.inferReturnType(body, fieldTypes);
     return {
       kind: 'FuncType',
@@ -513,7 +513,7 @@ export class TypeSystem {
       case 'None':
         return { kind: 'Option', type: TypeSystem.unknown() };
       case 'Lambda': {
-        const params = expr.params.map(p => cloneType(p.type as Type)) as readonly Core.Type[];
+        const params = expr.params.map(p => cloneType(p.type as Type)) as readonly Ty.Type[];
         const ret = cloneType(expr.ret as Type);
         return {
           kind: 'FuncType',

@@ -1,6 +1,8 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "app",
+  "profile": null,
   "decls": [
     {
       "kind": "Data",
@@ -12,7 +14,8 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": []
+          "annotations": [],
+          "typeInferred": true
         },
         {
           "name": "name",
@@ -20,16 +23,14 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": []
+          "annotations": [],
+          "typeInferred": true
         }
       ]
     },
     {
       "kind": "Func",
       "name": "greet",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "user",
@@ -37,17 +38,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -76,9 +82,15 @@
                 "pattern": {
                   "kind": "PatCtor",
                   "typeName": "User",
-                  "names": [
-                    "id",
-                    "name"
+                  "args": [
+                    {
+                      "kind": "PatName",
+                      "name": "id"
+                    },
+                    {
+                      "kind": "PatName",
+                      "name": "name"
+                    }
                   ]
                 },
                 "body": {
@@ -92,8 +104,7 @@
             ]
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     }
   ]
 }

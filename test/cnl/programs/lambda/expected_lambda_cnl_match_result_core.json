@@ -1,13 +1,12 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "demo.lambdamatchresult",
+  "profile": null,
   "decls": [
     {
       "kind": "Func",
       "name": "fromResult",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "result",
@@ -15,16 +14,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -39,13 +44,11 @@
                   "type": {
                     "kind": "TypeName",
                     "name": "Text"
-                  }
+                  },
+                  "annotations": [],
+                  "typeInferred": true
                 }
               ],
-              "retType": {
-                "kind": "TypeName",
-                "name": "Unknown"
-              },
               "ret": {
                 "kind": "TypeName",
                 "name": "Unknown"
@@ -65,8 +68,11 @@
                         "pattern": {
                           "kind": "PatCtor",
                           "typeName": "Ok",
-                          "names": [
-                            "value"
+                          "args": [
+                            {
+                              "kind": "PatName",
+                              "name": "value"
+                            }
                           ]
                         },
                         "body": {
@@ -82,8 +88,11 @@
                         "pattern": {
                           "kind": "PatCtor",
                           "typeName": "Err",
-                          "names": [
-                            "err"
+                          "args": [
+                            {
+                              "kind": "PatName",
+                              "name": "err"
+                            }
                           ]
                         },
                         "body": {
@@ -131,8 +140,7 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     }
   ]
 }

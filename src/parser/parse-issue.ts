@@ -59,6 +59,9 @@ export const Issue = {
     issue(ErrorCode.PARSE_CALL_ARITY, { callee, expected, actual }, message),
   unknownName: (kind: string, name: string, message: string): ParseIssue =>
     issue(ErrorCode.PARSE_UNKNOWN_NAME, { kind, name }, message),
+  /** E900（ADR 0055 #3）：同一注解内参数名重复；解析码段 E050–E069 用满后的续段。 */
+  duplicateAnnotationArg: (annotation: string, name: string): ParseIssue =>
+    issue(ErrorCode.PARSE_DUPLICATE_ANNOTATION_ARG, { annotation, name }, `Annotation @${annotation} repeats the argument ${name}`),
 } as const;
 
 /** 源码 token 作为字面片段参数（取其文本；无文本时取词法种类）。 */

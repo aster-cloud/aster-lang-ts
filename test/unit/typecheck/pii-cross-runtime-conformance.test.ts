@@ -30,6 +30,7 @@ import { Effect } from '../../../src/config/semantic.js';
 import { ERROR_METADATA } from '../../../src/diagnostics/error_codes.js';
 import { Core as CoreBuilder } from '../../../src/core/core_ir.js';
 import type { Core, TypecheckDiagnostic } from '../../../src/types.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 const IO_EFFECT: readonly Effect[] = [Effect.IO];
 
@@ -72,10 +73,10 @@ function piiDiags(diags: readonly TypecheckDiagnostic[]): PiiDiagShape[] {
 const TEXT = (): Core.Type => CoreBuilder.TypeName('Text');
 const piiType = (level: 'L1' | 'L2' | 'L3', category: Core.PiiType['category']): Core.Type =>
   CoreBuilder.Pii(TEXT(), level, category);
-const piiParam = (name: string, level: 'L1' | 'L2' | 'L3'): Core.Parameter => ({
+const piiParam = (name: string, level: 'L1' | 'L2' | 'L3'): Core.Parameter => (toV2({
   name,
   type: piiType(level, 'email'),
-});
+}));
 
 function makeFunc(opts: {
   name: string;
@@ -193,7 +194,7 @@ describe('PII 跨运行时 conformance (ADR-0009 P0-1 / P0-R 扩展)', () => {
   it('场景 4：参数违规（L2 PII → plain Text param）', () => {
     const callee = makeFunc({
       name: 'plain_handler',
-      params: [{ name: 'data', type: TEXT() }],
+      params: [toV2({ name: 'data', type: TEXT() })],
       ret: TEXT(),
       effects: [Effect.PURE],
       body: [CoreBuilder.Return(CoreBuilder.Name('data'))],
@@ -219,7 +220,7 @@ describe('PII 跨运行时 conformance (ADR-0009 P0-1 / P0-R 扩展)', () => {
   it('场景 5：无 PII 代码不应误报', () => {
     const fn = makeFunc({
       name: 'no_pii',
-      params: [{ name: 'plain_text', type: TEXT() }],
+      params: [toV2({ name: 'plain_text', type: TEXT() })],
       ret: TEXT(),
       effects: [Effect.PURE],
       body: [CoreBuilder.Return(CoreBuilder.Name('plain_text'))],

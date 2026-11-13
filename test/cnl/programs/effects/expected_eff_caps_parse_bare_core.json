@@ -1,21 +1,24 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "demo.capcaps.bare",
+  "profile": null,
   "decls": [
     {
       "kind": "Func",
       "name": "ping",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [
-        "IO"
+        "io"
       ],
+      "effectParams": [],
       "effectCaps": [
         "Http",
         "Sql",
@@ -25,6 +28,7 @@
         "AiModel"
       ],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -36,11 +40,7 @@
             }
           }
         ]
-      },
-      "declaredEffects": [
-        "IO"
-      ],
-      "retTypeInferred": true
+      }
     }
   ]
 }

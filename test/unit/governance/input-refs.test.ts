@@ -49,10 +49,10 @@ test('未知档案的模块同样写入 inputRefs', () => {
   assert.deepEqual(func(m, 'decide').inputRefs, ['']);
 });
 
-test('未声明档案的模块不写 inputRefs', () => {
+test('未声明档案的模块 inputRefs 为 null（未计算）', () => {
   const m = resolveSrc('Module m.\n\n'
     + 'Rule decide given amount, produce Verdict:\n  If amount at least 1:\n    Return Verdict.deny("d").\n  Return Verdict.allow().\n');
-  assert.equal('inputRefs' in func(m, 'decide'), false);
+  assert.equal(func(m, 'decide').inputRefs, null);
 });
 
 test('按 Return 推断为 Verdict 的规则也写入', () => {

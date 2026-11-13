@@ -93,7 +93,8 @@ Module test.entry.lower.
     const core = lowerModule(module);
     const func = core.decls.find((decl): decl is typeof core.decls[number] & { kind: 'Func' } => decl.kind === 'Func');
     assert.ok(func);
-    assert.deepEqual(func.annotations, [{ name: 'entry' }]);
+    // ADR 0055 #3：Core 注解的 args 恒输出，无参为 []
+    assert.deepEqual(func.annotations, [{ name: 'entry', args: [] }]);
   });
 
   test('typecheck allows a single @entry Rule', () => {

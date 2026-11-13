@@ -1,13 +1,12 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "std.maybe_result",
+  "profile": null,
   "decls": [
     {
       "kind": "Func",
       "name": "inc",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "x",
@@ -15,17 +14,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -37,15 +41,11 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "maybeWithDefault",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "x",
@@ -53,7 +53,7 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         },
         {
@@ -62,17 +62,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -97,15 +102,11 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "mapMaybe",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "x",
@@ -113,17 +114,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -148,15 +154,11 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "logErr",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "e",
@@ -164,17 +166,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -186,15 +193,11 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "mapOk",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "r",
@@ -202,17 +205,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -237,15 +245,11 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "tapError",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "r",
@@ -253,17 +257,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -288,8 +297,7 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     }
   ]
 }

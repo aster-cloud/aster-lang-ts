@@ -430,8 +430,9 @@ describe('resolveTypedReferences（R2）', () => {
       );
       assert.deepEqual(codes(r2), []);
       const cases = stmt(func(module, 'f'), 0, 'Match').cases;
-      const first = cases[0]!.pattern as Core.PatName;
-      assert.equal(first.name, 'High');
+      // ADR 0055 #16：解析为成员的裸名产出 0 参 PatCtor
+      const first = cases[0]!.pattern as Core.PatCtor;
+      assert.deepEqual([first.kind, first.typeName, first.args], ['PatCtor', 'High', []]);
       assert.equal(first.origin?.written, 'Hoch');
       assert.equal(first.origin?.role, 'MEMBER_REF');
       assert.equal((cases[1]!.pattern as Core.PatName).name, 'andere');
@@ -447,7 +448,7 @@ describe('resolveTypedReferences（R2）', () => {
       assert.deepEqual(codes(r2), []);
       const pat = stmt(func(module, 'f'), 1, 'Match').cases[0]!.pattern as Core.PatCtor;
       assert.equal(pat.typeName, 'Driver');
-      assert.deepEqual(pat.names, ['a']);
+      assert.deepEqual(pat.args.map((a) => (a as Core.PatName).name), ['a']);
     });
 
     it('主语未知、全部枚举成员与构造器中唯一 → 采用 + W801', () => {
@@ -460,7 +461,7 @@ describe('resolveTypedReferences（R2）', () => {
       assert.deepEqual(codes(r2), [ErrorCode.RESOLVED_WITHOUT_TYPE, ErrorCode.RESOLVED_WITHOUT_TYPE]);
       const cases = stmt(func(module, 'f'), 1, 'Match').cases;
       assert.equal((cases[0]!.pattern as Core.PatCtor).typeName, 'High');
-      assert.equal((cases[1]!.pattern as Core.PatName).name, 'Low');
+      assert.equal((cases[1]!.pattern as Core.PatCtor).typeName, 'Low');
     });
 
     it('主语未知、多个候选 → E806', () => {
@@ -573,10 +574,10 @@ describe('resolveTypedReferences（R2）', () => {
       collect(module, names, origins);
       assert.deepEqual(names.filter((n) => LOCALIZED.includes(n)), []);
       for (const o of origins) {
-        if (o?.written === undefined && o?.role === undefined) continue;
-        assert.ok(o.written !== undefined && o.role !== undefined, '两者同时出现');
+        if (o.written === null && o.role === null) continue;
+        assert.ok(o.written !== null && o.role !== null, '两者同时出现');
       }
-      const withWritten = origins.filter((o) => o?.written !== undefined).map((o) => o!.written);
+      const withWritten = origins.filter((o) => o.written !== null).map((o) => o.written);
       assert.ok(withWritten.includes('fahrer.alter'));
       assert.ok(withWritten.includes('Hoch'));
       const f = func(module, 'check');
@@ -584,7 +585,7 @@ describe('resolveTypedReferences（R2）', () => {
       assert.equal(f.origin?.role, 'FUNC_DECL');
       // 局部名 fahrer 未改写：其节点 origin 不带 written
       const let0 = stmt(f, 0, 'Let');
-      assert.equal(let0.origin?.written, undefined);
+      assert.equal(let0.origin.written, null);
     });
 
     it('函数签名的参数 / 返回类型名记录 written/role（与 Java 对齐）', () => {
@@ -601,15 +602,17 @@ describe('resolveTypedReferences（R2）', () => {
       assert.equal(ret.origin?.role, 'TYPE');
     });
 
-    it('函数签名中未改写的类型名不新增 origin（无词汇 IR 不变）', () => {
+    it('函数签名中未改写的类型名：origin 恒输出，written / role 为 null（ADR 0055 #17）', () => {
       const { module } = run(
         'Module m.\n\nDefine Driver has age as Int.\n\nRule f given d as Driver, produce Int:\n  Return d.age.\n',
         DRIVER,
         EN_US
       );
       const f = func(module, 'f');
-      assert.equal(f.params[0]!.type.origin, undefined);
-      assert.equal(f.ret.origin, undefined);
+      for (const t of [f.params[0]!.type, f.ret]) {
+        assert.ok(t.origin.start.line > 0);
+        assert.deepEqual([t.origin.written, t.origin.role], [null, null]);
+      }
     });
 
     it('规范名直写的源码：origin 不带 written/role', () => {
@@ -621,7 +624,7 @@ describe('resolveTypedReferences（R2）', () => {
       assert.deepEqual(codes(r2), []);
       const origins: Core.CoreNode['origin'][] = [];
       collect(module, [], origins);
-      assert.deepEqual(origins.filter((o) => o?.written !== undefined || o?.role !== undefined), []);
+      assert.deepEqual(origins.filter((o) => o.written !== null || o.role !== null), []);
     });
 
     it('任一 E8xx 时 diagnostics 非空（调用方据此不发出 IR）', () => {
@@ -662,7 +665,7 @@ describe('resolveTypedReferences（R2）', () => {
       assert.deepEqual([...codes(r1), ...codes(r2)], []);
       assert.equal(nameOf(stmt(func(module, 'f'), 1, 'Let').expr).name, 'y.age');
       const cases = stmt(func(module, 'f'), 2, 'Match').cases;
-      assert.equal((cases[0]!.pattern as Core.PatName).name, 'Gold');
+      assert.equal((cases[0]!.pattern as Core.PatCtor).typeName, 'Gold');
       assert.equal((cases[1]!.pattern as Core.PatCtor).typeName, 'Silver');
     });
 
@@ -679,7 +682,7 @@ describe('resolveTypedReferences（R2）', () => {
       assert.equal(nameOf((returned(func(module, 'g'), 0) as Core.Call).args[1]!).name, 'Silver');
       const h = nameOf(returned(func(module, 'h'), 0));
       assert.equal(h.name, 'Gold');
-      assert.equal(h.origin?.written, undefined);
+      assert.equal(h.origin.written, null);
     });
 
     it('2. 成员规范名属于多个枚举且无期望类型 → E804', () => {
@@ -816,7 +819,7 @@ describe('resolveTypedReferences（R2）', () => {
         LEVEL
       );
       assert.deepEqual(codes(r2), [ErrorCode.RESOLVED_WITHOUT_TYPE]);
-      assert.equal((stmt(func(module, 'f'), 0, 'Match').cases[0]!.pattern as Core.PatName).name, 'High');
+      assert.equal((stmt(func(module, 'f'), 0, 'Match').cases[0]!.pattern as Core.PatCtor).typeName, 'High');
     });
 
     it('未注解 lambda 参数上的路径 → 全局候选采用 + W801（裁决 R31）', () => {
@@ -852,8 +855,8 @@ describe('resolveTypedReferences（R2）', () => {
       const ast = parse(MODULE + DRIVER_DECL + 'Regel f gegeben x als Fahrer, liefert Ganzzahl:\n  gib zurueck x.alter.\n');
       const core = lowerModule(ast);
       const json = JSON.stringify(core);
-      assert.ok(!json.includes('"written"'));
-      assert.ok(!json.includes('"role"'));
+      assert.ok(!json.includes('"written":"'));
+      assert.ok(!json.includes('"role":"'));
       assert.equal(nameOf(returned(func(core, 'f'), 0)).name, 'x.alter');
       assert.equal((core.decls[0] as Core.Data).name, 'Fahrer');
     });

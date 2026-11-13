@@ -10,6 +10,7 @@ import { SymbolTable, DuplicateSymbolError } from '../../../src/typecheck/symbol
 import { Core } from '../../../src/core/core_ir.js';
 import type { SymbolInfo } from '../../../src/typecheck/symbol_table.js';
 import type { Core as CoreTypes, PiiDataCategory } from '../../../src/types.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 const typeName = (name: string): CoreTypes.TypeName => Core.TypeName(name);
 const maybeType = (inner: CoreTypes.Type): CoreTypes.Maybe => Core.Maybe(inner);
@@ -133,7 +134,7 @@ describe('SymbolTable', () => {
       table.defineTypeAlias('MaybeUserId', maybeType(typeName('UserId')));
       table.defineTypeAlias('OptionalUserList', optionType(listType(typeName('MaybeUserId'))));
 
-      const complexFunc: CoreTypes.FuncType = {
+      const complexFunc: CoreTypes.FuncType = toV2({
         kind: 'FuncType',
         params: [
           typeApp('Wrapper', [
@@ -147,7 +148,7 @@ describe('SymbolTable', () => {
           ),
         ],
         ret: resultType(typeName('UserId'), listType(typeName('MaybeUserId'))),
-      };
+      });
 
       table.defineTypeAlias('ComplexAlias', complexFunc);
       const resolved = table.resolveTypeAlias('ComplexAlias');

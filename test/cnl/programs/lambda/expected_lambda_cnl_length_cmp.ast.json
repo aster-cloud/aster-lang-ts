@@ -5,9 +5,6 @@
     {
       "kind": "Func",
       "name": "isLongerThan",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "s",

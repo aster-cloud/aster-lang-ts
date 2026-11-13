@@ -158,7 +158,7 @@ Rule fetchData produce Text. It performs io:
 
       const func = result.core?.decls.find((d: Core.Declaration) => d.kind === 'Func');
       assert.notEqual(func, undefined, '应该包含函数声明');
-      assert.deepEqual((func as any)?.effects, ['IO'], '效果应该包含 IO');
+      assert.deepEqual((func as any)?.effects, ['io'], '效果应该包含 io（Core IR v2 小写，ADR 0055 #5）');
     });
   });
 

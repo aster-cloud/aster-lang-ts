@@ -5,9 +5,6 @@
     {
       "kind": "Func",
       "name": "cmp",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "x",
@@ -63,9 +60,6 @@
     {
       "kind": "Func",
       "name": "add",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "x",

@@ -9,6 +9,7 @@ import { resolveAndLowerChecked } from '../src/compile-pipeline.js';
 import { emitJava } from '../src/jvm/emitter.js';
 import { prepareOutDir } from '../src/cli/utils/out-dir.js';
 import { gradleEnv } from '../src/cli/utils/gradle-env.js';
+import { serializeCoreIr } from '../src/core/serialize-core-ir.js';
 import type { Core as CoreIR } from '../src/types.js';
 
 const FINANCE_DTO_PACKAGE = 'com.wontlost.aster.finance.dto';
@@ -366,7 +367,8 @@ async function main(): Promise<void> {
     const src = fs.readFileSync(input, 'utf8');
     // 名称解析 R1 → lower → R2（ADR 0051）；E8xx 时抛错，不生成 class
     const core = resolveAndLowerChecked(parse(lex(canonicalize(src))).ast).core;
-    const payload = JSON.stringify(core);
+    // 写给 JVM 侧的 IR 一律是规范字节（ADR 0055 §5）
+    const payload = serializeCoreIr(core);
     fs.writeFileSync('build/last-core.json', payload);
 
     if (shouldUseFinanceDto(core.name)) {

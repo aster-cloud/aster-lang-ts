@@ -85,6 +85,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E210": "Effektvariable {var} ist nicht deklariert",
         "E211": "Effektvariable {vars} konnte nicht in konkrete Effekte aufgelöst werden",
         "E212": "Der Effekt der eingebauten Funktion '{builtin}', aufgerufen von '{func}', ist unbekannt; sie wird NICHT als rein angenommen",
+        "E213": "Effektparameter {name} von '{func}' hat denselben Namen wie ein eingebauter Effekt",
         "E300": "Funktion '{func}' benötigt die Fähigkeit {cap}, aber das Manifest für Modul '{module}' verweigert sie.",
         "E301": "Funktion '{func}' nutzt die Fähigkeit {cap}, aber der Kopf deklariert [{declared}].",
         "E302": "Funktion '{func}' deklariert die Fähigkeit {cap}, nutzt sie aber nicht.",
@@ -134,7 +135,8 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E806": "Muster '{written}' an Position {role} ist mehrdeutig zwischen: {candidates}",
         "E807": "Doppelte Deklaration von '{written}' an Position {role}",
         "W800": "Deklaration '{written}' an Position {role} verdeckt einen Vokabulareintrag",
-        "W801": "'{written}' an Position {role} wurde ohne bekannten Empfängertyp aufgelöst"
+        "W801": "'{written}' an Position {role} wurde ohne bekannten Empfängertyp aufgelöst",
+        "E900": "Annotation @{annotation} wiederholt das Argument {name}"
       }
     },
     "diagnosticHelp": {
@@ -213,6 +215,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E210": "Fügen Sie den Effekttypparameter der Effektparameterliste der Funktionssignatur hinzu.",
         "E211": "Geben Sie explizite Effekte an (pure/cpu/io/workflow) oder entfernen Sie ungenutzte Effektvariablen.",
         "E212": "Deklarieren Sie ihn über ASTER_EFFECT_CONFIG-Präfixe, geben Sie eine importierte Effektsignatur an oder verwenden Sie einen bekannten Stdlib-Namensraum.",
+        "E213": "Benennen Sie den Effektparameter um; die Effektnamen io, cpu, pure und async sind unabhängig von der Groß-/Kleinschreibung reserviert.",
         "E300": "Aktualisieren Sie das Fähigkeitsmanifest oder passen Sie die Funktion an.",
         "E301": "Deklarieren Sie die tatsächlich genutzten Fähigkeiten im Funktionskopf.",
         "E302": "Entfernen Sie ungenutzte Fähigkeitsdeklarationen der Übersichtlichkeit halber.",
@@ -262,7 +265,8 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E806": "Schreiben Sie einen qualifizierten Namen (z. B. Stufe.Hoch) oder fügen Sie eine Typannotation hinzu.",
         "E807": "Benennen Sie eine der Deklarationen um oder entfernen Sie das Duplikat.",
         "W800": "Benennen Sie die Deklaration um, falls die Verdeckung unbeabsichtigt ist; die Deklaration hat Vorrang vor dem Vokabulareintrag.",
-        "W801": "Fügen Sie dem Empfänger eine Typannotation hinzu, damit der Name anhand seines Typs geprüft werden kann."
+        "W801": "Fügen Sie dem Empfänger eine Typannotation hinzu, damit der Name anhand seines Typs geprüft werden kann.",
+        "E900": "Geben Sie jedes benannte Argument einer Annotation höchstens einmal an."
       }
     }
   },
@@ -343,6 +347,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E210": "प्रभाव चर {var} घोषित नहीं है",
         "E211": "प्रभाव चर {vars} को ठोस प्रभावों में हल नहीं किया जा सका",
         "E212": "'{func}' द्वारा बुलाए गए अंतर्निर्मित '{builtin}' का प्रभाव अज्ञात है; इसे शुद्ध नहीं माना जाता",
+        "E213": "'{func}' का प्रभाव पैरामीटर {name} अंतर्निर्मित प्रभाव के नाम जैसा ही है",
         "E300": "फ़ंक्शन '{func}' को {cap} क्षमता चाहिए पर मॉड्यूल '{module}' का मैनिफ़ेस्ट इसे अस्वीकार करता है।",
         "E301": "फ़ंक्शन '{func}' {cap} क्षमता उपयोग करता है पर हेडर [{declared}] घोषित करता है।",
         "E302": "फ़ंक्शन '{func}' {cap} क्षमता घोषित करता है पर उसका उपयोग नहीं करता।",
@@ -392,7 +397,8 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E806": "{role} स्थान पर पैटर्न '{written}' अस्पष्ट है, विकल्प: {candidates}",
         "E807": "{role} स्थान पर '{written}' की दोहरी घोषणा",
         "W800": "{role} स्थान पर घोषणा '{written}' एक शब्दावली प्रविष्टि को ढक देती है",
-        "W801": "{role} स्थान पर '{written}' ज्ञात रिसीवर टाइप के बिना हल हुआ"
+        "W801": "{role} स्थान पर '{written}' ज्ञात रिसीवर टाइप के बिना हल हुआ",
+        "E900": "एनोटेशन @{annotation} में तर्क {name} दोबारा दिया गया है"
       }
     },
     "diagnosticHelp": {
@@ -471,6 +477,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E210": "फ़ंक्शन हस्ताक्षर की प्रभाव पैरामीटर सूची में प्रभाव टाइप पैरामीटर जोड़ें।",
         "E211": "स्पष्ट प्रभाव (pure/cpu/io/workflow) दें या अप्रयुक्त प्रभाव चर हटाएँ।",
         "E212": "इसे ASTER_EFFECT_CONFIG उपसर्गों से घोषित करें, आयातित प्रभाव हस्ताक्षर दें, या ज्ञात stdlib नामस्थान उपयोग करें।",
+        "E213": "प्रभाव पैरामीटर का नाम बदलें; प्रभाव नाम io, cpu, pure और async किसी भी अक्षर-रूप (बड़े/छोटे) में आरक्षित हैं।",
         "E300": "क्षमता मैनिफ़ेस्ट अपडेट करें या फ़ंक्शन को अनुपालन हेतु बदलें।",
         "E301": "वास्तव में उपयोग की गई क्षमताएँ फ़ंक्शन हेडर में घोषित करें।",
         "E302": "स्पष्टता के लिए अप्रयुक्त क्षमता घोषणाएँ हटाएँ।",
@@ -520,7 +527,8 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E806": "योग्य नाम लिखें (जैसे Stufe.Hoch) या टाइप एनोटेशन जोड़ें।",
         "E807": "घोषणाओं में से एक का नाम बदलें या दोहराव हटाएँ।",
         "W800": "यदि ढकना अनचाहा है तो घोषणा का नाम बदलें; घोषणा को शब्दावली प्रविष्टि पर वरीयता मिलती है।",
-        "W801": "रिसीवर पर टाइप एनोटेशन जोड़ें ताकि नाम को उसके टाइप से जाँचा जा सके।"
+        "W801": "रिसीवर पर टाइप एनोटेशन जोड़ें ताकि नाम को उसके टाइप से जाँचा जा सके।",
+        "E900": "एनोटेशन के प्रत्येक नामित तर्क को अधिकतम एक बार दें।"
       }
     }
   },
@@ -601,6 +609,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E210": "效应变量 {var} 未声明",
         "E211": "效应变量 {vars} 无法推断出具体效果",
         "E212": "'{func}' 调用的内置函数 '{builtin}' 效果未知；不会假定其为纯函数",
+        "E213": "'{func}' 的效应参数 {name} 与内建效应同名",
         "E300": "函数 '{func}' 需要 {cap} 能力，但模块 '{module}' 的能力清单禁止该能力。",
         "E301": "函数 '{func}' 使用了 {cap} 能力，但函数头声明的是 [{declared}]。",
         "E302": "函数 '{func}' 声明了 {cap} 能力，但并未使用。",
@@ -650,7 +659,8 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E806": "{role} 位置的模式 '{written}' 存在歧义，候选: {candidates}",
         "E807": "在 {role} 位置重复声明 '{written}'",
         "W800": "{role} 位置的声明 '{written}' 遮蔽了词汇表条目",
-        "W801": "在 {role} 位置解析 '{written}' 时接收者类型未知"
+        "W801": "在 {role} 位置解析 '{written}' 时接收者类型未知",
+        "E900": "注解 @{annotation} 重复给出了参数 {name}"
       }
     },
     "diagnosticHelp": {
@@ -729,6 +739,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E210": "在函数签名的效果参数列表中添加效应类型参数。",
         "E211": "参考调用或声明补充明确的效果（pure/cpu/io/workflow），或移除未使用的效应变量。",
         "E212": "通过 ASTER_EFFECT_CONFIG 前缀声明其效果、提供导入的效果签名，或使用已知的标准库命名空间。",
+        "E213": "请给效应参数改名：效应名 io、cpu、pure、async 不论大小写都是保留名。",
         "E300": "更新能力清单或修改函数实现以符合限制。",
         "E301": "在函数头部声明实际使用到的能力。",
         "E302": "移除未使用的能力声明以保持清晰。",
@@ -778,7 +789,8 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E806": "请写限定名（如 Stufe.Hoch）或添加类型注解。",
         "E807": "重命名其中一个声明，或删除重复项。",
         "W800": "若非有意遮蔽请重命名声明；声明优先于词汇表条目。",
-        "W801": "为接收者添加类型注解，以便按其类型校验该名称。"
+        "W801": "为接收者添加类型注解，以便按其类型校验该名称。",
+        "E900": "注解的每个具名参数最多只能给出一次。"
       }
     }
   },

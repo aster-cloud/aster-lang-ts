@@ -5,9 +5,6 @@
     {
       "kind": "Func",
       "name": "print",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "msg",
@@ -60,9 +57,6 @@
     {
       "kind": "Func",
       "name": "readLine",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "retType": {
         "kind": "TypeName",
@@ -101,9 +95,6 @@
     {
       "kind": "Func",
       "name": "readFile",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "path",
@@ -156,9 +147,6 @@
     {
       "kind": "Func",
       "name": "writeFile",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "path",

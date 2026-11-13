@@ -18,7 +18,8 @@
  * use the LSP server. But PII flow analysis is correct here regardless.
  */
 
-import type { Core, TypecheckDiagnostic } from '../types.js';
+import type { Core, TypecheckDiagnostic, Ty } from '../types.js';
+import { originToSpan } from './pure.js';
 import type { EffectSignature } from '../effects/effect_signature.js';
 import { inferEffects } from '../effects/effect_inference_browser.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
@@ -214,10 +215,10 @@ export function typecheckBrowser(
     for (const d of m.decls) {
       if (d.kind === 'Func') {
         const params = signatureParamTypes(d.params);
-        let ret = normalizeType(d.ret as Core.Type);
+        let ret = normalizeType(d.ret as Ty.Type);
         if ((d as { retTypeInferred?: boolean }).retTypeInferred) {
           const inferred = TypeSystem.inferFunctionType(d.params, d.body.statements, fieldTypes)
-            .ret as Core.Type;
+            .ret as Ty.Type;
           if (!isUnknown(inferred)) ret = inferred;
         }
         ctx.funcSignatures.set(d.name, { params, ret });
@@ -227,8 +228,8 @@ export function typecheckBrowser(
     // Second pass: collect imports, data, enums
     for (const d of m.decls) {
       if (d.kind === 'Import') {
-        const alias = d.asName ?? d.name;
-        ctx.imports.set(alias, d.name);
+        const alias = d.alias ?? d.path;
+        ctx.imports.set(alias, d.path);
         // Note: In browser, we don't resolve imported modules from filesystem
         // The caller should provide importedEffects if cross-module checking is needed
       }
@@ -407,12 +408,12 @@ function typecheckFunc(ctx: ModuleContext, f: Core.Func, diagnostics: Diagnostic
 
   // Define parameters
   for (const param of f.params) {
-    const paramType = normalizeType(param.type as Core.Type);
+    const paramType = normalizeType(param.type as Ty.Type);
     defineSymbol(functionContext, param.name, paramType, 'param', undefined, param.typeInferred === true);
   }
 
   // Check function body
-  const declaredReturn = normalizeType(f.ret as Core.Type);
+  const declaredReturn = normalizeType(f.ret as Ty.Type);
   const retTypeInferred = (f as { retTypeInferred?: boolean }).retTypeInferred === true;
   // 每条 Return 路径都与声明类型比较，另有函数级兜底（aster-lang-ts#283）
   const bodyReturn = typecheckFunctionBody(ctx, symbols, f, declaredReturn, retTypeInferred, diagnostics);
@@ -426,8 +427,8 @@ function typecheckFunc(ctx: ModuleContext, f: Core.Func, diagnostics: Diagnostic
   // Generic type parameter checks
   const typeParams = (f as unknown as { typeParams?: readonly string[] }).typeParams ?? [];
   if (typeParams.length > 0 && !retTypeInferred) {
-    const bindings = new Map<string, Core.Type>();
-    unifyTypeParameters(declaredReturn, bodyReturn, bindings, diagnostics, f.ret?.span ?? f.span);
+    const bindings = new Map<string, Ty.Type>();
+    unifyTypeParameters(declaredReturn, bodyReturn, bindings, diagnostics, originToSpan(f.ret?.origin) ?? originToSpan(f.origin));
   }
 
   checkGenericTypeParameters(ctx, f, diagnostics);

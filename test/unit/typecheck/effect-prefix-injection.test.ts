@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import { collectEffects } from '../../../src/typecheck/effects.js';
 import type { ModuleContext } from '../../../src/typecheck/context.js';
 import type { Core } from '../../../src/types.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 function baseContext(): ModuleContext {
   return {
@@ -32,11 +33,11 @@ function baseContext(): ModuleContext {
 }
 
 function blockCalling(name: string): Core.Block {
-  const call: Core.Call = {
+  const call: Core.Call = toV2({
     kind: 'Call',
     target: { kind: 'Name', name } as Core.Name,
     args: [],
-  } as Core.Call;
+  }) as Core.Call;
   return { kind: 'Block', statements: [{ kind: 'Return', expr: call }] } as unknown as Core.Block;
 }
 

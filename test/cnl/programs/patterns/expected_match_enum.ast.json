@@ -8,36 +8,11 @@
       "variants": [
         "NotFound",
         "Invalid"
-      ],
-      "variantSpans": [
-        {
-          "start": {
-            "line": 3,
-            "col": 22
-          },
-          "end": {
-            "line": 3,
-            "col": 30
-          }
-        },
-        {
-          "start": {
-            "line": 3,
-            "col": 32
-          },
-          "end": {
-            "line": 3,
-            "col": 39
-          }
-        }
       ]
     },
     {
       "kind": "Func",
       "name": "explain",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "e",

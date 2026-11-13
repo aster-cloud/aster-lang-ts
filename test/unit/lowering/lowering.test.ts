@@ -115,7 +115,9 @@ Rule handle given result as Result, produce Int:
     assert.equal(matchStmt.kind, 'Match');
     const matchCore = matchStmt as Core.Match;
     assert.equal(matchCore.cases.length, 2);
-    assert.equal(matchCore.cases[0]!.pattern.kind, 'PatName');
+    // ADR 0055 #16：枚举变体模式（含与关键词构造器同名的 Ok / Err）是 0 参 PatCtor
+    assert.equal(matchCore.cases[0]!.pattern.kind, 'PatCtor');
+    assert.deepEqual((matchCore.cases[0]!.pattern as Core.PatCtor).args, []);
   });
 
   it('Maybe 类型应降级为 Core.Maybe 包装类型', () => {
@@ -271,7 +273,7 @@ Rule makeIdentity, produce Fn1:
     assert.equal(func.effectCapsExplicit, false);
   });
 
-  it('未知 effect 不报错，原样保留在 effects / declaredEffects（#304，与 core 一致）', () => {
+  it('未知 effect 不报错，且不写入 effects（#304；ADR 0055 #5：只有 io / cpu 授权）', () => {
     const funcDecl = Node.Func(
       'useUnknownEffect',
       [],
@@ -285,8 +287,8 @@ Rule makeIdentity, produce Fn1:
     const moduleAst = Node.Module('test.lowering.effectcaps.unknown', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const func = core.decls[0] as Core.Func;
-    assert.deepEqual(func.effects, ['teleport']);
-    assert.deepEqual((func as { declaredEffects?: unknown }).declaredEffects, ['teleport']);
+    assert.deepEqual(func.effects, []);
+    assert.equal('declaredEffects' in func, false);
   });
 
   it('Set 语句应降级为 Core.Set 并保留表达式', () => {
@@ -588,8 +590,10 @@ Rule makeIdentity, produce Fn1:
     const moduleAst = Node.Module('test.lowering.func.pii', null, [funcDecl]);
     const core = lowerAst(moduleAst);
     const func = core.decls[0] as Core.Func;
-    assert.equal(func.piiLevel, 'L2');
-    assert.deepEqual(func.piiCategories, ['name', 'email']);
+    // ADR 0055 #8：pii 聚合是派生值，v2 不再写入 IR；签名中的 PiiType 原样保留
+    assert.equal('piiLevel' in func, false);
+    assert.equal('piiCategories' in func, false);
+    assert.ok(func.params.some((p) => p.type.kind === 'PiiType'));
   });
 
   it('类型参数引用应降级为 Core.TypeVar', () => {
@@ -669,9 +673,9 @@ Rule makeIdentity, produce Fn1:
     const core = lowerAst(moduleAst);
     const decl = core.decls[0] as Core.Import;
     assert.equal(decl.kind, 'Import');
-    assert.equal(decl.name, 'Http.Client');
-    assert.equal(decl.asName, 'HttpClient');
-    assert.equal(Object.prototype.hasOwnProperty.call(decl, 'version'), false);
+    assert.equal(decl.path, 'Http.Client');
+    assert.equal(decl.alias, 'HttpClient');
+    assert.equal(decl.version, null);
   });
 
   it('Import version 应映射为 Core.Import version', () => {
@@ -681,9 +685,9 @@ Rule makeIdentity, produce Fn1:
     const core = lowerAst(moduleAst);
     const decl = core.decls[0] as Core.Import;
     assert.equal(decl.kind, 'Import');
-    assert.equal(decl.name, 'risk.Scoring');
+    assert.equal(decl.path, 'risk.Scoring');
     assert.equal(decl.version, 2);
-    assert.equal(decl.asName, 'Score');
+    assert.equal(decl.alias, 'Score');
   });
 
   it('Data 字段 CNL 约束应转换为 Core 约束', () => {
@@ -708,8 +712,9 @@ Rule makeIdentity, produce Fn1:
     assert.equal(requiredConstraint.kind, 'Required');
     assert.equal(rangeConstraint.kind, 'Range');
     if (rangeConstraint.kind === 'Range') {
-      assert.equal(rangeConstraint.min, 0);
-      assert.equal(rangeConstraint.max, 100);
+      // ADR 0055 #4：Range 两端为规范十进制串
+      assert.equal(rangeConstraint.min, '0');
+      assert.equal(rangeConstraint.max, '100');
     }
   });
 
@@ -781,6 +786,6 @@ Rule makeIdentity, produce Fn1:
     const retStmt = (core.decls[0] as Core.Func).body.statements[0] as Core.Return;
     const expr = retStmt.expr as Core.Double;
     assert.equal(expr.kind, 'Double');
-    assert.equal(expr.value, 3.14);
+    assert.equal(expr.value, '3.14');
   });
 });

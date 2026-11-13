@@ -166,8 +166,8 @@ class Analyzer {
         if (typeof d.name === 'string' && !this.funcs.has(d.name)) this.funcs.set(d.name, d);
       }
       if (d.kind === 'Import') {
-        if (typeof d.asName === 'string') this.importAliases.push(d.asName);
-        if (typeof d.name === 'string') this.importPaths.push(d.name);
+        if (d.alias !== null) this.importAliases.push(d.alias);
+        this.importPaths.push(d.path);
       }
     }
   }
@@ -240,13 +240,12 @@ class Analyzer {
     }
   }
 
-  /** 模式变量绑定到被匹配值的来源（PatCtor 的 names 与嵌套 args 都绑定，两引擎 IR 形状差异因此无影响）。 */
+  /** 模式变量绑定到被匹配值的来源（PatCtor 的绑定全部在 args 中，ADR 0055 #15）。 */
   private bindPattern(p: Core.Pattern | null | undefined, v: Src, f: Frame): void {
     if (!p) return;
     if (p.kind === 'PatName') bind(f, p.name, v);
     if (p.kind === 'PatCtor') {
-      for (const n of p.names ?? []) bind(f, n, v);
-      for (const a of p.args ?? []) this.bindPattern(a, v, f);
+      for (const a of p.args) this.bindPattern(a, v, f);
     }
   }
 

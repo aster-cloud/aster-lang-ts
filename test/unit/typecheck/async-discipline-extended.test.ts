@@ -7,6 +7,7 @@ import { lowerModule } from '../../../src/lower_to_core.js';
 import { typecheckModule } from '../../../src/typecheck.js';
 import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
 import type { Core, TypecheckDiagnostic } from '../../../src/types.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 function runTypecheck(source: string): TypecheckDiagnostic[] {
   const canonical = canonicalize(source);
@@ -18,20 +19,20 @@ function runTypecheck(source: string): TypecheckDiagnostic[] {
 
 describe('异步纪律补充测试', () => {
   it('collectAsync 缺失 origin 时仍应触发 Start 未 Wait 诊断', () => {
-    const start: Core.Start = {
+    const start: Core.Start = toV2({
       kind: 'Start',
       name: 'job',
       expr: { kind: 'Name', name: 'task' } as Core.Name
-    };
-    const ret: Core.Return = {
+    });
+    const ret: Core.Return = toV2({
       kind: 'Return',
       expr: { kind: 'Int', value: 0 } as Core.Int
-    };
-    const block: Core.Block = {
+    });
+    const block: Core.Block = toV2({
       kind: 'Block',
       statements: [start, ret]
-    };
-    const func: Core.Func = {
+    });
+    const func: Core.Func = toV2({
       kind: 'Func',
       name: 'demo',
       typeParams: [],
@@ -41,12 +42,12 @@ describe('异步纪律补充测试', () => {
       effectCapsExplicit: false,
       ret: { kind: 'TypeName', name: 'Int' } as Core.TypeName,
       body: block
-    };
-    const mod: Core.Module = {
+    });
+    const mod: Core.Module = toV2({
       kind: 'Module',
       name: 'test.async.manual',
       decls: [func]
-    };
+    });
 
     const diagnostics = typecheckModule(mod);
     const diag = diagnostics.find(d => d.code === ErrorCode.ASYNC_START_NOT_WAITED);
