@@ -10,7 +10,8 @@
  *   {
  *     "source": "<Aster CNL source>",
  *     "entry": "<function name to invoke>",
- *     "input": [<positional args>]
+ *     "input": [<positional args>],
+ *     "lexicon": "<optional lexicon id, e.g. zh-CN; defaults to en-US>"
  *   }
  *
  * Response shape (stdout):
@@ -21,7 +22,7 @@
  *   cd aster-lang-ts && pnpm install && pnpm build
  *   echo '{"source":"...","entry":"add","input":[1,2]}' | node scripts/dual-engine-runner.mjs
  */
-import { compile } from '../dist/src/browser.js';
+import { compile, LexiconRegistry, initializeAllBundledLexicons } from '../dist/src/browser.js';
 import { evaluate, serializeGuestValue } from '../dist/src/core/interpreter.js';
 
 async function readStdin() {
@@ -49,18 +50,34 @@ async function main() {
     process.exit(1);
   }
 
-  const { source, entry, input } = request;
+  const { source, entry, input, lexicon: lexiconId } = request;
   if (!source || !entry || !Array.isArray(input)) {
     process.stderr.write('Request must have { source, entry, input: [] }\n');
     process.exit(1);
   }
 
+  // 样本按其 meta 声明的词法表编译（core 自 b1ca8c1 起在请求中带 lexicon）；缺省为 en-US
+  let options = {};
+  if (lexiconId) {
+    initializeAllBundledLexicons();
+    const lexicon = LexiconRegistry.get(lexiconId);
+    if (!lexicon) {
+      process.stderr.write(`Unknown lexicon: ${lexiconId}\n`);
+      process.exit(1);
+    }
+    options = { lexicon };
+  }
+
   // Compile CNL source → Core IR
-  const compileResult = compile(source);
+  const compileResult = compile(source, options);
   if (!compileResult.success || !compileResult.core) {
     process.stdout.write(JSON.stringify({
       success: false,
-      error: `Compile failed: ${(compileResult.errors || []).map(e => e.message).join('; ')}`,
+      error: `Compile failed: ${[
+        ...(compileResult.parseErrors || []),
+        ...(compileResult.resolutionDiagnostics || []),
+        ...(compileResult.loweringDiagnostics || []),
+      ].map((e) => e.message).join('; ')}`,
     }) + '\n');
     process.exit(0);
   }

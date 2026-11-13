@@ -1154,7 +1154,8 @@ Rule second given value as T, produce T:
       const firstFunc = findFunc(module, 'first');
       const secondFunc = findFunc(module, 'second');
       assert.deepEqual(firstFunc.typeParams, ['T']);
-      assert.deepEqual(Array.from(secondFunc.typeParams).sort(), ['T']);
+      // typeParams 只含源码 `of T` 声明的类型参数（ADR 0055 #10）：second 未声明 T，不推断为类型参数
+      assert.deepEqual(Array.from(secondFunc.typeParams), []);
       const secondParam = secondFunc.params[0];
       assert.ok(secondParam, 'second 应该存在参数');
       if (!secondParam) {
@@ -1184,7 +1185,7 @@ Rule fetch given id as User, produce User:
       assert.equal(param.type.name, 'User');
     });
 
-    test('推断的类型变量在不同函数间独立', () => {
+    test('未声明的大写类型名不推断为类型参数（ADR 0055 #10）', () => {
       const module = parseSource(`
 Module test.parser.type_scope.independent.
 
@@ -1196,8 +1197,8 @@ Rule unwrap given value as Beta, produce Beta:
 `);
       const box = findFunc(module, 'box');
       const unwrap = findFunc(module, 'unwrap');
-      assert.deepEqual(Array.from(box.typeParams).sort(), ['Alpha']);
-      assert.deepEqual(Array.from(unwrap.typeParams).sort(), ['Beta']);
+      assert.deepEqual(Array.from(box.typeParams), []);
+      assert.deepEqual(Array.from(unwrap.typeParams), []);
     });
   });
 

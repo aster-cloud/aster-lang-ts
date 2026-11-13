@@ -343,7 +343,7 @@ export function parseFuncDecl(
   skipLayoutTrivia();
 
   // 解析可选的类型参数: 'of' TypeId ('and' TypeId)*
-  let typeParams: string[] = [];
+  const typeParams: string[] = [];
   skipLayoutTrivia();
   if (ctx.isKeyword('of')) {
     ctx.nextWord();
@@ -493,60 +493,8 @@ export function parseFuncDecl(
     error(Issue.expectedAfter(tokenName('dotOrColon'), tokenName('returnType'), "Expected '.' or ':' after return type"));
   }
 
-  // 如果没有显式声明类型参数，尝试从类型使用中推断
-  if (typeParams.length === 0) {
-    // 与 aster-lang-core AstBuilder.BUILTIN_TYPE_NAMES 一致：Decimal 是内置标量（ADR 0025），不能当作隐式类型参数（#276）。
-    // Unknown 是「类型未知」的占位名，源码写 `produce Unknown` 时同样不是类型参数（ADR 0055 #10，X1 裁决：
-    // 任何引擎都不补未声明的类型参数，ret 保持 TypeName Unknown）。
-    const BUILTINS = new Set(['Int', 'Bool', 'Text', 'Long', 'Double', 'Decimal', 'Number', 'Float', 'Option', 'Result', 'List', 'Map', 'Verdict', 'Unknown']);
-    const found = new Set<string>();
-
-    const visitType = (t: Type): void => {
-      switch (t.kind) {
-        case 'TypeName':
-          if (
-            /^[A-Z][A-Za-z0-9_]*$/.test(t.name) &&
-            !BUILTINS.has(t.name) &&
-            !ctx.declaredTypes.has(t.name)
-          ) {
-            found.add(t.name);
-          }
-          break;
-        case 'TypeApp':
-          t.args.forEach(visitType);
-          break;
-        // R30+ audit P1：TypeScript 在 union 上对 'kind' 已经能精确收窄，
-        // 这里直接用收窄后的 t，不需要 as any。
-        case 'Maybe':
-        case 'Option':
-        case 'List':
-          visitType(t.type);
-          break;
-        case 'Result':
-          visitType(t.ok);
-          visitType(t.err);
-          break;
-        case 'Map':
-          visitType(t.key);
-          visitType(t.val);
-          break;
-        case 'FuncType':
-          t.params.forEach(visitType);
-          visitType(t.ret);
-          break;
-        default:
-          break;
-      }
-    };
-
-    // 只看源码写出的类型：推断占位（省略返回类型时的 Unknown、未标注形参的推断类型）不是源码内容，
-    // 不能被当作隐式类型参数（ADR 0055 #10）。
-    for (const p of params) if (!p.typeInferred) visitType(p.type);
-    if (!retTypeInferred) visitType(retType);
-    if (found.size > 0) {
-      typeParams = Array.from(found);
-    }
-  }
+  // typeParams 只含源码 `of T` 声明的类型参数（ADR 0055 #10，与 Java AstBuilder 一致）：不再从签名中
+  // 未声明的大写类型名推断隐式类型参数；查不到的类型名由名称解析 R1 报 E800。
 
   // ★用 lastNonLayoutToken：直接取 ctx.tokens[ctx.index-1] 会把尾随的
   //   NEWLINE/DEDENT 算进 span，使声明范围延伸到下一个声明的起始行（span 重叠）。
