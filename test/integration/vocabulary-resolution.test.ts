@@ -74,7 +74,7 @@ const withoutOrigin = (m: Core.Module): string => JSON.stringify(m, (k, v) => (k
 
 function dataOf(core: Core.Module, name: string): Core.Data {
   const d = core.decls.find((x): x is Core.Data => x.kind === 'Data' && x.name === name);
-  assert.ok(d, `缺少 Data ${name}：${core.decls.map((x) => x.name).join(', ')}`);
+  assert.ok(d, `缺少 Data ${name}：${core.decls.map((x) => (x.kind === 'Import' ? x.path : x.name)).join(', ')}`);
   return d;
 }
 

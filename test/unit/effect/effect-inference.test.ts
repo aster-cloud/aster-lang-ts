@@ -6,7 +6,8 @@ import path from 'node:path';
 import { Effect } from '../../../src/types.js';
 import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
 import { ConfigService } from '../../../src/config/config-service.js';
-import type { Core, Origin } from '../../../src/types.js';
+import type { Core } from '../../../src/types.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 type InferEffectsFn = typeof import('../../../src/effects/effect_inference.js')['inferEffects'];
 
@@ -14,8 +15,8 @@ let inferEffects: InferEffectsFn;
 let tempDir = '';
 let defaultConfigPath = '';
 
-const UNIT_TYPE: Core.Type = { kind: 'TypeName', name: 'Unit' };
-const NULL_EXPR: Core.Null = { kind: 'Null' };
+const UNIT_TYPE: Core.Type = toV2({ kind: 'TypeName', name: 'Unit' });
+const NULL_EXPR: Core.Null = toV2({ kind: 'Null' });
 type Diagnostic = ReturnType<InferEffectsFn>[number];
 
 async function importEffectInference(cacheBust: string): Promise<{ inferEffects: InferEffectsFn }>
@@ -57,16 +58,18 @@ after(() => {
   }
 });
 
-function makeOrigin(label: string): Origin {
+function makeOrigin(label: string): Core.Origin {
   return {
     file: `${label}.aster`,
     start: { line: 1, col: 1 },
     end: { line: 1, col: 10 },
+    written: null,
+    role: null,
   };
 }
 
 function makeName(name: string): Core.Name {
-  return { kind: 'Name', name };
+  return toV2({ kind: 'Name', name });
 }
 
 function makeCall(name: string, args: Core.Expression[] = []): Core.Call {
@@ -79,24 +82,25 @@ function makeCall(name: string, args: Core.Expression[] = []): Core.Call {
 }
 
 function makeReturn(expr: Core.Expression): Core.Return {
-  return { kind: 'Return', expr };
+  return toV2({ kind: 'Return', expr });
 }
 
 function makeLet(name: string, expr: Core.Expression): Core.Let {
-  return { kind: 'Let', name, expr };
+  return toV2({ kind: 'Let', name, expr });
 }
 
 function makeBlock(statements: Core.Statement[]): Core.Block {
-  return { kind: 'Block', statements };
+  return toV2({ kind: 'Block', statements });
 }
 
 function makeLambda(body: Core.Block): Core.Lambda {
   return {
     kind: 'Lambda',
     params: [],
-    retType: UNIT_TYPE,
     ret: UNIT_TYPE,
     body,
+    captures: [],
+    origin: makeOrigin('lambda'),
   };
 }
 
@@ -107,7 +111,7 @@ interface FuncOptions {
 }
 
 function makeFunc({ name, declaredEffects = [], body }: FuncOptions): Core.Func {
-  return {
+  return toV2({
     kind: 'Func',
     name,
     typeParams: [],
@@ -117,15 +121,15 @@ function makeFunc({ name, declaredEffects = [], body }: FuncOptions): Core.Func 
     effectCapsExplicit: false,
     ret: UNIT_TYPE,
     body: body ?? makeBlock([makeReturn(NULL_EXPR)]),
-  };
+  });
 }
 
 function buildModule(funcs: Core.Func[]): Core.Module {
-  return {
+  return toV2({
     kind: 'Module',
     name: 'test.effect.inference',
     decls: funcs,
-  };
+  });
 }
 
 function runInference(funcs: Core.Func[], imports?: Map<string, string>): ReturnType<InferEffectsFn> {
@@ -385,7 +389,7 @@ describe('effect_inference 推断', () => {
   it('未绑定的效应变量应报 E211', () => {
     const poly = makeFunc({ name: 'polyVar' });
     (poly as any).effectParams = ['E'];
-    (poly as any).declaredEffects = [{ kind: 'EffectVar', name: 'E' } as Core.EffectVar];
+    (poly as any).effects = ['E'];
 
     const diagnostics = runInference([poly]);
     assert.ok(findDiagnostic(diagnostics, ErrorCode.EFFECT_VAR_UNRESOLVED, 'polyVar'));
@@ -399,7 +403,7 @@ describe('effect_inference 推断', () => {
     });
     const wrapper = makeFunc({ name: 'wrapper' });
     (wrapper as any).effectParams = ['E'];
-    (wrapper as any).declaredEffects = [{ kind: 'EffectVar', name: 'E' } as Core.EffectVar];
+    (wrapper as any).effects = ['E'];
     (wrapper as any).body = makeBlock([makeReturn(makeCall('ioProvider'))]);
 
     const diagnostics = runInference([callee, wrapper]);

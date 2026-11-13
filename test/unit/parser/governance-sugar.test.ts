@@ -75,15 +75,15 @@ describe('ADR 0046 — Profile 声明', () => {
     assert.equal(core.profile, 'eu-ai-act-high-risk');
   });
 
-  test('未声明档案时 Core.Module 不含 profile 键', () => {
+  test('未声明档案时 Core.Module.profile 为 null（ADR 0055 #12 恒输出）', () => {
     const core = toCore('Module m.\n\nRule r produce Int:\n  Return 1.\n');
-    assert.equal('profile' in core, false);
-    assert.equal(JSON.stringify(core).includes('"profile"'), false);
+    assert.equal(core.profile, null);
+    assert.equal(JSON.stringify(core).includes('"profile":null'), true);
   });
 
   test('小写 profile 参数名不受影响', () => {
     const core = toCore('Module m.\n\nRule r given profile, produce Int:\n  Return profile.\n');
-    assert.equal('profile' in core, false);
+    assert.equal(core.profile, null);
   });
 
   test('档案 id 形态非法抛错', () => {

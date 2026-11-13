@@ -1,21 +1,25 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "test.pii.ssn",
+  "profile": null,
   "decls": [
     {
       "kind": "Func",
       "name": "get_ssn",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -27,8 +31,7 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     }
   ]
 }

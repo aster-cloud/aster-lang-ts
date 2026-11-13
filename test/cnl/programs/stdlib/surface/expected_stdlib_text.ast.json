@@ -5,9 +5,6 @@
     {
       "kind": "Func",
       "name": "concat",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "left",
@@ -63,9 +60,6 @@
     {
       "kind": "Func",
       "name": "hasSubstring",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "haystack",

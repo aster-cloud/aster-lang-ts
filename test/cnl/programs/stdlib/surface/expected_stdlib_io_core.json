@@ -1,13 +1,12 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "std.io",
+  "profile": null,
   "decls": [
     {
       "kind": "Func",
       "name": "print",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "msg",
@@ -15,17 +14,21 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [
-        "IO"
+        "io"
       ],
+      "effectParams": [],
       "effectCaps": [
         "Http",
         "Sql",
@@ -35,6 +38,7 @@
         "AiModel"
       ],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -55,26 +59,23 @@
             }
           }
         ]
-      },
-      "declaredEffects": [
-        "IO"
-      ],
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "readLine",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [
-        "IO"
+        "io"
       ],
+      "effectParams": [],
       "effectCaps": [
         "Http",
         "Sql",
@@ -84,6 +85,7 @@
         "AiModel"
       ],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -99,18 +101,11 @@
             }
           }
         ]
-      },
-      "declaredEffects": [
-        "IO"
-      ],
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "readFile",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "path",
@@ -118,17 +113,21 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [
-        "IO"
+        "io"
       ],
+      "effectParams": [],
       "effectCaps": [
         "Http",
         "Sql",
@@ -138,6 +137,7 @@
         "AiModel"
       ],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -158,18 +158,11 @@
             }
           }
         ]
-      },
-      "declaredEffects": [
-        "IO"
-      ],
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "writeFile",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "path",
@@ -177,7 +170,7 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         },
         {
@@ -186,17 +179,21 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [
-        "IO"
+        "io"
       ],
+      "effectParams": [],
       "effectCaps": [
         "Http",
         "Sql",
@@ -206,6 +203,7 @@
         "AiModel"
       ],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -230,11 +228,7 @@
             }
           }
         ]
-      },
-      "declaredEffects": [
-        "IO"
-      ],
-      "retTypeInferred": true
+      }
     }
   ]
 }

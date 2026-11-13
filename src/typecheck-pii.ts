@@ -45,10 +45,6 @@ interface SinkDescriptor {
 const LEVEL_ORDER: Record<PiiLevel, number> = { L1: 1, L2: 2, L3: 3 } as const;
 const mergeCache = new Map<string, { level: PiiLevel; categories: readonly string[] }>();
 const assignmentCache = new Map<string, AssignmentDecision>();
-const SYNTHETIC_ORIGIN: Origin = {
-  start: { line: 0, col: 0 },
-  end: { line: 0, col: 0 },
-};
 
 const CONSOLE_SINKS = new Set(['print', 'IO.print', 'IO.println', 'log', 'Log.info', 'Log.debug', 'Console.log']);
 // 仅数据写入操作视为 sink（POST/PUT/PATCH 发送数据），读取操作（GET）不是 sink
@@ -136,7 +132,7 @@ function traverseBlock(block: Core.Block, env: PiiEnv, ctx: FunctionContext): vo
         const scopeBlock: Core.Block = {
           kind: 'Block',
           statements: stmt.statements,
-          origin: ensureOrigin(stmt.origin),
+          origin: stmt.origin,
         };
         traverseBlock(scopeBlock, env, ctx);
         break;
@@ -476,10 +472,7 @@ function bindPattern(pattern: Core.Pattern, meta: PiiMeta | null, env: PiiEnv): 
       env.set(pattern.name, cloneMeta(meta));
       break;
     case 'PatCtor':
-      if (pattern.names) {
-        for (const name of pattern.names) env.set(name, cloneMeta(meta));
-      }
-      if (pattern.args) {
+      {
         for (const arg of pattern.args) bindPattern(arg, meta, env);
       }
       break;
@@ -577,7 +570,7 @@ function metaFromType(type: Core.Type | undefined, origin?: Origin): PiiMeta | n
   if (!type) return null;
   if (type.kind === 'PiiType') {
     return {
-      level: type.sensitivity,
+      level: type.sensitivity as PiiLevel,
       categories: [type.category],
       sourceSpan: originToSpan(origin),
     };
@@ -590,9 +583,6 @@ function originToSpan(origin: Origin | undefined): Span | undefined {
   return { start: origin.start, end: origin.end };
 }
 
-function ensureOrigin(origin: Origin | undefined): Origin {
-  return origin ?? SYNTHETIC_ORIGIN;
-}
 
 function emitDiagnostic(
   diagnostics: TypecheckDiagnostic[],

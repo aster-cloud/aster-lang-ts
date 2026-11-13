@@ -1,21 +1,25 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "demo.interop.sumdemo",
+  "profile": null,
   "decls": [
     {
       "kind": "Func",
       "name": "sumInt",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -40,23 +44,24 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "sumLong",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -81,23 +86,24 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "sumDouble",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -112,33 +118,34 @@
               "args": [
                 {
                   "kind": "Double",
-                  "value": 1
+                  "value": "1"
                 },
                 {
                   "kind": "Double",
-                  "value": 2
+                  "value": "2"
                 }
               ]
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "sumIntLong",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -163,23 +170,24 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "sumIntDouble",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -198,14 +206,13 @@
                 },
                 {
                   "kind": "Double",
-                  "value": 2
+                  "value": "2"
                 }
               ]
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     }
   ]
 }

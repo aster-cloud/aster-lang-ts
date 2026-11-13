@@ -30,7 +30,7 @@ function diagnose(body: string): string[] {
 
 /** 手工构造一个规则函数，用于覆盖 CNL 语法难以产出的 Core 形态。 */
 function handFunc(name: string, body: CoreTypes.Block, annotations: readonly Annotation[] = []): CoreTypes.Func {
-  return Core.Func(name, [], [], Core.TypeName('Unknown'), [], body, [], false, undefined, undefined, annotations);
+  return Core.Func(name, [], [], Core.TypeName('Unknown'), [], body, [], false, [], annotations.map((a) => ({ name: a.name, args: [...(a.args ?? [])] })));
 }
 
 const VERDICT_RULE = 'Rule main produce Verdict:\n  Return Verdict.allow().';

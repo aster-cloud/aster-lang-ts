@@ -5,9 +5,6 @@
     {
       "kind": "Func",
       "name": "inc",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "x",
@@ -42,9 +39,6 @@
     {
       "kind": "Func",
       "name": "maybeWithDefault",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "x",
@@ -100,9 +94,6 @@
     {
       "kind": "Func",
       "name": "mapMaybe",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "x",
@@ -150,9 +141,6 @@
     {
       "kind": "Func",
       "name": "logErr",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "e",
@@ -187,9 +175,6 @@
     {
       "kind": "Func",
       "name": "mapOk",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "r",
@@ -237,9 +222,6 @@
     {
       "kind": "Func",
       "name": "tapError",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "r",

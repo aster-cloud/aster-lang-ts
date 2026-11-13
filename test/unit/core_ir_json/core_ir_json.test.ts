@@ -8,35 +8,36 @@ import {
 } from '../../../src/core/core_ir_json.js';
 import type { Core } from '../../../src/types.js';
 import { Effect } from '../../../src/config/semantic.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 // 辅助函数：创建最小化 Core.Module 用于测试
 function createMinimalModule(name: string | null = null): Core.Module {
-  return {
+  return toV2({
     kind: 'Module',
     name,
     decls: [],
-  };
+  });
 }
 
 // 辅助函数：创建带声明的 Core.Module
 function createModuleWithDecls(): Core.Module {
-  const funcDecl: Core.Func = {
+  const funcDecl: Core.Func = toV2({
     kind: 'Func',
     name: 'testFunc',
     typeParams: [],
     params: [],
-    ret: { kind: 'TypeName', name: 'Int' },
+    ret: toV2({ kind: 'TypeName', name: 'Int' }),
     effects: [],
     effectCaps: [],
     effectCapsExplicit: false,
-    body: { kind: 'Block', statements: [] },
-  };
+    body: toV2({ kind: 'Block', statements: [] }),
+  });
 
-  return {
+  return toV2({
     kind: 'Module',
     name: 'TestModule',
     decls: [funcDecl],
-  };
+  });
 }
 
 describe('Core IR JSON 序列化', () => {

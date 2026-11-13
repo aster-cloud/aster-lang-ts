@@ -196,7 +196,10 @@ export class ScheduleBuilder extends DefaultCoreVisitor {
         return;
       }
       case 'Scope':
-        this.visitBlock({ kind: 'Block', statements: statement.statements }, ctx);
+        this.visitBlock({ ...statement, kind: 'Block' }, ctx);
+        return;
+      case 'Block':
+        this.visitBlock(statement, ctx);
         return;
       case 'Start':
         this.visitExpression(statement.expr, ctx);

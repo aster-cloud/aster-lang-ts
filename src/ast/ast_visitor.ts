@@ -6,7 +6,7 @@ import type {
   Expression,
   Pattern,
   Type,
-  Core,
+  Ty,
 } from '../types.js';
 
 /**
@@ -26,24 +26,24 @@ export interface AstVisitor<Ctx, R = void> {
 }
 
 /**
- * 统一的 Core.Type 遍历器接口。
+ * 统一的 Ty.Type 遍历器接口。
  *
- * 用于遍历 Core.Type 树结构，支持自定义访问逻辑。
+ * 用于遍历 Ty.Type 树结构，支持自定义访问逻辑。
  * 子类可覆写特定 visit 方法并通过 visitType 继续遍历。
  */
 export interface TypeVisitor<Ctx, R = void> {
-  visitType(t: Core.Type, ctx: Ctx): R;
-  visitTypeVar?(v: Core.TypeVar, ctx: Ctx): R;
-  visitEffectVar?(v: Core.EffectVar, ctx: Ctx): R;
-  visitTypeName?(n: Core.TypeName, ctx: Ctx): R;
-  visitMaybe?(m: Core.Maybe, ctx: Ctx): R;
-  visitOption?(o: Core.Option, ctx: Ctx): R;
-  visitResult?(r: Core.Result, ctx: Ctx): R;
-  visitList?(l: Core.List, ctx: Ctx): R;
-  visitMap?(m: Core.Map, ctx: Ctx): R;
-  visitTypeApp?(a: Core.TypeApp, ctx: Ctx): R;
-  visitFuncType?(f: Core.FuncType, ctx: Ctx): R;
-  visitPiiType?(p: Core.PiiType, ctx: Ctx): R;
+  visitType(t: Ty.Type, ctx: Ctx): R;
+  visitTypeVar?(v: Ty.TypeVar, ctx: Ctx): R;
+  visitEffectVar?(v: Ty.EffectVar, ctx: Ctx): R;
+  visitTypeName?(n: Ty.TypeName, ctx: Ctx): R;
+  visitMaybe?(m: Ty.Maybe, ctx: Ctx): R;
+  visitOption?(o: Ty.Option, ctx: Ctx): R;
+  visitResult?(r: Ty.Result, ctx: Ctx): R;
+  visitList?(l: Ty.List, ctx: Ctx): R;
+  visitMap?(m: Ty.Map, ctx: Ctx): R;
+  visitTypeApp?(a: Ty.TypeApp, ctx: Ctx): R;
+  visitFuncType?(f: Ty.FuncType, ctx: Ctx): R;
+  visitPiiType?(p: Ty.PiiType, ctx: Ctx): R;
 }
 
 /**
@@ -53,82 +53,82 @@ export interface TypeVisitor<Ctx, R = void> {
  * 并通过调用 this.visitType() 继续遍历子类型。
  */
 export class DefaultTypeVisitor<Ctx> implements TypeVisitor<Ctx, void> {
-  visitType(t: Core.Type, ctx: Ctx): void {
+  visitType(t: Ty.Type, ctx: Ctx): void {
     switch (t.kind) {
       case 'TypeVar':
-        return this.visitTypeVar?.(t as Core.TypeVar, ctx);
+        return this.visitTypeVar?.(t as Ty.TypeVar, ctx);
       case 'EffectVar':
-        return this.visitEffectVar?.(t as Core.EffectVar, ctx);
+        return this.visitEffectVar?.(t as Ty.EffectVar, ctx);
       case 'TypeName':
-        return this.visitTypeName?.(t as Core.TypeName, ctx);
+        return this.visitTypeName?.(t as Ty.TypeName, ctx);
       case 'Maybe':
-        return this.visitMaybe?.(t as Core.Maybe, ctx);
+        return this.visitMaybe?.(t as Ty.Maybe, ctx);
       case 'Option':
-        return this.visitOption?.(t as Core.Option, ctx);
+        return this.visitOption?.(t as Ty.Option, ctx);
       case 'Result':
-        return this.visitResult?.(t as Core.Result, ctx);
+        return this.visitResult?.(t as Ty.Result, ctx);
       case 'List':
-        return this.visitList?.(t as Core.List, ctx);
+        return this.visitList?.(t as Ty.List, ctx);
       case 'Map':
-        return this.visitMap?.(t as Core.Map, ctx);
+        return this.visitMap?.(t as Ty.Map, ctx);
       case 'TypeApp':
-        return this.visitTypeApp?.(t as Core.TypeApp, ctx);
+        return this.visitTypeApp?.(t as Ty.TypeApp, ctx);
       case 'FuncType':
-        return this.visitFuncType?.(t as unknown as Core.FuncType, ctx);
+        return this.visitFuncType?.(t as unknown as Ty.FuncType, ctx);
       case 'PiiType':
-        return this.visitPiiType?.(t as Core.PiiType, ctx);
+        return this.visitPiiType?.(t as Ty.PiiType, ctx);
     }
   }
 
   // 默认实现递归遍历子类型
-  visitTypeVar?(_v: Core.TypeVar, _ctx: Ctx): void {
+  visitTypeVar?(_v: Ty.TypeVar, _ctx: Ctx): void {
     // TypeVar 是叶节点，无子类型
   }
 
-  visitEffectVar?(_v: Core.EffectVar, _ctx: Ctx): void {
+  visitEffectVar?(_v: Ty.EffectVar, _ctx: Ctx): void {
     // EffectVar 是叶节点
   }
 
-  visitTypeName?(_n: Core.TypeName, _ctx: Ctx): void {
+  visitTypeName?(_n: Ty.TypeName, _ctx: Ctx): void {
     // TypeName 是叶节点，无子类型
   }
 
-  visitMaybe?(m: Core.Maybe, ctx: Ctx): void {
+  visitMaybe?(m: Ty.Maybe, ctx: Ctx): void {
     this.visitType(m.type, ctx);
   }
 
-  visitOption?(o: Core.Option, ctx: Ctx): void {
+  visitOption?(o: Ty.Option, ctx: Ctx): void {
     this.visitType(o.type, ctx);
   }
 
-  visitResult?(r: Core.Result, ctx: Ctx): void {
+  visitResult?(r: Ty.Result, ctx: Ctx): void {
     this.visitType(r.ok, ctx);
     this.visitType(r.err, ctx);
   }
 
-  visitList?(l: Core.List, ctx: Ctx): void {
+  visitList?(l: Ty.List, ctx: Ctx): void {
     this.visitType(l.type, ctx);
   }
 
-  visitMap?(m: Core.Map, ctx: Ctx): void {
+  visitMap?(m: Ty.Map, ctx: Ctx): void {
     this.visitType(m.key, ctx);
     this.visitType(m.val, ctx);
   }
 
-  visitTypeApp?(a: Core.TypeApp, ctx: Ctx): void {
+  visitTypeApp?(a: Ty.TypeApp, ctx: Ctx): void {
     for (const arg of a.args) {
       this.visitType(arg, ctx);
     }
   }
 
-  visitFuncType?(f: Core.FuncType, ctx: Ctx): void {
+  visitFuncType?(f: Ty.FuncType, ctx: Ctx): void {
     for (const param of f.params) {
       this.visitType(param, ctx);
     }
     this.visitType(f.ret, ctx);
   }
 
-  visitPiiType?(p: Core.PiiType, ctx: Ctx): void {
+  visitPiiType?(p: Ty.PiiType, ctx: Ctx): void {
     this.visitType(p.baseType, ctx);
   }
 }

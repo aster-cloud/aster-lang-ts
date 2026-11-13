@@ -53,10 +53,10 @@ describe('未知效果名（#304）', () => {
     assert.equal(f.effectCapsExplicit, false);
   });
 
-  it('lowering 不报 E601，IR 的 effects / declaredEffects 原样保留效果名', () => {
+  it('lowering 不报 E601；未知效果名不授权任何效应，IR 的 effects 不写入它（ADR 0055 #5）', () => {
     const fn = firstFunc(lowerSrc(pureBody(' teleport')));
-    assert.deepEqual(fn.effects, ['teleport']);
-    assert.deepEqual((fn as { declaredEffects?: unknown }).declaredEffects, ['teleport']);
+    assert.deepEqual(fn.effects, []);
+    assert.equal('declaredEffects' in fn, false);
     assert.deepEqual(fn.effectCaps, []);
     assert.equal(fn.effectCapsExplicit, false);
   });
@@ -68,9 +68,9 @@ describe('未知效果名（#304）', () => {
     assert.equal(result.parseErrors, undefined);
   });
 
-  it('带能力列表时效果名与能力分别保留', () => {
+  it('带能力列表时能力照常保留，未知效果名不写入 effects', () => {
     const fn = firstFunc(lowerSrc(ioBody(' teleport [Http]')));
-    assert.deepEqual(fn.effects, ['teleport']);
+    assert.deepEqual(fn.effects, []);
     assert.deepEqual(fn.effectCaps, ['Http']);
     assert.equal(fn.effectCapsExplicit, true);
   });
@@ -85,9 +85,9 @@ describe('未知效果名（#304）', () => {
     assert.ok(unknown.some((d) => d.severity === 'error'), JSON.stringify(unknown));
   });
 
-  it('已知效果不受影响：`It performs io` 仍是 IO', () => {
+  it('已知效果不受影响：`It performs io` 写为小写 io（ADR 0055 #5）', () => {
     const fn = firstFunc(lowerSrc(ioBody(' io')));
-    assert.deepEqual(fn.effects, ['IO']);
+    assert.deepEqual(fn.effects, ['io']);
   });
 
   // core 词法把这些词识别为关键词 token，`IT PERFORMS IDENT` 拒绝；ts 必须同样拒绝（#304 审查 F1）

@@ -7,6 +7,7 @@ import { lowerModule } from '../../../src/lower_to_core.js';
 import { typecheckModule } from '../../../src/typecheck.js';
 import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
 import type { TypecheckDiagnostic, Core } from '../../../src/types.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 function runTypecheck(source: string): TypecheckDiagnostic[] {
   const canonical = canonicalize(source);
@@ -19,30 +20,30 @@ function runTypecheck(source: string): TypecheckDiagnostic[] {
 describe('泛型诊断', () => {
   it('未声明的类型变量应触发 TYPE_VAR_UNDECLARED', () => {
     const typeVar = (name: string) => ({ kind: 'TypeVar', name }) as Core.TypeVar;
-    const func: Core.Func = {
+    const func: Core.Func = toV2({
       kind: 'Func',
       name: 'useUndefined',
       typeParams: [],
-      params: [{ name: 'value', type: typeVar('T') }],
+      params: [toV2({ name: 'value', type: typeVar('T') })],
       effects: [],
       effectCaps: [],
       effectCapsExplicit: false,
       ret: typeVar('T'),
-      body: {
+      body: toV2({
         kind: 'Block',
         statements: [
-          {
+          toV2({
             kind: 'Return',
             expr: { kind: 'Name', name: 'value' } as Core.Name
-          }
+          })
         ]
-      }
-    };
-    const mod: Core.Module = {
+      })
+    });
+    const mod: Core.Module = toV2({
       kind: 'Module',
       name: 'test.typecheck.generic.undeclared',
       decls: [func]
-    };
+    });
     const diagnostics = typecheckModule(mod);
     assert.equal(
       diagnostics.some(d => d.code === ErrorCode.TYPE_VAR_UNDECLARED),
@@ -53,30 +54,30 @@ describe('泛型诊断', () => {
 
   it('疑似类型变量的未知类型名不触发 TYPEVAR_LIKE_UNDECLARED（与 Java 一致，#281）', () => {
     const typeName = (name: string) => ({ kind: 'TypeName', name }) as Core.TypeName;
-    const func: Core.Func = {
+    const func: Core.Func = toV2({
       kind: 'Func',
       name: 'wrap',
       typeParams: [],
-      params: [{ name: 'value', type: typeName('Foo') }],
+      params: [toV2({ name: 'value', type: typeName('Foo') })],
       effects: [],
       effectCaps: [],
       effectCapsExplicit: false,
       ret: typeName('Foo'),
-      body: {
+      body: toV2({
         kind: 'Block',
         statements: [
-          {
+          toV2({
             kind: 'Return',
             expr: { kind: 'Name', name: 'value' } as Core.Name
-          }
+          })
         ]
-      }
-    };
-    const mod: Core.Module = {
+      })
+    });
+    const mod: Core.Module = toV2({
       kind: 'Module',
       name: 'test.typecheck.generic.like_undeclared',
       decls: [func]
-    };
+    });
     const diagnostics = typecheckModule(mod);
     assert.equal(
       diagnostics.some(d => d.code === ErrorCode.TYPEVAR_LIKE_UNDECLARED),

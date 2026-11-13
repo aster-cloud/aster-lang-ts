@@ -9,9 +9,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { TypeSystem } from '../../../src/typecheck/type_system.js';
 import { Effect } from '../../../src/config/semantic.js';
-import type { Core } from '../../../src/types.js';
+import type { Core, Ty } from '../../../src/types.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
-const makeFuncType = (override: Partial<Core.FuncType> = {}): Core.FuncType => ({
+const makeFuncType = (override: Partial<Ty.FuncType> = {}): Ty.FuncType => ({
   kind: 'FuncType',
   params: [],
   ret: { kind: 'TypeName', name: 'Int' },
@@ -20,13 +21,13 @@ const makeFuncType = (override: Partial<Core.FuncType> = {}): Core.FuncType => (
 
 const makeWorkflow = (
   resultName: string,
-  effect: Core.Type,
+  effect: Ty.Type,
   options: { lazyBase?: boolean } = {}
-): Core.TypeApp => {
+): Ty.TypeApp => {
   const args = [
-    { kind: 'TypeName', name: resultName } satisfies Core.Type,
+    { kind: 'TypeName', name: resultName } satisfies Ty.Type,
     effect,
-  ] as readonly Core.Type[];
+  ] as readonly Ty.Type[];
   if (!options.lazyBase) {
     return {
       kind: 'TypeApp',
@@ -42,16 +43,16 @@ const makeWorkflow = (
       return baseAccess === 2 ? 'NotWorkflow' : 'Workflow';
     },
     args,
-  } as Core.TypeApp;
+  } as Ty.TypeApp;
 };
 
 describe('TypeSystem effect lattice 与 EffectVar 绑定', () => {
   it('应该按照 PURE→CPU→IO→Workflow 偏序判断子类型', () => {
     // 验证 effectRank 处理 TypeName 与 TypeApp Workflow 的顺序
-    const pure: Core.TypeName = { kind: 'TypeName', name: 'PURE' };
-    const cpu: Core.TypeName = { kind: 'TypeName', name: 'CPU' };
-    const io: Core.TypeName = { kind: 'TypeName', name: 'IO' };
-    const workflowEffect: Core.TypeName = { kind: 'TypeName', name: 'Workflow' };
+    const pure: Ty.TypeName = { kind: 'TypeName', name: 'PURE' };
+    const cpu: Ty.TypeName = { kind: 'TypeName', name: 'CPU' };
+    const io: Ty.TypeName = { kind: 'TypeName', name: 'IO' };
+    const workflowEffect: Ty.TypeName = { kind: 'TypeName', name: 'Workflow' };
     const workflowType = makeWorkflow('Text', io);
 
     assert.ok(TypeSystem.isSubtype(pure, cpu));
@@ -64,10 +65,10 @@ describe('TypeSystem effect lattice 与 EffectVar 绑定', () => {
 
   it('应该拒绝 EffectVar 绑定到不同的 effect', () => {
     // 绑定 CPU 后，尝试再绑定 IO，触发 bindEffectVar 冲突路径
-    const fx: Core.EffectVar = { kind: 'EffectVar', name: 'FX' };
-    const bindings = new Map<string, Core.Type>();
-    const cpu: Core.TypeName = { kind: 'TypeName', name: 'CPU' };
-    const io: Core.TypeName = { kind: 'TypeName', name: 'IO' };
+    const fx: Ty.EffectVar = { kind: 'EffectVar', name: 'FX' };
+    const bindings = new Map<string, Ty.Type>();
+    const cpu: Ty.TypeName = { kind: 'TypeName', name: 'CPU' };
+    const io: Ty.TypeName = { kind: 'TypeName', name: 'IO' };
 
     assert.ok(TypeSystem.unify(fx, cpu, bindings));
     assert.deepStrictEqual(bindings.get('$effect:FX'), cpu);
@@ -84,9 +85,9 @@ describe('TypeSystem.inferListElementType', () => {
   it('应该在所有元素类型一致时返回该类型', () => {
     // list 字面全部是 Int 时返回 Int
     const ints: Core.Expression[] = [
-      { kind: 'Int', value: 1 },
-      { kind: 'Int', value: 2 },
-      { kind: 'Int', value: 3 },
+      toV2({ kind: 'Int', value: 1 }),
+      toV2({ kind: 'Int', value: 2 }),
+      toV2({ kind: 'Int', value: 3 }),
     ];
     const inferred = TypeSystem.inferListElementType(ints);
 
@@ -96,8 +97,8 @@ describe('TypeSystem.inferListElementType', () => {
   it('应该在元素类型不一致时退回 Unknown', () => {
     // list 字面混合 Int 与 Text 必须回退 Unknown
     const mixed: Core.Expression[] = [
-      { kind: 'Int', value: 1 },
-      { kind: 'String', value: 'oops' },
+      toV2({ kind: 'Int', value: 1 }),
+      toV2({ kind: 'String', value: 'oops' }),
     ];
     const inferred = TypeSystem.inferListElementType(mixed);
 

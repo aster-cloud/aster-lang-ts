@@ -5,7 +5,7 @@
  * R2 只读取（不删除），因此同一 Core 上重复运行 R2 结果相同；R2 的输出由新节点构成，不再携带标记。与 inferred_fields 相同，以对象身份为键的旁路表携带，不进入 Core IR，
  * 因此未运行 R2 时 IR、golden 与跨引擎指纹均不变；反序列化得到的 Core 不带标记。
  */
-import type { Core, Origin, ResolvedRole } from '../types.js';
+import type { Core, ResolvedRole } from '../types.js';
 
 export interface ResolutionMark {
   /** 源码原写法 */
@@ -32,15 +32,14 @@ export function resolutionMarkOf(node: MarkableNode): ResolutionMark | undefined
 }
 
 /**
- * 在 origin 上记录原写法与角色：仅当写法与规范名不同且节点带 origin 时写入，
- * 否则原样返回（不新增 origin）。
+ * 在 origin 上记录原写法与角色：仅当写法与规范名不同时写入，否则原样返回。
  */
 export function withResolvedOrigin(
-  origin: Origin | undefined,
+  origin: Core.Origin,
   written: string,
   canonical: string,
   role: ResolvedRole
-): Origin | undefined {
-  if (!origin || written === canonical) return origin;
+): Core.Origin {
+  if (written === canonical) return origin;
   return { ...origin, written, role };
 }

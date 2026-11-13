@@ -22,8 +22,7 @@ import { compile, type JSONSchema } from 'json-schema-to-typescript';
 type SchemaNode = Record<string, unknown>;
 
 /** 生成物文件头。 */
-const BANNER = `/* eslint-disable */
-/**
+const BANNER = `/**
  * 本文件由 scripts/generate-core-ir-types.ts 从 shared/core-ir.v2.schema.json 生成，请勿手改。
  * Core IR v2 的字段契约（ADR 0055）；Core.* 类型须与这里的类型双向可赋值。
  */`;
@@ -97,8 +96,7 @@ export async function renderCoreIrTypes(schema: SchemaNode): Promise<string> {
 
 /** 渲染 schema 常量模块。 */
 export function renderCoreIrSchemaModule(schema: SchemaNode): string {
-  return `/* eslint-disable */
-/**
+  return `/**
  * 本文件由 scripts/generate-core-ir-types.ts 从 shared/core-ir.v2.schema.json 生成，请勿手改。
  * Core IR v2 JSON Schema（ADR 0055 §3）的内置副本，与 shared/ 中的副本深度相等。
  */

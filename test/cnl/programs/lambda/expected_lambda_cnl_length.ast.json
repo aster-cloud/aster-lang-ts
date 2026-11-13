@@ -5,9 +5,6 @@
     {
       "kind": "Func",
       "name": "lengthOf",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "s",

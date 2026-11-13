@@ -173,7 +173,7 @@ function coversFramework(key: string, p: ProfileDef, registry: ControlRegistry):
 
 /** 声明了档案的模块按档案要求检查；未知档案报 E705 后不再做档案检查。 */
 function resolveProfile(module: GovernanceModule, b: DiagnosticBuilder, registry: ControlRegistry): ProfileDef | undefined {
-  if (module.profile === undefined) return undefined;
+  if (module.profile === undefined || module.profile === null) return undefined;
   const profile = registry.profile?.(module.profile);
   if (!profile) {
     b.error(ErrorCode.GOV_PROFILE_UNKNOWN, originToSpan(module.origin), {
@@ -195,7 +195,7 @@ function checkReservedTypeName(decl: Core.Declaration, b: DiagnosticBuilder): vo
 /** 治理检查所需的模块视图：Core.Module 满足此形状，测试可只给 decls。 */
 export interface GovernanceModule {
   readonly name: string | null;
-  readonly profile?: string;
+  readonly profile?: string | null;
   readonly decls: readonly Core.Declaration[];
   readonly origin?: Origin;
 }

@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * 本文件由 scripts/generate-core-ir-types.ts 从 shared/core-ir.v2.schema.json 生成，请勿手改。
  * Core IR v2 的字段契约（ADR 0055）；Core.* 类型须与这里的类型双向可赋值。

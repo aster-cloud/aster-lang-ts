@@ -1,6 +1,8 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": null,
+  "profile": null,
   "decls": [
     {
       "kind": "Enum",
@@ -13,9 +15,6 @@
     {
       "kind": "Func",
       "name": "show2",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "e",
@@ -23,17 +22,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -47,8 +51,9 @@
               {
                 "kind": "Case",
                 "pattern": {
-                  "kind": "PatName",
-                  "name": "InvalidCreds"
+                  "kind": "PatCtor",
+                  "typeName": "InvalidCreds",
+                  "args": []
                 },
                 "body": {
                   "kind": "Return",
@@ -75,8 +80,7 @@
             ]
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     }
   ]
 }

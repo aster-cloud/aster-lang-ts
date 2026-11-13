@@ -18,6 +18,7 @@ import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
 import { Core as CoreBuilder } from '../../../src/core/core_ir.js';
 import { Effect } from '../../../src/config/semantic.js';
 import type { Core } from '../../../src/types.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
 // 注入故障 fixture：构造一个会让 PII analyzer 内部失败的边界 input。
 // checkModulePII 设计稳定，让它真实失败需要 monkey-patch。我们改用更直接的
@@ -33,7 +34,7 @@ describe('typecheckBrowser — PII analyzer failure handling (P0-R)', () => {
     const fn = CoreBuilder.Func(
       'normal',
       [],
-      [{ name: 'x', type: CoreBuilder.TypeName('Text') }],
+      [toV2({ name: 'x', type: CoreBuilder.TypeName('Text') })],
       CoreBuilder.TypeName('Text'),
       [Effect.PURE],
       CoreBuilder.Block([CoreBuilder.Return(CoreBuilder.Name('x'))]),
@@ -97,7 +98,7 @@ describe('typecheckBrowser — PII analyzer failure injection (true fault-inject
       const fn = CoreBuilder.Func(
         'test_fn',
         [],
-        [{ name: 'x', type: CoreBuilder.TypeName('Text') }],
+        [toV2({ name: 'x', type: CoreBuilder.TypeName('Text') })],
         CoreBuilder.TypeName('Text'),
         [Effect.PURE],
         CoreBuilder.Block([CoreBuilder.Return(CoreBuilder.Name('x'))]),
@@ -253,7 +254,7 @@ describe('typecheckBrowser — PII analyzer failure injection (true fault-inject
     const fn = CoreBuilder.Func(
       'no_pii',
       [],
-      [{ name: 'plain', type: CoreBuilder.TypeName('Text') }],
+      [toV2({ name: 'plain', type: CoreBuilder.TypeName('Text') })],
       CoreBuilder.TypeName('Text'),
       [Effect.PURE],
       CoreBuilder.Block([CoreBuilder.Return(CoreBuilder.Name('plain'))]),

@@ -1,13 +1,12 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "demo.ifp",
+  "profile": null,
   "decls": [
     {
       "kind": "Func",
       "name": "choose",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "flag",
@@ -15,16 +14,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -73,8 +78,7 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     }
   ]
 }

@@ -2,30 +2,31 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import type { Core } from '../../src/types.js';
-import { Effect } from '../../src/config/semantic.js';
 import { Core as CoreBuilder } from '../../src/core/core_ir.js';
 import { typecheckModule } from '../../src/typecheck.js';
 import { ErrorCode } from '../../src/diagnostics/error_codes.js';
+import { toV2 } from '../helpers/core-ir-v2.js';
 
-const IO_EFFECT: readonly Effect[] = [Effect.IO];
-const PURE_EFFECT: readonly Effect[] = [Effect.PURE];
+// Core IR v2 的 effects 只含小写的 io / cpu；pure 不写入（ADR 0055 #5）
+const IO_EFFECT: readonly string[] = ['io'];
+const PURE_EFFECT: readonly string[] = [];
 
 const TEXT = (): Core.Type => CoreBuilder.TypeName('Text');
 const piiType = (level: 'L1' | 'L2' | 'L3', category: Core.PiiType['category']): Core.Type =>
   CoreBuilder.Pii(TEXT(), level, category);
 
-const plainParam = (name: string): Core.Parameter => ({ name, type: TEXT() });
-const piiParam = (name: string, level: 'L1' | 'L2' | 'L3'): Core.Parameter => ({
+const plainParam = (name: string): Core.Parameter => (toV2({ name, type: TEXT() }));
+const piiParam = (name: string, level: 'L1' | 'L2' | 'L3'): Core.Parameter => (toV2({
   name,
   type: piiType(level, 'email'),
-});
+}));
 
 function makeFunc(options: {
   name: string;
   params: readonly Core.Parameter[];
   ret: Core.Type;
   body: readonly Core.Statement[];
-  effects?: readonly Effect[];
+  effects?: readonly string[];
 }): Core.Func {
   return CoreBuilder.Func(
     options.name,

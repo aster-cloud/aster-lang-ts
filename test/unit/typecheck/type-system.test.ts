@@ -9,20 +9,21 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { TypeSystem, ConstraintSolver } from '../../../src/typecheck/type_system.js';
-import type { Core } from '../../../src/types.js';
+import type { Core, Ty } from '../../../src/types.js';
+import { toV2, withoutOrigin } from '../../helpers/core-ir-v2.js';
 
 describe('TypeSystem.unify', () => {
   describe('TypeApp 参数长度验证', () => {
     it('应该拒绝参数个数不同的 TypeApp', () => {
       // 模拟 Box<Int> 和 Pair<Int, Text>
       // Box 有 1 个类型参数，Pair 有 2 个类型参数
-      const boxInt: Core.TypeApp = {
+      const boxInt: Ty.TypeApp = {
         kind: 'TypeApp',
         base: 'Box',
         args: [{ kind: 'TypeName', name: 'Int' }]
       };
 
-      const pairIntText: Core.TypeApp = {
+      const pairIntText: Ty.TypeApp = {
         kind: 'TypeApp',
         base: 'Pair',
         args: [
@@ -31,7 +32,7 @@ describe('TypeSystem.unify', () => {
         ]
       };
 
-      const bindings = new Map<string, Core.Type>();
+      const bindings = new Map<string, Ty.Type>();
       const result = TypeSystem.unify(boxInt, pairIntText, bindings);
 
       assert.strictEqual(result, false);
@@ -39,13 +40,13 @@ describe('TypeSystem.unify', () => {
 
     it('应该拒绝相同 base 但参数个数不同的 TypeApp', () => {
       // 模拟 Option<Int> 和 Option<Int, Text>
-      const optionInt: Core.TypeApp = {
+      const optionInt: Ty.TypeApp = {
         kind: 'TypeApp',
         base: 'Option',
         args: [{ kind: 'TypeName', name: 'Int' }]
       };
 
-      const optionTwoArgs: Core.TypeApp = {
+      const optionTwoArgs: Ty.TypeApp = {
         kind: 'TypeApp',
         base: 'Option',
         args: [
@@ -54,7 +55,7 @@ describe('TypeSystem.unify', () => {
         ]
       };
 
-      const bindings = new Map<string, Core.Type>();
+      const bindings = new Map<string, Ty.Type>();
       const result = TypeSystem.unify(optionInt, optionTwoArgs, bindings);
 
       assert.strictEqual(result, false);
@@ -62,7 +63,7 @@ describe('TypeSystem.unify', () => {
 
     it('应该接受参数个数相同且类型匹配的 TypeApp', () => {
       // 模拟 Pair<Int, Text> 和 Pair<Int, Text>
-      const pair1: Core.TypeApp = {
+      const pair1: Ty.TypeApp = {
         kind: 'TypeApp',
         base: 'Pair',
         args: [
@@ -71,7 +72,7 @@ describe('TypeSystem.unify', () => {
         ]
       };
 
-      const pair2: Core.TypeApp = {
+      const pair2: Ty.TypeApp = {
         kind: 'TypeApp',
         base: 'Pair',
         args: [
@@ -80,7 +81,7 @@ describe('TypeSystem.unify', () => {
         ]
       };
 
-      const bindings = new Map<string, Core.Type>();
+      const bindings = new Map<string, Ty.Type>();
       const result = TypeSystem.unify(pair1, pair2, bindings);
 
       assert.strictEqual(result, true);
@@ -90,13 +91,13 @@ describe('TypeSystem.unify', () => {
   describe('FuncType 参数长度验证', () => {
     it('应该拒绝单参数函数统一到双参数函数类型', () => {
       // 模拟 (Int) -> Int 和 (Int, Int) -> Int
-      const unary: Core.FuncType = {
+      const unary: Ty.FuncType = {
         kind: 'FuncType',
         params: [{ kind: 'TypeName', name: 'Int' }],
         ret: { kind: 'TypeName', name: 'Int' },
       };
 
-      const binary: Core.FuncType = {
+      const binary: Ty.FuncType = {
         kind: 'FuncType',
         params: [
           { kind: 'TypeName', name: 'Int' },
@@ -105,7 +106,7 @@ describe('TypeSystem.unify', () => {
         ret: { kind: 'TypeName', name: 'Int' },
       };
 
-      const bindings = new Map<string, Core.Type>();
+      const bindings = new Map<string, Ty.Type>();
       const result = TypeSystem.unify(unary, binary, bindings);
 
       assert.strictEqual(result, false);
@@ -113,7 +114,7 @@ describe('TypeSystem.unify', () => {
 
     it('应该拒绝三参数函数统一到双参数函数类型', () => {
       // 模拟 (Int, Int, Int) -> Int 和 (Int, Int) -> Int
-      const ternary: Core.FuncType = {
+      const ternary: Ty.FuncType = {
         kind: 'FuncType',
         params: [
           { kind: 'TypeName', name: 'Int' },
@@ -123,7 +124,7 @@ describe('TypeSystem.unify', () => {
         ret: { kind: 'TypeName', name: 'Int' },
       };
 
-      const binary: Core.FuncType = {
+      const binary: Ty.FuncType = {
         kind: 'FuncType',
         params: [
           { kind: 'TypeName', name: 'Int' },
@@ -132,7 +133,7 @@ describe('TypeSystem.unify', () => {
         ret: { kind: 'TypeName', name: 'Int' },
       };
 
-      const bindings = new Map<string, Core.Type>();
+      const bindings = new Map<string, Ty.Type>();
       const result = TypeSystem.unify(ternary, binary, bindings);
 
       assert.strictEqual(result, false);
@@ -140,7 +141,7 @@ describe('TypeSystem.unify', () => {
 
     it('应该接受参数个数相同且类型匹配的函数类型', () => {
       // 模拟 (Int, Text) -> Bool 和 (Int, Text) -> Bool
-      const func1: Core.FuncType = {
+      const func1: Ty.FuncType = {
         kind: 'FuncType',
         params: [
           { kind: 'TypeName', name: 'Int' },
@@ -149,7 +150,7 @@ describe('TypeSystem.unify', () => {
         ret: { kind: 'TypeName', name: 'Bool' },
       };
 
-      const func2: Core.FuncType = {
+      const func2: Ty.FuncType = {
         kind: 'FuncType',
         params: [
           { kind: 'TypeName', name: 'Int' },
@@ -158,7 +159,7 @@ describe('TypeSystem.unify', () => {
         ret: { kind: 'TypeName', name: 'Bool' },
       };
 
-      const bindings = new Map<string, Core.Type>();
+      const bindings = new Map<string, Ty.Type>();
       const result = TypeSystem.unify(func1, func2, bindings);
 
       assert.strictEqual(result, true);
@@ -166,19 +167,19 @@ describe('TypeSystem.unify', () => {
 
     it('应该拒绝零参数函数统一到单参数函数类型', () => {
       // 模拟 () -> Int 和 (Int) -> Int
-      const nullary: Core.FuncType = {
+      const nullary: Ty.FuncType = {
         kind: 'FuncType',
         params: [],
         ret: { kind: 'TypeName', name: 'Int' },
       };
 
-      const unary: Core.FuncType = {
+      const unary: Ty.FuncType = {
         kind: 'FuncType',
         params: [{ kind: 'TypeName', name: 'Int' }],
         ret: { kind: 'TypeName', name: 'Int' },
       };
 
-      const bindings = new Map<string, Core.Type>();
+      const bindings = new Map<string, Ty.Type>();
       const result = TypeSystem.unify(nullary, unary, bindings);
 
       assert.strictEqual(result, false);
@@ -188,15 +189,15 @@ describe('TypeSystem.unify', () => {
   describe('TypeSystem.equals', () => {
     describe('TypeVar 分支', () => {
       it('应该在类型变量名称相同时返回 true', () => {
-        const typeVar1: Core.TypeVar = { kind: 'TypeVar', name: 'T' };
-        const typeVar2: Core.TypeVar = { kind: 'TypeVar', name: 'T' };
+        const typeVar1: Ty.TypeVar = { kind: 'TypeVar', name: 'T' };
+        const typeVar2: Ty.TypeVar = { kind: 'TypeVar', name: 'T' };
 
         assert.strictEqual(TypeSystem.equals(typeVar1, typeVar2), true);
       });
 
       it('应该在类型变量名称不同时返回 false', () => {
-        const typeVar1: Core.TypeVar = { kind: 'TypeVar', name: 'T' };
-        const typeVar2: Core.TypeVar = { kind: 'TypeVar', name: 'U' };
+        const typeVar1: Ty.TypeVar = { kind: 'TypeVar', name: 'T' };
+        const typeVar2: Ty.TypeVar = { kind: 'TypeVar', name: 'U' };
 
         assert.strictEqual(TypeSystem.equals(typeVar1, typeVar2), false);
       });
@@ -204,17 +205,17 @@ describe('TypeSystem.unify', () => {
 
     describe('Result 分支', () => {
       it('应该递归比较 ok/err 组成部分', () => {
-        const result1: Core.Result = {
+        const result1: Ty.Result = {
           kind: 'Result',
           ok: { kind: 'TypeName', name: 'Int' },
           err: { kind: 'TypeName', name: 'Text' }
         };
-        const result2: Core.Result = {
+        const result2: Ty.Result = {
           kind: 'Result',
           ok: { kind: 'TypeName', name: 'Int' },
           err: { kind: 'TypeName', name: 'Text' }
         };
-        const result3: Core.Result = {
+        const result3: Ty.Result = {
           kind: 'Result',
           ok: { kind: 'TypeName', name: 'Int' },
           err: { kind: 'TypeName', name: 'ErrorCode' }
@@ -227,17 +228,17 @@ describe('TypeSystem.unify', () => {
 
     describe('Map 分支', () => {
       it('应该同时比较 key 与 value 类型', () => {
-        const map1: Core.Map = {
+        const map1: Ty.Map = {
           kind: 'Map',
           key: { kind: 'TypeName', name: 'Text' },
           val: { kind: 'TypeName', name: 'Int' }
         };
-        const map2: Core.Map = {
+        const map2: Ty.Map = {
           kind: 'Map',
           key: { kind: 'TypeName', name: 'Text' },
           val: { kind: 'TypeName', name: 'Int' }
         };
-        const mapWithDifferentValue: Core.Map = {
+        const mapWithDifferentValue: Ty.Map = {
           kind: 'Map',
           key: { kind: 'TypeName', name: 'Text' },
           val: { kind: 'TypeName', name: 'Bool' }
@@ -250,21 +251,21 @@ describe('TypeSystem.unify', () => {
 
     describe('PiiType 分支', () => {
       it('应该比较敏感级别、分类与基础类型', () => {
-        const piiBaseInt: Core.TypeName = { kind: 'TypeName', name: 'Int' };
-        const piiBaseText: Core.TypeName = { kind: 'TypeName', name: 'Text' };
-        const pii1: Core.PiiType = {
+        const piiBaseInt: Ty.TypeName = { kind: 'TypeName', name: 'Int' };
+        const piiBaseText: Ty.TypeName = { kind: 'TypeName', name: 'Text' };
+        const pii1: Ty.PiiType = {
           kind: 'PiiType',
           sensitivity: 'L3',
           category: 'email',
           baseType: piiBaseInt
         };
-        const pii2: Core.PiiType = {
+        const pii2: Ty.PiiType = {
           kind: 'PiiType',
           sensitivity: 'L3',
           category: 'email',
           baseType: { kind: 'TypeName', name: 'Int' }
         };
-        const piiDifferent: Core.PiiType = {
+        const piiDifferent: Ty.PiiType = {
           kind: 'PiiType',
           sensitivity: 'L2',
           category: 'phone',
@@ -278,8 +279,8 @@ describe('TypeSystem.unify', () => {
 
     describe('strict 模式', () => {
       it('在 strict=true 时应该把 Unknown 当做不相等', () => {
-        const unknownType: Core.TypeName = { kind: 'TypeName', name: 'Unknown' };
-        const intType: Core.TypeName = { kind: 'TypeName', name: 'Int' };
+        const unknownType: Ty.TypeName = { kind: 'TypeName', name: 'Unknown' };
+        const intType: Ty.TypeName = { kind: 'TypeName', name: 'Int' };
 
         assert.strictEqual(TypeSystem.equals(unknownType, intType), true);
         assert.strictEqual(TypeSystem.equals(unknownType, intType, true), false);
@@ -289,11 +290,11 @@ describe('TypeSystem.unify', () => {
 
   describe('TypeSystem.isSubtype', () => {
     it('应该将 Maybe<Int> 视为 Option<Int> 的子类型', () => {
-      const maybeInt: Core.Maybe = {
+      const maybeInt: Ty.Maybe = {
         kind: 'Maybe',
         type: { kind: 'TypeName', name: 'Int' }
       };
-      const optionInt: Core.Option = {
+      const optionInt: Ty.Option = {
         kind: 'Option',
         type: { kind: 'TypeName', name: 'Int' }
       };
@@ -302,11 +303,11 @@ describe('TypeSystem.unify', () => {
     });
 
     it('应该将 Option<Int> 视为 Maybe<Int> 的子类型', () => {
-      const optionInt: Core.Option = {
+      const optionInt: Ty.Option = {
         kind: 'Option',
         type: { kind: 'TypeName', name: 'Int' }
       };
-      const maybeInt: Core.Maybe = {
+      const maybeInt: Ty.Maybe = {
         kind: 'Maybe',
         type: { kind: 'TypeName', name: 'Int' }
       };
@@ -315,22 +316,22 @@ describe('TypeSystem.unify', () => {
     });
 
     it('应该递归比较 Result 的 ok/err 组成部分', () => {
-      const resultIntText: Core.Result = {
+      const resultIntText: Ty.Result = {
         kind: 'Result',
         ok: { kind: 'TypeName', name: 'Int' },
         err: { kind: 'TypeName', name: 'Text' }
       };
-      const resultIntTextSup: Core.Result = {
+      const resultIntTextSup: Ty.Result = {
         kind: 'Result',
         ok: { kind: 'TypeName', name: 'Int' },
         err: { kind: 'TypeName', name: 'Text' }
       };
-      const resultNumberText: Core.Result = {
+      const resultNumberText: Ty.Result = {
         kind: 'Result',
         ok: { kind: 'TypeName', name: 'Number' },
         err: { kind: 'TypeName', name: 'Text' }
       };
-      const resultIntErrorCode: Core.Result = {
+      const resultIntErrorCode: Ty.Result = {
         kind: 'Result',
         ok: { kind: 'TypeName', name: 'Int' },
         err: { kind: 'TypeName', name: 'ErrorCode' }
@@ -343,7 +344,7 @@ describe('TypeSystem.unify', () => {
 
     it('应该在 Unknown 与 AnyType 之间保持宽松兼容', () => {
       const unknownType = TypeSystem.unknown();
-      const anyType: Core.TypeName = { kind: 'TypeName', name: 'AnyType' };
+      const anyType: Ty.TypeName = { kind: 'TypeName', name: 'AnyType' };
 
       assert.strictEqual(TypeSystem.isSubtype(unknownType, anyType), true);
       assert.strictEqual(TypeSystem.isSubtype(anyType, unknownType), true);
@@ -352,7 +353,7 @@ describe('TypeSystem.unify', () => {
 
   describe('TypeSystem.expand', () => {
     it('应该展开直接类型别名', () => {
-      const aliases = new Map<string, Core.Type>([
+      const aliases = new Map<string, Ty.Type>([
         ['Num', { kind: 'TypeName', name: 'Int' }]
       ]);
       const expanded = TypeSystem.expand({ kind: 'TypeName', name: 'Num' }, aliases);
@@ -361,7 +362,7 @@ describe('TypeSystem.unify', () => {
     });
 
     it('应该递归展开多层别名', () => {
-      const aliases = new Map<string, Core.Type>([
+      const aliases = new Map<string, Ty.Type>([
         ['A', { kind: 'TypeName', name: 'B' }],
         ['B', { kind: 'TypeName', name: 'Int' }]
       ]);
@@ -372,7 +373,7 @@ describe('TypeSystem.unify', () => {
     });
 
     it('应该在循环别名时返回原始类型避免无限递归', () => {
-      const aliases = new Map<string, Core.Type>([
+      const aliases = new Map<string, Ty.Type>([
         ['X', { kind: 'TypeName', name: 'X' }]
       ]);
 
@@ -382,11 +383,11 @@ describe('TypeSystem.unify', () => {
     });
 
     it('应该展开嵌套类型的所有组成部分', () => {
-      const aliases = new Map<string, Core.Type>([
+      const aliases = new Map<string, Ty.Type>([
         ['AliasInt', { kind: 'TypeName', name: 'Int' }],
         ['AliasText', { kind: 'TypeName', name: 'Text' }]
       ]);
-      const complexType: Core.FuncType = {
+      const complexType: Ty.FuncType = {
         kind: 'FuncType',
         params: [
           { kind: 'Option', type: { kind: 'TypeName', name: 'AliasInt' } },
@@ -455,9 +456,9 @@ describe('TypeSystem.unify', () => {
 
     it('应该在外部传入已访问集合时直接返回', () => {
       const internals = TypeSystem as unknown as {
-        expandRecursive(type: Core.Type, aliases: Map<string, Core.Type>, visited: Set<string>): Core.Type;
+        expandRecursive(type: Ty.Type, aliases: Map<string, Ty.Type>, visited: Set<string>): Ty.Type;
       };
-      const aliases = new Map<string, Core.Type>([
+      const aliases = new Map<string, Ty.Type>([
         ['Loop', { kind: 'TypeName', name: 'Int' }]
       ]);
 
@@ -522,19 +523,19 @@ describe('TypeSystem.unify', () => {
     const internals = TypeSystem as unknown as {
       inferStaticType(
         expr: Core.Expression | undefined | null,
-        fieldTypes?: ReadonlyMap<string, Core.Type>
-      ): Core.Type | null;
+        fieldTypes?: ReadonlyMap<string, Ty.Type>
+      ): Ty.Type | null;
       inferReturnType(
         body: readonly Core.Statement[],
-        fieldTypes?: ReadonlyMap<string, Core.Type>
-      ): Core.Type;
+        fieldTypes?: ReadonlyMap<string, Ty.Type>
+      ): Ty.Type;
     };
 
     it('inferStaticType 应该识别主要表达式类型', () => {
       const boolType = internals.inferStaticType({ kind: 'Bool', value: true } as Core.Bool);
       const intType = internals.inferStaticType({ kind: 'Int', value: 42 } as Core.Int);
       const longType = internals.inferStaticType({ kind: 'Long', value: '9007199254740991' } as Core.Long);
-      const doubleType = internals.inferStaticType({ kind: 'Double', value: 3.14 } as Core.Double);
+      const doubleType = internals.inferStaticType(toV2({ kind: 'Double', value: 3.14 }) as Core.Double);
       const stringType = internals.inferStaticType({ kind: 'String', value: 'hello' } as Core.String);
       const nullType = internals.inferStaticType({ kind: 'Null' } as Core.Null);
 
@@ -555,7 +556,7 @@ describe('TypeSystem.unify', () => {
 
       const noneType = internals.inferStaticType({ kind: 'None' } as Core.None);
 
-      const lambdaType = internals.inferStaticType({
+      const lambdaType = internals.inferStaticType(toV2({
         kind: 'Lambda',
         params: [
           { name: 'x', type: { kind: 'TypeName', name: 'Int' } },
@@ -567,19 +568,19 @@ describe('TypeSystem.unify', () => {
           kind: 'Block',
           statements: []
         }
-      } as Core.Lambda);
+      }) as Core.Lambda);
 
-      const constructType = internals.inferStaticType({
+      const constructType = internals.inferStaticType(toV2({
         kind: 'Construct',
         typeName: 'UserId',
         fields: []
-      } as Core.Construct);
+      }) as Core.Construct);
 
       const annotated = internals.inferStaticType({
         kind: 'Name',
         name: 'value',
         inferredType: { kind: 'TypeName', name: 'Custom' }
-      } as Core.Name & { inferredType: Core.Type });
+      } as Core.Name & { inferredType: Ty.Type });
       const unknown = internals.inferStaticType({
         kind: 'Name',
         name: 'plain'
@@ -609,7 +610,7 @@ describe('TypeSystem.unify', () => {
         kind: 'Option',
         type: { kind: 'TypeName', name: 'Unknown' }
       });
-      assert.deepStrictEqual(lambdaType, {
+      assert.deepStrictEqual(withoutOrigin(lambdaType), {
         kind: 'FuncType',
         params: [
           { kind: 'TypeName', name: 'Int' },
@@ -623,30 +624,30 @@ describe('TypeSystem.unify', () => {
     });
 
     it('inferStaticType 应该推断算术 Call 的数字提升类型', () => {
-      const intMath = internals.inferStaticType({
+      const intMath = internals.inferStaticType(toV2({
         kind: 'Call',
         target: { kind: 'Name', name: '*' },
         args: [
           { kind: 'Int', value: 10 },
           { kind: 'Int', value: 2 }
         ]
-      } as Core.Call);
-      const longMath = internals.inferStaticType({
+      }) as Core.Call);
+      const longMath = internals.inferStaticType(toV2({
         kind: 'Call',
         target: { kind: 'Name', name: '+' },
         args: [
           { kind: 'Int', value: 10 },
           { kind: 'Long', value: '2' }
         ]
-      } as Core.Call);
-      const doubleMath = internals.inferStaticType({
+      }) as Core.Call);
+      const doubleMath = internals.inferStaticType(toV2({
         kind: 'Call',
         target: { kind: 'Name', name: '/' },
         args: [
           { kind: 'Int', value: 10 },
           { kind: 'Double', value: 2.5 }
         ]
-      } as Core.Call);
+      }) as Core.Call);
 
       assert.deepStrictEqual(intMath, { kind: 'TypeName', name: 'Int' });
       assert.deepStrictEqual(longMath, { kind: 'TypeName', name: 'Long' });
@@ -654,12 +655,12 @@ describe('TypeSystem.unify', () => {
     });
 
     it('inferFunctionType 应该推断字段访问及字段算术返回类型', () => {
-      const fieldTypes = new Map<string, Core.Type>([
+      const fieldTypes = new Map<string, Ty.Type>([
         ['intField', { kind: 'TypeName', name: 'Int' }],
         ['doubleField', { kind: 'TypeName', name: 'Double' }]
       ]);
       const params: Core.Parameter[] = [
-        { name: 'app', type: { kind: 'TypeName', name: 'Application' } }
+        toV2({ name: 'app', type: toV2({ kind: 'TypeName', name: 'Application' }) })
       ];
 
       const intField = TypeSystem.inferFunctionType(params, [
@@ -669,7 +670,7 @@ describe('TypeSystem.unify', () => {
         } as Core.Return
       ], fieldTypes);
       const intMath = TypeSystem.inferFunctionType(params, [
-        {
+        toV2({
           kind: 'Return',
           expr: {
             kind: 'Call',
@@ -679,7 +680,7 @@ describe('TypeSystem.unify', () => {
               { kind: 'Int', value: 2 }
             ]
           }
-        } as Core.Return
+        }) as Core.Return
       ], fieldTypes);
       const doubleField = TypeSystem.inferFunctionType(params, [
         {
@@ -744,8 +745,8 @@ describe('TypeSystem.unify', () => {
 
     it('inferFunctionType 应该克隆参数类型并推断返回类型', () => {
       const params: Core.Parameter[] = [
-        { name: 'x', type: { kind: 'TypeName', name: 'Int' } },
-        { name: 'label', type: { kind: 'TypeName', name: 'Text' } }
+        toV2({ name: 'x', type: toV2({ kind: 'TypeName', name: 'Int' }) }),
+        toV2({ name: 'label', type: toV2({ kind: 'TypeName', name: 'Text' }) })
       ];
       const body: readonly Core.Statement[] = [
         {
@@ -756,7 +757,7 @@ describe('TypeSystem.unify', () => {
 
       const funcType = TypeSystem.inferFunctionType(params, body);
 
-      assert.deepStrictEqual(funcType, {
+      assert.deepStrictEqual(withoutOrigin(funcType), {
         kind: 'FuncType',
         params: [
           { kind: 'TypeName', name: 'Int' },
@@ -764,7 +765,7 @@ describe('TypeSystem.unify', () => {
         ],
         ret: { kind: 'TypeName', name: 'Bool' }
       });
-      assert.deepStrictEqual(funcType.params[0], { kind: 'TypeName', name: 'Int' });
+      assert.deepStrictEqual(withoutOrigin(funcType.params[0]), { kind: 'TypeName', name: 'Int' });
     });
   });
 

@@ -5,9 +5,6 @@
     {
       "kind": "Func",
       "name": "compute",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [],
       "retType": {
         "kind": "TypeName",
@@ -42,9 +39,6 @@
     {
       "kind": "Func",
       "name": "invert",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "v",

@@ -1,6 +1,8 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "app.service",
+  "profile": null,
   "decls": [
     {
       "kind": "Data",
@@ -12,7 +14,8 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": []
+          "annotations": [],
+          "typeInferred": true
         },
         {
           "name": "name",
@@ -20,7 +23,8 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": []
+          "annotations": [],
+          "typeInferred": true
         }
       ]
     },
@@ -35,9 +39,6 @@
     {
       "kind": "Func",
       "name": "login",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "user",
@@ -45,7 +46,7 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         },
         {
@@ -54,17 +55,21 @@
             "kind": "TypeName",
             "name": "Text"
           },
-          "constraints": [],
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [
-        "IO"
+        "io"
       ],
+      "effectParams": [],
       "effectCaps": [
         "Http",
         "Sql",
@@ -74,6 +79,7 @@
         "AiModel"
       ],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -165,11 +171,7 @@
             }
           }
         ]
-      },
-      "declaredEffects": [
-        "IO"
-      ],
-      "retTypeInferred": true
+      }
     }
   ]
 }

@@ -16,7 +16,7 @@
  *
  * ★5 类信号全部实证在 lowered Core IR 保真：
  *   Workflow(Start/Wait/workflow/Await) / Import.version / Func.effectCapsExplicit /
- *   PiiType 节点+Func.piiLevel / annotation.name∈{example,deprecated}。
+ *   PiiType 节点 / annotation.name∈{example,deprecated}。
  *
  * ★双引擎 parity：Java 侧须实现同一 5 类检测，同源码产同 featureId+nodeKind 集（M1 exit 硬门）。
  */
@@ -136,7 +136,7 @@ class StabilityScanner extends DefaultCoreVisitor<StabilityContext> {
       const version = (d as { version?: number | null }).version;
       if (version !== null && version !== undefined) {
         this.emit(ctx, 'version-import', d.origin, 'Import', {
-          import: d.name,
+          import: d.path,
           version,
           asName: (d as { asName?: string | null }).asName ?? null,
         });
@@ -162,16 +162,6 @@ class StabilityScanner extends DefaultCoreVisitor<StabilityContext> {
     }
     // 交 super 递归 Data.fields/Func.params/ret 类型（触发 visitType）+ Func.body（触发语句/表达式）。
     super.visitDeclaration(d, ctx);
-
-    // 4. PII 兜底：若某 Func **签名类型树**（params/ret，不含 body）无 PiiType，但 piiLevel
-    //    非空 → 报一条（span 指函数）。用显式 containsPiiType 判签名（非 diagnostics 计数差，
-    //    Codex 复审 P2：计数差会把 body 里 Lambda 的 PII 误算进签名，且不利 Java parity）。
-    if (d.kind === 'Func') {
-      const piiLevel = (d as { piiLevel?: string | null }).piiLevel;
-      if (piiLevel !== null && piiLevel !== undefined && !funcSignatureHasPii(d)) {
-        this.emit(ctx, 'pii', d.origin, 'Func', { func: d.name, piiLevel });
-      }
-    }
   }
 
   override visitStatement(s: Core.Statement, ctx: StabilityContext): void {
@@ -218,20 +208,6 @@ class StabilityScanner extends DefaultCoreVisitor<StabilityContext> {
       this.visitType(child, ctx);
     }
   }
-}
-
-/** 类型树里是否含 PiiType（显式布尔，供 Func 签名 PII 兜底判定——非 diagnostics 计数差）。 */
-function containsPiiType(type: Core.Type | undefined | null): boolean {
-  if (!type || typeof type !== 'object') return false;
-  if ((type as { kind?: string }).kind === 'PiiType') return true;
-  return childTypes(type).some((c) => containsPiiType(c));
-}
-
-/** Func 签名（params + ret，不含 body）类型树是否含 PiiType。 */
-function funcSignatureHasPii(func: Core.Func): boolean {
-  const params = (func as { params?: readonly { type?: Core.Type }[] }).params ?? [];
-  if (params.some((p) => containsPiiType(p.type))) return true;
-  return containsPiiType((func as { ret?: Core.Type }).ret);
 }
 
 /** 取一个类型节点的直接子类型（Java 侧按同名字段复刻）。 */

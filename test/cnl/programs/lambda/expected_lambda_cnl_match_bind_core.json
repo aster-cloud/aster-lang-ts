@@ -1,6 +1,8 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": "demo.lambdamatchbind",
+  "profile": null,
   "decls": [
     {
       "kind": "Data",
@@ -11,23 +13,24 @@
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          }
+          },
+          "annotations": [],
+          "typeInferred": true
         },
         {
           "name": "name",
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          }
+          },
+          "annotations": [],
+          "typeInferred": true
         }
       ]
     },
     {
       "kind": "Func",
       "name": "greetUser",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "user",
@@ -35,6 +38,7 @@
             "kind": "TypeName",
             "name": "Text"
           },
+          "annotations": [],
           "typeInferred": true
         },
         {
@@ -43,16 +47,22 @@
             "kind": "TypeName",
             "name": "Text"
           },
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -67,13 +77,11 @@
                   "type": {
                     "kind": "TypeName",
                     "name": "Text"
-                  }
+                  },
+                  "annotations": [],
+                  "typeInferred": true
                 }
               ],
-              "retType": {
-                "kind": "TypeName",
-                "name": "Unknown"
-              },
               "ret": {
                 "kind": "TypeName",
                 "name": "Unknown"
@@ -93,9 +101,15 @@
                         "pattern": {
                           "kind": "PatCtor",
                           "typeName": "User",
-                          "names": [
-                            "id",
-                            "name"
+                          "args": [
+                            {
+                              "kind": "PatName",
+                              "name": "id"
+                            },
+                            {
+                              "kind": "PatName",
+                              "name": "name"
+                            }
                           ]
                         },
                         "body": {
@@ -159,15 +173,11 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     },
     {
       "kind": "Func",
       "name": "posOrZero",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "count",
@@ -175,16 +185,22 @@
             "kind": "TypeName",
             "name": "Int"
           },
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [],
+      "effectParams": [],
       "effectCaps": [],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -199,13 +215,11 @@
                   "type": {
                     "kind": "TypeName",
                     "name": "Text"
-                  }
+                  },
+                  "annotations": [],
+                  "typeInferred": true
                 }
               ],
-              "retType": {
-                "kind": "TypeName",
-                "name": "Unknown"
-              },
               "ret": {
                 "kind": "TypeName",
                 "name": "Unknown"
@@ -281,8 +295,7 @@
             }
           }
         ]
-      },
-      "retTypeInferred": true
+      }
     }
   ]
 }

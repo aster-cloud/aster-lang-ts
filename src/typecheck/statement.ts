@@ -1,4 +1,4 @@
-import type { Core, Span } from '../types.js';
+import type { Core, Span, Ty } from '../types.js';
 import { DefaultCoreVisitor } from '../core/visitor.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { ModuleContext, TypecheckWalkerContext } from './context.js';
@@ -18,10 +18,10 @@ import { bindPattern } from './pattern.js';
 import { typecheckWorkflow } from './workflow.js';
 
 export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext> {
-  public result: Core.Type = unknownType();
+  public result: Ty.Type = unknownType();
 
   override visitBlock(block: Core.Block, context: TypecheckWalkerContext): void {
-    let last: Core.Type = unknownType();
+    let last: Ty.Type = unknownType();
     for (const statement of block.statements) {
       this.visitStatement(statement, context);
       last = this.result;
@@ -37,25 +37,25 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
         // 降级后的 Let 节点只带 origin（无 span）：用 origin 定位，否则 E104 诊断没有行列，编辑器无法标红。
         // `Let y be amount`：按名字推断的标记随 Let 传播，y 同样不作为调用约束
         const inferred = statement.expr.kind === 'Name' && symbols.lookup(statement.expr.name)?.typeInferred === true;
-        defineSymbol(context, statement.name, valueType, 'var', statement.span ?? originToSpan(statement.origin), inferred);
+        defineSymbol(context, statement.name, valueType, 'var', originToSpan(statement.origin), inferred);
         this.result = valueType;
         return;
       }
       case 'Set': {
         const valueType = typeOfExpr(module, symbols, statement.expr, diagnostics);
-        assignSymbol(context, statement.name, valueType, statement.span ?? originToSpan(statement.origin));
+        assignSymbol(context, statement.name, valueType, originToSpan(statement.origin));
         this.result = valueType;
         return;
       }
       case 'Return': {
         this.result = typeOfExpr(module, symbols, statement.expr, diagnostics);
-        checkReturnAgainstDeclared(this.result, statement.span ?? originToSpan(statement.origin), diagnostics);
+        checkReturnAgainstDeclared(this.result, originToSpan(statement.origin), diagnostics);
         return;
       }
       case 'If': {
         rejectVerdictInBoolContext(
           typeOfExpr(module, symbols, statement.cond, diagnostics),
-          statement.span,
+          originToSpan(statement.origin),
           diagnostics,
         );
         const thenType = typecheckBlock(module, symbols, statement.thenBlock, diagnostics);
@@ -68,7 +68,7 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
           this.result = thenType;
         } else {
           if (!typesEqual(thenType, elseType)) {
-            diagnostics.error(ErrorCode.IF_BRANCH_MISMATCH, statement.span ?? originToSpan(statement.origin), {
+            diagnostics.error(ErrorCode.IF_BRANCH_MISMATCH, originToSpan(statement.origin), {
               thenType: formatType(thenType),
               elseType: formatType(elseType),
             });
@@ -79,7 +79,7 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
       }
       case 'Match': {
         const scrutineeType = typeOfExpr(module, symbols, statement.expr, diagnostics);
-        let aggregated: Core.Type | null = null;
+        let aggregated: Ty.Type | null = null;
         let hasNullCase = false;
         let hasNonNullCase = false;
         const enumDecl =
@@ -95,7 +95,7 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
           } else if (!typesEqual(aggregated, caseType)) {
             diagnostics.error(
               ErrorCode.MATCH_BRANCH_MISMATCH,
-              caseClause.body.span ?? statement.span,
+              originToSpan(caseClause.body.origin) ?? originToSpan(statement.origin),
               {
                 expected: formatType(aggregated),
                 actual: formatType(caseType),
@@ -110,7 +110,7 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
                 if (seenEnum.has(caseClause.pattern.name)) {
                   diagnostics.warning(
                     ErrorCode.DUPLICATE_ENUM_CASE,
-                    caseClause.pattern.span ?? statement.span,
+                    originToSpan(caseClause.pattern.origin) ?? originToSpan(statement.origin),
                     { case: caseClause.pattern.name, type: enumDecl.name }
                   );
                 }
@@ -123,7 +123,7 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
                 if (seenEnum.has(caseClause.pattern.typeName)) {
                   diagnostics.warning(
                     ErrorCode.DUPLICATE_ENUM_CASE,
-                    caseClause.pattern.span ?? statement.span,
+                    originToSpan(caseClause.pattern.origin) ?? originToSpan(statement.origin),
                     { case: caseClause.pattern.typeName, type: enumDecl.name }
                   );
                 }
@@ -137,12 +137,12 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
         if (!isUnknown(scrutineeType) && scrutineeType.kind === 'Maybe') {
           if (!(hasNullCase && hasNonNullCase)) {
             const missing = hasNullCase ? 'non-null value' : hasNonNullCase ? 'null' : 'null and non-null';
-            diagnostics.warning(ErrorCode.NON_EXHAUSTIVE_MAYBE, statement.span, { missing });
+            diagnostics.warning(ErrorCode.NON_EXHAUSTIVE_MAYBE, originToSpan(statement.origin), { missing });
           }
         } else if (enumDecl && !hasWildcard) {
           const missing = enumDecl.variants.filter(variant => !seenEnum.has(variant));
           if (missing.length > 0) {
-            diagnostics.warning(ErrorCode.NON_EXHAUSTIVE_ENUM, statement.span, {
+            diagnostics.warning(ErrorCode.NON_EXHAUSTIVE_ENUM, originToSpan(statement.origin), {
               type: enumDecl.name,
               missing: missing.join(', '),
             });
@@ -151,15 +151,12 @@ export class TypecheckVisitor extends DefaultCoreVisitor<TypecheckWalkerContext>
         this.result = aggregated ?? unknownType();
         return;
       }
-      case 'Scope': {
-        const nested: Core.Block = {
-          kind: 'Block',
-          statements: statement.statements,
-          span: statement.span,
-        } as Core.Block;
-        this.result = typecheckScopedBlock(module, symbols, nested, diagnostics);
+      case 'Scope':
+        this.result = typecheckScopedBlock(module, symbols, { ...statement, kind: 'Block' }, diagnostics);
         return;
-      }
+      case 'Block':
+        this.result = typecheckScopedBlock(module, symbols, statement, diagnostics);
+        return;
       case 'Start': {
         void typeOfExpr(module, symbols, statement.expr, diagnostics);
         this.result = unknownType();
@@ -190,7 +187,7 @@ export function typecheckBlock(
   symbols: SymbolTable,
   block: Core.Block,
   diagnostics: DiagnosticBuilder
-): Core.Type {
+): Ty.Type {
   const visitor = new TypecheckVisitor();
   visitor.visitBlock(block, { module: ctx, symbols, diagnostics });
   return visitor.result;
@@ -202,7 +199,7 @@ export function typecheckScopedBlock(
   symbols: SymbolTable,
   block: Core.Block,
   diagnostics: DiagnosticBuilder
-): Core.Type {
+): Ty.Type {
   symbols.enterScope('block');
   try {
     return typecheckBlock(ctx, symbols, block, diagnostics);
@@ -215,9 +212,9 @@ export function typecheckCase(
   ctx: ModuleContext,
   symbols: SymbolTable,
   caseClause: Core.Case,
-  scrutineeType: Core.Type,
+  scrutineeType: Ty.Type,
   diagnostics: DiagnosticBuilder
-): Core.Type {
+): Ty.Type {
   symbols.enterScope('block');
   try {
     bindPattern(ctx, symbols, caseClause.pattern, scrutineeType, diagnostics);
@@ -225,7 +222,7 @@ export function typecheckCase(
       const type = typeOfExpr(ctx, symbols, caseClause.body.expr, diagnostics);
       checkReturnAgainstDeclared(
         type,
-        caseClause.body.span ?? originToSpan(caseClause.body.origin) ?? caseClause.span ?? originToSpan(caseClause.origin),
+        originToSpan(caseClause.body.origin) ?? originToSpan(caseClause.origin),
         diagnostics,
       );
       return type;
@@ -241,7 +238,7 @@ export function typecheckCase(
  * （lambda 的 Return 属于 lambda，由 lambda 自己的返回类型检查负责）。
  */
 interface ReturnExpectation {
-  declared: Core.Type;
+  declared: Ty.Type;
   /** 是否已有某条 Return 报过 E003：函数级的兜底比较据此去重 */
   reported: boolean;
 }
@@ -252,7 +249,7 @@ const returnExpectations: (ReturnExpectation | null)[] = [];
  * 里的提前 Return 都是函数可能的返回路径，不能只看函数体块的最后一个结果类型。
  * 比较用可赋值规则（Unknown、按名推断、数值拓宽放行），E003 落在该 Return 的位置。
  */
-function checkReturnAgainstDeclared(actual: Core.Type, span: Span | undefined, diagnostics: DiagnosticBuilder): void {
+function checkReturnAgainstDeclared(actual: Ty.Type, span: Span | undefined, diagnostics: DiagnosticBuilder): void {
   const expectation = returnExpectations[returnExpectations.length - 1];
   if (!expectation || argumentFits(expectation.declared, actual)) return;
   expectation.reported = true;
@@ -281,14 +278,14 @@ export function typecheckFunctionBody(
   ctx: ModuleContext,
   symbols: SymbolTable,
   f: Core.Func,
-  declaredReturn: Core.Type,
+  declaredReturn: Ty.Type,
   retTypeInferred: boolean,
   diagnostics: DiagnosticBuilder,
-): Core.Type {
+): Ty.Type {
   if (!f.body) return unknownType();
   const expectation: ReturnExpectation | null = retTypeInferred ? null : { declared: declaredReturn, reported: false };
   returnExpectations.push(expectation);
-  let bodyReturn: Core.Type;
+  let bodyReturn: Ty.Type;
   try {
     bodyReturn = typecheckBlock(ctx, symbols, f.body, diagnostics);
   } finally {
@@ -297,7 +294,7 @@ export function typecheckFunctionBody(
   // Return 与实参同一套可赋值规则：数值拓宽、T → T?、None → T? 放行，收窄仍报错（aster-lang-core#232）
   if (expectation && !expectation.reported && !argumentFits(declaredReturn, bodyReturn)) {
     const last = f.body.statements[f.body.statements.length - 1];
-    const span = (last && (last.span ?? originToSpan(last.origin))) ?? f.body.span ?? f.ret?.span ?? f.span;
+    const span = (last && (originToSpan(last.origin))) ?? originToSpan(f.body.origin) ?? originToSpan(f.ret?.origin) ?? originToSpan(f.origin);
     diagnostics.error(ErrorCode.RETURN_TYPE_MISMATCH, span, {
       expected: formatType(declaredReturn),
       actual: formatType(bodyReturn),

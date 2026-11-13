@@ -1681,7 +1681,7 @@ function parsePrimary(
   }
   if (ctx.at(TokenKind.FLOAT)) {
     const tok = ctx.next();
-    const node = Node.Double(tok.value as number);
+    const node = tok.raw === undefined ? Node.Double(tok.value as number) : { ...Node.Double(tok.value as number), raw: tok.raw };
     assignSpan(node, spanFromToken(tok));
     return node;
   }
@@ -1945,7 +1945,8 @@ export function parsePattern(
       }
       if (!ctx.at(TokenKind.RPAREN)) error(Issue.expectedIn(lit(')'), tokenName('pattern'), "Expected ')' in pattern"));
       const rparenTok = ctx.next();
-      const node = Node.PatternCtor(typeName, names);
+      // ADR 0055 #15、#17：IR 把每个绑定名降为带自己位置的 PatName，这里记下各名字的 span
+      const node = { ...Node.PatternCtor(typeName, names), nameSpans: nameTokens.map(spanFromToken) };
       assignSpan(node, spanFromSources(typeTok, lparenTok, rparenTok, ...nameTokens));
       return node;
     }

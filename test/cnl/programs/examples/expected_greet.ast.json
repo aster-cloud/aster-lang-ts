@@ -27,9 +27,6 @@
     {
       "kind": "Func",
       "name": "greet",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "user",

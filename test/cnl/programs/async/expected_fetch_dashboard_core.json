@@ -1,6 +1,8 @@
 {
   "kind": "Module",
+  "schemaVersion": 2,
   "name": null,
+  "profile": null,
   "decls": [
     {
       "kind": "Data",
@@ -11,14 +13,18 @@
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          }
+          },
+          "annotations": [],
+          "typeInferred": true
         },
         {
           "name": "name",
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          }
+          },
+          "annotations": [],
+          "typeInferred": true
         }
       ]
     },
@@ -31,14 +37,18 @@
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          }
+          },
+          "annotations": [],
+          "typeInferred": true
         },
         {
           "name": "timeline",
           "type": {
             "kind": "TypeName",
             "name": "Text"
-          }
+          },
+          "annotations": [],
+          "typeInferred": true
         }
       ]
     },
@@ -53,9 +63,6 @@
     {
       "kind": "Func",
       "name": "fetchDashboard",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "u",
@@ -63,16 +70,21 @@
             "kind": "TypeName",
             "name": "Text"
           },
+          "annotations": [],
           "typeInferred": true
         }
       ],
       "ret": {
-        "kind": "TypeVar",
+        "kind": "TypeName",
         "name": "Unknown"
       },
+      "retTypeInferred": true,
+      "annotations": [],
+      "retAnnotations": [],
       "effects": [
-        "IO"
+        "io"
       ],
+      "effectParams": [],
       "effectCaps": [
         "Http",
         "Sql",
@@ -82,6 +94,7 @@
         "AiModel"
       ],
       "effectCapsExplicit": false,
+      "inputRefs": null,
       "body": {
         "kind": "Block",
         "statements": [
@@ -153,11 +166,7 @@
             }
           }
         ]
-      },
-      "declaredEffects": [
-        "IO"
-      ],
-      "retTypeInferred": true
+      }
     }
   ]
 }

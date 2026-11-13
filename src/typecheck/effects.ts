@@ -63,22 +63,22 @@ export function checkEffects(ctx: ModuleContext, func: Core.Func, diagnostics: D
   const hasCPU = func.effects.some(eff => String(eff).toLowerCase() === 'cpu');
 
   if (observed.has('io') && !hasIO)
-    diagnostics.error(ErrorCode.EFF_MISSING_IO, func.span, { func: func.name });
+    diagnostics.error(ErrorCode.EFF_MISSING_IO, originToSpan(func.origin), { func: func.name });
 
   if (observed.has('cpu') && !(hasCPU || hasIO))
-    diagnostics.error(ErrorCode.EFF_MISSING_CPU, func.span, { func: func.name });
+    diagnostics.error(ErrorCode.EFF_MISSING_CPU, originToSpan(func.origin), { func: func.name });
 
   if (!observed.has('io') && hasIO && observed.has('cpu'))
-    diagnostics.info(ErrorCode.EFF_SUPERFLUOUS_IO_CPU_ONLY, func.span, { func: func.name });
+    diagnostics.info(ErrorCode.EFF_SUPERFLUOUS_IO_CPU_ONLY, originToSpan(func.origin), { func: func.name });
 
   if (!observed.has('cpu') && hasCPU)
-    diagnostics.warning(ErrorCode.EFF_SUPERFLUOUS_CPU, func.span, { func: func.name });
+    diagnostics.warning(ErrorCode.EFF_SUPERFLUOUS_CPU, originToSpan(func.origin), { func: func.name });
 
   const workflows = collectWorkflows(func.body);
   if (workflows.length === 0) return;
 
   if (!hasIO) {
-    diagnostics.error(ErrorCode.WORKFLOW_MISSING_IO_EFFECT, func.span, { func: func.name });
+    diagnostics.error(ErrorCode.WORKFLOW_MISSING_IO_EFFECT, originToSpan(func.origin), { func: func.name });
   }
 
   const meta = func as unknown as { effectCaps?: readonly CapabilityKind[] };
@@ -143,7 +143,7 @@ export function checkCapabilityInferredEffects(func: Core.Func, diagnostics: Dia
       .flatMap(cap => observed.get(cap) ?? [])
       .slice(0, 3)
       .join(', ');
-    diagnostics.error(ErrorCode.CAPABILITY_INFER_MISSING_IO, func.span, {
+    diagnostics.error(ErrorCode.CAPABILITY_INFER_MISSING_IO, originToSpan(func.origin), {
       func: func.name,
       capabilities: capNames,
       calls: calls || undefined,
@@ -157,7 +157,7 @@ export function checkCapabilityInferredEffects(func: Core.Func, diagnostics: Dia
       .flatMap(cap => observed.get(cap) ?? [])
       .slice(0, 3)
       .join(', ');
-    diagnostics.error(ErrorCode.CAPABILITY_INFER_MISSING_CPU, func.span, {
+    diagnostics.error(ErrorCode.CAPABILITY_INFER_MISSING_CPU, originToSpan(func.origin), {
       func: func.name,
       calls: cpuCalls || undefined,
     });

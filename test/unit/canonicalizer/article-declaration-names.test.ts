@@ -42,7 +42,7 @@ describe('冠词删除 vs 声明名（共享夹具）', () => {
       assert.equal(errors.length === 0, c.success);
       if (!c.success) return;
       // 语义不漂移：Core 里的声明名与源码写下的一致（防止冠词被删后 `Rule given …` 静默得到函数 given）
-      assert.deepEqual(r.core?.decls.map((d) => d.name), declaredNames(c.source));
+      assert.deepEqual(r.core?.decls.map((d) => (d.kind === 'Import' ? d.path : d.name)), declaredNames(c.source));
     });
   }
 });

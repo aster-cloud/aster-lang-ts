@@ -1,4 +1,5 @@
 import type { Core, Span } from '../types.js';
+import { originToSpan } from './pure.js';
 import { CapabilityKind, inferCapabilityFromName } from '../config/semantic.js';
 import { ENFORCE_CAPABILITIES } from '../config/runtime.js';
 import { DefaultCoreVisitor, createVisitorContext } from '../core/visitor.js';
@@ -19,7 +20,7 @@ export function checkCapabilities(func: Core.Func, diagnostics: DiagnosticBuilde
 
   for (const [cap, callSites] of used) {
     if (!declared.has(cap)) {
-      diagnostics.error(ErrorCode.EFF_CAP_MISSING, func.span, {
+      diagnostics.error(ErrorCode.EFF_CAP_MISSING, originToSpan(func.origin), {
         func: func.name,
         cap,
         declared: [...declared].join(', '),
@@ -30,7 +31,7 @@ export function checkCapabilities(func: Core.Func, diagnostics: DiagnosticBuilde
 
   for (const cap of declared) {
     if (!used.has(cap)) {
-      diagnostics.info(ErrorCode.EFF_CAP_SUPERFLUOUS, func.span, { func: func.name, cap });
+      diagnostics.info(ErrorCode.EFF_CAP_SUPERFLUOUS, originToSpan(func.origin), { func: func.name, cap });
     }
   }
 }

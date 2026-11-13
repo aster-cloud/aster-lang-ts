@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
-import type { Core, TypecheckDiagnostic } from '../types.js';
+import type { Core, TypecheckDiagnostic, Ty } from '../types.js';
+import { originToSpan } from './pure.js';
 import {
   type CapabilityManifest,
   type CapabilityContext,
@@ -78,9 +79,9 @@ export function typecheckModule(m: Core.Module, options?: TypecheckOptions): Typ
     for (const d of m.decls) {
       if (d.kind === 'Func') {
         const params = signatureParamTypes(d.params);
-        let ret = normalizeType(d.ret as Core.Type);
+        let ret = normalizeType(d.ret as Ty.Type);
         if ((d as { retTypeInferred?: boolean }).retTypeInferred) {
-          const inferred = TypeSystem.inferFunctionType(d.params, d.body.statements, fieldTypes).ret as Core.Type;
+          const inferred = TypeSystem.inferFunctionType(d.params, d.body.statements, fieldTypes).ret as Ty.Type;
           if (!isUnknown(inferred)) ret = inferred;
         }
         ctx.funcSignatures.set(d.name, { params, ret });
@@ -90,11 +91,11 @@ export function typecheckModule(m: Core.Module, options?: TypecheckOptions): Typ
     for (const d of m.decls) {
       if (d.kind === 'Import') {
         importDecls.push(d);
-        const alias = d.asName ?? d.name;
+        const alias = d.alias ?? d.path;
         if (ctx.imports.has(alias)) {
-          diagnostics.warning(ErrorCode.DUPLICATE_IMPORT_ALIAS, d.span, { alias });
+          diagnostics.warning(ErrorCode.DUPLICATE_IMPORT_ALIAS, originToSpan(d.origin), { alias });
         } else {
-          ctx.imports.set(alias, d.name);
+          ctx.imports.set(alias, d.path);
         }
       }
     }
@@ -169,7 +170,7 @@ export function loadImportedEffects(
 
   const visited = new Set<string>();
   for (const imp of imports) {
-    const moduleName = (imp.name ?? '').trim();
+    const moduleName = imp.path.trim();
     if (!moduleName || visited.has(moduleName)) continue;
     visited.add(moduleName);
 
@@ -244,7 +245,7 @@ export function typecheckModuleWithCapabilities(
 
     for (const cap of declaredCaps) {
       if (!isAllowed(cap, d.name, capCtx, normalizedManifest)) {
-        builder.error(ErrorCode.CAPABILITY_NOT_ALLOWED, d.span, {
+        builder.error(ErrorCode.CAPABILITY_NOT_ALLOWED, originToSpan(d.origin), {
           func: d.name,
           module: m.name ?? '',
           cap,
@@ -261,11 +262,11 @@ function typecheckFunc(ctx: ModuleContext, f: Core.Func, diagnostics: Diagnostic
   const functionContext: TypecheckWalkerContext = { module: ctx, symbols, diagnostics };
 
   for (const param of f.params) {
-    const paramType = normalizeType(param.type as Core.Type);
+    const paramType = normalizeType(param.type as Ty.Type);
     defineSymbol(functionContext, param.name, paramType, 'param', undefined, param.typeInferred === true);
   }
 
-  const declaredReturn = normalizeType(f.ret as Core.Type);
+  const declaredReturn = normalizeType(f.ret as Ty.Type);
   const retTypeInferred = (f as { retTypeInferred?: boolean }).retTypeInferred === true;
   // 每条 Return 路径都与声明类型比较，另有函数级兜底（aster-lang-ts#283）
   const bodyReturn = typecheckFunctionBody(ctx, symbols, f, declaredReturn, retTypeInferred, diagnostics);
@@ -277,8 +278,8 @@ function typecheckFunc(ctx: ModuleContext, f: Core.Func, diagnostics: Diagnostic
 
   const typeParams = (f as unknown as { typeParams?: readonly string[] }).typeParams ?? [];
   if (typeParams.length > 0 && !retTypeInferred) {
-    const bindings = new Map<string, Core.Type>();
-    unifyTypeParameters(declaredReturn, bodyReturn, bindings, diagnostics, f.ret?.span ?? f.span);
+    const bindings = new Map<string, Ty.Type>();
+    unifyTypeParameters(declaredReturn, bodyReturn, bindings, diagnostics, originToSpan(f.ret?.origin) ?? originToSpan(f.origin));
   }
 
   checkGenericTypeParameters(ctx, f, diagnostics);

@@ -210,6 +210,7 @@ function parseBetweenConstraint(
     error(Issue.expectedAfter(tokenName('number'), kwParam(KW.BETWEEN), `约束 ${kwq(ctx, KW.BETWEEN)} 后需要数值作为最小值`), minTok);
   }
   const min = ctx.next().value as number;
+  const minRaw = minTok.raw ?? String(min);
 
   // 期望 'and'
   if (!ctx.isKeyword(KW.AND)) {
@@ -223,9 +224,10 @@ function parseBetweenConstraint(
     error(Issue.expectedAfter(tokenName('number'), kwParam(KW.AND), `约束 '${kw(ctx, KW.BETWEEN)} X ${kw(ctx, KW.AND)}' 后需要数值作为最大值`), maxTok);
   }
   const max = ctx.next().value as number;
+  const maxRaw = maxTok.raw ?? String(max);
 
   const span: Span = { start: startTok.start, end: maxTok.end };
-  const constraint: ConstraintRange = { kind: 'Range', min, max, span };
+  const constraint: ConstraintRange = { kind: 'Range', min, max, minRaw, maxRaw, span };
   return { constraint, endToken: maxTok };
 }
 
@@ -256,14 +258,15 @@ function parseAtConstraint(
     error(Issue.expectedAfter(tokenName('number'), kwParam(modifier === 'least' ? KW.AT_LEAST : KW.AT_MOST), `约束 ${kwq(ctx, modifier === 'least' ? KW.AT_LEAST : KW.AT_MOST, `at ${modifier}`)} 后需要数值`), valueTok);
   }
   const value = ctx.next().value as number;
+  const raw = valueTok.raw ?? String(value);
 
   const span: Span = { start: startTok.start, end: valueTok.end };
 
   let constraint: ConstraintRange;
   if (modifier === 'least') {
-    constraint = { kind: 'Range', min: value, span };
+    constraint = { kind: 'Range', min: value, minRaw: raw, span };
   } else {
-    constraint = { kind: 'Range', max: value, span };
+    constraint = { kind: 'Range', max: value, maxRaw: raw, span };
   }
 
   return { constraint, endToken: valueTok };

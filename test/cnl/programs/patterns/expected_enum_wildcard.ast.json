@@ -8,36 +8,11 @@
       "variants": [
         "InvalidCreds",
         "Locked"
-      ],
-      "variantSpans": [
-        {
-          "start": {
-            "line": 1,
-            "col": 26
-          },
-          "end": {
-            "line": 1,
-            "col": 38
-          }
-        },
-        {
-          "start": {
-            "line": 1,
-            "col": 40
-          },
-          "end": {
-            "line": 1,
-            "col": 46
-          }
-        }
       ]
     },
     {
       "kind": "Func",
       "name": "show2",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "e",

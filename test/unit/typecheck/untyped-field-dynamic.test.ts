@@ -11,7 +11,7 @@ import { typecheckModule } from '../../../src/typecheck.js';
 import { compile } from '../../../src/browser.js';
 import { evaluate } from '../../../src/core/interpreter.js';
 import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
-import type { Core as CoreTypes, TypecheckDiagnostic } from '../../../src/types.js';
+import type { Core as CoreTypes, TypecheckDiagnostic, Ty } from '../../../src/types.js';
 import { Core } from '../../../src/core/core_ir.js';
 import { typeOfExpr } from '../../../src/typecheck/expression.js';
 import { SymbolTable } from '../../../src/typecheck/symbol_table.js';
@@ -37,7 +37,7 @@ function runTypecheck(source: string): TypecheckDiagnostic[] {
 }
 
 /** 在只含 `req: GuardRequest` 的作用域里求表达式类型，用于直接断言推断结果。 */
-function typeOfDotted(core: CoreTypes.Module, dotted: string): { type: CoreTypes.Type; diags: TypecheckDiagnostic[] } {
+function typeOfDotted(core: CoreTypes.Module, dotted: string): { type: Ty.Type; diags: TypecheckDiagnostic[] } {
   const datas = new Map<string, CoreTypes.Data>();
   for (const d of core.decls) if (d.kind === 'Data') datas.set(d.name, d);
   const ctx: ModuleContext = {
@@ -93,9 +93,11 @@ Rule decide given req as Req, produce Bool:
     assert.equal(diags.some(d => d.code === ErrorCode.UNKNOWN_FIELD), true);
   });
 
-  test('无类型标记不进入 Core IR（golden 与 TS↔Java 指纹不变）', () => {
+  test('无类型标记是 Core IR v2 字段（ADR 0055 #9）', () => {
     const core = lowerModule(parse(lex(canonicalize(sample))).ast);
-    assert.equal(JSON.stringify(core).includes('typeInferred'), false);
+    const req = core.decls.find((d): d is CoreTypes.Data => d.kind === 'Data' && d.name === 'GuardRequest')!;
+    assert.ok(req.fields.some((f) => f.typeInferred), JSON.stringify(req.fields.map((f) => f.name)));
+    assert.ok(JSON.stringify(core).includes('"typeInferred":true'));
   });
 
   test('req.context.amount 推断为 Unknown（钉住类型而非仅无诊断）', () => {
@@ -130,10 +132,10 @@ Rule decide given req as Req, produce Bool:
     assert.deepEqual(errors(diags).map(d => `${d.code}: ${d.message}`), []);
   });
 
-  test('JSON 往返后标记丢失，退回按推断类型检查（身份索引设计的已知局限）', () => {
+  test('JSON 往返后标记保留（v2 中 typeInferred 是 IR 字段，不再是身份索引的旁路表）', () => {
     const roundTripped = JSON.parse(JSON.stringify(lowerSample())) as CoreTypes.Module;
     const { diags } = typeOfDotted(roundTripped, 'req.context.amount');
-    assert.equal(diags.some(d => d.code === ErrorCode.UNKNOWN_FIELD), true);
+    assert.equal(diags.some(d => d.code === ErrorCode.UNKNOWN_FIELD), false);
   });
 
   test('无类型字段用于比较、算术与 List.contains 均无错误', () => {

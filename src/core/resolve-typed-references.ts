@@ -24,6 +24,7 @@ import { originToSpan } from '../typecheck/pure.js';
 import { VERDICT_FIELDS, VERDICT_TYPE_NAME } from '../typecheck/verdict_signatures.js';
 import type { Core, ResolvedRole, Span, TypecheckDiagnostic } from '../types.js';
 import { isFieldTypeInferred, isLambdaParamTypeInferred } from './inferred_fields.js';
+import { Core as CoreIR } from './core_ir.js';
 import { resolutionMarkOf, withResolvedOrigin } from './resolution-mark.js';
 import type { MarkableNode, ResolutionMark } from './resolution-mark.js';
 
@@ -311,7 +312,7 @@ function typeOf(r: Resolver, scope: Scope, e: Core.Expression, hinted = false): 
     case 'Name':
       return pathType(r, scope, e.name, hinted);
     case 'Construct':
-      return { kind: 'TypeName', name: e.typeName };
+      return { ...CoreIR.TypeName(e.typeName), origin: e.origin };
     case 'Call':
       return declaredRet(calleeOf(r, scope, e.target));
     default:
@@ -334,9 +335,8 @@ function warn(r: Resolver, code: ErrorCode, at: Span | undefined, written: strin
 }
 
 /** 写入规范名，并在 origin 上记录原写法与角色（written !== canonical 时）。 */
-function renamed<T extends { origin?: Core.CoreNode['origin'] }>(node: T, patch: Partial<T>, written: string, canonical: string, role: ResolvedRole): T {
-  const origin = withResolvedOrigin(node.origin, written, canonical, role);
-  return origin ? { ...node, ...patch, origin } : { ...node, ...patch };
+function renamed<T extends { origin: Core.Origin }>(node: T, patch: Partial<T>, written: string, canonical: string, role: ResolvedRole): T {
+  return { ...node, ...patch, origin: withResolvedOrigin(node.origin, written, canonical, role) };
 }
 
 /** 只读标记：输入 Core 不被修改，同一 Core 上重复运行 R2 结果相同。 */
@@ -652,7 +652,8 @@ function resolveStmt(r: Resolver, f: Frame, s: Core.Statement): Core.Statement {
       return { ...s, cond: resolveExpr(r, f, s.cond), thenBlock: resolveBlock(r, f, s.thenBlock), elseBlock: s.elseBlock ? resolveBlock(r, f, s.elseBlock) : null };
     case 'Match':
       return resolveMatch(r, f, s);
-    case 'Scope': {
+    case 'Scope':
+    case 'Block': {
       const inner = child(f);
       return { ...s, statements: s.statements.map((x) => resolveStmt(r, inner, x)) };
     }
@@ -710,15 +711,11 @@ function resolveCase(r: Resolver, f: Frame, c: Core.Case, subject: Static, hint:
 function resolvePattern(r: Resolver, f: Frame, p: Core.Pattern, subject: Static, hint: Static): Core.Pattern {
   switch (p.kind) {
     case 'PatName':
-    case 'PatternName':
       return resolvePatName(r, f, p, subject, hint);
     case 'PatCtor':
-    case 'PatternCtor':
       return resolvePatCtor(r, f, p, subject, hint);
     case 'PatNull':
-    case 'PatternNull':
     case 'PatInt':
-    case 'PatternInt':
       return p;
     default: {
       const never: never = p;
@@ -731,32 +728,19 @@ function resolvePattern(r: Resolver, f: Frame, p: Core.Pattern, subject: Static,
  * 模式名：主语为枚举 E 时，命中 enumMembers[E] 即为成员（与其它层同时命中 → E804）；
  * 主语类型未知时，仅当写法精确等于某枚举成员才视为成员（唯一 → W801，多个 → E806）；
  * 其余为绑定名。模式名是声明而非引用，故不经过 LOCAL 层。
- * 首字母不是 ASCII 大写的成员产出无参数 PatCtor（裁决 R55，见 {@link isCased}）。
+ * 判为成员的裸名一律产出 0 参 PatCtor（ADR 0055 #16）：PatName 只用于绑定，运行时不再按首字母大小写区分。
  */
 function resolvePatName(r: Resolver, f: Frame, p: Core.PatName, subject: Static, hint: Static): Core.Pattern {
   const mark = consume(p);
   const asMember = mark ? patNameMember(r, p, mark, subject) : undefined;
-  if (asMember) return asMember === p || isCased(asMember.name) ? asMember : variantCtor(asMember);
+  if (asMember) return asMember === p ? p : variantCtor(asMember);
   declare(f, p.name, undefined, hint);
   return p;
 }
 
-/**
- * 裁决 R55：运行时（本仓解释器、truffle）与 parity 归一化都按「PatName 首字母为 ASCII 大写 = 变体，否则 = 绑定」区分。
- * 中文、天城文等无大小写文字无法用大小写表达，故 R2 按判定结果直接给出形态：成员 → 无参数 PatCtor，绑定 → PatName
- * （Java 把中文裸名解析为无参数 PatCtor，判为绑定时改为 PatName，两侧 IR 同形）。
- * 首字母为 ASCII 大写的名字 IR 不变；de 以变音字母开头的成员、本仓接受的小写 ASCII 枚举成员
- * （`Define Color as one of red, Green`，Java 拒绝）同样产出 PatCtor，此前它们是兜底绑定。判定只看 ASCII，与 Java 侧结果相同。
- */
-function isCased(name: string): boolean {
-  return /^[A-Z]/.test(name);
-}
-
-/** 判为枚举成员的无大小写裸名：无参数构造器模式，沿用成员解析写入的 origin。 */
+/** 判为枚举成员的裸名：无参数构造器模式，沿用成员解析写入的 origin（含 written / role）。 */
 function variantCtor(member: Core.PatName): Core.PatCtor {
-  return member.origin
-    ? { kind: 'PatCtor', typeName: member.name, names: [], origin: member.origin }
-    : { kind: 'PatCtor', typeName: member.name, names: [] };
+  return { ...CoreIR.PatCtor(member.name, []), origin: member.origin };
 }
 
 function patNameMember(r: Resolver, p: Core.PatName, mark: ResolutionMark, subject: Static): Core.PatName | undefined {
@@ -801,9 +785,8 @@ function resolvePatCtor(r: Resolver, f: Frame, p: Core.PatCtor, subject: Static,
   const mark = consume(p);
   const head = mark ? ctorResolution(r, { ...p }, mark, subject) : { ...p };
   const fields = ctorFieldHints(r, head.typeName, hint);
-  const args = p.args?.map((a, i) => resolvePattern(r, f, a, undefined, fields[i]));
-  p.names.forEach((n, i) => declare(f, n, undefined, fields[i]));
-  return args ? { ...head, args } : head;
+  const args = p.args.map((a, i) => resolvePattern(r, f, a, undefined, fields[i]));
+  return { ...head, args };
 }
 
 /**

@@ -1,4 +1,5 @@
-import type { Core } from '../types.js';
+import type { Core, Ty } from '../types.js';
+import { originToSpan } from './pure.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { ModuleContext } from './context.js';
 import { defineSymbol } from './context.js';
@@ -10,11 +11,11 @@ export function bindPattern(
   ctx: ModuleContext,
   symbols: SymbolTable,
   pattern: Core.Pattern,
-  scrutineeType: Core.Type,
+  scrutineeType: Ty.Type,
   diagnostics: DiagnosticBuilder
 ): void {
   if (pattern.kind === 'PatName') {
-    defineSymbol({ module: ctx, symbols, diagnostics }, pattern.name, scrutineeType, 'pattern', pattern.span);
+    defineSymbol({ module: ctx, symbols, diagnostics }, pattern.name, scrutineeType, 'pattern', originToSpan(pattern.origin));
     return;
   }
   if (pattern.kind === 'PatNull') return;
@@ -23,7 +24,7 @@ export function bindPattern(
     if (isUnknown(scrutineeType) || isNameInferredType(scrutineeType)) return;
     const isInt = scrutineeType.kind === 'TypeName' && scrutineeType.name === 'Int';
     if (!isInt) {
-      diagnostics.error(ErrorCode.INTEGER_PATTERN_TYPE, pattern.span, {
+      diagnostics.error(ErrorCode.INTEGER_PATTERN_TYPE, originToSpan(pattern.origin), {
         scrutineeType: formatType(scrutineeType),
       });
     }
@@ -33,64 +34,27 @@ export function bindPattern(
   bindPatternCtor(ctx, symbols, pattern, scrutineeType, diagnostics);
 }
 
+/** 构造器模式（ADR 0055 #15）：绑定全部在 args 中，按位置对应 Ok / Err 的内层类型或 Data 的字段类型。 */
 function bindPatternCtor(
   ctx: ModuleContext,
   symbols: SymbolTable,
   pattern: Core.PatCtor,
-  scrutineeType: Core.Type,
+  scrutineeType: Ty.Type,
   diagnostics: DiagnosticBuilder
 ): void {
-  if (pattern.typeName === 'Ok' && !isUnknown(scrutineeType) && scrutineeType.kind === 'Result') {
-    const inner = (scrutineeType as Core.Result).ok as Core.Type;
-    const ctor = pattern as Core.PatCtor & { args?: readonly Core.Pattern[] };
-    const child =
-      ctor.args && ctor.args.length > 0
-        ? (ctor.args[0] as Core.Pattern)
-        : pattern.names && pattern.names[0]
-          ? ({ kind: 'PatName', name: pattern.names[0] } as Core.PatName)
-          : null;
-    if (child) bindPattern(ctx, symbols, child, inner, diagnostics);
-    return;
-  }
-  if (pattern.typeName === 'Err' && !isUnknown(scrutineeType) && scrutineeType.kind === 'Result') {
-    const inner = (scrutineeType as Core.Result).err as Core.Type;
-    const ctor = pattern as Core.PatCtor & { args?: readonly Core.Pattern[] };
-    const child =
-      ctor.args && ctor.args.length > 0
-        ? (ctor.args[0] as Core.Pattern)
-        : pattern.names && pattern.names[0]
-          ? ({ kind: 'PatName', name: pattern.names[0] } as Core.PatName)
-          : null;
-    if (child) bindPattern(ctx, symbols, child, inner, diagnostics);
+  const result = !isUnknown(scrutineeType) && scrutineeType.kind === 'Result' ? scrutineeType : undefined;
+  if (result && (pattern.typeName === 'Ok' || pattern.typeName === 'Err')) {
+    const child = pattern.args[0];
+    if (child) bindPattern(ctx, symbols, child, pattern.typeName === 'Ok' ? result.ok : result.err, diagnostics);
     return;
   }
   const dataDecl = ctx.datas.get(pattern.typeName);
   if (!dataDecl) {
-    if (pattern.names) {
-      for (const name of pattern.names) {
-        defineSymbol({ module: ctx, symbols, diagnostics }, name, unknownType(), 'pattern', pattern.span);
-      }
-    }
-    const ctor = pattern as Core.PatCtor & { args?: readonly Core.Pattern[] };
-    if (ctor.args) {
-      for (const arg of ctor.args as readonly Core.Pattern[]) {
-        bindPattern(ctx, symbols, arg, unknownType(), diagnostics);
-      }
-    }
+    for (const arg of pattern.args) bindPattern(ctx, symbols, arg, unknownType(), diagnostics);
     return;
   }
-  const arity = dataDecl.fields.length;
-  const ctor = pattern as Core.PatCtor & { args?: readonly Core.Pattern[] };
-  const args: readonly Core.Pattern[] = ctor.args ? (ctor.args as readonly Core.Pattern[]) : [];
+  const arity = Math.min(dataDecl.fields.length, pattern.args.length);
   for (let i = 0; i < arity; i++) {
-    const fieldType = dataDecl.fields[i]!.type as Core.Type;
-    const child =
-      i < args.length
-        ? args[i]!
-        : pattern.names && i < pattern.names.length
-          ? ({ kind: 'PatName', name: pattern.names[i]! } as Core.PatName)
-          : null;
-    if (!child) continue;
-    bindPattern(ctx, symbols, child, fieldType, diagnostics);
+    bindPattern(ctx, symbols, pattern.args[i]!, dataDecl.fields[i]!.type, diagnostics);
   }
 }

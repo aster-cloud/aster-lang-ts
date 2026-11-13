@@ -27,9 +27,6 @@
     {
       "kind": "Func",
       "name": "greetUser",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "user",
@@ -161,9 +158,6 @@
     {
       "kind": "Func",
       "name": "posOrZero",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "count",

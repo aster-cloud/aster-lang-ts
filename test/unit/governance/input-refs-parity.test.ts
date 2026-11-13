@@ -67,7 +67,7 @@ for (const c of FIXTURE.cases) {
     const expectedE708: Record<string, string> = {};
     for (const d of core.decls) {
       if (d.kind !== 'Func') continue;
-      actual[d.name] = d.inputRefs === undefined ? null : [...d.inputRefs];
+      actual[d.name] = d.inputRefs === null ? null : [...d.inputRefs];
       const want = c.expect[d.name];
       if (want?.construct !== undefined) {
         expectedE708[d.name] = want.construct;

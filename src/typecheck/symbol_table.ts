@@ -1,6 +1,6 @@
-import type { Core, Span } from '../types.js';
+import type { Span, Ty } from '../types.js';
 
-type Type = Core.Type;
+type Type = Ty.Type;
 
 /** `var` 为 Let 绑定（唯一可被 `Set` 赋值的种类）；`pattern` 为 match 模式绑定。 */
 export type SymbolKind = 'var' | 'func' | 'data' | 'enum' | 'type_alias' | 'param' | 'pattern';
@@ -256,12 +256,12 @@ export class SymbolTable {
       case 'TypeApp':
         return {
           ...type,
-          args: type.args.map(arg => this.expandAliasType(arg as Type, stack)) as readonly Core.Type[],
+          args: type.args.map(arg => this.expandAliasType(arg as Type, stack)) as readonly Ty.Type[],
         };
       case 'FuncType':
         return {
           ...type,
-          params: type.params.map(param => this.expandAliasType(param as Type, stack)) as readonly Core.Type[],
+          params: type.params.map(param => this.expandAliasType(param as Type, stack)) as readonly Ty.Type[],
           ret: this.expandAliasType(type.ret as Type, stack),
         };
       case 'PiiType':

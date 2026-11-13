@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * 本文件由 scripts/generate-core-ir-types.ts 从 shared/core-ir.v2.schema.json 生成，请勿手改。
  * Core IR v2 JSON Schema（ADR 0055 §3）的内置副本，与 shared/ 中的副本深度相等。

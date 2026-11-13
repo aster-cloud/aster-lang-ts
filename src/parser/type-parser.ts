@@ -53,7 +53,8 @@ const CORE_RESERVED_WORDS: ReadonlySet<string> = new Set([
  */
 export function parseEffectList(
   ctx: ParserContext,
-  error: ParseErrorFn
+  error: ParseErrorFn,
+  funcName = ''
 ): string[] {
   const effs: string[] = [];
 
@@ -71,6 +72,21 @@ export function parseEffectList(
   // core 的保留词（return、to、async、with、and 等）不是 IDENT，同样不接受。
   if (effs.length === 0 && ctx.at(TokenKind.IDENT) && !CORE_RESERVED_WORDS.has(String(ctx.peek().value).toLowerCase())) {
     effs.push(ctx.next().value as string);
+  }
+  // 效应位置上的大写名字（ADR 0055 #5，与 Java AstBuilder.classifyEffectClause 一致）：已声明的效应参数是效应变量；
+  // 未声明的报 E210，IR 中因此不会出现未声明的效应变量
+  if (effs.length === 0 && ctx.at(TokenKind.TYPE_IDENT)) {
+    const tok = ctx.peek();
+    const written = String(tok.value);
+    if (!ctx.currentEffectVars.has(written) && !['io', 'cpu', 'pure'].includes(written.toLowerCase())) {
+      error({
+        code: ErrorCode.EFFECT_VAR_UNDECLARED,
+        params: { var: written, func: funcName },
+        message: `Effect variable ${written} undeclared in '${funcName}'`,
+      }, tok);
+    }
+    ctx.next();
+    effs.push(written);
   }
 
   // Parse optional capability list with 'with' keyword

@@ -9,11 +9,12 @@ import assert from 'node:assert/strict';
 import { evaluate } from '../../../src/core/interpreter.js';
 import { compile } from '../../../src/browser.js';
 import type { Core } from '../../../src/types.js';
+import { toV2 } from '../../helpers/core-ir-v2.js';
 
-const INT: Core.Type = { kind: 'TypeName', name: 'Int' };
+const INT: Core.Type = toV2({ kind: 'TypeName', name: 'Int' });
 
 function mkFunc(name: string, params: string[], body: Core.Statement[]): Core.Func {
-  return {
+  return toV2({
     kind: 'Func',
     name,
     typeParams: [],
@@ -22,27 +23,27 @@ function mkFunc(name: string, params: string[], body: Core.Statement[]): Core.Fu
     effects: [],
     effectCaps: [],
     effectCapsExplicit: false,
-    body: { kind: 'Block', statements: body },
-  };
+    body: toV2({ kind: 'Block', statements: body }),
+  });
 }
 
 function run(body: Core.Statement[], params: string[] = [], input: Record<string, unknown> = {}): unknown {
-  const mod: Core.Module = { kind: 'Module', name: 'test', decls: [mkFunc('f', params, body)] };
+  const mod: Core.Module = toV2({ kind: 'Module', name: 'test', decls: [mkFunc('f', params, body)] });
   const result = evaluate(mod, 'f', input);
   assert.ok(result.success, result.error);
   return result.value;
 }
 
-const int = (value: number): Core.Int => ({ kind: 'Int', value });
-const name = (n: string): Core.Name => ({ kind: 'Name', name: n });
-const plus = (a: Core.Expression, b: Core.Expression): Core.Call => ({ kind: 'Call', target: name('+'), args: [a, b] });
-const letS = (n: string, expr: Core.Expression): Core.Let => ({ kind: 'Let', name: n, expr });
-const setS = (n: string, expr: Core.Expression): Core.Set => ({ kind: 'Set', name: n, expr });
-const ret = (expr: Core.Expression): Core.Return => ({ kind: 'Return', expr });
-const scope = (statements: Core.Statement[]): Core.Scope => ({ kind: 'Scope', statements });
-const block = (statements: Core.Statement[]): Core.Block => ({ kind: 'Block', statements });
-const caseOf = (pattern: Core.Pattern, body: Core.Statement[]): Core.Case => ({ kind: 'Case', pattern, body: block(body) });
-const match = (expr: Core.Expression, cases: Core.Case[]): Core.Match => ({ kind: 'Match', expr, cases });
+const int = (value: number): Core.Int => (toV2({ kind: 'Int', value }));
+const name = (n: string): Core.Name => (toV2({ kind: 'Name', name: n }));
+const plus = (a: Core.Expression, b: Core.Expression): Core.Call => (toV2({ kind: 'Call', target: name('+'), args: [a, b] }));
+const letS = (n: string, expr: Core.Expression): Core.Let => (toV2({ kind: 'Let', name: n, expr }));
+const setS = (n: string, expr: Core.Expression): Core.Set => (toV2({ kind: 'Set', name: n, expr }));
+const ret = (expr: Core.Expression): Core.Return => (toV2({ kind: 'Return', expr }));
+const scope = (statements: Core.Statement[]): Core.Scope => (toV2({ kind: 'Scope', statements }));
+const block = (statements: Core.Statement[]): Core.Block => (toV2({ kind: 'Block', statements }));
+const caseOf = (pattern: Core.Pattern, body: Core.Statement[]): Core.Case => (toV2({ kind: 'Case', pattern, body: block(body) }));
+const match = (expr: Core.Expression, cases: Core.Case[]): Core.Match => (toV2({ kind: 'Match', expr, cases }));
 
 describe('块作用域写回（Core IR）', () => {
   it('Scope 内 Set 外层 Let：离开 Scope 后可见', () => {
@@ -72,11 +73,11 @@ describe('块作用域写回（Core IR）', () => {
   });
 
   it('Scope 内 Let 新名字：离开后不可见', () => {
-    const mod: Core.Module = {
+    const mod: Core.Module = toV2({
       kind: 'Module',
       name: 'test',
       decls: [mkFunc('f', [], [scope([letS('z', int(1))]), ret(name('z'))])],
-    };
+    });
     const result = evaluate(mod, 'f', {});
     assert.equal(result.success, false);
     assert.match(result.error ?? '', /Undefined variable 'z'/);
@@ -86,8 +87,8 @@ describe('块作用域写回（Core IR）', () => {
     const body = [
       letS('total', int(0)),
       match(name('n'), [
-        caseOf({ kind: 'PatInt', value: 1 }, [setS('total', int(10))]),
-        caseOf({ kind: 'PatName', name: 'other' }, [setS('total', plus(name('total'), name('other')))]),
+        caseOf(toV2({ kind: 'PatInt', value: 1 }), [setS('total', int(10))]),
+        caseOf(toV2({ kind: 'PatName', name: 'other' }), [setS('total', plus(name('total'), name('other')))]),
       ]),
       ret(name('total')),
     ];
@@ -96,14 +97,14 @@ describe('块作用域写回（Core IR）', () => {
   });
 
   it('case 体内的模式绑定与 Let 不泄漏到 match 之后', () => {
-    const mod: Core.Module = {
+    const mod: Core.Module = toV2({
       kind: 'Module',
       name: 'test',
       decls: [mkFunc('f', ['n'], [
-        match(name('n'), [caseOf({ kind: 'PatName', name: 'other' }, [letS('t', name('other'))])]),
+        match(name('n'), [caseOf(toV2({ kind: 'PatName', name: 'other' }), [letS('t', name('other'))])]),
         ret(name('other')),
       ])],
-    };
+    });
     const result = evaluate(mod, 'f', { n: 3 });
     assert.equal(result.success, false);
     assert.match(result.error ?? '', /Undefined variable 'other'/);
@@ -112,12 +113,12 @@ describe('块作用域写回（Core IR）', () => {
   it('If / else 分支内 Set 外层 Let：两条分支都写回', () => {
     const body: Core.Statement[] = [
       letS('r', int(0)),
-      {
+      toV2({
         kind: 'If',
-        cond: { kind: 'Call', target: name('>'), args: [name('n'), int(0)] },
+        cond: toV2({ kind: 'Call', target: name('>'), args: [name('n'), int(0)] }),
         thenBlock: block([setS('r', int(1))]),
         elseBlock: block([setS('r', int(-1))]),
-      },
+      }),
       ret(name('r')),
     ];
     assert.equal(run(body, ['n'], { n: 5 }), 1);
@@ -127,7 +128,7 @@ describe('块作用域写回（Core IR）', () => {
   it('Scope 内的 case 体 Set 外层 Let：跨两层块写回', () => {
     const body = [
       letS('acc', int(1)),
-      scope([match(name('n'), [caseOf({ kind: 'PatInt', value: 2 }, [setS('acc', plus(name('acc'), int(41)))])])]),
+      scope([match(name('n'), [caseOf(toV2({ kind: 'PatInt', value: 2 }), [setS('acc', plus(name('acc'), int(41)))])])]),
       ret(name('acc')),
     ];
     assert.equal(run(body, ['n'], { n: 2 }), 42);
@@ -145,7 +146,7 @@ describe('块作用域写回（Core IR）', () => {
       letS('x', int(1)),
       letS('g', lambda),
       scope([setS('x', int(2))]),
-      ret(plus({ kind: 'Call', target: name('g'), args: [] }, name('x'))),
+      ret(plus(toV2({ kind: 'Call', target: name('g'), args: [] }), name('x'))),
     ];
     assert.equal(run(body), 3);
   });

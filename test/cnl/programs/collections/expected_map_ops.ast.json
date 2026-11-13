@@ -5,9 +5,6 @@
     {
       "kind": "Func",
       "name": "val",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "m",
@@ -76,9 +73,6 @@
     {
       "kind": "Func",
       "name": "valStrict",
-      "typeParams": [
-        "Unknown"
-      ],
       "params": [
         {
           "name": "m",

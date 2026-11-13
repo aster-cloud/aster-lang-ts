@@ -105,7 +105,10 @@ export class DefaultCoreVisitor<Ctx = VisitorContext> implements CoreVisitor<Ctx
         return;
       case 'Scope':
         // Scope 语义为嵌套 Block
-        this.visitBlock({ kind: 'Block', statements: s.statements }, ctx);
+        this.visitBlock({ ...s, kind: 'Block' }, ctx);
+        return;
+      case 'Block':
+        this.visitBlock(s, ctx);
         return;
       case 'Start':
         this.visitExpression(s.expr, ctx);

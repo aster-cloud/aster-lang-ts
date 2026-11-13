@@ -144,7 +144,7 @@ function extractImportModuleNames(module: Core.Module): string[] {
   const names = new Set<string>();
   for (const decl of module.decls) {
     if (decl.kind === 'Import') {
-      const moduleName = (decl.name ?? '').trim();
+      const moduleName = decl.path.trim();
       if (moduleName.length > 0) names.add(moduleName);
     }
   }
