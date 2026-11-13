@@ -1,5 +1,42 @@
 # Changelog
 
+## 2.0.0
+
+### Core IR v2（ADR 0055，与 1.0.46 引擎列车同车次）——破坏性变更
+
+ts 与 aster-lang-core 改为产出同一种 Core IR v2：形状由 aster-lang-locales `core-ir/core-ir.v2.schema.json`
+（JSON Schema 2020-12）定义，本仓副本为 `shared/core-ir.v2.schema.json`，由 sibling parity 测试守护。**不做 v1 兼容**：
+旧 IR 不能被新读方读入，持久化的 IR 须按源码重新编译。
+
+- **新增 API**：`serializeCoreIr(module)` 输出规范字节（core `CanonicalJson` 规则：键按码点升序、数组保序、null 显式、
+  只允许 safe integer）；`validateCoreIrInvariants(module)`；`readCoreIr(json)` 严格读入（`schemaVersion` 预检 → schema
+  校验 → 不变式），失败抛 `CoreIrFormatError`（`code` 为 `unsupported_schema_version` 或 `invalid_request`）。
+  `compile()` / `compileAndTypecheck()` 的结果新增 `coreJson`（= `serializeCoreIr(core)`）：持久化、哈希或提交给
+  aster-api `/evaluate-json` 时直接用它，`core` 保持对象形态。`readCoreIr` 依赖 ajv（已移入 dependencies），只从 Node 入口导出。
+- **IR 形状变化**（ADR 0055 §4）：
+  - `Module.schemaVersion: 2`；所有字段恒输出（标量 / 对象为 `null`，列表为 `[]`，布尔为 `false`），`profile` 未声明为 `null`；
+  - 每个带 kind 的节点都有 `origin`（含签名中的类型节点、约束元素），`origin.file` / `written` / `role` 恒输出；
+  - `Import` 改为 `{path, alias, version}`（原 `name` / `asName`）；
+  - `Annotation.args` 恒输出（无参为 `[]`），值只能是字符串、Int32 或布尔；
+  - `Field` / `Param` 恒带 `annotations`、`constraints`、`typeInferred`；`Range.min` / `max` 是规范十进制串（另一端为 `null`）；
+  - `Func.effects` 只含 `io` / `cpu`（小写）与已声明的效应变量，按首次声明顺序去重；删除 `declaredEffects`、`piiLevel`、
+    `piiCategories`；恒带 `retTypeInferred`、`retAnnotations`、`effectParams`、`inputRefs`（非档案模块与非 Verdict 函数为 `null`）；
+    `typeParams` 不再补推断占位 `Unknown`；
+  - `Double.value` 是取自字面量原文的规范十进制串（`1e-7` 不会出现，`0.0000001` 原样，`2.50` → `"2.5"`）；
+  - `PatCtor` 只有 `args`（删除 `names`）；枚举成员模式一律为 `PatCtor{typeName, args:[]}`，`PatName` 只表示绑定，
+    运行时不再按首字母大小写区分（中文、印地文成员名因此正确）；裸写的 `None` / `Some` / `Ok` / `Err` 同样是 PatCtor；
+  - `Lambda` 只有 `ret`（删除 `retType`），`captures` 恒输出；`workflow.retry` / `timeout`、`step.compensate` 无值为 `null`。
+- **TS 类型**：`Core.*` 是由 schema 生成的 `src/core/core-ir-v2.generated.ts` 的别名（全部 readonly、必填）。
+  `Core.EffectVar` 删除；类型检查器内部使用新的宽松类型 `Ty.*`。
+- **诊断**：新增 E213 `EFFECT_PARAM_SHADOWS_BUILTIN`（效应参数与 io / cpu / pure / async 同名，ASCII 大小写不敏感）与
+  E900 `PARSE_DUPLICATE_ANNOTATION_ARG`（同一注解的具名参数重名，解析期）。注解参数值为浮点或 Long 时报 E067；
+  效应位置上未声明的大写效应变量名在解析期报 E210；效应位置现在也可以直接写已声明的效应变量（`It performs E`）。
+  zh / de 译文来自 aster-lang-locales；hi 译文待 aster-lang-hi 补齐（在此之前回退英文）。
+- **移除**：`serializeCoreIR` / `deserializeCoreIR` / `isValidCoreIRJson` 与 `CoreIREnvelope`（`version: "1.0"` 外层封装）。
+  `aster-convert compile-to-json` 改为输出 `serializeCoreIr` 的规范字节，`json-to-cnl` 改为 `readCoreIr` 严格读入；
+  `aster truffle` 写出规范字节，读入 `.json` 时先严格校验。
+- `CORE_IR_ABI` 升为 `2.0`（toolchainId 随之变化）。
+
 ## 1.6.0
 
 ### 控制注册表 1.3.0：`eu-ai-act-high-risk` 要求 verifiedInputs（ADR 0046 §11.4 ⑦，与 aster-lang-core 同车次）

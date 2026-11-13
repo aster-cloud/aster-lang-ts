@@ -3,7 +3,7 @@
  *
  * 核心不变式：别名在 canonicalize/translate 阶段归一成规范拼写，故「别名版」与「规范版」
  * 源码编译到**结构一致的 Core IR**（仅源码位置 origin 元数据因关键词长度不同而偏移，
- * 这是派生层，与 IR 字段级 parity 方法学一致——ADR 0016 的 normalizeIr 也剥离 origin）。
+ * 这是派生层，与 IR 字段级 parity 方法学一致——Core IR 的跨引擎比较同样不看 origin 列号）。
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';

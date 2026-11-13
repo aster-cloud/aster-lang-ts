@@ -17,7 +17,7 @@ test('toolchainId 分量常量', async (t) => {
   await t.test('取值与 ADR 0051 一致', () => {
     assert.strictEqual(version.RESOLVER_VERSION, 1);
     assert.strictEqual(version.CASEFOLD_VERSION, '15.1');
-    assert.strictEqual(version.CORE_IR_ABI, '1.1');
+    assert.strictEqual(version.CORE_IR_ABI, '2.0');
   });
 
   await t.test('CASEFOLD_VERSION 取自生成的折叠表', () => {
@@ -27,12 +27,12 @@ test('toolchainId 分量常量', async (t) => {
   await t.test('index 入口导出三个常量', () => {
     assert.strictEqual(indexEntry.RESOLVER_VERSION, 1);
     assert.strictEqual(indexEntry.CASEFOLD_VERSION, '15.1');
-    assert.strictEqual(indexEntry.CORE_IR_ABI, '1.1');
+    assert.strictEqual(indexEntry.CORE_IR_ABI, '2.0');
   });
 
   await t.test('browser 入口导出三个常量', () => {
     assert.strictEqual(browserEntry.RESOLVER_VERSION, 1);
     assert.strictEqual(browserEntry.CASEFOLD_VERSION, '15.1');
-    assert.strictEqual(browserEntry.CORE_IR_ABI, '1.1');
+    assert.strictEqual(browserEntry.CORE_IR_ABI, '2.0');
   });
 });

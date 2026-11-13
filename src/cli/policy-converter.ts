@@ -10,7 +10,8 @@
 import * as fs from 'fs';
 import { parseSource, resolveAndLowerChecked } from '../compile-pipeline.js';
 import { formatModule } from '../core/pretty_core.js';
-import { serializeCoreIR, deserializeCoreIR } from '../core/core_ir_json.js';
+import { serializeCoreIr } from '../core/serialize-core-ir.js';
+import { readCoreIr } from '../core/read-core-ir.js';
 
 /**
  * 读取输入内容（文件或 stdin）
@@ -53,13 +54,8 @@ function compileToJson(inputPath: string, outputPath?: string): void {
     // 名称解析任一 E8xx 抛出 NameResolutionError，不写出 IR
     const coreIR = resolveAndLowerChecked(ast).core;
 
-    // 序列化为 JSON
-    const metadata = {
-      generatedAt: new Date().toISOString(),
-      source: inputPath === '-' ? 'stdin' : inputPath,
-      compilerVersion: '0.2.0',
-    };
-    const json = serializeCoreIR(coreIR, metadata);
+    // 规范字节（Core IR v2，ADR 0055 §5）：与 compile().coreJson、core CoreIrJson.serialize 同一契约
+    const json = serializeCoreIr(coreIR);
 
     // 输出到 stdout 或文件
     if (outputPath) {
@@ -92,8 +88,8 @@ function jsonToCnl(inputPath: string, outputPath?: string): void {
   try {
     const json = readInput(inputPath);
 
-    // 反序列化 JSON 为 Core IR
-    const coreIR = deserializeCoreIR(json);
+    // 严格读入 Core IR v2：版本、schema 与不变式任一不符即报错（ADR 0055 §5）
+    const coreIR = readCoreIr(json);
 
     // 使用 formatModule 生成 CNL
     const cnl = formatModule(coreIR);

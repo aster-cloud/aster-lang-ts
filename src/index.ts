@@ -80,6 +80,12 @@ export type {
 
 // 核心类型和枚举
 export { Core, Effect } from './core/core_ir.js';
+// Core IR v2（ADR 0055）：规范序列化、不变式检查与严格读入
+export { serializeCoreIr, validateCoreIrInvariants } from './core/serialize-core-ir.js';
+export type { CoreIrProblem } from './core/serialize-core-ir.js';
+export { readCoreIr, CoreIrFormatError, CORE_IR_SCHEMA_VERSION } from './core/read-core-ir.js';
+export type { CoreIrFormatCode } from './core/read-core-ir.js';
+export { canonicalJson } from './core/canonical-json.js';
 export { TokenKind, KW } from './frontend/tokens.js';
 export { Node } from './ast/ast.js';
 

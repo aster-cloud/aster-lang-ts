@@ -13,8 +13,8 @@ export const RESOLVER_VERSION = 1;
 export { CASEFOLD_VERSION } from './config/lexicons/identifiers/casefold-table.generated.js';
 
 /**
- * Core IR 工具链 ABI 版本；与 Core IR 序列化格式（core_ir_json 的 envelope version）独立。
+ * Core IR 工具链 ABI 版本；与 IR 自身的 `schemaVersion`（ADR 0055，当前为 2）独立。
  * 仅当 Core IR 语义或名称解析输出形态变化时递增。casefold 升级只改 CASEFOLD_VERSION，
- * 名称解析规则变化只改 RESOLVER_VERSION，不需要同步改本值。
+ * 名称解析规则变化只改 RESOLVER_VERSION，不需要同步改本值。2.0：Core IR v2 形状（ADR 0055）。
  */
-export const CORE_IR_ABI = '1.1';
+export const CORE_IR_ABI = '2.0';

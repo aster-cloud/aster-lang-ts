@@ -20,11 +20,11 @@
  *
  * <h2>★硬约束：只能读两引擎已经一致的那部分（ADR §5 / §5.1）</h2>
  *
- * 归一化（`ir-normalize`，与 parity 门禁同源）会剥掉 derived analysis：
+ * Core IR v2（ADR 0055）起两引擎同形，但值层仍在分期收紧（§6）：推断出的类型子树（V1）、
+ * 推断出的 effectCaps（V2）、Lambda.captures（V3）与部分 origin 结束行（V4）两侧可能不同：
  *
  * ```
- *   type, ret, retType, typeParams, typeInferred, retTypeInferred,
- *   constraints, piiCategories, piiLevel, effectCaps, effectCapsExplicit, captures
+ *   type（typeInferred）, ret（retTypeInferred）, effectCaps（effectCapsExplicit=false）, captures
  * ```
  *
  * 因此 verifier **只能**依赖：`kind`、`value`、`name`、`origin`、`nodeId`。

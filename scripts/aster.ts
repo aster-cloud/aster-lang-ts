@@ -15,6 +15,7 @@ import { aiGenerateCommand, type AIGenerateOptions } from '../src/cli/commands/a
 import { handleError } from '../src/cli/utils/error-handler.js';
 import { gradleEnv } from '../src/cli/utils/gradle-env.js';
 import { prepareOutDir } from '../src/cli/utils/out-dir.js';
+import { coreJsonOfSource, prepareTruffleCoreJson } from '../src/cli/utils/core-ir-file.js';
 
 function readFileStrict(file: string): string {
   return fs.readFileSync(file, 'utf8');
@@ -70,9 +71,8 @@ async function ensureAsmEmitterBuilt(): Promise<void> {
 
 async function cmdClass(file: string, outDir = 'build/jvm-classes'): Promise<void> {
   await ensureAsmEmitterBuilt();
-  const input = readFileStrict(file);
-  const core = coreOf(input);
-  const payload = JSON.stringify(core);
+  // 交给 JVM 侧的 IR 一律是规范字节（ADR 0055 §5）
+  const payload = coreJsonOfSource(readFileStrict(file));
   fs.mkdirSync('build', { recursive: true });
   fs.writeFileSync('build/last-core.json', payload);
   const runCmd = fs.existsSync('./gradlew') ? './gradlew' : 'gradle';
@@ -109,15 +109,8 @@ async function cmdJar(
 }
 
 async function cmdTruffle(input: string, passthrough: string[]): Promise<void> {
-  // Prepare Core JSON path
-  let corePath = input;
-  if (input.endsWith('.aster')) {
-    const src = readFileStrict(input);
-    const core = coreOf(src);
-    fs.mkdirSync('build', { recursive: true });
-    corePath = path.join('build', `${path.basename(input, '.aster')}_core.json`);
-    fs.writeFileSync(corePath, JSON.stringify(core));
-  }
+  // Core IR 文件：.aster 编译为规范 v2 字节；.json 先严格读入校验（ADR 0055 §5）
+  const corePath = prepareTruffleCoreJson(input);
   // Run Truffle runner via Gradle
   const hasWrapper = fs.existsSync('./gradlew');
   const runCmd = hasWrapper ? './gradlew' : 'gradle';
