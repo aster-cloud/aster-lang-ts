@@ -81,26 +81,26 @@ export function checkEffects(ctx: ModuleContext, func: Core.Func, diagnostics: D
     diagnostics.error(ErrorCode.WORKFLOW_MISSING_IO_EFFECT, originToSpan(func.origin), { func: func.name });
   }
 
-  const meta = func as unknown as { effectCaps?: readonly CapabilityKind[] };
-  const declaredCaps = new Set<CapabilityKind>(meta.effectCaps ?? []);
+  // 步骤能力只对照显式声明的能力检查（ADR 0056 §4.1，与 aster-lang-core 一致）：
+  // 只写了效应（裸 io）的函数没有能力清单可对照，不按任何预置判定。
+  const declaredCaps = func.effectCapsExplicit
+    ? new Set<CapabilityKind>(func.effectCaps as readonly CapabilityKind[])
+    : null;
 
   for (const workflow of workflows) {
     for (const step of workflow.steps) {
       const stepSpan = originToSpan(step.origin);
       const bodyCaps = collectCapabilities(step.body);
-      reportWorkflowCapabilityViolation(diagnostics, declaredCaps, bodyCaps, func.name, step.name, stepSpan);
+      if (declaredCaps) {
+        reportWorkflowCapabilityViolation(diagnostics, declaredCaps, bodyCaps, func.name, step.name, stepSpan);
+      }
       if (!step.compensate) continue;
 
       const compensateCaps = collectCapabilities(step.compensate);
       const compensateSpan = originToSpan(step.compensate.origin ?? step.origin);
-      reportWorkflowCapabilityViolation(
-        diagnostics,
-        declaredCaps,
-        compensateCaps,
-        func.name,
-        step.name,
-        compensateSpan
-      );
+      if (declaredCaps) {
+        reportWorkflowCapabilityViolation(diagnostics, declaredCaps, compensateCaps, func.name, step.name, compensateSpan);
+      }
 
       const bodyCapSet = new Set(bodyCaps.keys());
       for (const cap of compensateCaps.keys()) {

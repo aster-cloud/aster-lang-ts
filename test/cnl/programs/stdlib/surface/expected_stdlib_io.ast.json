@@ -22,14 +22,7 @@
       "effects": [
         "io"
       ],
-      "effectCaps": [
-        "Http",
-        "Sql",
-        "Time",
-        "Files",
-        "Secrets",
-        "AiModel"
-      ],
+      "effectCaps": [],
       "effectCapsExplicit": false,
       "body": {
         "kind": "Block",
@@ -65,14 +58,7 @@
       "effects": [
         "io"
       ],
-      "effectCaps": [
-        "Http",
-        "Sql",
-        "Time",
-        "Files",
-        "Secrets",
-        "AiModel"
-      ],
+      "effectCaps": [],
       "effectCapsExplicit": false,
       "body": {
         "kind": "Block",
@@ -112,14 +98,7 @@
       "effects": [
         "io"
       ],
-      "effectCaps": [
-        "Http",
-        "Sql",
-        "Time",
-        "Files",
-        "Secrets",
-        "AiModel"
-      ],
+      "effectCaps": [],
       "effectCapsExplicit": false,
       "body": {
         "kind": "Block",
@@ -172,14 +151,7 @@
       "effects": [
         "io"
       ],
-      "effectCaps": [
-        "Http",
-        "Sql",
-        "Time",
-        "Files",
-        "Secrets",
-        "AiModel"
-      ],
+      "effectCaps": [],
       "effectCapsExplicit": false,
       "body": {
         "kind": "Block",
