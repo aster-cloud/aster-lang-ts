@@ -183,28 +183,20 @@ describe('lambda 捕获：表达式变体覆盖完整性', () => {
       + `实际=${JSON.stringify(captures[0])}`);
   });
 
-  it('块级作用域：块内 Let 出块即失效，块外同名引用须视为自由变量', () => {
-    // ★复评发现：visitBlock 的 push/pop 此前零覆盖 —— 删掉它 8 条用例全绿。
-    //
-    // ★这条用例的构造要点（第一版没做对）：若只断言「块内 Let 的 tmp 不入 captures」，
-    //   删掉 push/pop 后 tmp 落进外层作用域集，**仍然算已绑定**，断言照样通过 —— 无鉴别力。
-    //   必须让块内声明**逃逸后被引用**：块结束时 tmp 出栈，块外的 `Return tmp`
-    //   就成了自由变量、必须捕获。删掉 push/pop 则 tmp 仍在栈上 → 不捕获 → 用例红。
-    //   Java 侧实测同为 [outer, tmp]。
-    //   块外的 tmp 是未定义名字，compile 的名称解析（ADR 0051）以 E802 拒绝整个程序；
-    //   捕获计算是 lower 的性质，故这里直接对解析结果 lower。
+  it('块级作用域：块内 Let 出块即失效，块外同名引用指外层局部', () => {
+    // 鉴别 visitBlock 的 push/pop：块内 Let tmp 遮蔽外层形参 tmp；出块后的 `Return tmp` 指外层形参，
+    // 必须捕获。删掉 push/pop 则块内的 tmp 仍算已绑定 → 不捕获 → 用例红。
+    // ADR 0056 §4.2 之后，块外引用一个**未定义**名字不再进 captures（它不是外层局部）。core 同一用例见
+    // LambdaCaptureParityTest.blockScopedLetDoesNotHideOuterLocalAfterTheBlock。
     const src =
-      `Module probe.\n\nRule r given outer, produce:\n` +
+      `Module probe.\n\nRule r given outer, tmp, produce:\n` +
       `  Let f be function with x, produce:\n` +
       `    If x:\n` +
       `      Let tmp be outer.\n` +
       `      Return tmp.\n` +
       `    Return tmp.\n` +
       `  Return f(outer).\n`;
-    assert.ok(compile(src).resolutionDiagnostics?.some((d) => d.code === 'E802'));
-    const captures = lambdaCaptures(lowerModule(parseSource(src).ast));
-    assert.deepEqual([...captures[0]!].sort(), ['outer', 'tmp'],
-      `块外引用的 tmp 必须视为自由变量（Java 侧为 [outer, tmp]），实际=${JSON.stringify(captures[0])}`);
+    assert.deepEqual(capturesOf2(src)[0], ['outer', 'tmp']);
   });
 
   it('嵌套 lambda 的名字与形参不得污染外层 captures', () => {
@@ -269,5 +261,107 @@ describe('lambda 捕获：表达式变体覆盖完整性', () => {
     // ★同等重要的一半：否则「把所有 Name 无条件塞进 captures」也能让上面全绿——
     //   那是假修复，且会给 Truffle 多造出无用槽位。
     assert.ok(!capturesOf('[outer, x]').includes('x'), '形参 x 是绑定变量，不得计入 captures');
+  });
+});
+
+/**
+ * ADR 0056 §4.2：captures 只列外层局部（外层函数形参、此前的 Let、外层 Match 模式绑定、外层 lambda 形参），
+ * 在方法调用改写后的 IR 上判定，按首次引用的源码位置排序。用例与 core LambdaCaptureParityTest 逐一对应。
+ */
+describe('lambda 捕获：只列外层局部（ADR 0056）', () => {
+  const rule = (params: string, ...lines: string[]): string =>
+    'Module probe.\n\nRule helper given v, produce:\n  Return v.\n\n' +
+    `Rule r given ${params}, produce:\n` + lines.map((l) => l + '\n').join('');
+
+  it('方法调用改写后，方法名与非局部接收者不进 captures', () => {
+    assert.deepEqual(
+      capturesOf2(rule('outer', '  Let f be function with x, produce:', '    Return x.add(outer).', '  Return f(outer).'))[0],
+      ['outer'],
+    );
+    assert.deepEqual(
+      capturesOf2(rule('base',
+        '  Let f be function with url, produce:',
+        '    Return io.get(Text.concat(base, url)).',
+        '  Return f("/x").'))[0],
+      ['base'],
+    );
+  });
+
+  it('模块规则、内建函数与运算符不进 captures', () => {
+    assert.deepEqual(
+      capturesOf2(rule('k',
+        '  Let f be function with y, produce:',
+        '    Return helper(y) plus k greater than 0.',
+        '  Return f(k).'))[0],
+      ['k'],
+    );
+  });
+
+  it('按首次引用的源码位置排序', () => {
+    assert.deepEqual(
+      capturesOf2(rule('first, second, third',
+        '  Let f be function with x, produce:',
+        '    Return If second then first else third.',
+        '  Return f(first).'))[0],
+      ['second', 'first', 'third'],
+    );
+  });
+
+  it('只有 lambda 之前绑定的局部才是外层局部', () => {
+    // lambda 体内的 later 在 lambda 处未绑定，名称解析以 E802 拒绝整个程序；捕获是 lower 的性质，直接对解析结果 lower
+    const lowerOnly = (src: string): string[][] => lambdaCaptures(lowerModule(parseSource(src).ast));
+    assert.deepEqual(
+      lowerOnly(rule('a',
+        '  Let early be 1.',
+        '  Let f be function with x, produce:',
+        '    Return early plus later plus a.',
+        '  Let later be 2.',
+        '  Return f(a).'))[0],
+      ['early', 'a'],
+    );
+  });
+
+  it('外层 Match 模式绑定是外层局部', () => {
+    assert.deepEqual(
+      capturesOf2(rule('m',
+        '  Match m:',
+        '    When bound,',
+        '      Let f be function with x, produce:',
+        '        Return x plus bound.',
+        '      Return f(1).'))[0],
+      ['bound'],
+    );
+  });
+
+  it('嵌套 lambda：遮蔽与穿透', () => {
+    const caps = capturesOf2(rule('a, b, c',
+      '  Let outer be function with x, produce:',
+      '    Let a be x times 2.',
+      '    Let inner be function with c, produce:',
+      '      Return c plus b plus a.',
+      '    Return inner(x).',
+      '  Return outer(c).'));
+    assert.deepEqual(caps[0], ['b']);
+    assert.deepEqual(caps[1], ['b', 'a']);
+  });
+
+  it('Start 的任务名是局部绑定（与 R1 一致）', () => {
+    const lowerOnly = (src: string): string[][] => lambdaCaptures(lowerModule(parseSource(src).ast));
+    assert.deepEqual(
+      lowerOnly(rule('v',
+        '  Start task as async helper(v).',
+        '  Let f be function with x, produce:',
+        '    Return task.',
+        '  Return f(v).'))[0],
+      ['task'],
+    );
+    assert.deepEqual(
+      lowerOnly(rule('v, task',
+        '  Let f be function with x, produce:',
+        '    Start task as async helper(x).',
+        '    Return task.',
+        '  Return f(v).'))[0],
+      [],
+    );
   });
 });

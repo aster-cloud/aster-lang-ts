@@ -38,7 +38,7 @@ import type {
   Name,
   PatternCtor,
 } from './types.js';
-import { DefaultAstVisitor } from './ast/ast_visitor.js';
+import { collectLambdaCaptures } from './core/lambda-captures.js';
 import { DefaultCoreVisitor, createVisitorContext } from './core/visitor.js';
 import type { CapabilityKind } from './config/semantic.js';
 
@@ -172,7 +172,34 @@ const AUTHORIZING_EFFECTS: ReadonlySet<string> = new Set(['io', 'cpu']);
  * @internal 不从包入口导出：未经 R1 的 AST 降级后名字保持原写法（可能是本地化名）。
  * 外部调用方使用 resolveAndLowerChecked（compile-pipeline）或 browser `compile`。
  */
+/**
+ * 降级函数体时可见的局部绑定（形参、此前的 Let / Start、Match 模式绑定、外层 lambda 形参），按块分层。
+ * 只用于判定 lambda 的 captures 是否为外层局部（ADR 0056 §4.2，见 core/lambda-captures.ts）。
+ * lowering 是同步的，每层都在 finally 中出栈，lowerModule 结束时栈必为空；lowerModule 入口据此拒绝重入。
+ */
+const localScopes: Set<string>[] = [];
+
+function inLocalScope<T>(names: Iterable<string>, fn: () => T): T {
+  localScopes.push(new Set(names));
+  try {
+    return fn();
+  } finally {
+    localScopes.pop();
+  }
+}
+
+function bindLocal(name: string): void {
+  localScopes[localScopes.length - 1]?.add(name);
+}
+
+function visibleLocals(): Set<string> {
+  const out = new Set<string>();
+  for (const scope of localScopes) for (const n of scope) out.add(n);
+  return out;
+}
+
 export function lowerModule(ast: Module): Core.Module {
+  if (localScopes.length > 0) throw new Error('lowerModule 不可重入：局部作用域栈非空');
   const decls = ast.decls.map(lowerDecl);
   const m = CoreIR.Module(ast.name, decls, ast.profile ?? null);
   return withOrigin(m, ast);
@@ -221,7 +248,7 @@ function lowerFunc(f: Func): Core.Func {
   ));
   const ret = lowerType(f.retType, tvars, f);
   const effectParams = f.effectParams ?? [];
-  const body = f.body ? lowerBlock(f.body) : withOrigin(CoreIR.Block([]), f);
+  const body = f.body ? inLocalScope(params.map(p => p.name), () => lowerBlock(f.body!)) : withOrigin(CoreIR.Block([]), f);
   const out = CoreIR.Func(
     canonicalOf(f.name, f.resolved),
     f.typeParams ?? [],
@@ -239,13 +266,21 @@ function lowerFunc(f: Func): Core.Func {
 }
 
 function lowerBlock(b: Block): Core.Block {
-  return withOrigin(CoreIR.Block(b.statements.map(lowerStmt)), b);
+  return withOrigin(CoreIR.Block(lowerStatements(b.statements)), b);
+}
+
+/** 块内语句在新的一层局部作用域内降级：块内 Let 出块后不可见。 */
+function lowerStatements(statements: readonly Statement[]): Core.Statement[] {
+  return inLocalScope([], () => statements.map(lowerStmt));
 }
 
 function lowerStmt(s: Statement): Core.Statement {
   switch (s.kind) {
-    case 'Let':
-      return withOrigin(CoreIR.Let(s.name, lowerExpr(s.expr)), s);
+    case 'Let': {
+      const let_ = withOrigin(CoreIR.Let(s.name, lowerExpr(s.expr)), s);
+      bindLocal(s.name);
+      return let_;
+    }
     case 'Set': {
       // Set 目标属于 FIELD_REF，R1 不解析：保留原写法交给 R2
       const set = withOrigin(CoreIR.Set(s.name, lowerExpr(s.expr)), s);
@@ -269,18 +304,23 @@ function lowerStmt(s: Statement): Core.Statement {
       return withOrigin(
         CoreIR.Match(
           lowerExpr(s.expr),
-          s.cases.map(c => withOrigin(CoreIR.Case(lowerPattern(c.pattern), lowerCaseBody(c.body)), c))
+          s.cases.map(c => withOrigin(
+            CoreIR.Case(lowerPattern(c.pattern), inLocalScope(patternBindings(c.pattern), () => lowerCaseBody(c.body))),
+            c
+          ))
         ),
         s
       );
     case 'Start':
+      // 与 R1 一致：Start 的任务名先入作用域，此后的 lambda 可以捕获它
+      bindLocal(s.name);
       return withOrigin(CoreIR.Start(s.name, lowerExpr(s.expr)), s);
     case 'Wait':
       return withOrigin(CoreIR.Wait(s.names), s);
     case 'workflow':
       return lowerWorkflow(s as WorkflowStmt);
     case 'Block':
-      return withOrigin(CoreIR.Scope((s as Block).statements.map(lowerStmt)), s);
+      return withOrigin(CoreIR.Scope(lowerStatements((s as Block).statements)), s);
     case 'Call':
       // 裸表达式语句（`File.write("...").`）：求值并丢弃结果，降为 `Let _ be <call>`。
       //
@@ -584,85 +624,9 @@ function lowerExpr(e: Expression): Core.Expression {
       // ADR 0024 C0：列表字面量 → Core IR ListLit（元素递归 lower）。
       return withOrigin(CoreIR.ListLit(e.elements.map(lowerExpr)), e);
     case 'Lambda': {
-      // 捕获变量收集：只收**自由变量**（引用了、但在 lambda 内部没被绑定的名字）。
-      //
-      // ★此前这里没有作用域栈，只排除当前 lambda 自己的形参，于是把
-      //   lambda 体内 `Let` 声明的局部、以及嵌套 lambda 的名字/形参
-      //   一并当成了捕获（over-capture）。Java 侧 CoreLowering.collectCaptures
-      //   有完整的 ArrayDeque<Set<String>> scopes + Stmt.Let 入栈，
-      //   两侧对同一段源码产出不同的 captures：
-      //
-      //     Let f be function with x, produce:
-      //       Let localA be 1.
-      //       Return If x then outer else localA.
-      //
-      //     Java → [outer]            TS（修前）→ [outer, localA]
-      //
-      //   captures 不是元数据：Truffle 的 Loader 按它建 FrameDescriptor 并按位置
-      //   传实参，多算一个名字就多一个槽位、且 NameNodeEnv 解析不到时会返回
-      //   **名字本身的字符串**——与本轮修掉的 under-capture 是同一套故障机制。
-      const scopes: Set<string>[] = [new Set(e.params.map(p => p.name))];
-      const names = new Set<string>();
-      const isBound = (n: string): boolean => scopes.some(s => s.has(n));
-      class CaptureVisitor extends DefaultAstVisitor<void> {
-        override visitBlock(b: Block, ctx: void): void {
-          // 块级作用域：进块压栈、出块弹栈（与 Java 的 traverseBlock 同构）。
-          scopes.push(new Set());
-          try {
-            super.visitBlock(b, ctx);
-          } finally {
-            scopes.pop();
-          }
-        }
-
-        override visitStatement(s: Statement, ctx: void): void {
-          if (s.kind === 'Match') {
-            // ★Match 的模式会**绑定**新名字，这些名字在该 case 体内不是自由变量。
-            //   此前只递归不绑定，于是 `When bound, Return bound.` 里的 bound
-            //   被当成捕获（Java 侧 CoreLowering:820-832 有 patternBindings，
-            //   两侧因此分叉：Java [] vs TS ["bound"]）。
-            this.visitExpression(s.expr, ctx);
-            for (const c of s.cases) {
-              scopes.push(patternBindings(c.pattern));
-              try {
-                if (c.body.kind === 'Return') this.visitExpression(c.body.expr, ctx);
-                else this.visitBlock(c.body, ctx);
-              } finally {
-                scopes.pop();
-              }
-            }
-            return;
-          }
-          super.visitStatement(s, ctx);
-          // ★先递归再绑定：`Let x be x + 1` 里右侧的 x 指的是**外层**的 x，
-          //   先绑定会把它误判成已绑定而漏掉这次捕获。
-          if (s.kind === 'Let') {
-            scopes[scopes.length - 1]!.add(s.name);
-          }
-        }
-
-        override visitExpression(ex: Expression, ctx: void): void {
-          if (ex.kind === 'Lambda') {
-            // 嵌套 lambda：内层形参在内层作用域内有效；内层引用的外部变量
-            // 必须**穿透**记到外层 captures（外层不捕获，内层就拿不到）。
-            scopes.push(new Set(ex.params.map(p => p.name)));
-            try {
-              this.visitBlock(ex.body, ctx);
-            } finally {
-              scopes.pop();
-            }
-            return;
-          }
-          // 以 R1 规范名记录捕获（未解析时即原写法；R2 再按其解析结果改写）
-          const captured = ex.kind === 'Name' ? canonicalOf(ex.name, ex.resolved) : '';
-          if (ex.kind === 'Name' && !isBound(captured) && !captured.includes('.')) {
-            names.add(captured);
-          }
-          super.visitExpression(ex, ctx);
-        }
-      }
-      new CaptureVisitor().visitBlock(e.body, undefined as unknown as void);
-      const captures = Array.from(names);
+      // captures 只列外层局部（ADR 0056 §4.2）：先取 lambda 所在位置可见的局部，再在 lambda 形参作用域内降级函数体，
+      // 最后在降级后的 IR 上判定（方法调用已改写，与 aster-lang-core 一致）
+      const outer = visibleLocals();
       const coreParams = e.params.map(p => CoreIR.Param(
         p.name,
         lowerType(p.type, NO_TYPE_VARS, p),
@@ -670,7 +634,10 @@ function lowerExpr(e: Expression): Core.Expression {
         // 解析器对未标注类型的 lambda 参数同样写入 typeInferred（Parameter），BaseParameter 未声明该字段
         (p as { typeInferred?: boolean }).typeInferred === true
       ));
-      const lambda = CoreIR.Lambda(coreParams, lowerType(e.retType, NO_TYPE_VARS, e), lowerBlock(e.body), captures);
+      const paramNames = e.params.map(p => p.name);
+      const body = inLocalScope(paramNames, () => lowerBlock(e.body));
+      const captures = collectLambdaCaptures(paramNames, body, outer);
+      const lambda = CoreIR.Lambda(coreParams, lowerType(e.retType, NO_TYPE_VARS, e), body, captures);
       return withOrigin(lambda, e);
     }
     default: {

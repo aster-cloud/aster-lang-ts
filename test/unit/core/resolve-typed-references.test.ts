@@ -514,7 +514,7 @@ describe('resolveTypedReferences（R2）', () => {
       assert.deepEqual([nameOf(ufcs.target).name, nameOf(ufcs.args[0]!).name], ['get', 'io']);
     });
 
-    it('lambda：期望类型取 lambda 声明返回类型，捕获列表随解析结果改写', () => {
+    it('lambda：期望类型取 lambda 声明返回类型，枚举成员不进捕获列表', () => {
       const { module, r2 } = run(
         'Module m.\n\nDefine Stufe as one of Hoch, Niedrig.\n\n' +
           'Rule f given outer as Int, produce Int:\n' +
@@ -529,7 +529,8 @@ describe('resolveTypedReferences（R2）', () => {
       const lambda = stmt(func(module, 'f'), 0, 'Let').expr as Core.Lambda;
       const ret = lambda.body.statements[1] as Core.Return;
       assert.equal(nameOf(ret.expr).name, 'High');
-      assert.deepEqual(lambda.captures, ['outer', 'High']);
+      // 枚举成员不是外层局部，lowering 就不把它放进 captures（ADR 0056 §4.2），R2 无须改写
+      assert.deepEqual(lambda.captures, ['outer']);
     });
   });
 
