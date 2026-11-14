@@ -40,6 +40,24 @@ describe('推断类型节点的锚点（ADR 0056 §3.3）', () => {
     assert.equal(at(comma.retType), '3:32-3:39');
   });
 
+  // 函数头的各种形态：期望值与 core InferredTypeAnchorTest.headerFormsAnchorConsistently 逐一相同
+  const headerForms: ReadonlyArray<[string, string, string]> = [
+    ['无形参、省略 produce：锚定在名字后的 `:`', 'Module m.\n\nRule now:\n  Return 1.\n', '3:9-3:10'],
+    ['无形参、带逗号的 produce', 'Module m.\n\nRule now, produce:\n  Return 1.\n', '3:11-3:18'],
+    ['类型参数 + 形参、省略 produce', 'Module m.\n\nRule identity of T given x as T:\n  Return x.\n', '3:32-3:33'],
+    ['效应参数 + 形参 + It performs，省略 produce', 'Module m.\n\nRule relay <E> given x as Int. It performs E:\n  Return x.\n', '3:30-3:31'],
+    ['前置注解不影响锚点', 'Module m.\n\n@entry\nRule f given x as Int, produce:\n  Return x.\n', '4:24-4:31'],
+    ['无函数体', 'Module m.\n\nRule f given x as Int.\n', '3:22-3:23'],
+  ];
+  for (const [title, src, expected] of headerForms) {
+    it(`函数头形态：${title}`, () => {
+      const f = parseSrc(src).decls.find((d) => d.kind === 'Func') as Func;
+      assert.equal(f.retTypeInferred, true);
+      assert.equal((f.retType as { name: string }).name, 'Unknown');
+      assert.equal(at(f.retType), expected);
+    });
+  }
+
   it('Lambda 推断返回类型锚定在 produce 关键词（不是其后的冒号）', () => {
     const f = parseSrc(
       'Module m.\n\nRule f given xs as List of Int, produce List of Int:\n' +
