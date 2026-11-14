@@ -296,15 +296,8 @@ Rule compute given value as Int, produce Int. It performs io and cpu.
 
       const compute = findFunc(module, 'compute');
       assert.deepEqual(compute.effects, ['io', 'cpu']);
-      assert.deepEqual(compute.effectCaps, [
-        CapabilityKind.HTTP,
-        CapabilityKind.SQL,
-        CapabilityKind.TIME,
-        CapabilityKind.FILES,
-        CapabilityKind.SECRETS,
-        CapabilityKind.AI_MODEL,
-        CapabilityKind.CPU,
-      ]);
+      // 只写效应、不写能力：effectCaps 为空（ADR 0056 §4.1）
+      assert.deepEqual(compute.effectCaps, []);
       assert.equal(compute.effectCapsExplicit, false);
     });
 
@@ -813,14 +806,7 @@ Rule fetch, produce Text:
       const func = findFunc(module, 'fetch');
       assert.deepEqual(func.effects, ['io']);
       assert.equal(func.effectCapsExplicit, false);
-      assert.deepEqual(func.effectCaps, [
-        CapabilityKind.HTTP,
-        CapabilityKind.SQL,
-        CapabilityKind.TIME,
-        CapabilityKind.FILES,
-        CapabilityKind.SECRETS,
-        CapabilityKind.AI_MODEL,
-      ]);
+      assert.deepEqual(func.effectCaps, []);
     });
 
     test('应该合并函数体收集的效果', () => {
@@ -833,15 +819,7 @@ Rule compute, produce Int. It performs cpu:
       const func = findFunc(module, 'compute');
       assert.deepEqual(func.effects, ['cpu', 'io']);
       assert.equal(func.effectCapsExplicit, false);
-      assert.deepEqual(func.effectCaps, [
-        CapabilityKind.CPU,
-        CapabilityKind.HTTP,
-        CapabilityKind.SQL,
-        CapabilityKind.TIME,
-        CapabilityKind.FILES,
-        CapabilityKind.SECRETS,
-        CapabilityKind.AI_MODEL,
-      ]);
+      assert.deepEqual(func.effectCaps, []);
     });
   });
 
@@ -1245,7 +1223,7 @@ Rule risky, produce Text. ${header}
       }
     });
 
-    test('应该在仅声明 cpu 时推导能力', () => {
+    test('仅声明 cpu 时不推导能力（ADR 0056 §4.1）', () => {
       const module = parseSource(`
 Module test.parser.effects.cpu_only.
 
@@ -1253,7 +1231,7 @@ Rule crunch, produce Int. It performs cpu.
 `);
       const func = findFunc(module, 'crunch');
       assert.deepEqual(func.effects, ['cpu']);
-      assert.deepEqual(func.effectCaps, [CapabilityKind.CPU]);
+      assert.deepEqual(func.effectCaps, []);
       assert.equal(func.effectCapsExplicit, false);
     });
   });

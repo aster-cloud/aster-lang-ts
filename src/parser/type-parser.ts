@@ -5,7 +5,7 @@ import { kwParts, MAX_TYPE_RECURSION_DEPTH } from './context.js';
 import { TokenKind, KW } from '../frontend/tokens.js';
 import { Node } from '../ast/ast.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
-import { isCapabilityKind, parseLegacyCapability } from '../effects/capabilities.js';
+import { isCapabilityKind } from '../effects/capabilities.js';
 import type { CapabilityKind } from '../config/semantic.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
@@ -211,25 +211,19 @@ export function separateEffectsAndCaps(
     }
   };
 
-  if (rawCaps.length > 0) {
-    for (const capText of rawCaps) {
-      if (isCapabilityKind(capText)) {
-        appendCaps([capText as CapabilityKind]);
-        continue;
-      }
-      if (effectVars?.has(capText)) {
-        if (!effectVarRefs.includes(capText)) effectVarRefs.push(capText);
-        continue;
-      }
-      // 未知能力名按原样保留、不报错（与 aster-lang-core 一致：core 只在类型检查给 INFO 多余能力，truffle 运行时不读 effectCaps；#294）
+  // IR 只记源码写下的能力（ADR 0056 §4.1）：没有显式能力时 effectCaps 为空，裸 io / cpu 不展开为预置列表，
+  // 需要时由读方按 shared/capabilities.json 的 class 自行展开。
+  for (const capText of rawCaps) {
+    if (isCapabilityKind(capText)) {
       appendCaps([capText as CapabilityKind]);
+      continue;
     }
-  } else {
-    for (const eff of baseEffects) {
-      if (eff === 'io' || eff === 'cpu') {
-        appendCaps(parseLegacyCapability(eff));
-      }
+    if (effectVars?.has(capText)) {
+      if (!effectVarRefs.includes(capText)) effectVarRefs.push(capText);
+      continue;
     }
+    // 未知能力名按原样保留、不报错（与 aster-lang-core 一致：core 只在类型检查给 INFO 多余能力，truffle 运行时不读 effectCaps；#294）
+    appendCaps([capText as CapabilityKind]);
   }
 
   return {

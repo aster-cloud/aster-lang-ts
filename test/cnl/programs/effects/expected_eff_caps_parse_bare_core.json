@@ -19,14 +19,7 @@
         "io"
       ],
       "effectParams": [],
-      "effectCaps": [
-        "Http",
-        "Sql",
-        "Time",
-        "Files",
-        "Secrets",
-        "AiModel"
-      ],
+      "effectCaps": [],
       "effectCapsExplicit": false,
       "inputRefs": null,
       "body": {
