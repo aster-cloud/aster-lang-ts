@@ -10,7 +10,6 @@
  */
 
 import { SemanticTokenKind } from '../token-kind.js';
-import type { TypeInferenceRule } from '../../types/type-inference.js';
 import type { ValueGenerationRule } from '../../parser/input-generator.js';
 
 /**
@@ -64,9 +63,6 @@ export interface Lexicon {
 
   /** 错误消息模板 */
   readonly messages: ErrorMessages;
-
-  /** 语言特定的类型推断命名规则（overlay，合并到基线之上） */
-  readonly typeInferenceRules?: readonly TypeInferenceRule[];
 
   /** 语言特定的输入值生成规则（overlay，优先于英文基线） */
   readonly inputGenerationRules?: readonly ValueGenerationRule[];

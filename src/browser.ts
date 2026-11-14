@@ -152,7 +152,6 @@ import { typecheckBrowser as _typecheckBrowser } from './typecheck/browser.js';
 import { localizeDiagnostics } from './typecheck/diagnostics.js';
 import type { ControlRegistry } from './governance/controls.js';
 import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
-import { attachTypeInferenceRules } from './config/lexicons/type-inference-rules.js';
 import { DiagnosticError, type Diagnostic } from './diagnostics/diagnostics.js';
 import { toLoweringDiagnostic } from './diagnostics/lowering.js';
 import { buildVocabularyScopes } from './config/lexicons/identifiers/scopes.js';
@@ -399,8 +398,7 @@ export function validateSyntaxWithSpan(source: string, lexicon?: Lexicon): Valid
       tokens = translator.translateTokens(tokens);
     }
 
-    const effectiveLexForValidation = lexicon ? attachTypeInferenceRules(lexicon) : undefined;
-    const result = parse(tokens, effectiveLexForValidation);
+    const result = parse(tokens, lexicon);
 
     // 错误恢复模式：直接返回收集到的诊断
     if (result.diagnostics.length > 0) {

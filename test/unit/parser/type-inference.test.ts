@@ -1,22 +1,12 @@
 /**
- * 类型推断引擎单元测试
+ * 类型推断引擎单元测试（ADR 0056 §3.2：分词 + 词表，与词法表无关）。
+ * 全量对照见 type-inference-vectors.test.ts（aster-lang-locales 共用测试向量）。
  */
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import {
-  inferFieldType,
-  inferTypeFromConstraints,
-  refineInferredType,
-  BASE_NAMING_RULES,
-} from '../../../src/parser/type-inference.js';
-import type { Constraint, ConstraintRange, ConstraintPattern, Type } from '../../../src/types.js';
-import { EN_US } from '../../../src/config/lexicons/en-US.js';
-import { attachTypeInferenceRules } from '../../../src/config/lexicons/type-inference-rules.js';
-import type { Lexicon } from '../../../src/config/lexicons/types.js';
-
-/** en-US lexicon 附带类型推断规则 */
-const enUS: Lexicon = attachTypeInferenceRules(EN_US);
+import { inferFieldType, tokenize, constraintType, refine } from '../../../src/parser/type-inference.js';
+import type { Constraint, Type } from '../../../src/types.js';
 
 /** 辅助函数：创建 span */
 const freshSpan = () => ({ start: { line: 1, col: 1 }, end: { line: 1, col: 1 } });
@@ -30,21 +20,18 @@ function getTypeName(type: Type): string {
 }
 
 describe('类型推断引擎', () => {
-  describe('BASE_NAMING_RULES 基线规则', () => {
-    it('基线规则应包含语言无关的通用类型', () => {
-      const typesCovered = new Set(BASE_NAMING_RULES.map(r => r.type));
-      assert.ok(typesCovered.has('Text'), '应包含 Text 规则');
-      assert.ok(typesCovered.has('Int'), '应包含 Int 规则');
-      assert.ok(typesCovered.has('Float'), '应包含 Float 规则');
+  describe('分词', () => {
+    it('驼峰、全大写缩写、snake_case 与数字', () => {
+      assert.deepStrictEqual(tokenize('interestRateAPR'), ['interest', 'rate', 'apr']);
+      assert.deepStrictEqual(tokenize('userID'), ['user', 'id']);
+      assert.deepStrictEqual(tokenize('days_since_consent'), ['days', 'since', 'consent']);
+      assert.deepStrictEqual(tokenize('pre_auth__Code'), ['pre', 'auth', 'code']);
+      assert.deepStrictEqual(tokenize('abc123Score'), ['abc', '123', 'score']);
     });
 
-    it('附加 en-US overlay 后应包含所有类型', () => {
-      const rules = enUS.typeInferenceRules!;
-      const overlayTypes = new Set(rules.map(r => r.type));
-      const baseTypes = new Set(BASE_NAMING_RULES.map(r => r.type));
-      const allTypes = new Set([...baseTypes, ...overlayTypes]);
-      assert.ok(allTypes.has('Bool'), '应包含 Bool 规则');
-      assert.ok(allTypes.has('DateTime'), '应包含 DateTime 规则');
+    it('含非 ASCII 字符的名字词列表为空', () => {
+      assert.deepStrictEqual(tokenize('是否成年'), []);
+      assert.deepStrictEqual(tokenize('kundeGültig'), []);
     });
   });
 
@@ -123,58 +110,58 @@ describe('类型推断引擎', () => {
       });
     });
 
-    describe('布尔类型推断（需要 en-US overlay）', () => {
+    describe('布尔类型推断', () => {
       it('应该将 is* 前缀推断为 Bool', () => {
-        assert.strictEqual(getTypeName(inferFieldType('isActive', [], enUS)), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('isApproved', [], enUS)), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('isVerified', [], enUS)), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('isActive')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('isApproved')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('isVerified')), 'Bool');
       });
 
       it('应该将 has* 前缀推断为 Bool', () => {
-        assert.strictEqual(getTypeName(inferFieldType('hasPermission', [], enUS)), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('hasAccess', [], enUS)), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('hasPermission')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('hasAccess')), 'Bool');
       });
 
       it('应该将 can*/should*/allow* 前缀推断为 Bool', () => {
-        assert.strictEqual(getTypeName(inferFieldType('canEdit', [], enUS)), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('shouldNotify', [], enUS)), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('allowAccess', [], enUS)), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('canEdit')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('shouldNotify')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('allowAccess')), 'Bool');
       });
 
       it('应该将 *Flag/*Enabled/*Active 后缀推断为 Bool', () => {
-        assert.strictEqual(getTypeName(inferFieldType('debugFlag', [], enUS)), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('featureEnabled', [], enUS)), 'Bool');
-        assert.strictEqual(getTypeName(inferFieldType('accountActive', [], enUS)), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('debugFlag')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('featureEnabled')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('accountActive')), 'Bool');
       });
 
-      it('无 lexicon 时不应推断 Bool', () => {
-        assert.strictEqual(getTypeName(inferFieldType('isActive')), 'Text');
-        assert.strictEqual(getTypeName(inferFieldType('hasPermission')), 'Text');
-      });
     });
 
-    describe('日期时间类型推断（需要 en-US overlay）', () => {
+    describe('日期时间类型推断', () => {
       it('应该将 *Date/*Time 后缀推断为 DateTime', () => {
-        assert.strictEqual(getTypeName(inferFieldType('birthDate', [], enUS)), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('startTime', [], enUS)), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('expiryDate', [], enUS)), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('birthDate')), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('startTime')), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('expiryDate')), 'DateTime');
       });
 
       it('应该将 *At/*Timestamp 后缀推断为 DateTime', () => {
-        assert.strictEqual(getTypeName(inferFieldType('createdAt', [], enUS)), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('updatedAt', [], enUS)), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('eventTimestamp', [], enUS)), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('createdAt')), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('updatedAt')), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('eventTimestamp')), 'DateTime');
       });
 
       it('应该将 *Created/*Updated/*Modified 后缀推断为 DateTime', () => {
-        assert.strictEqual(getTypeName(inferFieldType('dateCreated', [], enUS)), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('lastUpdated', [], enUS)), 'DateTime');
-        assert.strictEqual(getTypeName(inferFieldType('lastModified', [], enUS)), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('dateCreated')), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('lastUpdated')), 'DateTime');
+        assert.strictEqual(getTypeName(inferFieldType('lastModified')), 'DateTime');
       });
 
-      it('无 lexicon 时不应推断 DateTime', () => {
-        assert.strictEqual(getTypeName(inferFieldType('birthDate')), 'Text');
-        assert.strictEqual(getTypeName(inferFieldType('createdAt')), 'Text');
+    });
+
+    describe('与词法表无关：三种语言的规则对所有名字生效', () => {
+      it('中文、德语名字照常推断', () => {
+        assert.strictEqual(getTypeName(inferFieldType('是否成年')), 'Bool');
+        assert.strictEqual(getTypeName(inferFieldType('信用评分')), 'Int');
+        assert.strictEqual(getTypeName(inferFieldType('kundeGueltig')), 'Bool');
       });
     });
 
@@ -186,10 +173,10 @@ describe('类型推断引擎', () => {
         assert.strictEqual(getTypeName(inferFieldType('something')), 'Text');
       });
 
-      it('*Value 后缀应该推断为 Int（需要 en-US overlay）', () => {
-        assert.strictEqual(getTypeName(inferFieldType('value', [], enUS)), 'Int');
-        assert.strictEqual(getTypeName(inferFieldType('vehicleValue', [], enUS)), 'Int');
-        assert.strictEqual(getTypeName(inferFieldType('totalValue', [], enUS)), 'Int');
+      it('*Value 后缀应该推断为 Int', () => {
+        assert.strictEqual(getTypeName(inferFieldType('value')), 'Int');
+        assert.strictEqual(getTypeName(inferFieldType('vehicleValue')), 'Int');
+        assert.strictEqual(getTypeName(inferFieldType('totalValue')), 'Int');
       });
 
       it('明确的文本字段应该返回 Text', () => {
@@ -200,141 +187,76 @@ describe('类型推断引擎', () => {
     });
   });
 
-  describe('inferTypeFromConstraints 约束驱动推断', () => {
-    it('Range 约束（整数边界）应该推断为 Int', () => {
-      const constraints: Constraint[] = [
-        { kind: 'Range', min: 0, max: 100, span: freshSpan() },
-      ];
-      assert.strictEqual(inferTypeFromConstraints(constraints), 'Int');
+  const pattern: Constraint = { kind: 'Pattern', regexp: '^[A-Z]+$', span: freshSpan() };
+  const required: Constraint = { kind: 'Required', span: freshSpan() };
+
+  describe('约束类型（第 5 步）', () => {
+
+    it('Range 按端点规范十进制串是否含小数点区分 Int / Float', () => {
+      assert.strictEqual(constraintType([{ kind: 'Range', min: 0, minRaw: '0', max: 100, maxRaw: '100', span: freshSpan() }]), 'Int');
+      assert.strictEqual(constraintType([{ kind: 'Range', min: 0.5, minRaw: '0.5', max: 1.5, maxRaw: '1.5', span: freshSpan() }]), 'Float');
+      assert.strictEqual(constraintType([{ kind: 'Range', min: 18, minRaw: '18', span: freshSpan() }]), 'Int');
+      assert.strictEqual(constraintType([{ kind: 'Range', max: 99.99, maxRaw: '99.99', span: freshSpan() }]), 'Float');
     });
 
-    it('Range 约束（小数边界）应该推断为 Float', () => {
-      const constraints: Constraint[] = [
-        { kind: 'Range', min: 0.5, max: 1.5, span: freshSpan() },
-      ];
-      assert.strictEqual(inferTypeFromConstraints(constraints), 'Float');
+    it('端点按规范十进制值判断（与 core TypeInferenceTest.rangeBoundsUseCanonicalDecimal 同组用例）', () => {
+      const r = (minRaw?: string, maxRaw?: string): Constraint => ({
+        kind: 'Range',
+        ...(minRaw === undefined ? {} : { min: Number(minRaw), minRaw }),
+        ...(maxRaw === undefined ? {} : { max: Number(maxRaw), maxRaw }),
+        span: freshSpan(),
+      });
+      assert.strictEqual(constraintType([r('1.0', '2.00')]), 'Int');
+      assert.strictEqual(constraintType([r('1E3')]), 'Int');
+      assert.strictEqual(constraintType([r(undefined, '1.50')]), 'Float');
+      assert.strictEqual(constraintType([r('-0.5')]), 'Float');
+      assert.strictEqual(constraintType([r('0', '1e-1')]), 'Float');
     });
 
-    it('Range 约束（仅最小值，整数）应该推断为 Int', () => {
-      const constraints: Constraint[] = [
-        { kind: 'Range', min: 18, span: freshSpan() },
-      ];
-      assert.strictEqual(inferTypeFromConstraints(constraints), 'Int');
+    it('端点原文 1.0 的规范串是 1，不算小数', () => {
+      assert.strictEqual(constraintType([{ kind: 'Range', min: 1, minRaw: '1.0', max: 2, maxRaw: '2.00', span: freshSpan() }]), 'Int');
     });
 
-    it('Range 约束（仅最大值，小数）应该推断为 Float', () => {
-      const constraints: Constraint[] = [
-        { kind: 'Range', max: 99.99, span: freshSpan() },
-      ];
-      assert.strictEqual(inferTypeFromConstraints(constraints), 'Float');
+    it('Pattern 得 Text，Required 不影响', () => {
+      assert.strictEqual(constraintType([pattern]), 'Text');
+      assert.strictEqual(constraintType([required]), null);
+      assert.strictEqual(constraintType([required, { kind: 'Range', min: 0, minRaw: '0', max: 100, maxRaw: '100', span: freshSpan() }]), 'Int');
     });
 
-    it('Pattern 约束应该推断为 Text', () => {
-      const constraints: Constraint[] = [
-        { kind: 'Pattern', regexp: '^[A-Z]+$', span: freshSpan() },
-      ];
-      assert.strictEqual(inferTypeFromConstraints(constraints), 'Text');
+    it('Range 优先于 Pattern，与书写顺序无关', () => {
+      assert.strictEqual(constraintType([pattern, { kind: 'Range', min: 1, minRaw: '1', max: 10, maxRaw: '10', span: freshSpan() }]), 'Int');
+      assert.strictEqual(constraintType([{ kind: 'Range', min: 1, minRaw: '1', max: 10, maxRaw: '10', span: freshSpan() }, pattern]), 'Int');
     });
 
-    it('Required 约束不应该影响类型推断', () => {
-      const constraints: Constraint[] = [
-        { kind: 'Required', span: freshSpan() },
-      ];
-      assert.strictEqual(inferTypeFromConstraints(constraints), null);
-    });
-
-    it('多个约束时应该综合考虑', () => {
-      const constraints: Constraint[] = [
-        { kind: 'Required', span: freshSpan() },
-        { kind: 'Range', min: 0, max: 100, span: freshSpan() },
-      ];
-      assert.strictEqual(inferTypeFromConstraints(constraints), 'Int');
-    });
-
-    it('Int + Float 应该提升为 Float', () => {
-      const constraints: Constraint[] = [
-        { kind: 'Range', min: 0, max: 100, span: freshSpan() }, // Int
-        { kind: 'Range', min: 0.5, span: freshSpan() }, // Float
-      ];
-      assert.strictEqual(inferTypeFromConstraints(constraints), 'Float');
+    it('多个 Range 中任一端点为小数即 Float', () => {
+      assert.strictEqual(constraintType([{ kind: 'Range', min: 0, minRaw: '0', max: 100, maxRaw: '100', span: freshSpan() }, { kind: 'Range', min: 0.5, minRaw: '0.5', span: freshSpan() }]), 'Float');
     });
   });
 
-  describe('refineInferredType 类型修正', () => {
-    it('默认 Text 类型应该被 Range 约束修正为 Int', () => {
-      const textType = inferFieldType('value'); // 默认 Text
-      const constraints: Constraint[] = [
-        { kind: 'Range', min: 0, max: 100, span: freshSpan() },
-      ];
-      const refined = refineInferredType(textType, constraints);
-      assert.strictEqual(getTypeName(refined), 'Int');
+  describe('名字结果与约束合并', () => {
+    it('合并规则', () => {
+      assert.strictEqual(refine('Text', 'Int'), 'Int');
+      assert.strictEqual(refine('Text', 'Float'), 'Float');
+      assert.strictEqual(refine('Int', 'Float'), 'Float');
+      assert.strictEqual(refine('Float', 'Int'), 'Float');
+      assert.strictEqual(refine('Bool', 'Int'), 'Bool');
+      assert.strictEqual(refine('Int', 'Text'), 'Int');
+      assert.strictEqual(refine('Text', null), 'Text');
     });
 
-    it('默认 Text 类型应该被小数 Range 约束修正为 Float', () => {
-      const textType = inferFieldType('value');
-      const constraints: Constraint[] = [
-        { kind: 'Range', min: 0.1, max: 1.5, span: freshSpan() },
-      ];
-      const refined = refineInferredType(textType, constraints);
-      assert.strictEqual(getTypeName(refined), 'Float');
-    });
-
-    it('Int 类型应该被小数 Range 约束提升为 Float', () => {
-      const intType = inferFieldType('itemCount'); // Int
-      const constraints: Constraint[] = [
-        { kind: 'Range', min: 0.5, max: 10.5, span: freshSpan() },
-      ];
-      const refined = refineInferredType(intType, constraints);
-      assert.strictEqual(getTypeName(refined), 'Float');
-    });
-
-    it('一致的类型不应该被修改', () => {
-      const intType = inferFieldType('itemCount'); // Int
-      const constraints: Constraint[] = [
-        { kind: 'Range', min: 0, max: 100, span: freshSpan() },
-      ];
-      const refined = refineInferredType(intType, constraints);
-      assert.strictEqual(getTypeName(refined), 'Int');
-    });
-
-    it('无约束时不应该修改类型', () => {
-      const textType = inferFieldType('name');
-      const refined = refineInferredType(textType, []);
-      assert.strictEqual(getTypeName(refined), 'Text');
-    });
-
-    it('仅 Required 约束不应该修改类型', () => {
-      const textType = inferFieldType('name');
-      const constraints: Constraint[] = [
-        { kind: 'Required', span: freshSpan() },
-      ];
-      const refined = refineInferredType(textType, constraints);
-      assert.strictEqual(getTypeName(refined), 'Text');
-    });
-  });
-
-  describe('约束与命名联合推断', () => {
-    it('约束优先于命名推断', () => {
-      // name 字段名默认推断为 Text
-      // 但有 Range 约束时应该推断为 Int
-      const constraints: Constraint[] = [
-        { kind: 'Range', min: 1, max: 100, span: freshSpan() },
-      ];
-      const type = inferFieldType('data', constraints);
-      assert.strictEqual(getTypeName(type), 'Int');
-    });
-
-    it('无约束时使用命名推断', () => {
-      const type = inferFieldType('loanAmount', []);
-      assert.strictEqual(getTypeName(type), 'Float');
+    it('inferFieldType 先按名字、再按约束修正', () => {
+      assert.strictEqual(getTypeName(inferFieldType('data', [{ kind: 'Range', min: 1, minRaw: '1', max: 100, maxRaw: '100', span: freshSpan() }])), 'Int');
+      assert.strictEqual(getTypeName(inferFieldType('score', [pattern])), 'Int');
+      assert.strictEqual(getTypeName(inferFieldType('approved', [{ kind: 'Range', min: 0, minRaw: '0', max: 1, maxRaw: '1', span: freshSpan() }])), 'Bool');
+      assert.strictEqual(getTypeName(inferFieldType('loanAmount', [])), 'Float');
     });
   });
 
   /**
    * 双引擎 parity 回归（aster-lang-core issue #80 / #82 / #83）。
    *
-   * 下表与 aster-lang-core `TypeInferenceTest.shouldMatchTsEngineInference`
-   * **逐字对应**：同一字段名在两引擎必须推断出同一类型。改动任一侧规则前先跑两处。
+   * 下表与 aster-lang-core `TypeInferenceTest.shouldMatchTsEngineInference` 逐字对应；
+   * 规则统一后（ADR 0056）两侧还共同运行 locales 的共用测试向量。
    */
   describe('双引擎 parity 回归', () => {
     const CASES: ReadonlyArray<readonly [string, string]> = [
@@ -388,7 +310,7 @@ describe('类型推断引擎', () => {
 
     for (const [fieldName, expected] of CASES) {
       it(`${fieldName} → ${expected}`, () => {
-        assert.strictEqual(getTypeName(inferFieldType(fieldName, [], enUS)), expected);
+        assert.strictEqual(getTypeName(inferFieldType(fieldName)), expected);
       });
     }
   });

@@ -7,7 +7,7 @@
  * - keywords：预合并 Record（en-US 全集 + target 覆盖）。零运行时开销。
  * - punctuation / canonicalization / messages：透传 target（语言强相关，fallback 无意义）
  * - id / name / direction：透传 target（FallbackLexicon 对外仍是 target 身份）
- * - overlay 字段（typeInferenceRules / diagnosticMessages 等）：仅在 target 提供时
+ * - overlay 字段（inputGenerationRules / diagnosticMessages 等）：仅在 target 提供时
  *   通过 Object.defineProperty 挂载，满足 exactOptionalPropertyTypes 严格语义
  *
  * 与 Java 侧 FallbackLexicon 对齐（aster-lang-core/.../FallbackLexicon.java）。
@@ -64,9 +64,6 @@ export function createFallbackLexicon(target: Lexicon, fallback: Lexicon): Lexic
 
   // overlay 字段：仅在 target 显式提供时附加。条件展开避免 undefined 污染。
   const overlayFields = {
-    ...(target.typeInferenceRules !== undefined && {
-      typeInferenceRules: target.typeInferenceRules,
-    }),
     ...(target.inputGenerationRules !== undefined && {
       inputGenerationRules: target.inputGenerationRules,
     }),

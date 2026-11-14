@@ -21,10 +21,9 @@ import { lowerModule } from '../../../src/lower_to_core.js';
 import { typecheckModule } from '../../../src/typecheck.js';
 import type { Module as AstModule, Core } from '../../../src/types.js';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
-import { attachTypeInferenceRules } from '../../../src/config/lexicons/type-inference-rules.js';
 import { readSample, type Sample } from '@aster-cloud/aster-lang-test';
 
-const enUS = attachTypeInferenceRules(EN_US);
+const enUS = EN_US;
 
 // 合规示例文件路径（共享 corpus，tier1-equivalence/policies/）
 const COMPLIANCE_DEMOS = [

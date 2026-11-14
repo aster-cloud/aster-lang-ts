@@ -10,7 +10,7 @@
  * 6. isFallbackLexicon 类型守卫正确识别已装饰对象
  * 7. en-US 自身不应被 wrap（registry 层职责，但工厂应接受任意 target/fallback）
  * 8. 空 target / fallback 抛错
- * 9. overlay 字段（typeInferenceRules 等）仅在 target 提供时存在
+ * 9. overlay 字段（inputGenerationRules 等）仅在 target 提供时存在
  */
 
 import { describe, test } from 'node:test';
@@ -111,12 +111,11 @@ describe('FallbackLexicon', () => {
   });
 
   test('overlay 字段仅在 target 提供时存在', () => {
-    // 构造一个没有 typeInferenceRules 的 target
+    // 构造一个没有 overlay 字段的 target
     const noOverlay: Lexicon = {
       ...ZH_CN,
     };
     // 删除 overlay 字段
-    delete (noOverlay as { typeInferenceRules?: unknown }).typeInferenceRules;
     delete (noOverlay as { inputGenerationRules?: unknown }).inputGenerationRules;
     delete (noOverlay as { diagnosticMessages?: unknown }).diagnosticMessages;
     delete (noOverlay as { diagnosticHelp?: unknown }).diagnosticHelp;
@@ -124,10 +123,6 @@ describe('FallbackLexicon', () => {
     const wrapped = createFallbackLexicon(noOverlay, EN_US);
 
     // 字段未挂载（hasOwnProperty 为 false）
-    assert.equal(
-      Object.prototype.hasOwnProperty.call(wrapped, 'typeInferenceRules'),
-      false,
-    );
     assert.equal(
       Object.prototype.hasOwnProperty.call(wrapped, 'inputGenerationRules'),
       false,

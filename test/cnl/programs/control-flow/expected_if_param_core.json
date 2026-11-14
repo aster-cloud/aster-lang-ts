@@ -12,7 +12,7 @@
           "name": "flag",
           "type": {
             "kind": "TypeName",
-            "name": "Text"
+            "name": "Bool"
           },
           "annotations": [],
           "typeInferred": true
