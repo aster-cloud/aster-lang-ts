@@ -10,7 +10,7 @@ import { tryReadTranslatedIdent } from './context.js';
 import { parseType } from './type-parser.js';
 import { parseConstraints } from './constraint-parser.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
-import { inferFieldType, refineInferredType } from './type-inference.js';
+import { inferFieldType } from './type-inference.js';
 import { Issue, tokenName, type ParseErrorFn } from './parse-issue.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 
@@ -77,7 +77,7 @@ export function parseFieldList(
       // 类型推断路径 - CNL 自然语言风格
       typeInferred = true;
       // 初步推断（基于字段名），后续可能根据约束修正
-      t = inferFieldType(name, [], ctx.lexicon);
+      t = inferFieldType(name);
       assignSpan(t, spanFromTokens(nameTok, nameTok));
     }
 
@@ -86,7 +86,7 @@ export function parseFieldList(
 
     // 如果是推断类型且有约束，根据约束修正类型
     if (typeInferred && constraints.length > 0) {
-      t = refineInferredType(t, constraints);
+      t = inferFieldType(name, constraints);
       assignSpan(t, spanFromTokens(nameTok, nameTok));
     }
 

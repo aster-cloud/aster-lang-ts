@@ -16,7 +16,6 @@ import { lex } from './frontend/lexer.js';
 import { parse } from './parser.js';
 import { lowerModule } from './lower_to_core.js';
 import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
-import { attachTypeInferenceRules } from './config/lexicons/type-inference-rules.js';
 import { resolveDeclarations } from './frontend/resolve-declarations.js';
 import { NO_IMPORTS } from './frontend/resolution-context.js';
 import type { ResolutionContext } from './frontend/resolution-context.js';
@@ -46,7 +45,7 @@ export function parseSource(source: string, lexicon?: Lexicon, scopes?: Vocabula
   if (lexicon && needsKeywordTranslation(lexicon)) {
     tokens = createKeywordTranslator(lexicon).translateTokens(tokens);
   }
-  const result = parse(tokens, lexicon ? attachTypeInferenceRules(lexicon) : undefined);
+  const result = parse(tokens, lexicon);
   return { tokens, ast: result.ast, diagnostics: result.diagnostics };
 }
 

@@ -10,7 +10,7 @@
           "name": "flag",
           "type": {
             "kind": "TypeName",
-            "name": "Text"
+            "name": "Bool"
           },
           "typeInferred": true
         }

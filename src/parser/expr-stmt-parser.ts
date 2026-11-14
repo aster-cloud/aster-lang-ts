@@ -24,7 +24,7 @@ import { TokenKind, KW } from '../frontend/tokens.js';
 import { Node } from '../ast/ast.js';
 import { parseType, parseEffectList } from './type-parser.js';
 import { parseConstraints } from './constraint-parser.js';
-import { inferFieldType, refineInferredType } from './type-inference.js';
+import { inferFieldType } from './type-inference.js';
 import {
   assignSpan,
   cloneSpan,
@@ -1584,7 +1584,7 @@ function parsePrimary(
           ptype = parseType(ctx, error);
         } else {
           typeInferred = true;
-          ptype = inferFieldType(pname, [], ctx.lexicon);
+          ptype = inferFieldType(pname);
           assignSpan(ptype, spanFromTokens(nameTok, nameTok));
         }
         const param: Parameter = {
@@ -1997,15 +1997,16 @@ export function parseParamList(
         type = parseType(ctx, error);
       } else {
         typeInferred = true;
-        type = inferFieldType(name, [], ctx.lexicon);
+        type = inferFieldType(name);
         assignSpan(type, spanFromTokens(nameTok, nameTok));
       }
 
       // 解析可选的约束列表（在类型之后）
       const { constraints, lastToken: constraintEndToken } = parseConstraints(ctx, error);
 
+      // 推断类型按约束修正（ADR 0056 §3.2 第 5 步），仍锚定在名字 token
       if (typeInferred && constraints.length > 0) {
-        type = refineInferredType(type, constraints);
+        type = inferFieldType(name, constraints);
         assignSpan(type, spanFromTokens(nameTok, nameTok));
       }
 
@@ -2062,15 +2063,16 @@ export function parseParamList(
         type = parseType(ctx, error);
       } else {
         typeInferred = true;
-        type = inferFieldType(name, [], ctx.lexicon);
+        type = inferFieldType(name);
         assignSpan(type, spanFromTokens(nameTok, nameTok));
       }
 
       // 解析可选的约束列表（在类型之后）
       const { constraints, lastToken: constraintEndToken } = parseConstraints(ctx, error);
 
+      // 推断类型按约束修正（ADR 0056 §3.2 第 5 步），仍锚定在名字 token
       if (typeInferred && constraints.length > 0) {
-        type = refineInferredType(type, constraints);
+        type = inferFieldType(name, constraints);
         assignSpan(type, spanFromTokens(nameTok, nameTok));
       }
 

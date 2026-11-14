@@ -16,3 +16,14 @@ test('naming-rules 副本与 locales 真相源逐字节相同', (t) => {
   assert.deepEqual(JSON.parse(copy.toString('utf8')), JSON.parse(expected.toString('utf8')));
   assert.ok(copy.equals(expected), '整文件复制同步：副本须与真相源逐字节相同');
 });
+
+test('naming-rules.generated.ts 与 shared 副本同步', async () => {
+  const { NAMING_RULES_PATH, NAMING_RULES_MODULE_PATH, renderNamingRulesModule } = await import(
+    '../../../scripts/generate-naming-rules.js'
+  );
+  const { NAMING_RULES } = await import('../../../src/parser/naming-rules.generated.js');
+  const shared = JSON.parse(readFileSync(join(process.cwd(), NAMING_RULES_PATH), 'utf8')) as unknown;
+  assert.equal(readFileSync(join(process.cwd(), NAMING_RULES_MODULE_PATH), 'utf8'), renderNamingRulesModule(shared),
+    '重新运行 node dist/scripts/generate-naming-rules.js 并提交生成物');
+  assert.deepEqual(NAMING_RULES, shared);
+});

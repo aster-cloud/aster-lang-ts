@@ -15,7 +15,7 @@ import {
   compileGuardedRegex,
   MAX_PATTERN_LENGTH,
 } from '../../src/config/lexicons/regex-guard.js';
-import { loadTypeInferenceRules } from '../../src/config/lexicons/overlay-loader.js';
+import { loadInputGenerationRules } from '../../src/config/lexicons/overlay-loader.js';
 
 test('regex-guard 测试套件', async (t) => {
   await t.test('拒绝 nested-quantifier ReDoS 模式 (a+)+', () => {
@@ -126,17 +126,17 @@ test('regex-guard 测试套件', async (t) => {
     }
   });
 
-  await t.test('overlay-loader 跳过恶意 type-inference 规则', () => {
-    const rules = loadTypeInferenceRules({
+  await t.test('overlay-loader 跳过恶意 input-generation 规则', () => {
+    const rules = loadInputGenerationRules({
       version: 1,
       rules: [
-        { pattern: '(a+)+', type: 'Int', priority: 1 },
-        { pattern: '\\bage\\b', type: 'Int', priority: 2 },
+        { pattern: '(a+)+', value: 1, priority: 1 },
+        { pattern: '\\bage\\b', value: 30, priority: 2 },
       ],
     });
     // 恶意的 (a+)+ 被跳过，只保留合法规则
     assert.strictEqual(rules.length, 1);
-    assert.strictEqual(rules[0]!.type, 'Int');
+    assert.strictEqual(rules[0]!.generate(), 30);
     assert.strictEqual(rules[0]!.pattern.test('age'), true);
   });
 });

@@ -1,269 +1,115 @@
 /**
- * CNL 字段类型推断引擎
+ * 未标注形参 / 字段的类型推断（ADR 0056 §3.2）。
  *
- * 实现基于命名约定和约束信号的类型推断，使字段定义更接近自然语言。
- *
- * 推断优先级（从高到低）：
- * 1. 显式类型声明（由调用方处理，不在本模块）
- * 2. 约束驱动推断（Range → 数值类型，Pattern → Text）
- * 3. 命名约定推断（*Id → Text, *Amount → Float 等）
- * 4. 默认类型（Text）
+ * 规则表是 aster-lang-locales type-inference/naming-rules.json 的内置副本（naming-rules.generated.ts，
+ * 由 shared/type-inference-naming-rules.json 生成并由 sibling parity 测试守护），与词法表无关：全部规则对所有
+ * 模块生效。算法与 aster-lang-core TypeInference 逐步相同，两侧用 locales 的共用测试向量对照：
+ * 1. 分词：名字只含 ASCII 字母、数字与 `_` 时按 `_` 切段，每段按 WORD 切词并做 ASCII 小写；否则词列表为空；
+ * 2. 逐条判定规则是否命中（首词 / 末词 / 任一词 / 整名前缀后缀）；
+ * 3. 命中规则中 priority 最大者胜，同优先级取表中靠前者，都不命中取缺省类型；
+ * 4. 按约束修正（与约束书写顺序无关）。
  *
  * @example
  * ```typescript
- * // 命名推断
- * inferFieldType('applicantId')     // → Text (匹配 *Id)
- * inferFieldType('loanAmount')      // → Float (匹配 *Amount)
- * inferFieldType('termMonths')      // → Int (匹配 *Months)
- * inferFieldType('isApproved')      // → Bool (匹配 is*)
- *
- * // 约束驱动推断
- * inferFieldType('score', [{ kind: 'Range', min: 0, max: 100 }])  // → Int
- * inferFieldType('rate', [{ kind: 'Range', min: 0.0, max: 1.0 }]) // → Float
+ * inferFieldType('applicantId')   // → Text（末词 id，且词数 ≥ 2）
+ * inferFieldType('loanAmount')    // → Float
+ * inferFieldType('termMonths')    // → Int
+ * inferFieldType('isApproved')    // → Bool
+ * inferFieldType('score', [{ kind: 'Range', min: 0, max: 100, ... }])  // → Int
  * ```
  */
 
 import { Node } from '../ast/ast.js';
 import type { Constraint, ConstraintRange, Type } from '../types.js';
-import type { TypeInferenceRule, PrimitiveTypeName } from '../types/type-inference.js';
-import type { Lexicon } from '../config/lexicons/types.js';
+import type { PrimitiveTypeName } from '../types/type-inference.js';
+import { canonicalDecimalFromLiteral } from '../core/canonical-decimal.js';
+import type { NamingRule } from './naming-rules.js';
+import { NAMING_RULES } from './naming-rules.generated.js';
 
-export type { TypeInferenceRule, PrimitiveTypeName };
+export type { PrimitiveTypeName };
 
-/**
- * 默认的字段命名类型推断规则
- *
- * 规则按照常见业务领域设计，覆盖：
- * - 标识符类型（ID、Identifier、Vin）
- * - 金融类型（Amount、Price、Cost）
- * - 计数类型（Count、Number、Age）
- * - 业务指标（Rating、Limit、Premium）
- * - 布尔类型（isXxx、hasXxx、Flag、Sufficient）
- * - 时间类型（Date、Time、At）
- * - 分类类型（Type、Status、Category）
- * - 产品属性（Make、Model）
- */
-/**
- * 语言无关的通用基线命名规则。
- * 语言特定规则（英文布尔前缀、中文前缀、德语后缀等）
- * 已拆分至 config/lexicons/type-inference-rules.ts（overlay 模式）。
- */
-export const BASE_NAMING_RULES: readonly TypeInferenceRule[] = [
-  // 明确文本
-  { pattern: /(?:Message|Dosage)$/i, type: 'Text', priority: 11 },
-  // ID/标识符（所有语言通用）
-  // ★不能用 /i：那样 "Valid" / "isValid" 的结尾 "id" 也会命中，且优先级 10 高于
-  //   Bool 后缀规则（8），使一切 *Valid 字段被推成 Text。要求 Id 前是小写字母
-  //   （camelCase，如 userId/orderId）。与 Java `(?<=[a-z])(?:Id|ID|Identifier)$` 对齐。
-  { pattern: /(?<=[a-z])(?:Id|ID|Identifier)$/, type: 'Text', priority: 10 },
-  { pattern: /(?:Code|Key|Token|Uuid|Guid|Vin)$/i, type: 'Text', priority: 8 },
-  // 金额/价格
-  { pattern: /(?:Amount|Price|Cost|Fee|Total|Balance|Salary|Income|Payment|Percentage|Ratio)$/i, type: 'Float', priority: 10 },
-  { pattern: /(?:Rate|Interest)$/i, type: 'Float', priority: 9 },
-  // 计数/数量
-  // ★Age 单独成条：要么是整个字段名（age/Age），要么是 camelCase 的独立词段
-  //   （userAge/personAge，即 Age 前是小写字母且 A 大写）。裸 /Age$/i 会把
-  //   usage / language / package / storage / dosage / voltage / mileage 这类
-  //   「以 -age 结尾的普通单词」误判为 Int。与 Java TypeInference.NAMING_RULES 逐条对齐。
-  { pattern: /(?:Count|Number|Qty|Quantity|Score|Level|Rank|Index|Size|Length|Width|Height)$/i, type: 'Int', priority: 10 },
-  { pattern: /^[Aa]ge$|(?<=[a-z])Age$/, type: 'Int', priority: 10 },
-  // 时间单位
-  // ★时间单位支持**中间位置**匹配（daysRemaining）以及末尾匹配（termMonths）——
-  //   即单位词后必须是驼峰边界（大写字母）或词尾。与 Java 侧
-  //   `(?:Years?|…|Seconds?)(?:[A-Z]|$)` 逐字对齐；此前 TS 仅锚定 $，
-  //   使 daysRemaining 类字段在两引擎推断不同（长期被 Age$ 的共享误判所掩盖）。
-  { pattern: /(?:[Yy][Ee][Aa][Rr][Ss]?|[Mm][Oo][Nn][Tt][Hh][Ss]?|[Ww][Ee][Ee][Kk][Ss]?|[Dd][Aa][Yy][Ss]?|[Hh][Oo][Uu][Rr][Ss]?|[Mm][Ii][Nn][Uu][Tt][Ee][Ss]?|[Ss][Ee][Cc][Oo][Nn][Dd][Ss]?)(?:[A-Z]|$)/, type: 'Int', priority: 9 },
-];
+/** 分词式：不带任何标志、只用 ASCII 字符类与先行断言，在 Java 与 JS 中语义相同。 */
+const WORD = /[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+/g;
+const ASCII_IDENT = /^[A-Za-z0-9_]*$/;
 
-
-/** 默认推断类型 */
-const DEFAULT_TYPE: PrimitiveTypeName = 'Text';
-
-/**
- * 从约束列表推断类型
- *
- * 推断规则：
- * - Range 约束 → 数值类型（Int 或 Float）
- * - Pattern 约束 → Text
- * - Required 约束 → 不影响类型推断
- *
- * @param constraints 约束列表
- * @returns 推断的类型名，如果无法从约束推断则返回 null
- */
-export function inferTypeFromConstraints(constraints: readonly Constraint[]): PrimitiveTypeName | null {
-  let inferred: PrimitiveTypeName | null = null;
-
-  for (const constraint of constraints) {
-    const constraintType = inferConstraintType(constraint);
-    if (!constraintType) {
-      continue;
-    }
-
-    if (!inferred) {
-      inferred = constraintType;
-      continue;
-    }
-
-    // 类型提升：Int + Float → Float
-    if (inferred === 'Int' && constraintType === 'Float') {
-      inferred = 'Float';
-    }
-  }
-
-  return inferred;
+/** ASCII 小写：只改 A–Z，中文、变音符等字符不变。 */
+function asciiLower(s: string): string {
+  return s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
 }
 
-/**
- * 推断字段类型
- *
- * 按优先级尝试推断：
- * 1. 约束驱动推断
- * 2. 命名约定推断
- * 3. 默认类型（Text）
- *
- * @param fieldName 字段名称
- * @param constraints 可选的约束列表
- * @returns 推断的类型 AST 节点
- */
-export function inferFieldType(
-  fieldName: string,
-  constraints: readonly Constraint[] = [],
-  lexicon?: Lexicon,
-): Type {
-  const constraintDriven = inferTypeFromConstraints(constraints);
-  if (constraintDriven) return createPrimitiveType(constraintDriven);
-
-  const nameDriven = inferFromName(fieldName, lexicon);
-  if (nameDriven) return createPrimitiveType(nameDriven);
-
-  return createPrimitiveType(DEFAULT_TYPE);
+/** 第 1 步：分词。名字含 ASCII 字母、数字、`_` 以外的字符时返回空列表。 */
+export function tokenize(name: string): string[] {
+  if (!ASCII_IDENT.test(name)) return [];
+  const words: string[] = [];
+  for (const segment of name.split('_')) {
+    for (const m of segment.matchAll(WORD)) words.push(asciiLower(m[0]));
+  }
+  return words;
 }
 
-/**
- * 根据约束修正已推断的类型
- *
- * 当字段使用推断类型后又解析到约束时，可能需要修正类型。
- * 例如：字段名 `value` 默认推断为 Text，但如果有 Range 约束则应为数值类型。
- *
- * @param currentType 当前推断的类型
- * @param constraints 约束列表
- * @returns 修正后的类型
- */
-export function refineInferredType(currentType: Type, constraints: readonly Constraint[]): Type {
-  if (constraints.length === 0) {
-    return currentType;
-  }
-
-  const refined = inferTypeFromConstraints(constraints);
-  if (!refined) {
-    return currentType;
-  }
-
-  // 检查当前类型是否与约束推断冲突
-  const currentPrimitive = normalizePrimitiveType(currentType);
-
-  // 如果当前类型与约束推断一致，保持不变
-  if (currentPrimitive && currentPrimitive === refined) {
-    return currentType;
-  }
-
-  // 如果当前是 Text（默认）而约束要求数值，采用约束推断
-  if (currentPrimitive === 'Text' && (refined === 'Int' || refined === 'Float')) {
-    return createPrimitiveType(refined);
-  }
-
-  // Int 可以提升为 Float
-  if (currentPrimitive === 'Int' && refined === 'Float') {
-    return createPrimitiveType('Float');
-  }
-
-  // 其他情况保持当前类型（避免意外修改）
-  return currentType;
-}
-
-/**
- * 从单个约束推断类型
- */
-function inferConstraintType(constraint: Constraint): PrimitiveTypeName | null {
-  switch (constraint.kind) {
-    case 'Pattern':
-      // Pattern 约束只对文本有意义
-      return 'Text';
-    case 'Range':
-      // Range 约束表示数值类型
-      return hasFractionalBound(constraint) ? 'Float' : 'Int';
-    case 'Required':
-      // Required 不影响类型
-      return null;
-    default:
-      return null;
+/** 第 2 步：单条规则是否命中。词列表为空时 *Word* 规则一律不命中。 */
+function ruleMatches(rule: NamingRule, words: readonly string[], name: string): boolean {
+  const items = rule.words ?? rule.strings ?? [];
+  switch (rule.match) {
+    case 'firstWord':
+      return words.length > 0 && items.includes(words[0]!);
+    case 'lastWord':
+      return words.length > 0 && items.includes(words[words.length - 1]!);
+    case 'lastWordMulti':
+      return words.length >= 2 && items.includes(words[words.length - 1]!);
+    case 'anyWord':
+      return words.some((w) => items.includes(w));
+    case 'textPrefix':
+      return items.some((s) => asciiLower(name).startsWith(s));
+    case 'textSuffix':
+      return items.some((s) => asciiLower(name).endsWith(s));
   }
 }
 
+/** 第 1–3 步：只按名字推断类型名。 */
+export function inferTypeNameFromName(name: string): PrimitiveTypeName {
+  const words = tokenize(name);
+  let best: NamingRule | null = null;
+  for (const rule of NAMING_RULES.rules) {
+    if (ruleMatches(rule, words, name) && (best === null || rule.priority > best.priority)) best = rule;
+  }
+  return best === null ? NAMING_RULES.default : best.type;
+}
+
 /**
- * 检查 Range 约束是否包含小数边界
+ * 第 5 步的约束类型：存在 Range 时，任一端点的规范十进制串（ADR 0055 §5）含 `.` 得 Float，否则 Int；
+ * 不存在 Range 而存在 Pattern 时得 Text；其余为 null。
  */
+export function constraintType(constraints: readonly Constraint[]): PrimitiveTypeName | null {
+  const ranges = constraints.filter((c): c is ConstraintRange => c.kind === 'Range');
+  if (ranges.length > 0) return ranges.some(hasFractionalBound) ? 'Float' : 'Int';
+  return constraints.some((c) => c.kind === 'Pattern') ? 'Text' : null;
+}
+
+/** 端点按字面量原文求规范十进制串（与 lowering 写进 IR 的值相同），原文 `1.0` 不算小数。 */
 function hasFractionalBound(range: ConstraintRange): boolean {
-  return [range.min, range.max].some(
-    (value) => value !== undefined && !Number.isInteger(value)
+  const literal = (raw: string | undefined, value: number | undefined): string | undefined =>
+    raw ?? (value === undefined ? undefined : String(value));
+  return [literal(range.minRaw, range.min), literal(range.maxRaw, range.max)].some(
+    (b) => b !== undefined && canonicalDecimalFromLiteral(b).includes('.'),
   );
 }
 
-/** 规则缓存（按 lexicon id） */
-const ruleCache = new Map<string, readonly TypeInferenceRule[]>();
-
-function getMergedRules(lexicon?: Lexicon): readonly TypeInferenceRule[] {
-  if (!lexicon?.typeInferenceRules) return BASE_NAMING_RULES;
-  const id = lexicon.id;
-  const cached = ruleCache.get(id);
-  if (cached) return cached;
-  const merged = [...BASE_NAMING_RULES, ...lexicon.typeInferenceRules];
-  ruleCache.set(id, merged);
-  return merged;
+/** 第 5 步：名字推断结果 n 与约束类型 c 合并。 */
+export function refine(n: PrimitiveTypeName, c: PrimitiveTypeName | null): PrimitiveTypeName {
+  if (c === null || c === n) return n;
+  if (n === 'Text' && (c === 'Int' || c === 'Float')) return c;
+  if (n === 'Int' && c === 'Float') return 'Float';
+  return n;
 }
 
 /**
- * 从字段名推断类型
+ * 推断未标注形参 / 字段的类型：按名字推断，再按约束修正。
+ *
+ * @param fieldName 字段 / 形参名
+ * @param constraints 源码写下的约束
+ * @returns 推断的类型 AST 节点（span 由调用方锚定在名字 token，ADR 0056 §3.3）
  */
-function inferFromName(fieldName: string, lexicon?: Lexicon): PrimitiveTypeName | null {
-  const rules = getMergedRules(lexicon);
-  let matchedRule: TypeInferenceRule | null = null;
-
-  for (const rule of rules) {
-    if (!rule.pattern.test(fieldName)) continue;
-    if (!matchedRule || rule.priority > matchedRule.priority) {
-      matchedRule = rule;
-    }
-  }
-
-  return matchedRule?.type ?? null;
-}
-
-/**
- * 将 Type 节点标准化为基础类型名
- */
-function normalizePrimitiveType(type: Type): PrimitiveTypeName | null {
-  if (type.kind !== 'TypeName') {
-    return null;
-  }
-
-  switch (type.name) {
-    case 'Text':
-    case 'Int':
-    case 'Bool':
-    case 'Float':
-    case 'DateTime':
-      return type.name as PrimitiveTypeName;
-    case 'Double':
-      return 'Float';
-    default:
-      return null;
-  }
-}
-
-/**
- * 创建基础类型 AST 节点
- */
-function createPrimitiveType(typeName: PrimitiveTypeName): Type {
-  return Node.TypeName(typeName);
+export function inferFieldType(fieldName: string, constraints: readonly Constraint[] = []): Type {
+  return Node.TypeName(refine(inferTypeNameFromName(fieldName), constraintType(constraints)));
 }

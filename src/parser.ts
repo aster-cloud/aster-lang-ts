@@ -24,7 +24,6 @@ import {
   createKeywordTranslator,
   needsKeywordTranslation,
 } from './frontend/keyword-translator.js';
-import { attachTypeInferenceRules } from './config/lexicons/type-inference-rules.js';
 import { EN_US } from './config/lexicons/en-US.js';
 
 /**
@@ -103,8 +102,6 @@ export function parseWithLexicon(
   const translator = createKeywordTranslator(lexicon);
   const translatedTokens = translator.translateTokens(tokens);
 
-  // 附加类型推断规则后传递给 parse
-  const effective = attachTypeInferenceRules(lexicon);
-  // 报错文案里的关键词槽位由各子解析器经 keyword-display 按 effective 的 lexicon 显示
-  return parse(translatedTokens, effective);
+  // 报错文案里的关键词槽位由各子解析器经 keyword-display 按 lexicon 显示；推断规则与词法表无关（ADR 0056 §3.2）
+  return parse(translatedTokens, lexicon);
 }

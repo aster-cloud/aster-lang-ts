@@ -12,7 +12,6 @@ import { canonicalize } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
 import { parse } from '../parser.js';
 import { createKeywordTranslator, needsKeywordTranslation } from '../frontend/keyword-translator.js';
-import { attachTypeInferenceRules } from '../config/lexicons/type-inference-rules.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import type { TypeKind, ParameterInfo, FieldInfo } from '../parser/input-generator.js';
 import type { Declaration, Func, Data, Enum, Type } from '../types.js';
@@ -126,8 +125,7 @@ export function extractSchema(source: string, options?: SchemaOptions): SchemaRe
     }
 
     // Parse to AST
-    const effectiveLexForSchema = lexicon ? attachTypeInferenceRules(lexicon) : undefined;
-    const parseResult = parse(tokens, effectiveLexForSchema);
+    const parseResult = parse(tokens, lexicon);
 
     if (parseResult.diagnostics.length > 0 && parseResult.ast.decls.length === 0) {
       return {
