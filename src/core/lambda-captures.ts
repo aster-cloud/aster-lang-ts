@@ -3,8 +3,8 @@
  *
  * 名字 n 进入 lambda L 的 captures，当且仅当：
  * 1. n 作为 `Name` 节点（值位置或调用目标）出现在 L 体内，含 L 内嵌套 lambda 的体内；
- * 2. 该出现处 n 没有被 L 内部的绑定遮蔽（L 的形参、此前的 Let、Match 模式绑定、嵌套 lambda 的形参）；
- * 3. n 是 L 外层的局部绑定（外层函数形参、L 之前的 Let、外层 Match 模式绑定、外层 lambda 形参）。
+ * 2. 该出现处 n 没有被 L 内部的绑定遮蔽（L 的形参、此前的 Let / Start、Match 模式绑定、嵌套 lambda 的形参）；
+ * 3. n 是 L 外层的局部绑定（外层函数形参、L 之前的 Let / Start、外层 Match 模式绑定、外层 lambda 形参）。
  *
  * 判定在已降级的 Core IR 上进行，方法调用已改写为「方法名作调用目标、接收者作首参」；方法名、效应关键词、
  * 运算符、模块声明、导入与内建函数都不是外层局部，不进 captures。顺序按首次引用的源码位置（行、列）升序，去重。
@@ -57,7 +57,11 @@ export function collectLambdaCaptures(
         return;
       case 'Set':
       case 'Return':
+        expr(s.expr);
+        return;
       case 'Start':
+        // 与 R1 一致：任务名先绑定
+        bound[bound.length - 1]!.add(s.name);
         expr(s.expr);
         return;
       case 'If':

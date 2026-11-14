@@ -344,4 +344,24 @@ describe('lambda 捕获：只列外层局部（ADR 0056）', () => {
     assert.deepEqual(caps[0], ['b']);
     assert.deepEqual(caps[1], ['b', 'a']);
   });
+
+  it('Start 的任务名是局部绑定（与 R1 一致）', () => {
+    const lowerOnly = (src: string): string[][] => lambdaCaptures(lowerModule(parseSource(src).ast));
+    assert.deepEqual(
+      lowerOnly(rule('v',
+        '  Start task as async helper(v).',
+        '  Let f be function with x, produce:',
+        '    Return task.',
+        '  Return f(v).'))[0],
+      ['task'],
+    );
+    assert.deepEqual(
+      lowerOnly(rule('v, task',
+        '  Let f be function with x, produce:',
+        '    Start task as async helper(x).',
+        '    Return task.',
+        '  Return f(v).'))[0],
+      [],
+    );
+  });
 });

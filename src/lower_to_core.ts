@@ -173,8 +173,9 @@ const AUTHORIZING_EFFECTS: ReadonlySet<string> = new Set(['io', 'cpu']);
  * 外部调用方使用 resolveAndLowerChecked（compile-pipeline）或 browser `compile`。
  */
 /**
- * 降级函数体时可见的局部绑定（形参、此前的 Let、Match 模式绑定、外层 lambda 形参），按块分层。
+ * 降级函数体时可见的局部绑定（形参、此前的 Let / Start、Match 模式绑定、外层 lambda 形参），按块分层。
  * 只用于判定 lambda 的 captures 是否为外层局部（ADR 0056 §4.2，见 core/lambda-captures.ts）。
+ * lowering 是同步的，每层都在 finally 中出栈，lowerModule 结束时栈必为空；lowerModule 入口据此拒绝重入。
  */
 const localScopes: Set<string>[] = [];
 
@@ -198,6 +199,7 @@ function visibleLocals(): Set<string> {
 }
 
 export function lowerModule(ast: Module): Core.Module {
+  if (localScopes.length > 0) throw new Error('lowerModule 不可重入：局部作用域栈非空');
   const decls = ast.decls.map(lowerDecl);
   const m = CoreIR.Module(ast.name, decls, ast.profile ?? null);
   return withOrigin(m, ast);
@@ -310,6 +312,8 @@ function lowerStmt(s: Statement): Core.Statement {
         s
       );
     case 'Start':
+      // 与 R1 一致：Start 的任务名先入作用域，此后的 lambda 可以捕获它
+      bindLocal(s.name);
       return withOrigin(CoreIR.Start(s.name, lowerExpr(s.expr)), s);
     case 'Wait':
       return withOrigin(CoreIR.Wait(s.names), s);
