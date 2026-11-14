@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 3.0.0
 
-> **下一次发布必须是主版本 3.0.0。** 2.0.0 已发布到 npm；下面「删除的 API」中，公开类型 `Lexicon`
+> **主版本号的理由**：下面「删除的 API」中，公开类型 `Lexicon`
 > （经子路径 `./browser` 与 `./lexicons/types` 导出，并出现在 `parseWithLexicon` 等公开函数的签名里）删除了可选字段 `typeInferenceRules`，消费方给它赋值的
 > 代码会编译失败，且该字段不再生效。其余被删除的函数（`attachTypeInferenceRules`、`BASE_NAMING_RULES`、
 > `refineInferredType` 等）不在 `package.json` 的 `exports` 中、不能被包外导入，不构成额外的破坏面；但 IR 取值
