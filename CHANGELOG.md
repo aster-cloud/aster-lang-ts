@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+> **下一次发布必须是主版本 3.0.0。** 2.0.0 已发布到 npm；下面「删除的 API」中，公开类型 `Lexicon`
+> （经子路径 `./browser` 与 `./lexicons/types` 导出，并出现在 `parseWithLexicon` 等公开函数的签名里）删除了可选字段 `typeInferenceRules`，消费方给它赋值的
+> 代码会编译失败，且该字段不再生效。其余被删除的函数（`attachTypeInferenceRules`、`BASE_NAMING_RULES`、
+> `refineInferredType` 等）不在 `package.json` 的 `exports` 中、不能被包外导入，不构成额外的破坏面；但 IR 取值
+> （effectCaps、推断类型、captures）的变化本身也是对持久化 IR 与下游读方的破坏性变更。
+
 ### 推断值统一（ADR 0056）——破坏性变更
 
 ts 与 aster-lang-core 对未写明的类型与能力产出相同的 IR，Core IR v2 值层豁免表清空。
@@ -13,6 +19,9 @@ ts 与 aster-lang-core 对未写明的类型与能力产出相同的 IR，Core I
   `shared/type-inference-naming-rules.json`），按「分词 + 词表」匹配、与词法表无关，再按约束修正（Range 端点按规范十进制值，
   与书写顺序无关）。en-US 规则此前只在显式传入 lexicon 时生效，现在对所有模块生效，推断结果随之变化
   （例如 `isActive` → `Bool`、`createdAt` → `DateTime`、`value` → `Int`、`candidate` → `Text`、`days_since_consent` → `Int`）。
+- **Lambda.captures 只列外层局部**：外层函数形参、lambda 之前的 Let、外层 Match 模式绑定与外层 lambda 形参；
+  在方法调用改写后的 IR 上判定，按首次引用的源码位置排序。运算符名（`+`、`>` 等）、模块规则名、内建函数、
+  方法名与效应关键词（`io.get(…)` 的 `get`、`io`）不再进 captures；枚举成员也不再进 captures。
 - **删除的 API**：`Lexicon.typeInferenceRules`、`TypeInferenceRule` 类型、`attachTypeInferenceRules` /
   `registerOverlayTypeInferenceRules`（`config/lexicons/type-inference-rules`）、overlay 的 `typeInferenceRules` 与
   `loadTypeInferenceRules`、`BASE_NAMING_RULES`、`inferTypeFromConstraints`、`refineInferredType`；`inferFieldType(name, constraints)`

@@ -20,8 +20,8 @@
  *
  * <h2>★硬约束：只能读两引擎已经一致的那部分（ADR §5 / §5.1）</h2>
  *
- * Core IR v2（ADR 0055）起两引擎同形，但值层仍在分期收紧（§6）：推断出的类型子树（V1）、
- * 推断出的 effectCaps（V2）、Lambda.captures（V3）与部分 origin 结束行（V4）两侧可能不同：
+ * Core IR v2（ADR 0055）起两引擎同形，ADR 0056 起值层也已统一。但下列字段是推断 / 派生出来的，
+ * 不是源码写下的值，不能作为「文本与节点对应」的证据：
  *
  * ```
  *   type（typeInferred）, ret（retTypeInferred）, effectCaps（effectCapsExplicit=false）, captures
