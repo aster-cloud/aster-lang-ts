@@ -427,11 +427,13 @@ export function parseStatement(
       const functionTok = ctx.nextWord(); // 'function'
       const params = parseParamList(ctx, error);
       expectCommaOr(ctx);
+      const produceTok = ctx.peek();
       expectKeyword(ctx, error, KW.PRODUCE, Issue.expected(kwParam(KW.PRODUCE), `Expected ${kwq(ctx, KW.PRODUCE)} and return type`));
       let retType: Type;
       if (ctx.at(TokenKind.COLON)) {
+        // 推断返回类型的占位锚定在 produce 关键词（ADR 0056 §3.3，与 aster-lang-core 一致）
         retType = Node.TypeName('Unknown');
-        assignSpan(retType, spanFromTokens(ctx.peek(), ctx.peek()));
+        assignSpan(retType, spanFromTokens(produceTok, produceTok));
       } else {
         retType = parseType(ctx, error);
       }
@@ -1535,11 +1537,13 @@ function parsePrimary(
     const functionTok = ctx.nextWord(); // 'function'
     const params = parseParamList(ctx, error);
     expectCommaOr(ctx);
+    const produceTok = ctx.peek();
     expectKeyword(ctx, error, KW.PRODUCE, Issue.expected(kwParam(KW.PRODUCE), `Expected ${kwq(ctx, KW.PRODUCE)} and return type`));
     let retType: Type;
     if (ctx.at(TokenKind.COLON)) {
+      // 推断返回类型的占位锚定在 produce 关键词（ADR 0056 §3.3，与 aster-lang-core 一致）
       retType = Node.TypeName('Unknown');
-      assignSpan(retType, spanFromTokens(ctx.peek(), ctx.peek()));
+      assignSpan(retType, spanFromTokens(produceTok, produceTok));
     } else {
       retType = parseType(ctx, error);
     }
