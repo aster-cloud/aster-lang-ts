@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### 推断值统一（ADR 0056）——破坏性变更
+
+ts 与 aster-lang-core 对未写明的类型与能力产出相同的 IR，Core IR v2 值层豁免表清空。
+
+- **effectCaps 只记显式能力**：`It performs io` / `cpu` 没有列出能力时 `effectCaps` 为 `[]`（此前展开为 io / cpu 预置列表）；
+  工作流步骤的能力检查只在 `effectCapsExplicit` 为真时进行。
+- **推断返回类型锚点**：Lambda 省略返回类型时占位 `Unknown` 的 origin 是 `produce` 关键词（此前是其后的 `:`）。
+- **未标注形参 / 字段的推断类型**：规则表改为 aster-lang-locales `type-inference/naming-rules.json`（副本
+  `shared/type-inference-naming-rules.json`），按「分词 + 词表」匹配、与词法表无关，再按约束修正（Range 端点按规范十进制值，
+  与书写顺序无关）。en-US 规则此前只在显式传入 lexicon 时生效，现在对所有模块生效，推断结果随之变化
+  （例如 `isActive` → `Bool`、`createdAt` → `DateTime`、`value` → `Int`、`candidate` → `Text`、`days_since_consent` → `Int`）。
+- **删除的 API**：`Lexicon.typeInferenceRules`、`TypeInferenceRule` 类型、`attachTypeInferenceRules` /
+  `registerOverlayTypeInferenceRules`（`config/lexicons/type-inference-rules`）、overlay 的 `typeInferenceRules` 与
+  `loadTypeInferenceRules`、`BASE_NAMING_RULES`、`inferTypeFromConstraints`、`refineInferredType`；`inferFieldType(name, constraints)`
+  不再接受 lexicon 参数。
+
 ## 2.0.0
 
 ### Core IR v2（ADR 0055，与 1.0.46 引擎列车同车次）——破坏性变更

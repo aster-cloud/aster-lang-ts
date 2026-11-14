@@ -199,6 +199,20 @@ describe('类型推断引擎', () => {
       assert.strictEqual(constraintType([{ kind: 'Range', max: 99.99, maxRaw: '99.99', span: freshSpan() }]), 'Float');
     });
 
+    it('端点按规范十进制值判断（与 core TypeInferenceTest.rangeBoundsUseCanonicalDecimal 同组用例）', () => {
+      const r = (minRaw?: string, maxRaw?: string): Constraint => ({
+        kind: 'Range',
+        ...(minRaw === undefined ? {} : { min: Number(minRaw), minRaw }),
+        ...(maxRaw === undefined ? {} : { max: Number(maxRaw), maxRaw }),
+        span: freshSpan(),
+      });
+      assert.strictEqual(constraintType([r('1.0', '2.00')]), 'Int');
+      assert.strictEqual(constraintType([r('1E3')]), 'Int');
+      assert.strictEqual(constraintType([r(undefined, '1.50')]), 'Float');
+      assert.strictEqual(constraintType([r('-0.5')]), 'Float');
+      assert.strictEqual(constraintType([r('0', '1e-1')]), 'Float');
+    });
+
     it('端点原文 1.0 的规范串是 1，不算小数', () => {
       assert.strictEqual(constraintType([{ kind: 'Range', min: 1, minRaw: '1.0', max: 2, maxRaw: '2.00', span: freshSpan() }]), 'Int');
     });
