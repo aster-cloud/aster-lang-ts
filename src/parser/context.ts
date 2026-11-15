@@ -67,6 +67,11 @@ export interface ParserContext {
    */
   typeRecursionDepth: number;
   /**
+   * 当前所在的括号 / 尖括号类型表层数（函数类型的参数表）。类型表里 `X of A, B` 的逗号有两种读法
+   * （X 的下一个参数 / 类型表的下一项），在这里按歧义报错，与 core AstBuilder 一致。
+   */
+  typeListDepth: number;
+  /**
    * 进入一层递归下降。超过 limit（缺省 MAX_RECURSION_DEPTH）时抛出可恢复的
    * DiagnosticError（而非原生 RangeError），且不计入深度；未抛出时调用方应在 finally 中
    * 调用 exitRecursion()。
@@ -330,6 +335,7 @@ export function createParserContext(tokens: readonly Token[], lexicon?: Lexicon)
     },
     recursionDepth: 0,
     typeRecursionDepth: 0,
+    typeListDepth: 0,
     enterRecursion: (limit: number = MAX_RECURSION_DEPTH): void => {
       if (ctx.recursionDepth + 1 > limit) {
         // Throw a recoverable DiagnosticError (NOT a raw RangeError) so the

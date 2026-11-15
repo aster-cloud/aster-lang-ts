@@ -114,6 +114,18 @@ describe('格式化器往返（Core IR 不变）', () => {
     assert.match(formatted, /inner set to \(Inner with x set to 1, y set to 2\), wrapped set to \(some of Inner with x set to k plus 1, y set to 4\), n set to k plus 1, ok set to k at least 1 and true\./);
   });
 
+  test('类型参数后跟分隔符时，开放元数的 X of 加括号；Result 用 and 输出（parity 清扫 1.0.48）', () => {
+    const src = ['Module m.', '', 'Define Pair has a as Int.', '',
+      'Rule r given g as ((Pair of Int), Text) -> Bool, p as Pair of (Pair of Int) and Text, ' +
+        'q as result of (Pair of Int) and Text, s as result of Int, Text, produce Int:',
+      '  Return 1.', ''].join('\n');
+    const formatted = assertRoundTrip(src);
+    assert.match(formatted, /g as \(\(Pair of Int\), Text\) -> Bool/);
+    assert.match(formatted, /p as Pair of \(Pair of Int\) and Text/);
+    assert.match(formatted, /q as Result of \(Pair of Int\) and Text/);
+    assert.match(formatted, /s as Result of Int and Text/);
+  });
+
   test('运算符按中缀输出，括号保持结合与优先级', () => {
     const body = [
       'Return (a plus b) times c.',

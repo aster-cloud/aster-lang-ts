@@ -415,17 +415,45 @@ class CnlPrinter {
       case 'Option':
         return `Option of ${this.type(t.type)}`;
       case 'Result':
-        return `Result of ${this.type(t.ok)} or ${this.type(t.err)}`;
+        // 用 and（两引擎都接受；core 不收 or）
+        return `Result of ${this.typeBeforeSeparator(t.ok)} and ${this.type(t.err)}`;
       case 'List':
         return `list of ${this.type(t.type)}`;
       case 'Map':
         return `map ${this.type(t.key)} to ${this.type(t.val)}`;
       case 'TypeApp':
-        return `${t.base} of ${t.args.map(a => this.type(a)).join(' and ')}`;
+        return `${t.base} of ${t.args.map((a, i) => (i < t.args.length - 1 ? this.typeBeforeSeparator(a) : this.type(a))).join(' and ')}`;
       case 'TypePii':
         return `@pii(${t.sensitivity}, ${t.category}) ${this.type(t.baseType)}`;
       default:
-        return t.kind === 'EffectVar' ? t.name : `(${t.params.map(p => this.type(p)).join(', ')}) -> ${this.type(t.ret)}`;
+        return t.kind === 'EffectVar' ? t.name : `(${t.params.map(p => this.typeBeforeSeparator(p)).join(', ')}) -> ${this.type(t.ret)}`;
     }
+  }
+
+  /**
+   * 后面紧跟 `and` / `,` 的类型：末尾是开放元数的 `X of …`（自定义泛型）时加括号，否则分隔符会被它吞成下一个类型参数
+   * （`and` 归最内层还能接参数的 X，括号类型表里的逗号两引擎报 E064）。
+   */
+  private typeBeforeSeparator(t: Type): string {
+    return endsWithOpenOf(t) ? `(${this.type(t)})` : this.type(t);
+  }
+}
+
+/** 类型的打印形式是否以开放元数的 `X of …` 结尾（list / option 恰一个参数、Result 打印出失败类型，都已封闭）。 */
+function endsWithOpenOf(t: Type): boolean {
+  switch (t.kind) {
+    case 'TypeApp':
+      return true;
+    case 'List':
+    case 'Option':
+      return endsWithOpenOf(t.type);
+    case 'Result':
+      return endsWithOpenOf(t.err);
+    case 'Map':
+      return endsWithOpenOf(t.val);
+    case 'TypePii':
+      return endsWithOpenOf(t.baseType);
+    default:
+      return false;
   }
 }
