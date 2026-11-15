@@ -50,29 +50,23 @@ function attachVariantSpans<T extends object>(node: T, variantSpans: readonly Sp
 
 function parseEffectParams(
   ctx: ParserContext,
-  skipLayoutTrivia: () => void,
   error: ParseErrorFn
 ): string[] {
   if (!ctx.at(TokenKind.LT)) return [];
   const names: string[] = [];
   ctx.next(); // consume '<'
-  skipLayoutTrivia();
   let more = true;
   while (more) {
-    skipLayoutTrivia();
     if (!ctx.at(TokenKind.TYPE_IDENT)) {
       error(Issue.expected(tokenName('effectTypeParameter'), "Expected effect type parameter (capitalized identifier)"));
     }
     names.push(ctx.next().value as string);
-    skipLayoutTrivia();
     if (ctx.at(TokenKind.COMMA)) {
       ctx.next();
-      skipLayoutTrivia();
       continue;
     }
     if (ctx.isKeyword(KW.AND)) {
       ctx.nextWord();
-      skipLayoutTrivia();
       continue;
     }
     more = false;
@@ -81,7 +75,6 @@ function parseEffectParams(
     error(Issue.expectedAfter(lit('>'), tokenName('effectParameterList'), "Expected '>' after effect parameter list"));
   }
   ctx.next(); // consume '>'
-  skipLayoutTrivia();
   return names;
 }
 
@@ -306,27 +299,10 @@ export function parseFuncDecl(
   // 立即记录函数名结束位置（修复 nameSpan Bug）
   const nameEndTok = ctx.tokens[ctx.index - 1] || nameTok;
 
-  const skipLayoutTrivia = (): void => {
-    let prevIndex = -1;
-    while (prevIndex !== ctx.index) {
-      prevIndex = ctx.index;
-      ctx.consumeNewlines();
-      while (ctx.at(TokenKind.INDENT) || ctx.at(TokenKind.DEDENT)) {
-        ctx.next();
-        ctx.consumeNewlines();
-      }
-    }
-  };
-
   // ADR 0028：COLON 已消费后，分派函数体形态——
-  //   显式块（新增）：仅当 ① lexicon 启用了 blockDelimiters ② 且 COLON 后**紧跟语句**
-  //     （无 NEWLINE，语句立即开始）时，走 parseExplicitBlock，以 BLOCK_END 词（如「毕」）收尾。
-  //   缩进块（现有，默认）：其余一切走原 parseBlock + 消费 DEDENT —— 含「COLON 换行缩进」
-  //     和「多行参数已在缩进上下文、body 同缩进」两种（parseBlock 的两分支各自处理）。
-  //
-  // ★零回归的关键（修多行参数回归）：判定用「COLON 后紧跟非 NEWLINE 语句 token」而非「无
-  //   INDENT」——因为多行参数场景 body 也无新 INDENT（已在缩进上下文），但 COLON 后是 NEWLINE，
-  //   故仍走缩进块。缺省 lexicon 无 blockDelimiters → 恒走缩进块，完全向后兼容。
+  //   显式块：仅当 ① lexicon 启用了 blockDelimiters ② 且 COLON 后**紧跟语句**（无 NEWLINE）时，
+  //     走 parseExplicitBlock，以 BLOCK_END 词（如「毕」）收尾；
+  //   缩进块（默认）：其余一切走 parseBlock + 消费 DEDENT。缺省 lexicon 无 blockDelimiters → 恒走缩进块。
   const explicitEnabled = (ctx.lexicon?.blockDelimiters?.end?.length ?? 0) > 0;
   const parseColonBody = (): Block => {
     if (explicitEnabled && !ctx.at(TokenKind.NEWLINE)) {
@@ -339,18 +315,13 @@ export function parseFuncDecl(
     return b;
   };
 
-  // 允许函数名后换行或缩进
-  skipLayoutTrivia();
-
+  // 规则头从 Rule 到 `:` / `.` 写在一行，不跳过 NEWLINE / INDENT / DEDENT（aster-lang-core#266，与 core 文法 funcDecl 一致）。
   // 解析可选的类型参数: 'of' TypeId ('and' TypeId)*
   const typeParams: string[] = [];
-  skipLayoutTrivia();
   if (ctx.isKeyword('of')) {
     ctx.nextWord();
-    skipLayoutTrivia();
     let more = true;
     while (more) {
-      skipLayoutTrivia();
       // 如果遇到参数列表或 produce 子句，停止
       if (ctx.isKeyword(KW.WITH) || ctx.isKeyword(KW.GIVEN) || ctx.isKeyword(KW.PRODUCE) || ctx.at(TokenKind.COLON)) {
         break;
@@ -361,15 +332,12 @@ export function parseFuncDecl(
         : parseIdent();
       typeParams.push(tv);
 
-      skipLayoutTrivia();
       if (ctx.isKeyword(KW.AND)) {
         ctx.nextWord();
-        skipLayoutTrivia();
         continue;
       }
       if (ctx.at(TokenKind.COMMA)) {
         ctx.next();
-        skipLayoutTrivia();
         // 如果逗号后面跟 'with'/'given' 或 produce，停止
         if (ctx.isKeyword(KW.WITH) || ctx.isKeyword(KW.GIVEN) || ctx.isKeyword(KW.PRODUCE)) {
           more = false;
@@ -381,11 +349,10 @@ export function parseFuncDecl(
     }
   }
 
-  skipLayoutTrivia();
 
   let effectParams: string[] = [];
   if (ctx.at(TokenKind.LT)) {
-    effectParams = parseEffectParams(ctx, skipLayoutTrivia, error);
+    effectParams = parseEffectParams(ctx, error);
   }
 
   // 保存当前类型变量与效应变量作用域，设置新的作用域
@@ -396,9 +363,7 @@ export function parseFuncDecl(
   const activeEffectVars = ctx.currentEffectVars;
 
   // 解析参数列表
-  skipLayoutTrivia();
   const params = parseParamList(ctx, error);
-  skipLayoutTrivia();
   if (params.length > 0) expectCommaOr();
   else if (ctx.at(TokenKind.COMMA)) ctx.next();
 
@@ -407,13 +372,11 @@ export function parseFuncDecl(
   //   - `produce`（无类型）/ `produce .` / `produce :`：返回类型推断
   //   - 完全省略 produce（`Rule greet given name:` 直接接块/`.`/`It performs`）：同样推断
   // 省略 produce 时直接走下方场景分派（COLON 块 / DOT 无体 / It performs）。
-  skipLayoutTrivia();
   const produceTok = ctx.peek();
   let retType: Type;
   let retTypeInferred = false;
   if (ctx.isKeyword(KW.PRODUCE)) {
     ctx.nextWords(kwParts(KW.PRODUCE));
-    skipLayoutTrivia();
     if (
       ctx.at(TokenKind.COLON) ||
       ctx.at(TokenKind.DOT) ||
@@ -439,7 +402,6 @@ export function parseFuncDecl(
   if (ctx.isKeyword(KW.WITH)) {
     const retTypeEffects = parseEffectList(ctx, error, name);
     effects.push(...retTypeEffects);
-    skipLayoutTrivia();
   }
   // 准备收集函数体内的效果声明
   const prevCollected: string[] | null = ctx.collectedEffects;
@@ -450,7 +412,7 @@ export function parseFuncDecl(
   // 场景1: produce Type. It performs io: ...
   if (ctx.at(TokenKind.DOT)) {
     ctx.next();
-    ctx.consumeNewlines();
+    // 规则头写在一行（aster-lang-core#266）：`It performs` 必须紧跟句点；句点后换行即无体声明结束
     if (
       ctx.isKeywordSeq(KW.PERFORMS) ||
       (tokLowerAt(ctx, ctx.index) === 'it' && tokLowerAt(ctx, ctx.index + 1) === 'performs')

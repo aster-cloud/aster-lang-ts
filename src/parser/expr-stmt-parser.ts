@@ -37,27 +37,6 @@ import { Issue, kwParam, lit, tokenLit, tokenName, type ParseErrorFn, type Parse
 const WAIT_FOR_PARTS = kwParts(KW.WAIT_FOR);
 const MAX_ATTEMPTS_PARTS = kwParts(KW.MAX_ATTEMPTS);
 
-function peekKeywordIgnoringLayout(ctx: ParserContext, startIndex: number = ctx.index): string | null {
-  let idx = startIndex;
-  while (idx < ctx.tokens.length) {
-    const tok = ctx.tokens[idx]!;
-    if (
-      tok.kind === TokenKind.NEWLINE ||
-      tok.kind === TokenKind.INDENT ||
-      tok.kind === TokenKind.DEDENT
-    ) {
-      idx++;
-      continue;
-    }
-    if (tok.kind === TokenKind.IDENT || tok.kind === TokenKind.TYPE_IDENT || tok.kind === TokenKind.KEYWORD) {
-      const value = (tok.value as string) || '';
-      return value.toLowerCase();
-    }
-    return null;
-  }
-  return null;
-}
-
 function spanFromToken(token: Token): Span {
   return spanFromTokens(token, token);
 }
@@ -1982,10 +1961,6 @@ export function parseParamList(
     ctx.nextWord();
     let hasMore = true;
     while (hasMore) {
-      // 在开始解析参数前，先消费换行和缩进，支持多行格式
-      ctx.consumeNewlines();
-      ctx.consumeIndent();
-
       const nameTok = ctx.peek();
       const name = parseIdent(ctx, error);
       let type: Type;
@@ -2021,21 +1996,14 @@ export function parseParamList(
       params.push(param);
       if (ctx.at(TokenKind.IDENT) && ((ctx.peek().value as string) || '').toLowerCase() === KW.AND) {
         ctx.nextWord();
-        // 'and' 后允许换行和缩进
-        ctx.consumeNewlines();
-        ctx.consumeIndent();
         continue;
       }
       if (ctx.at(TokenKind.COMMA)) {
         ctx.next();
-        // 逗号后允许换行
-        ctx.consumeNewlines();
-        const after = peekKeywordIgnoringLayout(ctx);
-        if (after === KW.PRODUCE) {
+        // 逗号后是 produce：逗号属于规则头（`given x as Int, produce …`），参数表结束
+        if (ctx.isKeyword(KW.PRODUCE)) {
           hasMore = false;
         } else {
-          // 不是 'produce'，继续解析参数（可能有 INDENT 表示增加了缩进）
-          ctx.consumeIndent();
           continue;
         }
       } else {
@@ -2048,10 +2016,6 @@ export function parseParamList(
   if (ctx.at(TokenKind.IDENT) && ctx.tokens[ctx.index + 1] && tokLowerAt(ctx, ctx.index + 1) === KW.AS) {
     let hasMore = true;
     while (hasMore) {
-      // 在开始解析参数前，先消费换行和缩进，支持多行格式
-      ctx.consumeNewlines();
-      ctx.consumeIndent();
-
       const nameTok = ctx.peek();
       const name = parseIdent(ctx, error);
       let type: Type;
@@ -2088,21 +2052,13 @@ export function parseParamList(
       // Accept 'and' or ',' between parameters
       if (ctx.at(TokenKind.IDENT) && ((ctx.peek().value as string) || '').toLowerCase() === KW.AND) {
         ctx.nextWord();
-        // 'and' 后允许换行和缩进
-        ctx.consumeNewlines();
-        ctx.consumeIndent();
         continue;
       }
       if (ctx.at(TokenKind.COMMA)) {
         ctx.next();
-        // 逗号后允许换行
-        ctx.consumeNewlines();
-        const after = peekKeywordIgnoringLayout(ctx);
-        if (after === KW.PRODUCE || after === KW.WITH) {
+        if (ctx.isKeyword(KW.PRODUCE) || ctx.isKeyword(KW.WITH)) {
           hasMore = false;
         } else {
-          // 不是终止关键字，继续解析参数
-          ctx.consumeIndent();
           continue;
         }
       } else {
