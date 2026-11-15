@@ -20,7 +20,7 @@ export {
   type CapabilityManifest,
   type CapabilityContext,
   isCapabilityKind,
-  parseLegacyCapability,
+  capabilitiesOfEffectClass,
   normalizeManifest,
   isAllowed,
 } from './capabilities.js';
