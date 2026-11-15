@@ -140,13 +140,18 @@ describe('lowering 诊断码 E600–E606 双引擎 parity 夹具（ts 侧）', (
     });
   }
 
-  it('E600–E606 每个码至少一例，且 lowering 码恰为这 7 个', () => {
-    const covered = new Set(CASES.flatMap((c) => c.codes.map(([code]) => code)));
+  it('E600–E606 每个码至少一例，且 lowering 码恰为这 7 个；E601 是保留码，只有渲染例、没有发出例', () => {
     assert.deepEqual(LOWERING_CODES, ['E600', 'E601', 'E602', 'E603', 'E604', 'E605', 'E606']);
-    assert.deepEqual(LOWERING_CODES.filter((code) => !covered.has(code)), []);
+    const emitted = (cases: readonly typeof CASES[number][]) =>
+      new Set(cases.filter((c) => !NO_EMISSION_TRIGGERS.has(c.trigger)).flatMap((c) => c.codes.map(([code]) => code)));
+    // 有发出点的码必须有触发例（E606 由 internal-error 例覆盖）；E601 只能出现在不触发的 unknown-effect 例里
+    assert.deepEqual(['E600', 'E602', 'E603', 'E604', 'E605'].filter((code) => !emitted(CASES).has(code)), []);
+    assert.equal(emitted(CASES).has('E601'), false, 'E601 不应有发出例（#309）');
+    assert.ok(CASES.some((c) => c.trigger === 'internal-error' && c.codes[0]?.[0] === 'E606'));
+    assert.ok(CASES.filter((c) => c.codes.some(([code]) => code === 'E601')).every((c) => c.trigger === 'unknown-effect'));
     for (const lexicon of ['zh-CN', 'de-DE']) {
-      const perLexicon = new Set(CASES.filter((c) => c.lexicon === lexicon).flatMap((c) => c.codes.map(([code]) => code)));
-      assert.deepEqual(['E600', 'E601', 'E602', 'E603', 'E604', 'E605'].filter((code) => !perLexicon.has(code)), [], `${lexicon} 缺例`);
+      const perLexicon = emitted(CASES.filter((c) => c.lexicon === lexicon));
+      assert.deepEqual(['E600', 'E602', 'E603', 'E604', 'E605'].filter((code) => !perLexicon.has(code)), [], `${lexicon} 缺例`);
     }
   });
 
