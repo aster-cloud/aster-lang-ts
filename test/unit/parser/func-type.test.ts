@@ -1,9 +1,9 @@
 /**
  * 函数类型语法 `(T1, T2) -> R` 与括号类型 `(T)`（aster-lang-ts#247）。
  *
- * 与 aster-lang-core 文法对齐（AsterParser.g4 `type`）：
- *   LPAREN typeList RPAREN ARROW type   # FuncType —— 至少一个参数，`?` 作用于返回类型
- *   LPAREN type RPAREN                  # ParenType —— 直接返回内部类型
+ * 与 aster-lang-core 文法对齐（AsterParser.g4 `type`，core#254 起两者合为一个分支 `LPAREN typeList RPAREN (ARROW type)?`）：
+ *   有 `->`：函数类型 —— 至少一个参数，`?` 作用于返回类型
+ *   无 `->`：括号类型 —— 只能是一个不带注解的类型，直接返回内部类型；否则两端都报 E056
  * Java 的 Core IR 为 `{kind:'FuncType', params, ret}`（不带 effects），这里逐字段对齐。
  */
 import { describe, it } from 'node:test';
