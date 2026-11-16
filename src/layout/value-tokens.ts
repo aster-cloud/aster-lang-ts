@@ -209,6 +209,7 @@ export type RoleJudge = {
  * - 落在类型名、参数、字段、声明名的起点 → 是值；
  * - 落在解析器读作运算符的位置（二元运算的目标、不带括号的一元 not）→ 是关键词。
  * 其余的词才换成源码里没有的探针名重解析：探针进了 AST 且没有新增诊断，说明解析器在这个位置把它当名字读，即是值。
+ * 基线解析有诊断（源码不完整）时，除运算符位置外一律判为值，不重解析。
  * 重解析是整篇解析，单次调用最多 ROLE_PROBE_BUDGET 次，保证上限内任何源码的代价都是常数次整篇解析。
  * `parse` 仅供测试注入。
  */
@@ -222,6 +223,9 @@ export function roleJudge(
   const positions = namePositions(base.ast);
   const operators = operatorSpans(base.ast);
   const baseDiagnostics = base.diagnostics.length;
+  // 基线有诊断即 AST 不完整（恢复解析可能丢掉名字）：「不在 AST 里」与探针结果都不再能证明是关键词，
+  // 只有 AST 里明确读作运算符的位置算关键词，其余一律按值计——校验自己闭锁，不靠保存路径先编译
+  const incomplete = baseDiagnostics > 0;
   const baseText = JSON.stringify(base.ast).toLowerCase();
   let probe = 'zqprobe';
   while (baseText.includes(probe)) probe += 'q';
@@ -233,6 +237,7 @@ export function roleJudge(
   };
   return {
     settle(i, seq): boolean | null {
+      if (incomplete) return !isOperator(i);
       if (![...seq.words, ...seq.english].some((w) => names.has(w))) return false;
       if (positions.has(posKey(tokens[i]!.start))) return true;
       if (isOperator(i)) return false;

@@ -3,9 +3,9 @@
  * 按表中顺序逐条校验，返回第一处失败的稳定码。
  */
 import type { Lexicon } from '../config/lexicons/types.js';
-import { canonicalOf, mergeContentSpans, readLayout, serializeLayout, toCanonical, toDisplay, utf8Length } from './format.js';
+import { canonicalOf, readLayout, serializeLayout, toCanonical, toDisplay, utf8Length } from './format.js';
 import { LAYOUT_LIMITS, LayoutError } from './types.js';
-import type { LayoutLimitName, LayoutValidation, PolicyLayout } from './types.js';
+import type { LayoutLimitName, LayoutSpan, LayoutValidation, PolicyLayout } from './types.js';
 import { valueTokenRanges, withAliasSet } from './value-tokens.js';
 
 /**
@@ -36,18 +36,42 @@ function tooLarge(limit: LayoutLimitName, actual: number): LayoutError {
   return new LayoutError('layout_too_large', `${limit} ${actual} exceeds ${LAYOUT_LIMITS[limit]}`, { limit });
 }
 
-/** §7.6：上限按存储形态（相邻内容 span 合并后）计 */
+/** 存储形态（相邻内容 span 合并后）的 span 数：结构 span 各计一个，连续的内容 span 合计一个 */
+function storedSpanCount(spans: readonly LayoutSpan[]): number {
+  let n = 0;
+  let prevText = false;
+  for (const s of spans) {
+    const isText = 'text' in s;
+    if (!(isText && prevText)) n++;
+    prevText = isText;
+  }
+  return n;
+}
+
+/** 单个结构 span 的 display 码点数的最大值（逐个迭代，不把整个数组展开成实参） */
+function maxStructuralDisplayChars(spans: readonly LayoutSpan[]): number {
+  let max = 0;
+  for (const s of spans) {
+    if (!('text' in s)) max = Math.max(max, [...s.display].length);
+  }
+  return max;
+}
+
+/**
+ * §7.6：上限按存储形态计，按表中顺序逐项检查、首个超出即返回。每项只在前面各项通过后才计算，
+ * 于是先查源码与 span 数这类便宜的上限，后面按 span 逐个计算的指标只面对上限内的 span 数。
+ */
 function assertWithinLimits(layout: PolicyLayout, source: string): void {
-  const spans = mergeContentSpans(layout.spans);
-  const measured: Array<[LayoutLimitName, number]> = [
-    ['sourceBytes', utf8Length(source)],
-    ['sourceLines', lineCount(source)],
-    ['spans', spans.length],
-    ['serializedBytes', utf8Length(serializeLayout(layout))],
-    ['displayBytes', utf8Length(toDisplay(layout))],
-    ['structuralDisplayChars', Math.max(0, ...spans.map((s) => ('text' in s ? 0 : [...s.display].length)))],
+  const measures: Array<[LayoutLimitName, () => number]> = [
+    ['sourceBytes', (): number => utf8Length(source)],
+    ['sourceLines', (): number => lineCount(source)],
+    ['spans', (): number => storedSpanCount(layout.spans)],
+    ['serializedBytes', (): number => utf8Length(serializeLayout(layout))],
+    ['displayBytes', (): number => utf8Length(toDisplay(layout))],
+    ['structuralDisplayChars', (): number => maxStructuralDisplayChars(layout.spans)],
   ];
-  for (const [limit, actual] of measured) {
+  for (const [limit, measure] of measures) {
+    const actual = measure();
     if (actual > LAYOUT_LIMITS[limit]) throw tooLarge(limit, actual);
   }
 }

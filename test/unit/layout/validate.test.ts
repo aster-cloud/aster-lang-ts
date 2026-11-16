@@ -31,6 +31,10 @@ function check(spans: PolicyLayout['spans'], lexicon = EN_US, aliasSet?: Record<
   return validatePolicyLayout(layout, toCanonical(layout), lexicon, aliasSet);
 }
 
+/** 可编译的最小策略：`Return x.`；基线解析无诊断，关键词角色按 AST 判定（片段源码会按 R12 闭锁为值） */
+const RET_X_HEAD = 'Module m.\n\nRule f given x as Int, produce Int:\n  Return x';
+const RET_X = RET_X_HEAD + '.\n';
+
 describe('示例', () => {
   it('《静夜思》通过全部规则（词法表带别名，或以 aliasSet 冻结别名）', () => {
     const source = asterSource('examples/jingyesi/jingyesi.aster');
@@ -62,7 +66,7 @@ describe('layout_invalid_format', () => {
     );
   });
   it('正：合法结构通过', () => {
-    assert.deepEqual(check([{ text: 'Return x' }, { canonical: '.', display: '' }]), { ok: true });
+    assert.deepEqual(check([{ text: RET_X_HEAD }, { canonical: '.', display: '' }, { text: '\n' }]), { ok: true });
   });
 });
 
@@ -88,8 +92,8 @@ describe('layout_roundtrip_mismatch', () => {
     assert.equal(failure(validatePolicyLayout(layout, 'Return x', EN_US)).offset, 8);
   });
   it('正：逐字节一致通过', () => {
-    const layout: PolicyLayout = { v: 1, spans: [{ text: 'Return x' }, { canonical: '.', display: '' }] };
-    assert.deepEqual(validatePolicyLayout(layout, 'Return x.', EN_US), { ok: true });
+    const layout: PolicyLayout = { v: 1, spans: [{ text: RET_X_HEAD }, { canonical: '.', display: '' }, { text: '\n' }] };
+    assert.deepEqual(validatePolicyLayout(layout, RET_X, EN_US), { ok: true });
   });
 });
 
@@ -101,20 +105,21 @@ describe('layout_structural_hides_value', () => {
   };
 
   it('反：标识符、数字、字符串、布尔与结构 span 重叠 → 拒绝（偏移指向值的起点）', () => {
-    assert.equal(hides(check([{ text: 'Return ' }, { canonical: 'total', display: '' }, { text: '.' }])), 7);
-    assert.equal(hides(check([{ text: 'Return ' }, { canonical: '42', display: '' }, { text: '.' }])), 7);
-    assert.equal(hides(check([{ text: 'Return ' }, { canonical: '"secret"', display: '' }, { text: '.' }])), 7);
-    assert.equal(hides(check([{ text: 'Return ' }, { canonical: 'true', display: '' }, { text: '.' }])), 7);
+    const ret = (type: string, param = ''): string => `Module m.\n\nRule f${param ? ` given ${param}` : ''}, produce ${type}:\n  Return `;
+    const at = (head: string, hidden: string): number => hides(check([{ text: head }, { canonical: hidden, display: '' }, { text: '.\n' }]))!;
+    const total = ret('Int', 'total as Int');
+    assert.equal(at(total, 'total'), total.length);
+    assert.equal(at(ret('Int'), '42'), ret('Int').length);
+    assert.equal(at(ret('Text'), '"secret"'), ret('Text').length);
+    assert.equal(at(ret('Bool'), 'true'), ret('Bool').length);
     // 只盖住值的一部分也算重叠
-    assert.equal(hides(check([{ text: 'Return to' }, { canonical: 'tal', display: '' }, { text: '.' }])), 7);
+    assert.equal(hides(check([{ text: total + 'to' }, { canonical: 'tal', display: '' }, { text: '.\n' }])), total.length);
   });
 
   it('反：zh 字符串字面量（源码用直引号，规范化后为「」）与结构 span 重叠', () => {
-    const r = check(
-      [{ text: '如果 甲 那么 返回 ' }, { canonical: '"乙"', display: '' }, { text: '。' }],
-      ZH_CN,
-    );
-    assert.equal(hides(r), '如果 甲 那么 返回 '.length);
+    const head = '模块 m。\n\n规则 f 给定 甲 作为 布尔，产出 文本：\n  如果 甲 那么 返回 ';
+    const r = check([{ text: head }, { canonical: '"乙"', display: '' }, { text: '。\n  返回 "丙"。\n' }], ZH_CN);
+    assert.equal(hides(r), head.length);
   });
 
   it('反：别名未冻结时，别名词只是普通标识符 → 拒绝；冻结进 aliasSet 后通过', () => {
@@ -141,6 +146,12 @@ describe('layout_structural_hides_value', () => {
     assert.equal(hides(r), head.length);
   });
 
+  it('反：源码解析不完整（`Return return +`）时，判不了角色的关键词同形词按值计，不依赖保存路径先编译', () => {
+    // 首个 `Return` 同样判不了角色、按值计（整行），所以只断言被拒，不断言偏移
+    const r = check([{ text: 'Return ' }, { canonical: 'return', display: '' }, { text: ' +' }]);
+    assert.ok(hides(r)! <= 7);
+  });
+
   it('反：zh 源码里与英文规范关键词同形的参数名（`返回 return。`）→ 拒绝', () => {
     const head = '模块 m。\n\n规则 f 给定 return 作为 整数 产出 整数：\n';
     const r = check([{ text: head + '  返回 ' }, { canonical: 'return', display: '' }, { text: '。\n' }], ZH_CN);
@@ -154,7 +165,8 @@ describe('layout_structural_hides_value', () => {
   });
 
   it('反：含连字符的字符串字面量与结构 span 重叠 → 拒绝（找回原文位置时不抛正则错误）', () => {
-    assert.equal(hides(check([{ text: 'Return ' }, { canonical: '"truck-driver"', display: '' }, { text: '.' }])), 7);
+    const head = 'Module m.\n\nRule f, produce Text:\n  Return ';
+    assert.equal(hides(check([{ text: head }, { canonical: '"truck-driver"', display: '' }, { text: '.\n' }])), head.length);
   });
 
   it('正：运算符关键词（AST 里是 Name 节点 `and`）仍是关键词，可以在结构 span 里', () => {
@@ -226,7 +238,10 @@ describe('layout_structural_hides_value', () => {
 
   it('正：zh 全角标点与换行缩进在结构 span 里', () => {
     assert.deepEqual(
-      check([{ text: '如果 甲 那么 返回 「乙」' }, { canonical: '。\n', display: '' }, { text: '返回 「丙」' }, { canonical: '。', display: '' }], ZH_CN),
+      check([
+        { text: '模块 m。\n\n规则 f 给定 甲 作为 布尔，产出 文本：\n  如果 甲 那么 返回 「乙」' }, { canonical: '。\n  ', display: '' },
+        { text: '返回 「丙」' }, { canonical: '。', display: '' }, { text: '\n' },
+      ], ZH_CN),
       { ok: true },
     );
   });
@@ -234,7 +249,8 @@ describe('layout_structural_hides_value', () => {
 
 describe('layout_content_parity', () => {
   it('反：没有非空内容 span → 拒绝', () => {
-    const f = failure(check([{ canonical: 'Return', display: '' }, { text: ' ' }, { canonical: '.', display: '' }]));
+    // 只有注释与空白：没有任何值 token，hides_value 通过，落到 content_parity
+    const f = failure(check([{ canonical: '// note', display: '' }, { text: ' ' }, { canonical: '\n', display: '' }]));
     assert.equal(f.code, 'layout_content_parity');
   });
   it('反：结构 span 的 canonical 含引号（注释里，不构成值 token）→ 拒绝', () => {

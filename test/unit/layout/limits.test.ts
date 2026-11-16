@@ -134,3 +134,33 @@ describe('structuralDisplayChars（按码点计）', () => {
     exceeds([{ text: 'x' }, { canonical: ' ', display: '😀'.repeat(257) }], 'structuralDisplayChars');
   });
 });
+
+describe('超大 layout 返回 layout_too_large，不抛异常', () => {
+  const many = (n: number): LayoutSpan[] =>
+    Array.from({ length: n }, (_, i) => (i % 2 === 0 ? { text: 'x' } : { canonical: ' ', display: '😀'.repeat(300) }));
+  for (const n of [LAYOUT_LIMITS.spans + 1, 150_000, 200_000]) {
+    it(`${n} 个 span：源码在上限内时报 spans`, () => {
+      const layout: PolicyLayout = { v: 1, spans: many(n) };
+      const r = validatePolicyLayout(layout, 'x', EN_US);
+      assert.equal(r.ok, false);
+      if (!r.ok) {
+        assert.equal(r.code, 'layout_too_large');
+        assert.equal(r.limit, 'spans');
+      }
+    });
+  }
+  it('200000 个结构 span 且 source 为其 canonical：报 sourceBytes', () => {
+    const spans: LayoutSpan[] = [{ text: 'x' }, ...Array.from({ length: 200_000 }, () => ({ canonical: ' ', display: '' }))];
+    const layout: PolicyLayout = { v: 1, spans };
+    const r = validatePolicyLayout(layout, toCanonical(layout), EN_US);
+    assert.equal(r.ok, false);
+    if (!r.ok) {
+      assert.equal(r.code, 'layout_too_large');
+      assert.equal(r.limit, 'sourceBytes');
+    }
+  });
+  it('200000 个结构 span 也能序列化（不展开数组）', () => {
+    const spans: LayoutSpan[] = Array.from({ length: 200_000 }, () => ({ canonical: ' ', display: '' }));
+    assert.ok(serializeLayout({ v: 1, spans }).length > 200_000);
+  });
+});
