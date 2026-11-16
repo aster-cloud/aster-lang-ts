@@ -95,11 +95,13 @@ export async function readAll(stream: NodeJS.ReadableStream, maxBytes: number = 
   let total = 0;
   for await (const c of stream) {
     const b = typeof c === 'string' ? Buffer.from(c) : (c as Buffer);
-    chunks.push(b);
-    total += b.length;
+    // 按剩余额度复制，不保留超大单块的原缓冲
+    const take = Math.min(b.length, maxBytes - total);
+    chunks.push(Buffer.from(b.subarray(0, take)));
+    total += take;
     if (total >= maxBytes) break;
   }
-  return Buffer.concat(chunks).subarray(0, maxBytes);
+  return Buffer.concat(chunks, total);
 }
 
 async function anchorOf(args: ParsedArgs): Promise<TrustAnchor> {

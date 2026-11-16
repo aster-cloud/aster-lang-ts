@@ -111,6 +111,10 @@ test('readAll：读到上限 + 1 字节即停止（超大 stdin 不整个读入�
   const got = await readAll(big);
   assert.equal(got.length, 16 * 1024 * 1024 + 1);
   assert.equal((await readAll(Readable.from([Buffer.from('{}')]))).length, 2);
+  // 单个块远大于上限：只保留上限 + 1 字节，返回值不引用原缓冲
+  const one = await readAll(Readable.from([Buffer.alloc(40 * 1024 * 1024, 0x20)]));
+  assert.equal(one.length, 16 * 1024 * 1024 + 1);
+  assert.equal(one.buffer.byteLength, one.length);
 });
 
 test('probeMatches：期望形状不完整或不可写出时判为不符，而不是抛异常', () => {
