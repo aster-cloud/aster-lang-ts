@@ -6,6 +6,18 @@
 
 - `package.json` 的 `license` 由 `MIT` 改为 `Apache-2.0`，浏览器包头注释同步修改。仓库 LICENSE 文件一直是 Apache License 2.0，此前的 `MIT` 声明有误；以 LICENSE 为准（产品负责人确认）。ADR 0059 的 P3（自包含导出打包运行时）以许可证一致为前提。
 
+### 包格式 v1：`aster` 的 compile / run / verify / inspect / version（ADR 0059 P1 T4，aster-cloud/aster-cloud#797）
+
+- `aster run <pkg> --input <file|-> [--entry] [--timeout] [--jwks|--pubkey] [--allow-unsigned]`、`aster verify <pkg> [--recompile] [--probes]`、
+  `aster inspect <pkg>`、`aster compile <pkg|file.aster> [--out] [--locale] [--alias-set] [--vocabulary] [--allow-structural]`、`aster version`：
+  stdout 恒为一行值规范 JSON（`run` / `inspect` 失败与 `USAGE` 输出错误信封，`verify` 输出检查项），诊断只写 stderr，退出码 0–5 见
+  aster-lang-test `conformance/package-v1/exit-codes.json`。这五个子命令绕过 cac，用严格语法解析（重复 / 未知选项、缺值都是 `USAGE`）；
+  未知子命令同样报 `USAGE` 信封。
+- 求值在 `worker_threads` Worker 中进行（`resourceLimits.stackSizeMb = 32`，`maxCallDepth = 10 000`），`--timeout`（缺省 5 s，≤ 300 s）
+  到点 `terminate()` 并报 `TIMEOUT`；深递归报 `RESOURCE_EXHAUSTED`。`verify --probes` 每条按 `--timeout` 计时，结果不符报 `PROBE_MISMATCH`。
+- `jvm` / `class` / `jar` / `truffle` / `parse` / `core` 的帮助说明加 `[dev]` 前缀。
+- 新 CI job `package-v1`：dist CLI 跑 `conformance/package-v1/` 全部用例（`pnpm run test:package-v1`，已并入 `pnpm test`）。
+
 ### 包格式 v1：读包、完整性、签名、取 IR、输入与求值（ADR 0059 P1 T2 + T3，aster-cloud/aster-cloud#797）
 
 - 新目录 `src/policy-package/`（与既有 `src/package/` 依赖管理器无关），按 aster-lang-test `conformance/package-v1/README.md`

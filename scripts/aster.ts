@@ -16,6 +16,7 @@ import { handleError } from '../src/cli/utils/error-handler.js';
 import { gradleEnv } from '../src/cli/utils/gradle-env.js';
 import { prepareOutDir } from '../src/cli/utils/out-dir.js';
 import { coreJsonOfSource, prepareTruffleCoreJson } from '../src/cli/utils/core-ir-file.js';
+import { PACKAGE_COMMANDS, readAll, runCommand } from '../src/policy-package/cli.js';
 
 function readFileStrict(file: string): string {
   return fs.readFileSync(file, 'utf8');
@@ -163,11 +164,34 @@ async function runMaybeWatch(file: string, watch: boolean, runner: () => Promise
   await watchFile(file, safeRunner);
 }
 
+/**
+ * 包格式 v1 子命令（compile / run / verify / inspect / version，ADR 0059 §4.1）：绕过 cac，交给严格语法的 runCommand，
+ * 与单文件 `dist/runner/aster.mjs` 走同一入口；stdout 恒为一行规范 JSON，诊断只写 stderr。
+ */
+async function runPackageCommand(argv: string[]): Promise<void> {
+  const r = await runCommand(argv, { stdin: () => readAll(process.stdin) });
+  for (const l of r.stderr) process.stderr.write(`${l}\n`);
+  process.stdout.write(r.stdout);
+  process.exitCode = r.exitCode;
+}
+
 async function main(): Promise<void> {
+  const argv = process.argv.slice(2);
+  if (PACKAGE_COMMANDS.has(argv[0] ?? '')) {
+    await runPackageCommand(argv);
+    return;
+  }
   const cli = cac('aster');
 
+  // 包格式子命令只在帮助中列出；实际由上面的 runPackageCommand 处理
+  cli.command('run <package>', '运行导出的策略包（--input <file|-> 必填；--entry、--timeout、--jwks、--pubkey、--allow-unsigned）');
+  cli.command('verify <package>', '校验策略包（--recompile、--probes、--timeout、--jwks、--pubkey、--allow-unsigned）');
+  cli.command('inspect <package>', '打印策略包的入口、输入输出 schema 与治理信息');
+  cli.command('compile <path>', '包或 .aster 源文件 → 规范 Core IR（--out、--locale、--alias-set、--vocabulary、--allow-structural）');
+  cli.command('version', '打印 CLI 版本、支持的包格式与 Core IR 版本、内置信任锚');
+
   cli
-    .command('parse <file>', '解析 .aster 文件为 AST(JSON)')
+    .command('parse <file>', '[dev] 解析 .aster 文件为 AST(JSON)')
     .option('--watch', '监听文件变化并重新执行', { default: false })
     .action(
       wrapAction(async (file: string, options: { watch?: boolean }) => {
@@ -176,7 +200,7 @@ async function main(): Promise<void> {
     );
 
   cli
-    .command('core <file>', 'Lower AST → Core IR (JSON)')
+    .command('core <file>', '[dev] Lower AST → Core IR (JSON)')
     .option('--watch', '监听文件变化', { default: false })
     .action(
       wrapAction(async (file: string, options: { watch?: boolean }) => {
@@ -185,7 +209,7 @@ async function main(): Promise<void> {
     );
 
   cli
-    .command('jvm <file>', '输出 Java 源码 (默认 build/jvm-src)')
+    .command('jvm <file>', '[dev] 输出 Java 源码 (默认 build/jvm-src)')
     .option('--out <dir>', '目标目录', { default: 'build/jvm-src' })
     .option('--watch', '监听文件变化', { default: false })
     .option('--force', '目标目录不在当前目录内或含非生成内容时仍强制清空', { default: false })
@@ -199,7 +223,7 @@ async function main(): Promise<void> {
     );
 
   cli
-    .command('class <file>', '生成 .class 文件 (默认 build/jvm-classes)')
+    .command('class <file>', '[dev] 生成 .class 文件 (默认 build/jvm-classes)')
     .option('--out <dir>', '目标目录', { default: 'build/jvm-classes' })
     .option('--watch', '监听文件变化', { default: false })
     .action(
@@ -210,7 +234,7 @@ async function main(): Promise<void> {
     );
 
   cli
-    .command('jar [file]', '打包 JAR（可选：先从 Aster 文件生成类文件）')
+    .command('jar [file]', '[dev] 打包 JAR（可选：先从 Aster 文件生成类文件）')
     .option('--out <file>', '输出 JAR 路径', { default: 'build/aster-out/aster.jar' })
     .action(
       wrapAction(async (file: string | undefined, options: { out?: string }) => {
@@ -220,7 +244,7 @@ async function main(): Promise<void> {
     );
 
   cli
-    .command('truffle <file>', '在 Truffle 中运行 Core IR（自动处理 .aster 输入）')
+    .command('truffle <file>', '[dev] 在 Truffle 中运行 Core IR（自动处理 .aster 输入）')
     .allowUnknownOptions()
     .action(
       wrapAction(async (file: string, options: { '--'?: string[] }) => {
@@ -316,6 +340,12 @@ async function main(): Promise<void> {
     });
 
   cli.help();
+  // 未知子命令（不是 cac 命令也不是选项）按包格式 CLI 的语法报 USAGE 信封（README「命令行」）
+  const first = argv[0];
+  if (first !== undefined && !first.startsWith('-') && !cli.commands.some((c) => c.name === first)) {
+    await runPackageCommand(argv);
+    return;
+  }
   cli.parse();
 }
 
