@@ -46,6 +46,30 @@
 - 解释器：`evaluate` 选项新增 `maxCallDepth`（缺省仍为 50，浏览器 / cloud 行为不变）；新增导出 `ResourceExhaustedError`，调用深度超限
   与 JS 栈溢出在 `EvalResult` 中标为 `errorKind: 'resource'`。
 
+### 双引擎 parity：#328 之后余下的七处解析分歧（aster-lang-ts#334，ADR 0056 修订 A3，与 aster-lang-core 同车次）
+
+- **字段前置注解**：`Define C has @pii(L1, email) email as Text, @audit name as @pii(L1, name) Text.`、多行字段表里的
+  `@audit score as Int` 现在接受（此前 E055 Expected field name），与 core 文法 `field: annotation* nameIdent …` 一致，
+  与形参注解（#328）同法：`X of A` 的分隔符后面是「注解 + 名字 as」时属于字段表。AST 的 `Field.annotations` 记前置注解；
+  Core IR 的 `Field.annotations` 先列前置注解、再列类型最外层的 `@pii(…)`，与 core 逐字节相同。
+- **lambda 单行体**：`Let g be function given y as Int, produce Int: Return y plus 1.` 与表达式位置的
+  `List.map(xs, function given a as Int, produce Int: Return a.)` 现在接受（此前 E055 Expected newline），与 core 文法
+  `lambdaExpr: … COLON (returnStmt | NEWLINE block)` 一致：冒号后同一行只能是一条 `Return`，包成一个块，块的位置与整个
+  lambda 相同（与 core 一致）。Let 右侧与表达式位置的 lambda 改为共用 `parseLambdaAfterFunction`。
+- **`X of A` 的分隔符之后的裸小写名字改报 E055**（`Expected type name: 'y' would be read as another type argument; …`，
+  与 core 同码、同参数 `{token: token.typeName}`、同文案、同位置）：`given x as Pair of Int, y, produce Int`、
+  `Pair of Int and y`、`result of Int, y`、`Pair of Int, @audit y` 的 `y` 此前被静默读成 Pair 的类型参数，core 一直拒绝。
+  写 `y as <Type>`，或给泛型加括号 `(Pair of Int), y`。内建类型关键词（`text` / `int` / `float` / `bool`）、`maybe T`、
+  `map K to V`、`foo of …`、天城文名字与 list / option（只收一个参数）之后的名字不受影响。
+- 大写字段名（`Define Order with Id as Text.`，E055 `token.fieldName`）、大写规则名（`Rule Approve …`，E055）、
+  下划线开头的标识符（`_x`，词法 E050）与导入关键词 `USE` / `uSe` 在 ts 的行为不变（拒绝 / 拒绝 / 拒绝 / 接受），
+  core 已与之对齐；新测试锁住这四处。
+- 格式化器：输出字段前置注解；下一项没有写出类型（`, y`、`, @audit y`）时，以开放元数的 `X of …` 结尾的字段 / 形参类型
+  加括号输出 `(Pair of Int), y`（此前输出 `Pair of Int, y`，重新解析会改变含义，现在则两引擎都拒绝）。LSP 不生成任何被新规则
+  拒绝的写法（补全只给关键词 / 类型名，代码动作不生成字段、规则名或形参表）。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 11 例，与 aster-lang-core 逐字节相同；新增
+  `test/unit/parser/declaration-syntax-parity.test.ts`，`formatter-roundtrip` 新增 3 例。
+
 ## 3.2.0
 
 > **次版本号的理由**：包的公开声明只增不删、无签名变化——在 `v3.1.0` 与本版各自 `pnpm run build` 对比 `dist/**/*.d.ts`：

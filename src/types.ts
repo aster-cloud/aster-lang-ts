@@ -289,6 +289,8 @@ export interface ConstraintPattern {
 export type Constraint = ConstraintRequired | ConstraintRange | ConstraintPattern;
 
 export interface Field extends Resolvable, Base.BaseField<Type> {
+  /** 字段前置注解（`has @pii(L1, email) email as Text`），按源码顺序；类型上的 `@pii` 仍在 type 的 TypePii 节点里 */
+  readonly annotations?: readonly Annotation[];
   /** CNL 约束列表 */
   readonly constraints?: readonly Constraint[];
   /** 标记类型是否为推断得出（用于诊断和文档生成） */

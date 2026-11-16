@@ -319,11 +319,39 @@ function continuesOfTypeArgs(ctx: ParserContext, error: ParseErrorFn): boolean {
   if (!comma && !ctx.isKeyword(KW.AND)) return false;
   const next = ctx.peek(1);
   if (startsNamedItem(ctx, 1) || !canStartType(next)) return false;
+  const nameAt = skipAnnotationsFrom(ctx, 1);
+  if (nameAt >= 0 && isBareLowercaseName(ctx, nameAt)) {
+    const nameTok = ctx.peek(nameAt);
+    const name = String(nameTok.value);
+    error(Issue.expected(tokenName('typeName'),
+      `Expected type name: '${name}' would be read as another type argument; write '${name} as <Type>' or wrap the generic type in parentheses`), nameTok);
+  }
   if (comma && ctx.typeListDepth > 0) {
     error(Issue.unexpectedConstruct(lit(','),
       "Ambiguous ',' in a parenthesised type list: write 'and' for another type argument, or wrap the generic type in parentheses"));
   }
   return true;
+}
+
+/** 小写开头、却只能读成类型名的词：内建类型关键词与 `maybe T` / `map K to V` 的引导词，见 isBareLowercaseName。 */
+const LOWERCASE_TYPE_WORDS: ReadonlySet<string> = new Set([KW.TEXT, KW.INT, KW.FLOAT, KW.BOOL_TYPE, KW.MAYBE, 'map']);
+
+/**
+ * 偏移 offset 处是一个裸的小写拉丁名字（后面不是 `of` / `<`，本身也不是内建类型关键词）。
+ *
+ * 它出现在 `X of A` 的分隔符（及可选的前置注解）之后时有两种读法：X 的下一个类型参数，或下一个无类型的形参 / 字段
+ * （`given x as Pair of Int, y, produce …`、`, @audit y`）。core 的类型名只收大写开头（typeIdent），ts 此前静默读成
+ * 类型参数（aster-lang-ts#334）；两引擎现在都在名字上报 E055，码、参数、文案相同（core AsterParser.rejectBareLowercaseTypeArg）。
+ * 天城文等无大小写文字（core 的 R53 放行）与由本地化关键词还原的标识符（core 归 TYPE_IDENT）不在此列。
+ */
+function isBareLowercaseName(ctx: ParserContext, offset: number): boolean {
+  const tok = ctx.peek(offset);
+  if (tok.kind !== TokenKind.IDENT || tok.originalValue !== undefined) return false;
+  const text = String(tok.value ?? '');
+  if (!/^\p{Ll}/u.test(text) || LOWERCASE_TYPE_WORDS.has(text.toLowerCase())) return false;
+  const after = ctx.peek(offset + 1);
+  if (after.kind === TokenKind.LT) return false;
+  return !((after.kind === TokenKind.IDENT || after.kind === TokenKind.TYPE_IDENT) && String(after.value ?? '').toLowerCase() === 'of');
 }
 
 /**
