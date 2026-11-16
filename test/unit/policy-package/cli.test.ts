@@ -4,7 +4,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs, parseTimeout } from '../../../src/policy-package/argv.js';
-import { runCommand } from '../../../src/policy-package/cli.js';
+import { Readable } from 'node:stream';
+import { probeMatches, readAll, runCommand } from '../../../src/policy-package/cli.js';
 import { PackageError } from '../../../src/policy-package/errors.js';
 import { positionFreeSha256 } from '../../../src/policy-package/obtain-ir.js';
 import { PACKAGE_V1 } from '../../helpers/package-v1.js';
@@ -101,4 +102,23 @@ test('run（进程内，dist Worker 入口）：成功信封；factSources 为�
   assert.equal(r.exitCode, 0, r.stderr.join('\n'));
   assert.match(r.stdout, /^\{"meta":\{"cliVersion":"[^"]+","coreIrSha256":"[0-9a-f]{64}","engine":"aster-lang-ts-interpreter","entry":"withTax","irRecompiled":false,"signed":true\},"ok":true,"value":"[0-9.]+"\}\n$/);
   assert.ok(!r.stderr.some((l) => l.startsWith('facts unverified')));
+});
+
+test('readAll：读到上限 + 1 字节即停止（超大 stdin 不整个读入）', async () => {
+  const big = Readable.from((function* (): Generator<Buffer> {
+    for (let i = 0; i < 40; i++) yield Buffer.alloc(1024 * 1024, 0x20);
+  })());
+  const got = await readAll(big);
+  assert.equal(got.length, 16 * 1024 * 1024 + 1);
+  assert.equal((await readAll(Readable.from([Buffer.from('{}')]))).length, 2);
+});
+
+test('probeMatches：期望形状不完整或不可写出时判为不符，而不是抛异常', () => {
+  const ok = { ok: true as const, valueJson: '1' };
+  assert.equal(probeMatches({ ok: true, value: 1n }, ok), true);
+  assert.equal(probeMatches({ ok: true }, ok), false);
+  assert.equal(probeMatches({ ok: true, value: '\uD800' }, ok), false);
+  assert.equal(probeMatches(null, ok), false);
+  assert.equal(probeMatches({ code: 'EVAL_ERROR', ok: false }, { ok: false, code: 'EVAL_ERROR', message: '' }), true);
+  assert.equal(probeMatches({ code: 'EVAL_ERROR', ok: false }, { ok: false, code: 'TIMEOUT', message: '' }), false);
 });

@@ -6,6 +6,7 @@
  * {@link runCommand} 是纯函数式入口（返回 stdout / stderr / 退出码），`scripts/aster.ts` 与单文件 bundle 都只调它。
  */
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
+import { MAX_INPUT_BYTES } from './paths.js';
 import { Worker } from 'node:worker_threads';
 import { anchorKids, builtinTrustAnchor, loadTrustAnchor, type TrustAnchor } from './trust-anchor.js';
 import { parseArgs, type ParsedArgs } from './argv.js';
@@ -85,11 +86,20 @@ function failed(ctx: Ctx, e: PackageError, meta: Meta): CommandResult {
   return resultOf(ctx, errorEnvelope(e.code, meta), e.exitCode);
 }
 
-/** 读取全部字节（stdin 等）。 */
-export async function readAll(stream: NodeJS.ReadableStream): Promise<Uint8Array> {
+/**
+ * 读取流的全部字节，至多 `maxBytes` 字节（缺省为 `--input` 上限 + 1）：超出上限时停止读取并返回已读部分，
+ * 调用方按长度判定 `INPUT_INVALID`，不把超大输入整个读进内存。
+ */
+export async function readAll(stream: NodeJS.ReadableStream, maxBytes: number = MAX_INPUT_BYTES + 1): Promise<Uint8Array> {
   const chunks: Buffer[] = [];
-  for await (const c of stream) chunks.push(typeof c === 'string' ? Buffer.from(c) : (c as Buffer));
-  return Buffer.concat(chunks);
+  let total = 0;
+  for await (const c of stream) {
+    const b = typeof c === 'string' ? Buffer.from(c) : (c as Buffer);
+    chunks.push(b);
+    total += b.length;
+    if (total >= maxBytes) break;
+  }
+  return Buffer.concat(chunks).subarray(0, maxBytes);
 }
 
 async function anchorOf(args: ParsedArgs): Promise<TrustAnchor> {
@@ -113,7 +123,7 @@ function factsWarning(ctx: Ctx, pkg: LoadedPackage): void {
 // 求值（Worker + 超时）
 // ---------------------------------------------------------------------------
 
-type EvalOutcome = EvaluatePackageResult | { readonly ok: false; readonly code: 'TIMEOUT' | 'RESOURCE_EXHAUSTED' | 'EVAL_ERROR'; readonly message: string };
+export type EvalOutcome = EvaluatePackageResult | { readonly ok: false; readonly code: 'TIMEOUT' | 'RESOURCE_EXHAUSTED' | 'EVAL_ERROR'; readonly message: string };
 
 /** 在 Worker 中求值；Worker 发出 `started` 后开始计时，到点 `terminate()` 并报 TIMEOUT。 */
 export function evaluateInWorker(job: EvalJob, timeoutMs: number, workerUrl: URL): Promise<EvalOutcome> {
@@ -152,8 +162,11 @@ const defaultWorkerUrl = (): URL => new URL('./worker-entry.js', import.meta.url
 async function readInputBytes(ctx: Ctx, where: string): Promise<Uint8Array> {
   if (where === '-') return ctx.io.stdin();
   try {
+    // 先按 stat 判上限，不把超大文件读进内存
+    if (statSync(where).size > MAX_INPUT_BYTES) throw new PackageError('INPUT_INVALID', 'input', `--input 文件超过 16 MiB：${where}`);
     return readFileSync(where);
-  } catch {
+  } catch (e) {
+    if (e instanceof PackageError) throw e;
     throw new PackageError('INPUT_INVALID', 'input', `--input 文件不可读：${where}`);
   }
 }
@@ -200,9 +213,16 @@ function checkNameOf(e: PackageError): string {
 }
 
 /** probes 结果是否与期望相符（期望无损读取后按值规范 JSON 写出比较）。 */
-function probeMatches(expected: JsonValue, r: EvalOutcome): boolean {
+export function probeMatches(expected: JsonValue, r: EvalOutcome): boolean {
   if (!isJsonObject(expected)) return false;
-  if (expected['ok'] === true) return r.ok && valueJson(expected['value'] as ValueTree) === r.valueJson;
+  if (expected['ok'] === true) {
+    if (!('value' in expected) || !r.ok) return false;
+    try {
+      return valueJson(expected['value'] as ValueTree) === r.valueJson;
+    } catch {
+      return false;
+    }
+  }
   return expected['ok'] === false && expected['code'] === 'EVAL_ERROR' && !r.ok && r.code === 'EVAL_ERROR';
 }
 
