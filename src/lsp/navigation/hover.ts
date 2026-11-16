@@ -190,12 +190,14 @@ function baseHover(
             const hint = exprTypeText(localInfo.expr);
             return { contents: { kind: 'markdown', value: `${ui.localLabel} ${nameAt}${hint ? ': ' + hint : ''}` } };
           }
-          // 同名的参数 / 局部名已在上面优先；剩下的才按名字认别名（如表达式里的导入别名限定名）
-          const aliasByName = aliasHoverByName(ast2, nameAt);
-          if (aliasByName) return { contents: { kind: 'markdown', value: aliasByName } };
+          // 同名的参数 / 局部名已在上面优先；非类型位置上顶层函数 / 类型 / 枚举又先于别名
+          // （`Type score as Int` 与 `Rule score …` 并存时，函数声明名与 `score()` 调用指的是函数；
+          // 类型位置上的别名已由 aliasHoverAtSite 先行处理）。剩下的才按名字认别名（如表达式里的导入别名限定名）
           const named = topLevelByName(nameAt);
           const namedText = named ? describeDecl(named) : null;
           if (namedText) return { contents: { kind: 'markdown', value: namedText } };
+          const aliasByName = aliasHoverByName(ast2, nameAt);
+          if (aliasByName) return { contents: { kind: 'markdown', value: aliasByName } };
         }
         return { contents: { kind: 'markdown', value: `${ui.functionLabel} ${f.name} — ${funcDetail(f)}` } };
       }

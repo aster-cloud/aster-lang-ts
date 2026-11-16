@@ -83,3 +83,34 @@ describe('别名与同名参数并存时 hover 看光标处的实际绑定', () 
     assert.equal(await hoverAt(doc, posOf(doc, 2, 'score', 1), EN_US), 'type score as Int');
   });
 });
+
+describe('别名与同名顶层函数并存时，函数声明与调用显示函数', () => {
+  const doc = docOf([
+    'Module m.',
+    '',
+    'Type score as Int.',
+    '',
+    'Rule score given x as Int, produce score:',
+    '  Return x.',
+    '',
+    'Rule g given y as score, produce Int:',
+    '  Return score(y).',
+    '',
+  ]);
+
+  it('★函数声明名显示函数，不显示别名', async () => {
+    const h = await hoverAt(doc, posOf(doc, 4, 'score', 1), EN_US);
+    assert.ok(h?.startsWith('Function score'), String(h));
+  });
+
+  it('★调用处显示被调函数，不显示别名', async () => {
+    const h = await hoverAt(doc, posOf(doc, 8, 'score', 1), EN_US);
+    assert.ok(h?.startsWith('Function score'), String(h));
+  });
+
+  it('类型位置（返回类型、参数类型）与别名声明仍显示别名', async () => {
+    assert.equal(await hoverAt(doc, posOf(doc, 4, 'score', 1, 1), EN_US), 'type score as Int');
+    assert.equal(await hoverAt(doc, posOf(doc, 7, 'score', 1), EN_US), 'type score as Int');
+    assert.equal(await hoverAt(doc, posOf(doc, 2, 'score', 1), EN_US), 'type score as Int');
+  });
+});
