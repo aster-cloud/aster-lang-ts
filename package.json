@@ -165,9 +165,10 @@
   },
   "dependencies": {
     "@types/semver": "^7.7.1",
-    "semver": "^7.7.3",
+    "ajv": "^8.17.1",
     "decimal.js": "10.4.3",
-    "ajv": "^8.17.1"
+    "fflate": "0.8.2",
+    "semver": "^7.7.3"
   },
   "//peerDependencies": "P0-R19: CLI/LSP-only deps. Consumers importing only the browser/core entries don't need them. Subpath imports (./cli, ./lsp) require them — flagged optional so npm/pnpm install them by default but consumers can opt out with --no-optional.",
   "peerDependencies": {
