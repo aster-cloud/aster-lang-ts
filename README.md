@@ -173,4 +173,4 @@ import { DE_DE } from '@aster-cloud/aster-lang-ts/lexicons/de-DE';
 
 ## License
 
-MIT
+Apache-2.0 (see [LICENSE](LICENSE))
