@@ -22,13 +22,11 @@ import { resolveDocument } from './resolution.js';
 import type { ResolutionSite, ResolvableDocument } from './resolution.js';
 import { alignTokensToSource } from './source-positions.js';
 
-export const CANONICAL_PREVIEW_METHOD = 'aster/canonicalPreview';
+import { CANONICAL_PREVIEW_METHOD } from './canonical-preview-contract.js';
+import type { CanonicalPreview } from './canonical-preview-contract.js';
 
-export interface CanonicalPreview {
-  text: string;
-  mappings: Array<{ source: [number, number]; preview: [number, number]; canonical: string; role: string }>;
-  resolverVersion: number;
-}
+export { CANONICAL_PREVIEW_METHOD } from './canonical-preview-contract.js';
+export type { CanonicalPreview } from './canonical-preview-contract.js';
 
 /** 一处待替换的源码区间（UTF-16 偏移，end 不含）。 */
 interface Replacement {
