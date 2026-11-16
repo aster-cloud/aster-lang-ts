@@ -162,6 +162,8 @@ function baseHover(
       if (!name) return undefined;
       return (ast2.decls as unknown[]).find(d => (isAstFunc(d) || isAstData(d) || isAstEnum(d)) && (d as { name: string }).name === name);
     };
+    const aliasInfo = aliasHoverAt(ast2, tokenNameAtOptimized(tokenIndex, pos));
+    if (aliasInfo) return { contents: { kind: 'markdown', value: aliasInfo } };
     const decl = findDeclAt(ast2, pos);
     if (decl) {
       if (isAstFunc(decl)) {
@@ -204,6 +206,17 @@ function baseHover(
     }
   } catch {
     // ignore
+  }
+  return null;
+}
+
+/** 类型别名名显示 `type X as T`，导入别名名显示 `use M as X`（只到模块名为止，R58 延后跨模块成员）。 */
+function aliasHoverAt(ast: AstModule, name: string | null): string | null {
+  if (!name) return null;
+  const alias = ast.typeAliasDecls?.find(a => a.name === name);
+  if (alias) return `type ${alias.name} as ${typeText(alias.type)}`;
+  for (const d of ast.decls) {
+    if (d.kind === 'Import' && d.asName === name) return `use ${d.name} as ${name}`;
   }
   return null;
 }

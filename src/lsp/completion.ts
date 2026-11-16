@@ -30,6 +30,7 @@ import { EN_US } from '../config/lexicons/en-US.js';
 import { resolveDocument } from './resolution.js';
 import { localizedField, memberCompletionResult } from './member-completion.js';
 import type { MemberCompletionOptions } from './member-completion.js';
+import { isTypePosition, typeCompletions } from './type-completion.js';
 
 /*
  * 包入口 `./lsp/completion` 的公开补全 API：成员补全及其所需的文档解析一并从此导出，
@@ -155,6 +156,21 @@ function fieldCompletionsAt(
   const member = memberCompletionResult(entry, params.position, lexicon, options);
   if (member.items) return member;
   return { items: constructFieldCompletions(entry, params.position, lexicon), incomplete: member.incomplete };
+}
+
+/** 光标在类型位置时只给类型候选；其它位置返回 null。 */
+function typeCompletionsAt(
+  documents: { get(uri: string): TextDocument | undefined },
+  getOrParse: (doc: TextDocument) => CompletionDocument,
+  params: { textDocument?: { uri: string }; position?: { line: number; character: number } } | undefined,
+  lexicon: Lexicon | undefined,
+): CompletionItem[] | null {
+  if (!params?.textDocument || !params.position) return null;
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return null;
+  const entry = getOrParse(doc);
+  const lex = lexicon ?? EN_US;
+  return isTypePosition(entry.tokens, params.position, lex) ? typeCompletions(entry.ast, lex) : null;
 }
 
 const CONTROL_ARG = /@control\(\s*"([^"]*)$/;
@@ -365,7 +381,7 @@ function findCallInfoAt(
   return null;
 }
 
-/** 通用补全：该文档 lexicon 的关键词（含别名）、常见类型与注解名。 */
+/** 通用补全：该文档 lexicon 的关键词（含别名）与注解名；类型只在类型位置给出（见 type-completion.ts）。 */
 function keywordCompletions(lexicon: Lexicon | undefined): CompletionItem[] {
   // ★关键词必须取自**该文档的 lexicon**，而不是硬编码的英文 KW。
   //
@@ -391,16 +407,6 @@ function keywordCompletions(lexicon: Lexicon | undefined): CompletionItem[] {
     kind: CompletionItemKind.Keyword,
     data: keyword,
   }));
-
-  // 添加常见类型补全
-  const types = ['Text', 'Int', 'Bool', 'Float', 'User', 'Result', 'Option', 'Maybe', 'Verdict'];
-  types.forEach(type => {
-    completions.push({
-      label: type,
-      kind: CompletionItemKind.Class,
-      data: type,
-    });
-  });
 
   // 添加注解名称补全
   const annotations = ['NotEmpty', 'Range', 'Pattern'];
@@ -439,6 +445,8 @@ export function registerCompletionHandlers(
     // `x.` 之后且接收者类型已知、或位于构造的字段名位置：只列该 struct 的字段
     const fields = fieldCompletionsAt(documents, getOrParse, params, getLexiconForDoc?.(params.textDocument.uri), clientOptions);
     if (fields.items) return { isIncomplete: false, items: fields.items };
+    const types = typeCompletionsAt(documents, getOrParse, params, getLexiconForDoc?.(params.textDocument.uri));
+    if (types) return { isIncomplete: false, items: types };
     return { isIncomplete: fields.incomplete, items: keywordCompletions(getLexiconForDoc?.(params.textDocument.uri)) };
   });
 
