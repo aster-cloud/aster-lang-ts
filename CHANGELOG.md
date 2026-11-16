@@ -6,6 +6,14 @@
 
 - `package.json` 的 `license` 由 `MIT` 改为 `Apache-2.0`，浏览器包头注释同步修改。仓库 LICENSE 文件一直是 Apache License 2.0，此前的 `MIT` 声明有误；以 LICENSE 为准（产品负责人确认）。ADR 0059 的 P3（自包含导出打包运行时）以许可证一致为前提。
 
+### 包格式 v1：单文件 runner `dist/runner/aster.mjs`（ADR 0059 P1 T5，aster-cloud/aster-cloud#797）
+
+- `pnpm run build` 末尾用 esbuild 打出 `dist/runner/aster.mjs`（ESM、minify、只 import Node 内置模块，约 0.64 MiB）与
+  `dist/runner/aster.mjs.sha256`；同一文件既是 CLI 主线程又是求值 Worker（`new Worker(new URL(import.meta.url))`）。
+  体积预算 1 MiB（修订 1 A3），超出即构建失败，CI `package-v1` job 另有显式体积门。
+- 新导出 `@aster-cloud/aster-lang-ts/runner`；发布 workflow 把 `aster.mjs` 与 `aster.mjs.sha256` 上传为 GitHub Release 资产并下载回读校验。
+- `test/package-v1/runner-bundle.test.ts`：把 bundle 拷到仓外临时目录重跑全部一致性用例。README 新增「Running exported policy packages」。
+
 ### 包格式 v1：`aster` 的 compile / run / verify / inspect / version（ADR 0059 P1 T4，aster-cloud/aster-cloud#797）
 
 - `aster run <pkg> --input <file|-> [--entry] [--timeout] [--jwks|--pubkey] [--allow-unsigned]`、`aster verify <pkg> [--recompile] [--probes]`、

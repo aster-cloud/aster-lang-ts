@@ -141,7 +141,7 @@ jobs:
       - name: Verify npm package (pack smoke)
         run: node scripts/verify-package.mjs
 
-  # 包格式 v1 一致性（ADR 0059 P1 T4 / T5）：aster CLI（dist/scripts/aster.js）跑 aster-lang-test
+  # 包格式 v1 一致性（ADR 0059 P1 T4 / T5）：aster CLI（dist/scripts/aster.js 与单文件 dist/runner/aster.mjs）跑 aster-lang-test
   # conformance/package-v1/ 的全部用例（packages、tamper、inputs-invalid、test-time 体积夹具），
   # stdout 经真相源 normalize-stdout.mjs 归一后逐字节比较。兄弟仓按同名分支检出（checkout-sibling），缺失即失败。
   package-v1:
@@ -175,6 +175,14 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # 体积门（修订 1 A3：node-a ≤ 1 MiB）。build-runner.mjs 超预算即构建失败，这里再显式断言一次并打印实际字节数。
+      - name: Single-file runner size gate (≤ 1 MiB)
+        run: |
+          SIZE=$(stat -c %s dist/runner/aster.mjs)
+          echo "dist/runner/aster.mjs: $SIZE bytes"
+          test "$SIZE" -le 1048576
+
+      # dist/scripts/aster.js 与仓外拷贝的 dist/runner/aster.mjs 各跑一遍全部用例
       - name: Run package format v1 conformance cases
         run: pnpm run test:package-v1:run
 
