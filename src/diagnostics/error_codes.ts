@@ -115,6 +115,7 @@ export const enum ErrorCode {
   GOV_PROFILE_VIOLATION = "E706",
   GOV_CHECK_UNAVAILABLE = "E707",
   GOV_PROFILE_INPUT_UNRESOLVABLE = "E708",
+  GOV_PII_RETURNED_AS_TEXT = "W709",
   CEDAR_NOT_EXPORTABLE_SHAPE = "E720",
   CEDAR_UNSUPPORTED_CONSTRUCT = "E721",
   CEDAR_UNTYPED_CONTEXT_KEY = "E722",
@@ -251,6 +252,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.GOV_PROFILE_VIOLATION]: "Rule '{rule}' violates profile '{profile}': {requirement}",
   [ErrorCode.GOV_CHECK_UNAVAILABLE]: "Governance check could not run for module '{module}' (profile '{profile}'); saving is blocked until it succeeds",
   [ErrorCode.GOV_PROFILE_INPUT_UNRESOLVABLE]: "Rule '{rule}' reads inputs that cannot be resolved statically ({construct}); profile '{profile}' requires verified inputs",
+  [ErrorCode.GOV_PII_RETURNED_AS_TEXT]: "Rule '{rule}' returns Text built from @pii field '{field}'; the execution output is stored and shown unmasked",
   [ErrorCode.CEDAR_NOT_EXPORTABLE_SHAPE]: "Rule '{rule}' cannot be exported to Cedar: {reason}",
   [ErrorCode.CEDAR_UNSUPPORTED_CONSTRUCT]: "Rule '{rule}' uses {construct}, which has no Cedar translation",
   [ErrorCode.CEDAR_UNTYPED_CONTEXT_KEY]: "Context key '{key}' in rule '{rule}' is used as both {first} and {second}",
@@ -1032,6 +1034,12 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     severity: 'error',
     message: "Rule '{rule}' reads inputs that cannot be resolved statically ({construct}); profile '{profile}' requires verified inputs",
     help: "Read input fields by literal path (for example req.context.amount), or move the dynamic access out of this rule, so its input references are known at compile time.",
+  },  [ErrorCode.GOV_PII_RETURNED_AS_TEXT]: {
+    code: ErrorCode.GOV_PII_RETURNED_AS_TEXT,
+    category: 'governance',
+    severity: 'warning',
+    message: "Rule '{rule}' returns Text built from @pii field '{field}'; the execution output is stored and shown unmasked",
+    help: "Leave the field out of the returned text or return a non-Text result; if the output must contain it, declare the return type as @pii(level, category) Text to record that it is PII.",
   },  [ErrorCode.CEDAR_NOT_EXPORTABLE_SHAPE]: {
     code: ErrorCode.CEDAR_NOT_EXPORTABLE_SHAPE,
     category: 'governance',
