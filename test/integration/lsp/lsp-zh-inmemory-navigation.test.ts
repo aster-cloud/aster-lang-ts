@@ -43,8 +43,15 @@ describe('LSP zh + inmemory 文档（真实服务端进程）', () => {
   it('★文档符号 / hover / 跳转定义 / 重命名 / 引用 都返回真实结果', async () => {
     client = await open('zh-CN', ZH_DOC);
 
-    // 客户端按这两个标志决定是否注册对应功能（见 server.ts experimental.aster）
-    assert.deepEqual(initCapabilities.experimental?.aster, { localizedParsing: true, openDocumentNavigation: true });
+    // 客户端按这些标志决定是否注册对应功能（见 server.ts experimental.aster）
+    assert.deepEqual(initCapabilities.experimental?.aster, { localizedParsing: true, openDocumentNavigation: true, canonicalPreview: true });
+
+    // aster/canonicalPreview 已注册：无租户词汇时预览即原文；未打开的文档返回 null
+    const preview = (await client.request('aster/canonicalPreview', { textDocument: { uri: URI } })) as { text: string; mappings: unknown[]; resolverVersion: number };
+    assert.equal(preview.text, ZH_DOC);
+    assert.deepEqual(preview.mappings, []);
+    assert.equal(preview.resolverVersion, 1);
+    assert.equal(await client.request('aster/canonicalPreview', { textDocument: { uri: 'inmemory://policy/missing.aster' } }), null);
 
     const symbols = (await client.request('textDocument/documentSymbol', { textDocument: { uri: URI } })) as Array<{ name: string }>;
     assert.deepEqual(symbols.map((s) => s.name), ['demo.p']);
