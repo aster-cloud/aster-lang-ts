@@ -158,21 +158,20 @@ export function readZip(buf: Buffer): Map<string, Uint8Array> {
     const rest = name.slice(slash + 1);
     const isDir = rest === '' || rest.endsWith('/');
     const rel = isDir ? rest.slice(0, -1) : rest;
-    if (rel !== '' && !isPackagePath(rel)) bad(`条目路径不合法：${name}`);
+    // 去掉根与末尾斜杠后只有 `<root>/` 本身可以为空（`<root>//` 之类失败）
+    if (rel === '' ? rest !== '' : !isPackagePath(rel)) bad(`条目路径不合法：${name}`);
     if (seen.has(name)) bad(`重复条目 ${name}`);
     seen.add(name);
 
-    if (isDir) {
-      if (cd.usize !== 0) bad('目录条目带数据');
-    } else {
-      const raw = buf.subarray(dataAt, dataAt + cd.csize);
-      const data = method === 0 ? raw : inflateBounded(raw, Math.min(cd.usize, budget), name);
-      if (data.length !== cd.usize) bad(`实际大小与声明不符：${name}`);
-      if (data.length > budget) bad('累计解压超过 64 MiB');
-      budget -= data.length;
-      if (crc32(data) !== cd.crc) bad(`CRC 不符：${name}`);
-      out.set(rel, data);
-    }
+    // 目录条目与文件条目走同一组逐条检查（解压、实际大小 = 声明大小、CRC、deflate 已消耗字节 = csize），只是不放进文件表
+    if (isDir && cd.usize !== 0) bad('目录条目带数据');
+    const raw = buf.subarray(dataAt, dataAt + cd.csize);
+    const data = method === 0 ? raw : inflateBounded(raw, Math.min(cd.usize, budget), name);
+    if (data.length !== cd.usize) bad(`实际大小与声明不符：${name}`);
+    if (data.length > budget) bad('累计解压超过 64 MiB');
+    budget -= data.length;
+    if (crc32(data) !== cd.crc) bad(`CRC 不符：${name}`);
+    if (!isDir) out.set(rel, data);
     at = next;
   }
   if (at !== cdOff) bad('最后一个条目与中央目录之间有多余字节');
