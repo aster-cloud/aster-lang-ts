@@ -67,3 +67,19 @@ for (const c of CASES) {
     });
   });
 }
+
+describe('别名与同名参数并存时 hover 看光标处的实际绑定', () => {
+  const doc = docOf(['Module m.', '', 'Type score as Int.', '', 'Rule f given score as Int, produce Int:', '  Return score.', '']);
+
+  it('参数声明处显示参数，不显示别名', async () => {
+    assert.equal(await hoverAt(doc, posOf(doc, 4, 'score', 1), EN_US), 'Parameter **score**: Int');
+  });
+
+  it('表达式里的引用显示参数，不显示别名', async () => {
+    assert.equal(await hoverAt(doc, posOf(doc, 5, 'score', 1), EN_US), 'Parameter **score**: Int');
+  });
+
+  it('别名声明处仍显示别名', async () => {
+    assert.equal(await hoverAt(doc, posOf(doc, 2, 'score', 1), EN_US), 'type score as Int');
+  });
+});
