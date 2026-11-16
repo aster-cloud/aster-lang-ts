@@ -23,7 +23,7 @@ import ts from 'typescript';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 // 导入即执行的入口：只做存在性与相对 import 检查，不 import。
-const EXECUTABLE_EXPORTS = new Set(['./cli', './core', './lsp/server']);
+const EXECUTABLE_EXPORTS = new Set(['./cli', './core', './lsp/server', './runner']);
 
 const problems = [];
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aster-ts-pack-'));

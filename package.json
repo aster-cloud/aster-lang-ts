@@ -85,7 +85,8 @@
     "./browser": {
       "types": "./dist/src/browser.d.ts",
       "import": "./dist/src/browser.js"
-    }
+    },
+    "./runner": "./dist/runner/aster.mjs"
   },
   "bin": {
     "aster": "./dist/scripts/aster.js",
@@ -94,7 +95,7 @@
     "aster-convert": "./dist/src/cli/policy-converter.js"
   },
   "scripts": {
-    "build": "tsc && node dist/scripts/build-peg.js",
+    "build": "tsc && node dist/scripts/build-peg.js && node scripts/build-runner.mjs",
     "build:browser": "pnpm run build && node scripts/build-browser.js",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",

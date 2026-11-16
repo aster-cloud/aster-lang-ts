@@ -44,6 +44,30 @@ every public path to Core IR runs name resolution and refuses to emit IR on reso
 Use `compile` / `compileAndTypecheck` from `@aster-cloud/aster-lang-ts/browser`,
 `resolveAndLowerChecked`, or `resolvePolicyTypes`.
 
+## Running exported policy packages (`aster run`)
+
+The `aster` bin runs policy packages exported by the platform (package format 1.0, ADR 0059). The same five
+commands are also published as a single file, `dist/runner/aster.mjs` (exported as `@aster-cloud/aster-lang-ts/runner`
+and attached to each GitHub Release with its `aster.mjs.sha256`); it needs only Node ≥ 24, no `node_modules`.
+
+```bash
+aster run ./my-policy-v3-node-b --input input.json --jwks export-jwks.json   # or --input - (stdin)
+aster verify ./my-policy.zip --recompile --probes --jwks export-jwks.json
+aster inspect ./my-policy.zip --jwks export-jwks.json
+aster compile ./my-policy.zip --out core.json                                # local Core IR, for drift diagnosis
+aster version
+node aster.mjs run ./my-policy.zip --input - < input.json                     # single-file runner
+```
+
+- stdout is always one line of canonical JSON (`{"meta":…,"ok":true,"value":…}` or an error envelope); diagnostics go to
+  stderr. Exit codes: 0 ok, 1 `EVAL_ERROR` / `PROBE_MISMATCH`, 2 input or usage errors, 3 integrity and signature
+  failures, 4 unsupported package / IR drift / compile errors, 5 `TIMEOUT` / `RESOURCE_EXHAUSTED`.
+- Signatures are verified by default against the built-in trust anchor (empty until export keys are published);
+  pass `--jwks <file|https-url>` or `--pubkey <file>`, or `--allow-unsigned` for unsigned packages.
+- Evaluation runs in a worker thread with a `--timeout` (default `5s`, at most `300s`).
+- Long values above 2⁵³ are printed as exact JSON integers; read `value` with a big-number JSON parser if you need them.
+- The package format, exit codes and output envelopes are defined by aster-lang-test `conformance/package-v1/`.
+
 ## Multi-Language Support
 
 Aster supports writing policies in multiple natural languages:
@@ -149,4 +173,4 @@ import { DE_DE } from '@aster-cloud/aster-lang-ts/lexicons/de-DE';
 
 ## License
 
-MIT
+Apache-2.0 (see [LICENSE](LICENSE))

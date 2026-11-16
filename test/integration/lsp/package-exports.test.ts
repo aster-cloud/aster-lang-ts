@@ -10,7 +10,7 @@ import { resolve } from 'node:path';
 
 const PKG = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as {
   name: string;
-  exports: Record<string, { types: string; import: string }>;
+  exports: Record<string, string | { types: string; import: string }>;
 };
 
 describe('包入口：LSP 补全', () => {
@@ -28,6 +28,11 @@ describe('包入口：LSP 补全', () => {
 
   it('exports 中每个入口的产物都存在', () => {
     for (const [entry, target] of Object.entries(PKG.exports)) {
+      // 字符串形态的入口（如 ./runner 单文件 CLI）没有类型声明，只查产物
+      if (typeof target === 'string') {
+        assert.ok(existsSync(resolve(target)), `${entry} → ${target}`);
+        continue;
+      }
       assert.ok(existsSync(resolve(target.import)), `${entry} → ${target.import}`);
       assert.ok(existsSync(resolve(target.types)), `${entry} → ${target.types}`);
     }
