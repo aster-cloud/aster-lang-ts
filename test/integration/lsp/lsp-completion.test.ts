@@ -66,11 +66,35 @@ async function testBasicCompletion(): Promise<void> {
   const hasKeyword = completions.some(c => c.label === 'module');
   assert(hasKeyword, '应包含关键字 "module"');
 
-  // 验证类型补全
+  // 类型只在类型位置给出（ADR 0058 §8.1）：无光标位置的通用补全不含内置类型
   const hasType = completions.some(c => c.label === 'Text');
-  assert(hasType, '应包含类型 "Text"');
+  assert(!hasType, '非类型位置不应包含类型 "Text"');
 
   console.log(`✓ 基础补全功能正常（返回 ${completions.length} 个补全项）`);
+}
+
+async function testTypePositionCompletion(): Promise<void> {
+  const code = `Module test_app.
+
+Rule greet given name as Text, produce Text:
+  Return name.
+`;
+  const uri = 'file:///type-pos.aster';
+  const mockConnection = createMockConnection() as any;
+  const mockDocuments = createMockDocuments();
+  mockDocuments.set(uri, TextDocument.create(uri, 'aster', 1, code));
+  registerCompletionHandlers(mockConnection, mockDocuments, createMockGetOrParse());
+
+  // 参数类型位置：`name as ` 之后（第 2 行）
+  const col = 'Rule greet given name as '.length;
+  const list: CompletionList = mockConnection.handlers.onCompletion({
+    textDocument: { uri },
+    position: { line: 2, character: col },
+  });
+  assert(list.items.some(c => c.label === 'Text'), '参数类型位置应包含内置类型 "Text"');
+  assert(!list.items.some(c => c.label === 'module'), '类型位置不应混入关键字 "module"');
+
+  console.log('✓ 类型位置补全包含内置类型');
 }
 
 async function testCompletionResolve(): Promise<void> {
@@ -201,6 +225,7 @@ async function main(): Promise<void> {
 
   try {
     await testBasicCompletion();
+    await testTypePositionCompletion();
     await testCompletionResolve();
     await testSignatureHelp();
     await testSignatureHelpWithCall();
