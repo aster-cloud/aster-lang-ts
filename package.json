@@ -82,6 +82,10 @@
       "types": "./dist/src/lsp/completion.d.ts",
       "import": "./dist/src/lsp/completion.js"
     },
+    "./layout": {
+      "types": "./dist/src/layout/index.d.ts",
+      "import": "./dist/src/layout/index.js"
+    },
     "./browser": {
       "types": "./dist/src/browser.d.ts",
       "import": "./dist/src/browser.js"

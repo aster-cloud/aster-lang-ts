@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { compile, evaluate, ZH_CN, initializeAllBundledLexicons } from '../../dist/src/browser.js';
 import { SemanticTokenKind as K } from '../../dist/src/config/token-kind.js';
-import { toCanonical, toDisplay, verifyContentParity } from '../jingyesi/layout-map.mjs';
+import { toCanonical, toDisplay, verifyContentParity } from '../../dist/src/layout/index.js';
 import { SHERLOCK_LAYOUT } from './sherlock.layout.mjs';
 
 initializeAllBundledLexicons();

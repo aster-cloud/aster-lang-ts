@@ -450,6 +450,12 @@ export { CONTROLS_REGISTRY } from './governance/controls-registry.data.js';
 export type { ControlsRegistryData, LocalizedTitle } from './governance/controls-registry.data.js';
 export type { TypecheckDiagnostic } from './types.js';
 
+// ============================================================================
+// LayoutMap（ADR 0058 §7.10）：与 `./layout` 子路径同一实现
+// ============================================================================
+
+export * from './layout/index.js';
+
 /**
  * Compile and type check CNL source in one call
  *

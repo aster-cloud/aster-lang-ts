@@ -36,7 +36,7 @@ $ node examples/jingyesi/jingyesi.mjs
   低头 思故乡。
 ```
 
-**核心不变式**（`layout-map.test.mjs` 钉住）：
+**核心不变式**（`test/unit/layout/serialize.test.ts` 钉住）：
 - `toCanonical(layout)` 逐字节 === `jingyesi.aster` —— 映射与编译真源永不漂移
 - `toDisplay(layout)` === 原诗四句，且内容 token 两视图一致 —— 显示层不凭空增删诗词
 - **编译永远走 canonical**（不试图编译 display）—— 显示自由排版无损编译/运行/确定性
@@ -46,7 +46,7 @@ $ node examples/jingyesi/jingyesi.mjs
 > 做法是「编译吃规范 Aster，显示层按映射渲染成诗」——即本模块。语言层若要支持源码本身
 > 任意排版/单行化，见 ADR《显式块分隔符》（另行立项）。
 
-文件：`layout-map.mjs`（通用映射 + 渲染 + 校验）、`jingyesi.layout.mjs`（本诗的 LayoutMap 定义）。
+文件：`jingyesi.layout.mjs`（本诗的 LayoutMap 定义）；通用映射、序列化与保存校验在包的 `@aster-cloud/aster-lang-ts/layout` 子路径（`src/layout/`，ADR 0058 §7.10）。
 
 ## 原理
 

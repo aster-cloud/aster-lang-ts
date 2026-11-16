@@ -8,8 +8,8 @@
 // 渲染成「纵此不足为凭，然」等推理连接词，缩进/冒号隐去，成为连贯的推理段落。
 // canonical 一字未改、仍编译运行输出真凶。
 
-/** @type {import('../jingyesi/layout-map.mjs').LayoutSpan[]} */
-export const SHERLOCK_LAYOUT = [
+/** @type {import('../../dist/src/layout/index.js').PolicyLayout} */
+export const SHERLOCK_LAYOUT = { v: 1, spans: [
   // 案卷标题。「探案笔记」= MODULE_DECL 别名（canonical 结构词），display 侧渲染成引导语。
   // 结构词的 canonical 值原样保留（保证 toCanonical===.aster），display 值自由美化。
   { canonical: '探案笔记 ', display: '《' },
@@ -50,4 +50,4 @@ export const SHERLOCK_LAYOUT = [
   { canonical: '\n  else 凶手即 ', display: '。\n  否则，只得承认' },
   { text: '"疑点未清，尚难定论"' },
   { canonical: '。', display: '。' },
-];
+] };

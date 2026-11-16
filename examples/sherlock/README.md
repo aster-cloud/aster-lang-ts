@@ -67,7 +67,8 @@ $ node examples/sherlock/sherlock.mjs
 - **真决策**：不同线索 → 不同结论（定罪 / 待查 / 兜底）
 
 > ⚠️ 诚实边界：LayoutMap 的 `verifyContentParity` 只是 **lint**（拦引号字面量偷塞），不是安全
-> 边界——防「显示 ≠ 运行」的欺骗只能靠展示 canonical view + 语义测试（见 layout-map.mjs 注释）。
+> 边界——防「显示 ≠ 运行」的欺骗只能靠展示 canonical view + 语义测试（见 `src/layout/validate.ts`）。作为策略保存时，ADR 0058 §7.5 的
+> `layout_structural_hides_value` 会拒绝本例：结构 span 里藏着函数名「揪出真凶」。
 
 ## 单行化变体（ADR 0028 显式块分隔符）
 
