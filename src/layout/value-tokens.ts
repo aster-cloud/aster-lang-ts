@@ -7,7 +7,7 @@
  *
  * 分词走生产同款 canonicalize → lex，token 位置在规范化文本上；规范化保持行数不变，
  * 于是逐行把值 token 按顺序在原文该行里找回（引号、全角字符宽松匹配，因为规范化会改写它们）。
- * 找不到时退回整行——宁可多拒，不可漏判。
+ * 找不到、或值与冠词/关键词同形（可能认错到被删的冠词上）时退回整行——宁可多拒，不可漏判。
  */
 import { canonicalize } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
@@ -48,39 +48,61 @@ function nonLiteralSpellings(table: Partial<Record<string, string | readonly str
     .flatMap(([, v]) => (v === undefined ? [] : typeof v === 'string' ? [v] : [...v]));
 }
 
-/** 全部关键词拼写，按首词索引为小写词序列（长的在前，便于最长匹配） */
-function keywordIndex(lexicon: Lexicon): Map<string, string[][]> {
-  // 与 canonicalize 一致：词法表的转写规则（如 de 的 ue→ü）也作用于关键词拼写
-  const rules = (lexicon.canonicalization.customRules ?? []).flatMap((rule) => {
-    const compiled = compileGuardedRegex(rule.pattern, 'g');
-    return compiled.ok ? [{ re: compiled.regex, replacement: rule.replacement }] : [];
-  });
-  const markers = lexicon.punctuation.markers;
+/** 全部关键词拼写（小写；含词法表转写规则作用后的形态与 markers 内的裸拼写） */
+function keywordSpellings(lexicon: Lexicon): Set<string> {
   const spellings = new Set<string>();
-  const add = (s: string): void => {
-    const lower = s.toLowerCase();
-    spellings.add(lower);
-    spellings.add(rules.reduce((t, r) => t.replace(r.re, r.replacement), lower));
-    if (markers?.open && markers.close && s.length > markers.open.length + markers.close.length
-      && s.startsWith(markers.open) && s.endsWith(markers.close)) {
-      add(s.slice(markers.open.length, s.length - markers.close.length));
-    }
-  };
+  const add = spellingAdder(lexicon, spellings);
   [
     ...nonLiteralSpellings(lexicon.keywords),
     ...nonLiteralSpellings(lexicon.aliases ?? {}),
     ...nonLiteralSpellings(EN_US.keywords),
     ...nonLiteralSpellings(KW),
   ].forEach(add);
+  return spellings;
+}
 
+/** 返回一个把拼写（小写、转写后形态、去 markers 形态）加入 `into` 的函数 */
+function spellingAdder(lexicon: Lexicon, into: Set<string>): (s: string) => void {
+  // 与 canonicalize 一致：词法表的转写规则（如 de 的 ue→ü）也作用于关键词拼写
+  const rules = (lexicon.canonicalization.customRules ?? []).flatMap((rule) => {
+    const compiled = compileGuardedRegex(rule.pattern, 'g');
+    return compiled.ok ? [{ re: compiled.regex, replacement: rule.replacement }] : [];
+  });
+  const markers = lexicon.punctuation.markers;
+  const add = (s: string): void => {
+    const lower = s.toLowerCase();
+    into.add(lower);
+    into.add(rules.reduce((t, r) => t.replace(r.re, r.replacement), lower));
+    if (markers?.open && markers.close && s.length > markers.open.length + markers.close.length
+      && s.startsWith(markers.open) && s.endsWith(markers.close)) {
+      add(s.slice(markers.open.length, s.length - markers.close.length));
+    }
+  };
+  return add;
+}
+
+/** 关键词拼写按首词索引为小写词序列（长的在前，便于最长匹配） */
+function keywordIndex(lexicon: Lexicon): Map<string, string[][]> {
   const index = new Map<string, string[][]>();
-  for (const s of spellings) {
+  for (const s of keywordSpellings(lexicon)) {
     const words = s.split(/\s+/).filter(Boolean);
     if (words.length === 0) continue;
     index.set(words[0]!, [...(index.get(words[0]!) ?? []), words]);
   }
   for (const list of index.values()) list.sort((a, b) => b.length - a.length);
   return index;
+}
+
+/**
+ * 与冠词或关键词（含多词关键词中的单词）同形的词：规范化会删掉冠词、关键词不算值，
+ * 原文里同形的非值词可能排在真正的值之前，逐行按序找回时会认错位置，故这类值一律按整行计。
+ */
+function ambiguousWords(lexicon: Lexicon): Set<string> {
+  const out = new Set<string>();
+  const add = spellingAdder(lexicon, out);
+  (lexicon.canonicalization.articles ?? []).forEach(add);
+  for (const s of keywordSpellings(lexicon)) s.split(/\s+/).filter(Boolean).forEach(add);
+  return out;
 }
 
 const wordOf = (t: Token | undefined): string | null =>
@@ -174,9 +196,10 @@ export function valueTokenRanges(source: string, lexicon: Lexicon): OffsetRange[
     return null;
   }
   const values = valueTokens(tokens, lexicon);
+  const ambiguous = ambiguousWords(lexicon);
   const original = lineTable(source);
   const canonLines = canonical.split('\n');
-  // 行数对不上就无法逐行找回：每个值都按整篇源码计
+  // 不变式：canonicalize 保持行数不变；万一对不上就无法逐行找回，每个值都按整篇源码计（宁可多拒）
   if (canonLines.length !== original.length) return values.map((): OffsetRange => [0, source.length]);
   const cursor = new Map<number, number>();
   const wholeLines = (from: number, to: number): OffsetRange => [
@@ -189,6 +212,7 @@ export function valueTokenRanges(source: string, lexicon: Lexicon): OffsetRange[
     const orig = original[line - 1]!;
     if (t.end.line !== line) return wholeLines(line, Math.min(t.end.line, original.length));
     const raw = (canonLines[line - 1] ?? '').slice(t.start.col - 1, t.end.col - 1);
+    if (ambiguous.has(raw.toLowerCase())) return wholeLines(line, line);
     const found = raw ? findLoose(orig.text, raw, cursor.get(line) ?? 0) : null;
     if (!found) return wholeLines(line, line);
     cursor.set(line, found.at + found.len);

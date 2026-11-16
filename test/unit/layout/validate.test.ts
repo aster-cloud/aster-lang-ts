@@ -122,6 +122,18 @@ describe('layout_structural_hides_value', () => {
     assert.deepEqual(check(spans, ZH_CN, { [K.MODULE_DECL]: ['探案笔记'] }), { ok: true });
   });
 
+  it('反：值与冠词同形（`Return a a plus 1.` 的首个 a 是冠词）时，结构 span 盖住真正的值 → 拒绝', () => {
+    const head = 'Module m.\n\nRule f given a as Int, produce Int:\n';
+    const r = check([{ text: head + '  Return a ' }, { canonical: 'a', display: '2' }, { text: ' plus 1.\n' }]);
+    assert.equal(hides(r), head.length);
+  });
+
+  it('反：值与冠词同形且紧贴句号（`Return a a.`）时，结构 span 盖住真正的值 → 拒绝', () => {
+    const head = 'Module m.\n\nRule f given a: Int, produce Int:\n';
+    const r = check([{ text: head + '  Return a ' }, { canonical: 'a', display: '' }, { text: '.\n' }]);
+    assert.equal(hides(r), head.length);
+  });
+
   it('正：关键词（含多词关键词）、标点、空白、注释可以在结构 span 里', () => {
     assert.deepEqual(
       check([
