@@ -1,8 +1,26 @@
 # Changelog
 
-## Unreleased
+## 3.2.0
 
-### 双引擎 parity：签名与类型别名语法（aster-lang-ts#328，ADR 0056 修订 A2，与 aster-lang-core 同名分支同车次）
+> **次版本号的理由**：包的公开声明只增不删、无签名变化——在 `v3.1.0` 与本版各自 `pnpm run build` 对比 `dist/**/*.d.ts`：
+> `ErrorCode` 新增 `GOV_PII_RETURNED_AS_TEXT = "W709"`，`Core.Field` / `Core.Param` 工厂末尾新增可选参数 `annotations`，
+> AST `Parameter` 新增可选字段 `annotations`，`ParseIssue` 新增 `unexpectedExpecting`；新模块 `governance/pii-text-return`
+> 与 `parser/annotation-parser` 不被任何导出声明引用。但新警告 W709 与下面的语法裁决（`result of A or B` 报 E062、
+> `maybe of T` 报 E061、尖括号泛型报 E056）让部分既有源码出现新的诊断，不是补丁级变化，按 ADR 0046 §11.7
+> 第 11 条（1.6.0 先例）取 minor。
+
+### W709：@pii 输入字段流入返回的 Text（aster-cloud#772 方案 3，与 aster-lang-core 同车次）
+
+- **新警告 W709 `GOV_PII_RETURNED_AS_TEXT`**（`governance` 类，恒为 warning、不阻断保存）：函数声明返回 `Text`（或返回类型
+  由推断得到且返回值已知是文本）时，返回值由 `@pii` 形参或 `@pii` 记录字段经 `+` / `Text.concat` 拼接、Let / Set 绑定、
+  if 表达式分支构成，在该 Return 处按字段报告，参数 `{rule}` 与 `{field}`（以参数名为前缀的字段路径，如 `applicant.name`）。
+  执行输出原样落库并在日志页展示，日志面的输入打码（ADR 0042 §12.6）覆盖不到它，由策略作者负责。
+- 保守口径：只看声明类型；不跨函数、不进集合、不经其他内置调用传播；返回类型声明为 `@pii(...) Text` 或不是 Text 时不报。
+- 新文件 `src/governance/pii-text-return.ts`（Java 镜像 `PiiTextReturnAnalyzer`），由 `checkGovernance` 调用，Node 与浏览器
+  两条类型检查路径都会给出；共享夹具 `shared/governance_pii_text_return_parity.json` 与 aster-lang-core 逐字节相同。
+- 码表、`docs/error-codes.md` 与 `diagnostic-overlays.generated.ts`（zh-CN / de-DE / hi-IN 译文）同步。
+
+### 双引擎 parity：签名与类型别名语法（aster-lang-ts#328，ADR 0056 修订 A2，与 aster-lang-core 1.0.49 同车次）
 
 - **形参前置注解**：`given x as Pair of Int, @pii(L1, email) y as Text`、`given @pii(L2, phone) @audit p as Text`、
   lambda 形参 `function given @seen n as Int` 现在接受（此前 E056），与 core 文法 `param: annotation* nameIdent …` 一致。
@@ -23,18 +41,6 @@
   `maybe T`（此前 `Maybe @pii(…) Text` 打印成含义不同的 `@pii(…) Text?`，`maybe list of Text` 打印成 `list of Text?`）。
 - 内部：声明级注解与形参注解共用 `src/parser/annotation-parser.ts`。
 - 测试：`signature-syntax-parity` 单测、解析诊断 parity 夹具新增 12 例（与 core 逐字节相同）。
-## 3.2.0
-
-### W709：@pii 输入字段流入返回的 Text（aster-cloud#772 方案 3，与 aster-lang-core 同车次）
-
-- **新警告 W709 `GOV_PII_RETURNED_AS_TEXT`**（`governance` 类，恒为 warning、不阻断保存）：函数声明返回 `Text`（或返回类型
-  由推断得到且返回值已知是文本）时，返回值由 `@pii` 形参或 `@pii` 记录字段经 `+` / `Text.concat` 拼接、Let / Set 绑定、
-  if 表达式分支构成，在该 Return 处按字段报告，参数 `{rule}` 与 `{field}`（以参数名为前缀的字段路径，如 `applicant.name`）。
-  执行输出原样落库并在日志页展示，日志面的输入打码（ADR 0042 §12.6）覆盖不到它，由策略作者负责。
-- 保守口径：只看声明类型；不跨函数、不进集合、不经其他内置调用传播；返回类型声明为 `@pii(...) Text` 或不是 Text 时不报。
-- 新文件 `src/governance/pii-text-return.ts`（Java 镜像 `PiiTextReturnAnalyzer`），由 `checkGovernance` 调用，Node 与浏览器
-  两条类型检查路径都会给出；共享夹具 `shared/governance_pii_text_return_parity.json` 与 aster-lang-core 逐字节相同。
-- 码表、`docs/error-codes.md` 与 `diagnostic-overlays.generated.ts`（zh-CN / de-DE / hi-IN 译文）同步。
 
 ## 3.1.0
 
