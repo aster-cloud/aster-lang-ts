@@ -6,9 +6,11 @@
  * 英文规范拼写（KW / en-US，如 zh 源码里的 `then`/`else`）；多词关键词须整段连续匹配。
  * 拼写只是候选：每个候选再按解析器角色判定（先看基线 AST，判不了再换成探针名重解析，次数有上限），被读作名字的仍是值。
  *
- * 分词走生产同款 canonicalize → lex，token 位置在规范化文本上；规范化保持行数不变，
- * 于是逐行把值 token 按顺序在原文该行里找回（引号、全角字符宽松匹配，因为规范化会改写它们）。
- * 找不到、或值与冠词/关键词同形（可能认错到被删的冠词上）时退回整行——宁可多拒，不可漏判。
+ * 分词走生产同款 canonicalize → lex，token 位置在规范化文本上；规范化保持行数不变，于是逐行把 token 在原文该行里找回。
+ * 精确定位：按顺序找回该行的**全部** token（关键词、标点也算），相邻 token 之间的原文只许是空白、冠词（规范化会删掉）
+ * 与会被规范化成空格的 CJK 标点——中间没有未认领的文字，找到的位置就是这个 token 本身，同形词也不会认错。
+ * 某个 token 找不回（转写、变换器改写过原文）时，该行其余部分退回宽松找回：值按序在原文里找，
+ * 找不到、或值与冠词/关键词同形（可能认错到被删的冠词或同形关键词上）时退回整行——宁可多拒，不可漏判。
  */
 import { canonicalize } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
@@ -260,8 +262,8 @@ export function roleJudge(
   };
 }
 
-/** 值 token 候选；带 probe 的须重解析才能定，由调用方决定要不要花这次解析 */
-type ValueCandidate = { token: Token; probe?: () => boolean };
+/** 值 token 候选（i 为在 token 流中的下标）；带 probe 的须重解析才能定，由调用方决定要不要花这次解析 */
+type ValueCandidate = { i: number; probe?: () => boolean };
 
 /**
  * 从非 trivia 的 token 流中挑出值 token。拼写像关键词（含多词关键词）的词按解析器角色逐个判定，
@@ -275,7 +277,7 @@ function valueTokens(tokens: readonly Token[], lexicon: Lexicon, spellings: Map<
   while (i < tokens.length) {
     const t = tokens[i]!;
     if (LITERAL_KINDS.has(t.kind)) {
-      out.push({ token: t });
+      out.push({ i });
       i++;
       continue;
     }
@@ -286,15 +288,15 @@ function valueTokens(tokens: readonly Token[], lexicon: Lexicon, spellings: Map<
     }
     const match = (index.get(word) ?? []).find((seq) => seq.words.every((w, j) => wordOf(tokens[i + j]) === w));
     if (!match) {
-      out.push({ token: t });
+      out.push({ i });
       i++;
       continue;
     }
     for (let j = 0; j < match.words.length; j++) {
       const k = i + j;
       const settled = judge.settle(k, match);
-      if (settled === null) out.push({ token: tokens[k]!, probe: () => judge.probe(k) });
-      else if (settled) out.push({ token: tokens[k]! });
+      if (settled === null) out.push({ i: k, probe: () => judge.probe(k) });
+      else if (settled) out.push({ i: k });
     }
     i += match.words.length;
   }
@@ -302,6 +304,8 @@ function valueTokens(tokens: readonly Token[], lexicon: Lexicon, spellings: Map<
 }
 
 const QUOTES = '"\'`“”‘’„‚«»「」『』';
+/** 规范化把 CJK 标点改成的 ASCII 标点（全角形式另由 +0xFEE0 覆盖） */
+const CJK_PUNCT: Readonly<Record<string, string>> = { '.': '。', ',': '，、' };
 /** u 模式下只能转义语法字符：`\-` 在字符类外是非法转义（`"truck-driver"` 会让 RegExp 抛错） */
 const escapeRe = (s: string): string => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
 
@@ -318,7 +322,10 @@ function loosePattern(raw: string): string {
     inSpace = false;
     const cp = ch.codePointAt(0)!;
     if (QUOTES.includes(ch)) out += `[${escapeRe(QUOTES)}]`;
-    else if (cp >= 0x21 && cp <= 0x7e) out += `(?:${escapeRe(ch)}|${escapeRe(String.fromCodePoint(cp + 0xfee0))})`;
+    else if (cp >= 0x21 && cp <= 0x7e) {
+      const alts = [ch, String.fromCodePoint(cp + 0xfee0), ...(CJK_PUNCT[ch] ?? '')];
+      out += `(?:${alts.map(escapeRe).join('|')})`;
+    }
     else out += escapeRe(ch);
   }
   return out;
@@ -351,10 +358,56 @@ function lineTable(source: string): Array<{ start: number; text: string }> {
 
 const overlaps = (a: OffsetRange, b: OffsetRange): boolean => Math.max(a[0], b[0]) < Math.min(a[1], b[1]);
 
+const WORD_CHAR = /[\p{L}\p{N}_]/u;
+/** 在原文里不占位置的 token（换行、缩进、文件尾） */
+const LAYOUT_KINDS: ReadonlySet<TokenKind> = new Set([TokenKind.NEWLINE, TokenKind.INDENT, TokenKind.DEDENT, TokenKind.EOF]);
+
+/**
+ * 精确找回：返回「从 cursor 起、只隔着空白/冠词/CJK 软标点就是 raw」的位置，否则 null。
+ * raw 以词字符结尾而原文其后仍是词字符时（CJK 词紧挨着），须下一个 token 紧接其后才算找到，否则可能只是长词的前缀。
+ * raw 与冠词同形时间隙里被删的冠词也能匹配，分不清是哪一个，视为找不回。
+ */
+type StrictLocator = (line: string, raw: string, cursor: number, next: string | undefined) => { at: number; end: number } | null;
+
+function strictLocator(lexicon: Lexicon): StrictLocator {
+  const articles = lexicon.canonicalization.removeArticles ? lexicon.canonicalization.articles ?? [] : [];
+  const articleAlt = articles.length === 0 ? ''
+    : `|(?<![\\p{L}\\p{N}_])(?:${articles.map(escapeRe).join('|')})(?![\\p{L}\\p{N}_])`;
+  const gap = `(?:[\\s，；、]${articleAlt})*?`;
+  const articleWords = new Set<string>();
+  articles.forEach(spellingAdder(lexicon, articleWords));
+  const cache = new Map<string, { withGap: RegExp; bare: RegExp }>();
+  const compiled = (raw: string): { withGap: RegExp; bare: RegExp } => {
+    let c = cache.get(raw);
+    if (!c) {
+      const body = loosePattern(raw);
+      c = { withGap: new RegExp(`${gap}(${body})`, 'iuy'), bare: new RegExp(body, 'iuy') };
+      cache.set(raw, c);
+    }
+    return c;
+  };
+  return (line, raw, cursor, next) => {
+    if (articleWords.has(raw.toLowerCase())) return null;
+    const re = compiled(raw).withGap;
+    re.lastIndex = cursor;
+    const m = re.exec(line);
+    if (!m) return null;
+    const end = m.index + m[0].length;
+    const at = end - m[1]!.length;
+    if (WORD_CHAR.test(raw.slice(-1)) && WORD_CHAR.test(line.charAt(end))) {
+      if (next === undefined) return null;
+      const bare = compiled(next).bare;
+      bare.lastIndex = end;
+      if (!bare.test(line)) return null;
+    }
+    return { at, end };
+  };
+}
+
 /**
  * 值 token 在原文中的区间，按出现顺序。源码无法分词时返回 null（调用方应视为无法证明不重叠）。
- * 给出 `structural` 时，须重解析才能定角色的词只在它可能落到的区间（所在整行）与结构 span 重叠时才判定，
- * 其余按值计——不与任何结构 span 重叠的值不会导致拒绝，不必花这次解析。
+ * 给出 `structural` 时，须重解析才能定角色的词只在其找回的区间与结构 span 重叠时才判定，
+ * 其余按值计——不与任何结构 span 重叠的值不会导致拒绝，不必花这次解析（只含缩进的结构 span 一次也不花）。
  */
 export function valueTokenRanges(source: string, lexicon: Lexicon, structural?: readonly OffsetRange[]): OffsetRange[] | null {
   let canonical: string;
@@ -372,33 +425,83 @@ export function valueTokenRanges(source: string, lexicon: Lexicon, structural?: 
   } catch {
     return null;
   }
-  const ambiguous = ambiguousWords(lexicon, spellings);
   const original = lineTable(source);
   const canonLines = canonical.split('\n');
+  const relevant = (r: OffsetRange): boolean => structural === undefined || structural.some((s) => overlaps(r, s));
   // 不变式：canonicalize 保持行数不变；万一对不上就无法逐行找回，每个值都按整篇源码计（宁可多拒）
-  const linesAligned = canonLines.length === original.length;
+  if (canonLines.length !== original.length) {
+    const whole: OffsetRange = [0, source.length];
+    return candidates.filter((c) => !c.probe || !relevant(whole) || c.probe()).map(() => whole);
+  }
+  const ranges = locateCandidates(tokens, candidates, original, canonLines, lexicon, spellings);
+  return candidates.filter((c) => !c.probe || !relevant(ranges.get(c.i)!) || c.probe()).map((c) => ranges.get(c.i)!);
+}
+
+/**
+ * 逐行找回每个候选值的原文区间。每行先精确找回（全部 token 按序、间隙只许空白/冠词），
+ * 一旦某个 token 找不回，该行余下部分改走宽松找回（只找值；同形词、找不到的按整行）。
+ * 跨行 token 按其所跨的整行计，其末行因起点未知直接走宽松找回。
+ */
+function locateCandidates(
+  tokens: readonly Token[],
+  candidates: readonly ValueCandidate[],
+  original: ReadonlyArray<{ start: number; text: string }>,
+  canonLines: readonly string[],
+  lexicon: Lexicon,
+  spellings: Map<string, Set<string>>,
+): Map<number, OffsetRange> {
+  const byIndex = new Map(candidates.map((c) => [c.i, c]));
+  const ambiguous = ambiguousWords(lexicon, spellings);
+  const strict = strictLocator(lexicon);
   const wholeLines = (from: number, to: number): OffsetRange => [
     original[from - 1]!.start,
     original[to - 1]!.start + original[to - 1]!.text.length,
   ];
-  // 一个值 token 下面最多映射到的区间：所在的整行（跨行 token 为其各行）
-  const widest = (t: Token): OffsetRange =>
-    linesAligned ? wholeLines(t.start.line, Math.min(t.end.line, original.length)) : [0, source.length];
-  const relevant = (t: Token): boolean => structural === undefined || structural.some((s) => overlaps(widest(t), s));
-  // 关键词形态的词与冠词/关键词同形，作为值时按整行计、不推进逐行游标，先剔除不影响其余 token 的找回位置
-  const values = candidates.filter((c) => !c.probe || !relevant(c.token) || c.probe()).map((c) => c.token);
-  if (!linesAligned) return values.map((): OffsetRange => [0, source.length]);
-  const cursor = new Map<number, number>();
+  const rawOf = (t: Token): string => (canonLines[t.start.line - 1] ?? '').slice(t.start.col - 1, t.end.col - 1);
+  const placed = tokens.map((t, i) => ({ t, i })).filter(({ t }) => !LAYOUT_KINDS.has(t.kind));
+  const lineState = new Map<number, { cursor: number; strict: boolean }>();
+  const stateOf = (line: number): { cursor: number; strict: boolean } => {
+    let st = lineState.get(line);
+    if (!st) lineState.set(line, (st = { cursor: 0, strict: true }));
+    return st;
+  };
+  const ranges = new Map<number, OffsetRange>();
 
-  return values.map((t): OffsetRange => {
+  placed.forEach(({ t, i }, k) => {
     const line = t.start.line;
     const orig = original[line - 1]!;
-    if (t.end.line !== line) return wholeLines(line, Math.min(t.end.line, original.length));
-    const raw = (canonLines[line - 1] ?? '').slice(t.start.col - 1, t.end.col - 1);
-    if (ambiguous.has(raw.toLowerCase())) return wholeLines(line, line);
-    const found = raw ? findLoose(orig.text, raw, cursor.get(line) ?? 0) : null;
-    if (!found) return wholeLines(line, line);
-    cursor.set(line, found.at + found.len);
-    return [orig.start + found.at, orig.start + found.at + found.len];
+    const st = stateOf(line);
+    const candidate = byIndex.get(i);
+    if (t.end.line !== line) {
+      const last = Math.min(t.end.line, original.length);
+      for (let l = line; l <= last; l++) stateOf(l).strict = false;
+      if (candidate) ranges.set(i, wholeLines(line, last));
+      return;
+    }
+    const raw = rawOf(t);
+    if (st.strict && raw) {
+      const after = placed[k + 1]?.t;
+      const next = after && after.start.line === line && after.end.line === line ? rawOf(after) : undefined;
+      const found = strict(orig.text, raw, st.cursor, next);
+      if (found) {
+        st.cursor = found.end;
+        if (candidate) ranges.set(i, [orig.start + found.at, orig.start + found.end]);
+        return;
+      }
+      st.strict = false;
+    }
+    if (!candidate) return;
+    if (candidate.probe || !raw || ambiguous.has(raw.toLowerCase())) {
+      ranges.set(i, wholeLines(line, line));
+      return;
+    }
+    const found = findLoose(orig.text, raw, st.cursor);
+    if (!found) {
+      ranges.set(i, wholeLines(line, line));
+      return;
+    }
+    st.cursor = found.at + found.len;
+    ranges.set(i, [orig.start + found.at, orig.start + found.at + found.len]);
   });
+  return ranges;
 }

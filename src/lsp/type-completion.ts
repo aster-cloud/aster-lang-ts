@@ -12,6 +12,7 @@ import { TokenKind } from '../frontend/tokens.js';
 import type { Token, Module as AstModule } from '../types.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
+import { EN_US } from '../config/lexicons/en-US.js';
 import { foldKey } from '../config/lexicons/identifiers/casefold.js';
 import { VERDICT_TYPE_NAME } from '../typecheck/verdict_signatures.js';
 import { typeText } from './completion.js';
@@ -24,11 +25,13 @@ const BOUNDARY_KINDS: ReadonlySet<unknown> = new Set([TokenKind.NEWLINE, TokenKi
 const SKIP_KINDS: ReadonlySet<unknown> = new Set([TokenKind.COMMENT, TokenKind.INDENT, TokenKind.DEDENT]);
 
 /**
- * 该文档语言中某关键字的全部写法（规范拼写 + 别名），每种写法按空白切成小写词序列：
+ * 解析器在该文档语言中认的某关键字全部写法（本地拼写 + 别名 + 英文规范拼写），每种写法按空白切成小写词序列：
+ * 关键词翻译器只改写本地拼写，英文规范拼写原样进入解析器，故 de / zh 源码里的 `as`、`produce` 同样成立。
  * 多词关键字（`option of`、de `Option aus`、de `Ergebnis aus`）在 token 流里是多个 token，须按序列匹配。
  */
 function phrasesOf(lexicon: Lexicon, kind: SemanticTokenKind): string[][] {
-  const words = [lexicon.keywords[kind], ...(lexicon.aliases?.[kind] ?? [])].filter((w): w is string => !!w);
+  const words = [lexicon.keywords[kind], ...(lexicon.aliases?.[kind] ?? []), EN_US.keywords[kind]]
+    .filter((w): w is string => !!w);
   return words.map((w) => w.toLowerCase().split(/\s+/).filter(Boolean)).filter((p) => p.length > 0);
 }
 

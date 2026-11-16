@@ -8,7 +8,9 @@ import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
 import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 import { SemanticTokenKind as K } from '../../../src/config/token-kind.js';
+import { compileAndTypecheck } from '../../../src/browser.js';
 import { toCanonical, validatePolicyLayout } from '../../../src/layout/index.js';
+import { ROLE_PROBE_BUDGET } from '../../../src/layout/value-tokens.js';
 import type { LayoutValidation, PolicyLayout } from '../../../src/layout/index.js';
 import {
   JINGYESI_ALIASES,
@@ -29,6 +31,12 @@ function failure(r: LayoutValidation): Exclude<LayoutValidation, { ok: true }> {
 function check(spans: PolicyLayout['spans'], lexicon = EN_US, aliasSet?: Record<string, string[]>): LayoutValidation {
   const layout: PolicyLayout = { v: 1, spans };
   return validatePolicyLayout(layout, toCanonical(layout), lexicon, aliasSet);
+}
+
+/** 源码能编译且无类型错误（确认测试用的布局对应合法策略） */
+function compiles(source: string, lexicon = EN_US): boolean {
+  const r = compileAndTypecheck(source, { lexicon });
+  return r.success && !(r.typeErrors ?? []).some((e) => e.severity === 'error');
 }
 
 /** 可编译的最小策略：`Return x.`；基线解析无诊断，关键词角色按 AST 判定（片段源码会按 R12 闭锁为值） */
@@ -143,7 +151,7 @@ describe('layout_structural_hides_value', () => {
   it('反：值与关键词同形（参数名 `return`，`Return return.` 的第二个是参数引用）→ 按解析器角色认作值并拒绝', () => {
     const head = 'Module m.\n\nRule f given return as Int, produce Int:\n';
     const r = check([{ text: head + '  Return ' }, { canonical: 'return', display: '' }, { text: '.\n' }]);
-    assert.equal(hides(r), head.length);
+    assert.equal(hides(r), head.length + '  Return '.length);
   });
 
   it('反：源码解析不完整（`Return return +`）时，判不了角色的关键词同形词按值计，不依赖保存路径先编译', () => {
@@ -155,13 +163,13 @@ describe('layout_structural_hides_value', () => {
   it('反：zh 源码里与英文规范关键词同形的参数名（`返回 return。`）→ 拒绝', () => {
     const head = '模块 m。\n\n规则 f 给定 return 作为 整数 产出 整数：\n';
     const r = check([{ text: head + '  返回 ' }, { canonical: 'return', display: '' }, { text: '。\n' }], ZH_CN);
-    assert.equal(hides(r), head.length);
+    assert.equal(hides(r), head.length + '  返回 '.length);
   });
 
   it('反：de 参数名与关键词同形（`gegeben` 在 AST 里被译作 given）→ 拒绝', () => {
     const head = 'Modul m.\n\nRegel f gegeben gegeben als Ganzzahl, liefert Ganzzahl:\n';
     const r = check([{ text: head + '  Gib zurück ' }, { canonical: 'gegeben', display: '' }, { text: '.\n' }], DE_DE);
-    assert.equal(hides(r), head.length);
+    assert.equal(hides(r), head.length + '  Gib zurück '.length);
   });
 
   it('反：含连字符的字符串字面量与结构 span 重叠 → 拒绝（找回原文位置时不抛正则错误）', () => {
@@ -205,22 +213,39 @@ describe('layout_structural_hides_value', () => {
     assert.ok(ms < 1000, `耗时 ${ms.toFixed(0)}ms`);
   });
 
-  it('反：须重解析判定的词超出预算时一律按值计（宁可多拒），且耗时有界', () => {
-    // 参数名 `be` 让每个关键词 `be` 都须重解析判定；每行缩进都是结构 span，于是每一行的 `be` 都要判定
+  it('正：结构 span 只含缩进时，同形于关键词的词不与之重叠，不花重解析也不被拒（可编译源码）', () => {
+    // 参数名 `be` 让每个关键词 `be` 在基线 AST 里都判不了；它们精确位置不碰缩进，故一次重解析都不该花
     const head = 'Module m.\n\nRule f given x as Bool, be as Bool, produce Bool:\n';
     const spans: PolicyLayout['spans'] = [{ text: head }];
-    let bytes = head.length;
-    for (let n = 0; n < 190; n++) {
-      const text = `Let y${n} be x.\n`;
-      spans.push({ canonical: '  ', display: '' }, { text });
-      bytes += 2 + text.length;
-    }
+    for (let n = 0; n < 40; n++) spans.push({ canonical: '  ', display: '' }, { text: `Let y${n} be be.\n` });
     spans.push({ canonical: '  ', display: '' }, { text: 'Return x.\n' });
+    const source = toCanonical({ v: 1, spans });
+    assert.equal(compiles(source), true);
     const t0 = performance.now();
-    const r = check(spans);
-    const ms = performance.now() - t0;
-    assert.equal(hides(r) !== undefined, true);
-    assert.ok(ms < 1000, `耗时 ${ms.toFixed(0)}ms`);
+    assert.deepEqual(check(spans), { ok: true });
+    assert.ok(performance.now() - t0 < 1000);
+  });
+
+  it(`反：与结构 span 精确重叠、须重解析判定的词超过 ${ROLE_PROBE_BUDGET} 个时，超出预算的一律按值计（宁可多拒）`, () => {
+    // 每行的关键词 `be` 都在结构 span 里；前 ROLE_PROBE_BUDGET 个经重解析判为关键词，其后的按值计
+    const head = 'Module m.\n\nRule f given x as Bool, be as Bool, produce Bool:\n';
+    const lines = (n: number): PolicyLayout['spans'] => {
+      const spans: PolicyLayout['spans'] = [{ text: head }];
+      for (let k = 0; k < n; k++) {
+        spans.push({ text: `  Let y${k}` }, { canonical: ' be ', display: ' = ' }, { text: 'x.\n' });
+      }
+      spans.push({ text: '  Return x.\n' });
+      return spans;
+    };
+    assert.equal(compiles(toCanonical({ v: 1, spans: lines(ROLE_PROBE_BUDGET + 4) })), true);
+    assert.deepEqual(check(lines(ROLE_PROBE_BUDGET)), { ok: true });
+    const t0 = performance.now();
+    const r = check(lines(ROLE_PROBE_BUDGET + 4));
+    assert.ok(performance.now() - t0 < 1000);
+    const f = failure(r);
+    assert.equal(f.code, 'layout_structural_hides_value');
+    const source = toCanonical({ v: 1, spans: lines(ROLE_PROBE_BUDGET + 4) });
+    assert.equal(f.offset, source.indexOf(`y${ROLE_PROBE_BUDGET} be`) + `y${ROLE_PROBE_BUDGET} `.length);
   });
 
   it('正：关键词（含多词关键词）、标点、空白、注释可以在结构 span 里', () => {

@@ -293,6 +293,23 @@ describe('isTypePosition 本地化类型参数位置', () => {
     assert.equal(at(ZH_CN, '模块 m。\n\n规则 f 给定 x 作为 整数 并且 '), false, '形参之间的 并且 不是类型参数位置');
   });
 
+  it('★混合拼写：de / zh 解析器也认英文规范关键词，`gegeben x as ` / `给定 x as ` 之后是类型位置', () => {
+    assert.equal(at(DE_DE, 'Modul m.\n\nRegel f gegeben x as '), true);
+    assert.equal(at(DE_DE, 'Modul m.\n\nRegel f gegeben x as Ganzzahl, produce '), true);
+    assert.equal(at(DE_DE, 'Modul m.\n\nRegel f given x as '), true);
+    assert.equal(at(ZH_CN, '模块 m。\n\n规则 f 给定 x as '), true);
+    assert.equal(at(ZH_CN, '模块 m。\n\n规则 f 给定 x as 整数，produce '), true);
+    assert.equal(at(ZH_CN, '模块 m。\n\n定义 A 包含 x as '), true);
+  });
+
+  it('★混合拼写下与 as 同形的形参在表达式里仍是值，不是类型锚点', () => {
+    assert.equal(at(DE_DE, 'Modul m.\n\nRegel g gegeben as als Ganzzahl, liefert Ganzzahl:\n  gib zurueck as '), false);
+    assert.equal(at(DE_DE, 'Modul m.\n\nRegel g gegeben as as Ganzzahl, liefert Ganzzahl:\n  gib zurueck as '), false);
+    assert.equal(at(ZH_CN, '模块 m。\n\n规则 g 给定 as 作为 整数，产出 整数：\n  返回 as '), false);
+    assert.equal(at(ZH_CN, '模块 m。\n\n规则 g 给定 as as 整数，产出 整数：\n  返回 as '), false);
+    assert.equal(at(DE_DE, 'Modul m.\n\nRegel h gegeben as as '), true, '形参名之后的 as 仍是类型位置');
+  });
+
   it('en-US 对照：option of / result of … and', () => {
     const head = 'Module m.\n\nDefine A has x as ';
     assert.equal(at(EN_US, head + 'option of '), true);
