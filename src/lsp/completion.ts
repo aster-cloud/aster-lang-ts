@@ -31,6 +31,7 @@ import { resolveDocument } from './resolution.js';
 import { localizedField, memberCompletionResult } from './member-completion.js';
 import type { MemberCompletionOptions } from './member-completion.js';
 import { isTypePosition, typeCompletions } from './type-completion.js';
+import { vocabularyTermCompletions } from './vocabulary-completion.js';
 
 /*
  * 包入口 `./lsp/completion` 的公开补全 API：成员补全及其所需的文档解析一并从此导出，
@@ -158,19 +159,29 @@ function fieldCompletionsAt(
   return { items: constructFieldCompletions(entry, params.position, lexicon), incomplete: member.incomplete };
 }
 
-/** 光标在类型位置时只给类型候选；其它位置返回 null。 */
-function typeCompletionsAt(
+/**
+ * 光标在类型位置时给类型候选（本文档声明、内置类型与词汇类型，按折叠名去重）；
+ * 其它位置 types 为 null，values 给词汇函数与枚举成员。
+ */
+function termCompletionsAt(
   documents: { get(uri: string): TextDocument | undefined },
   getOrParse: (doc: TextDocument) => CompletionDocument,
   params: { textDocument?: { uri: string }; position?: { line: number; character: number } } | undefined,
   lexicon: Lexicon | undefined,
-): CompletionItem[] | null {
-  if (!params?.textDocument || !params.position) return null;
+): { types: CompletionItem[] | null; values: CompletionItem[] } {
+  const none = { types: null, values: [] };
+  if (!params?.textDocument || !params.position) return none;
   const doc = documents.get(params.textDocument.uri);
-  if (!doc) return null;
+  if (!doc) return none;
   const entry = getOrParse(doc);
   const lex = lexicon ?? EN_US;
-  return isTypePosition(entry.tokens, params.position, lex) ? typeCompletions(entry.ast, lex) : null;
+  if (!isTypePosition(entry.tokens, params.position, lex)) {
+    return { types: null, values: vocabularyTermCompletions(entry.vocabulary, 'value') };
+  }
+  const items = typeCompletions(entry.ast, lex);
+  const seen = new Set(items.map((i) => foldKey(i.label)));
+  const extra = vocabularyTermCompletions(entry.vocabulary, 'type').filter((i) => !seen.has(foldKey(i.label)));
+  return { types: [...items, ...extra], values: [] };
 }
 
 const CONTROL_ARG = /@control\(\s*"([^"]*)$/;
@@ -445,9 +456,10 @@ export function registerCompletionHandlers(
     // `x.` 之后且接收者类型已知、或位于构造的字段名位置：只列该 struct 的字段
     const fields = fieldCompletionsAt(documents, getOrParse, params, getLexiconForDoc?.(params.textDocument.uri), clientOptions);
     if (fields.items) return { isIncomplete: false, items: fields.items };
-    const types = typeCompletionsAt(documents, getOrParse, params, getLexiconForDoc?.(params.textDocument.uri));
-    if (types) return { isIncomplete: false, items: types };
-    return { isIncomplete: fields.incomplete, items: keywordCompletions(getLexiconForDoc?.(params.textDocument.uri)) };
+    const terms = termCompletionsAt(documents, getOrParse, params, getLexiconForDoc?.(params.textDocument.uri));
+    if (terms.types) return { isIncomplete: false, items: terms.types };
+    const keywords = keywordCompletions(getLexiconForDoc?.(params.textDocument.uri));
+    return { isIncomplete: fields.incomplete, items: [...keywords, ...terms.values] };
   });
 
   // 补全项解析：为选中的补全项提供额外信息

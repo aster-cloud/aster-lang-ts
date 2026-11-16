@@ -116,7 +116,8 @@ for (const lang of LANGS) {
       const items = atEnd(lang, lang.expr, [lang.ret.replace(/ *$/, '') + ' ' + lang.lexicon.keywords[SemanticTokenKind.INT_TYPE] + '：']);
       const labels = items.map((i) => i.label);
       assert.ok(!labels.includes('Driver') && !labels.includes('Score') && !labels.includes('L'), `不应给声明类型：${labels}`);
-      assert.ok(items.every((i) => i.kind === CompletionItemKind.Keyword), '表达式位置不应有 Class / TypeParameter / Module 项');
+      const typeKinds: (number | undefined)[] = [CompletionItemKind.Class, CompletionItemKind.TypeParameter, CompletionItemKind.Module];
+      assert.ok(items.every((i) => !typeKinds.includes(i.kind)), '表达式位置不应有 Class / TypeParameter / Module 项');
       assert.ok(labels.includes(lang.lexicon.keywords[SemanticTokenKind.RETURN]!), '应回到关键词补全');
     });
 
