@@ -136,6 +136,11 @@ jobs:
       - name: Verify browser entry has no Node builtin deps
         run: node scripts/verify-browser-entry.mjs
 
+      # 发布包冒烟（ADR 0053 修订 A2）：与 prepublishOnly 同一脚本。发布 run 不再跑测试，
+      # 在 PR 阶段就确认 tarball 的入口齐全、无包外相对 import、exports 可加载。
+      - name: Verify npm package (pack smoke)
+        run: node scripts/verify-package.mjs
+
   # Strict tier1 dual-engine parity gate. Mirrors aster-lang-test +
   # aster-lang-core jobs so a TS parser/lexer/canonicalizer change that
   # breaks bidirectional parity is blocked at the source PR.
