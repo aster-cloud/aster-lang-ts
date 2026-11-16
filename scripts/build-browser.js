@@ -42,7 +42,7 @@ async function build() {
     },
     // Banner for license info
     banner: {
-      js: '/* @aster-cloud/aster-lang-ts - Browser Bundle - MIT License */',
+      js: '/* @aster-cloud/aster-lang-ts - Browser Bundle - Apache-2.0 License */',
     },
   });
 
@@ -61,7 +61,7 @@ async function build() {
       'process.env.NODE_ENV': '"development"',
     },
     banner: {
-      js: '/* @aster-cloud/aster-lang-ts - Browser Bundle (Dev) - MIT License */',
+      js: '/* @aster-cloud/aster-lang-ts - Browser Bundle (Dev) - Apache-2.0 License */',
     },
   });
 
