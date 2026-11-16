@@ -2,8 +2,9 @@
  * 找出源码里「值与名字」token 在原文中的区间（ADR 0058 §7.5 `layout_structural_hides_value`）。
  *
  * 值 token = 关键词、标点、空白、注释以外的 token：标识符、数字、字符串、布尔与 null 字面量。
- * 关键词按词法表判定：主拼写 + 别名 + 版本冻结的 aliasSet，以及解析器在任何 locale 下都认的
+ * 关键词候选按词法表拼写找出：主拼写 + 别名 + 版本冻结的 aliasSet，以及解析器在任何 locale 下都认的
  * 英文规范拼写（KW / en-US，如 zh 源码里的 `then`/`else`）；多词关键词须整段连续匹配。
+ * 拼写只是候选：每个候选再按解析器角色判定（换成探针名重解析），被读作名字的仍是值。
  *
  * 分词走生产同款 canonicalize → lex，token 位置在规范化文本上；规范化保持行数不变，
  * 于是逐行把值 token 按顺序在原文该行里找回（引号、全角字符宽松匹配，因为规范化会改写它们）。
@@ -11,6 +12,7 @@
  */
 import { canonicalize } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
+import { parseWithLexicon } from '../parser.js';
 import { KW } from '../frontend/tokens.js';
 import { EN_US } from '../config/lexicons/en-US.js';
 import { compileGuardedRegex } from '../config/lexicons/regex-guard.js';
@@ -41,23 +43,37 @@ export function withAliasSet(lexicon: Lexicon, aliasSet?: Record<string, readonl
 /** 字面量关键词（真、假、null、none）是值，不算关键词 */
 const LITERAL_KEYWORDS: ReadonlySet<string> = new Set(['TRUE', 'FALSE', 'NULL', 'NONE']);
 
-/** 某个表里除字面量以外的全部拼写 */
-function nonLiteralSpellings(table: Partial<Record<string, string | readonly string[] | undefined>>): string[] {
+/** 某个表里除字面量以外的条目：[kind, 拼写] */
+function nonLiteralEntries(table: Partial<Record<string, string | readonly string[] | undefined>>): Array<[string, string]> {
   return Object.entries(table)
     .filter(([kind]) => !LITERAL_KEYWORDS.has(kind))
-    .flatMap(([, v]) => (v === undefined ? [] : typeof v === 'string' ? [v] : [...v]));
+    .flatMap(([kind, v]): Array<[string, string]> =>
+      (v === undefined ? [] : typeof v === 'string' ? [v] : [...v]).map((s): [string, string] => [kind, s]));
 }
 
-/** 全部关键词拼写（小写；含词法表转写规则作用后的形态与 markers 内的裸拼写） */
-function keywordSpellings(lexicon: Lexicon): Set<string> {
-  const spellings = new Set<string>();
-  const add = spellingAdder(lexicon, spellings);
-  [
-    ...nonLiteralSpellings(lexicon.keywords),
-    ...nonLiteralSpellings(lexicon.aliases ?? {}),
-    ...nonLiteralSpellings(EN_US.keywords),
-    ...nonLiteralSpellings(KW),
-  ].forEach(add);
+const lowerWords = (s: string): string[] => s.toLowerCase().split(/\s+/).filter(Boolean);
+
+/**
+ * 全部关键词拼写（小写；含词法表转写规则作用后的形态与 markers 内的裸拼写）→ 该关键词的英文规范词。
+ * 英文词用来在 AST 里认出被关键词翻译器改写过的名字（de 的参数 `gegeben` 在 AST 里叫 `given`）。
+ */
+function keywordSpellings(lexicon: Lexicon): Map<string, Set<string>> {
+  const spellings = new Map<string, Set<string>>();
+  const english = (kind: string, s: string): string[] => {
+    const en = (EN_US.keywords as Partial<Record<string, string>>)[kind];
+    return [...lowerWords(s), ...(en ? lowerWords(en) : [])];
+  };
+  const entries: Array<[string, string, string[]]> = [
+    ...nonLiteralEntries(lexicon.keywords).map(([k, s]): [string, string, string[]] => [k, s, english(k, s)]),
+    ...nonLiteralEntries(lexicon.aliases ?? {}).map(([k, s]): [string, string, string[]] => [k, s, english(k, s)]),
+    ...nonLiteralEntries(EN_US.keywords).map(([k, s]): [string, string, string[]] => [k, s, lowerWords(s)]),
+    ...nonLiteralEntries(KW).map(([k, s]): [string, string, string[]] => [k, s, lowerWords(s)]),
+  ];
+  for (const [, s, en] of entries) {
+    const variants = new Set<string>();
+    spellingAdder(lexicon, variants)(s);
+    for (const v of variants) spellings.set(v, new Set([...(spellings.get(v) ?? []), ...en]));
+  }
   return spellings;
 }
 
@@ -81,15 +97,18 @@ function spellingAdder(lexicon: Lexicon, into: Set<string>): (s: string) => void
   return add;
 }
 
-/** 关键词拼写按首词索引为小写词序列（长的在前，便于最长匹配） */
-function keywordIndex(lexicon: Lexicon): Map<string, string[][]> {
-  const index = new Map<string, string[][]>();
-  for (const s of keywordSpellings(lexicon)) {
+/** 一条关键词拼写：小写词序列与其英文规范词 */
+type KeywordSeq = { words: string[]; english: ReadonlySet<string> };
+
+/** 关键词拼写按首词索引（长的在前，便于最长匹配） */
+function keywordIndex(spellings: Map<string, Set<string>>): Map<string, KeywordSeq[]> {
+  const index = new Map<string, KeywordSeq[]>();
+  for (const [s, english] of spellings) {
     const words = s.split(/\s+/).filter(Boolean);
     if (words.length === 0) continue;
-    index.set(words[0]!, [...(index.get(words[0]!) ?? []), words]);
+    index.set(words[0]!, [...(index.get(words[0]!) ?? []), { words, english }]);
   }
-  for (const list of index.values()) list.sort((a, b) => b.length - a.length);
+  for (const list of index.values()) list.sort((a, b) => b.words.length - a.words.length);
   return index;
 }
 
@@ -97,20 +116,86 @@ function keywordIndex(lexicon: Lexicon): Map<string, string[][]> {
  * 与冠词或关键词（含多词关键词中的单词）同形的词：规范化会删掉冠词、关键词不算值，
  * 原文里同形的非值词可能排在真正的值之前，逐行按序找回时会认错位置，故这类值一律按整行计。
  */
-function ambiguousWords(lexicon: Lexicon): Set<string> {
+function ambiguousWords(lexicon: Lexicon, spellings: Map<string, Set<string>>): Set<string> {
   const out = new Set<string>();
   const add = spellingAdder(lexicon, out);
   (lexicon.canonicalization.articles ?? []).forEach(add);
-  for (const s of keywordSpellings(lexicon)) s.split(/\s+/).filter(Boolean).forEach(add);
+  for (const s of spellings.keys()) s.split(/\s+/).filter(Boolean).forEach(add);
   return out;
 }
 
 const wordOf = (t: Token | undefined): string | null =>
   t && WORD_KINDS.has(t.kind) && typeof t.value === 'string' ? t.value.toLowerCase() : null;
 
-/** 从非 trivia 的 token 流中挑出值 token（多词关键词整段跳过） */
-function valueTokens(tokens: readonly Token[], lexicon: Lexicon): Token[] {
-  const index = keywordIndex(lexicon);
+/** AST 里出现的全部字符串（小写，点分名拆开；节点类型 kind 除外）：关键词形态的值若真被读作名字，必在其中 */
+function astStrings(node: unknown, into: Set<string> = new Set()): Set<string> {
+  if (typeof node === 'string') {
+    const lower = node.toLowerCase();
+    into.add(lower);
+    lower.split('.').forEach((part) => into.add(part));
+  } else if (Array.isArray(node)) {
+    node.forEach((n) => astStrings(n, into));
+  } else if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node)) if (k !== 'kind') astStrings(v, into);
+  }
+  return into;
+}
+
+const posKey = (p: { line: number; col: number }): string => `${p.line}:${p.col}`;
+
+/**
+ * AST 中必为名字的位置：类型名、参数、字段、声明名的起点。落在这些位置上的词不必探测，直接是值
+ * （运算符 `and`/`not` 也是 Name 节点，故 Name 不在此列，仍须探测）。
+ */
+function namePositions(node: unknown, inList = false, into: Set<string> = new Set()): Set<string> {
+  if (Array.isArray(node)) {
+    node.forEach((n) => namePositions(n, inList, into));
+    return into;
+  }
+  if (!node || typeof node !== 'object') return into;
+  const n = node as { kind?: unknown; span?: { start: { line: number; col: number } }; nameSpan?: { start: { line: number; col: number } } };
+  if ((n.kind === 'TypeName' || inList) && n.span) into.add(posKey(n.span.start));
+  if (n.nameSpan) into.add(posKey(n.nameSpan.start));
+  for (const [k, v] of Object.entries(node)) namePositions(v, k === 'params' || k === 'fields', into);
+  return into;
+}
+
+/**
+ * 按解析器角色判定拼写像关键词的词：把它换成一个源码里没有的探针名重新解析，
+ * 探针进了 AST 且没有新增诊断，说明解析器在这个位置把它当名字读（参数、引用、类型名……），即是值。
+ * 先用基线 AST 的字符串集合过滤：拼写（或其英文规范词）不在 AST 里的词不可能被读作名字，不必探测。
+ */
+function nameRoleProbe(tokens: readonly Token[], lexicon: Lexicon): (i: number, seq: KeywordSeq) => boolean {
+  const base = parseWithLexicon(tokens, lexicon);
+  const names = astStrings(base.ast);
+  const positions = namePositions(base.ast);
+  const baseDiagnostics = base.diagnostics.length;
+  const baseText = JSON.stringify(base.ast).toLowerCase();
+  let probe = 'zqprobe';
+  while (baseText.includes(probe)) probe += 'q';
+  return (i, seq) => {
+    if (![...seq.words, ...seq.english].some((w) => names.has(w))) return false;
+    const t = tokens[i]!;
+    if (positions.has(posKey(t.start))) return true;
+    const upper = typeof t.value === 'string' && /^\p{Lu}/u.test(t.value);
+    const probed = tokens.slice();
+    probed[i] = { ...t, kind: upper ? TokenKind.TYPE_IDENT : TokenKind.IDENT, value: upper ? probe.toUpperCase() : probe };
+    try {
+      const r = parseWithLexicon(probed, lexicon);
+      return r.diagnostics.length <= baseDiagnostics && JSON.stringify(r.ast).toLowerCase().includes(probe);
+    } catch {
+      return false;
+    }
+  };
+}
+
+/**
+ * 从非 trivia 的 token 流中挑出值 token。拼写像关键词（含多词关键词）的词按解析器角色逐个判定，
+ * 不只看拼写：`Rule f given return as Int …: Return return.` 里第二个 `return` 是参数引用，是值。
+ */
+function valueTokens(tokens: readonly Token[], lexicon: Lexicon, spellings: Map<string, Set<string>>): Token[] {
+  const index = keywordIndex(spellings);
+  const parsedAsName = nameRoleProbe(tokens, lexicon);
   const out: Token[] = [];
   let i = 0;
   while (i < tokens.length) {
@@ -125,19 +210,23 @@ function valueTokens(tokens: readonly Token[], lexicon: Lexicon): Token[] {
       i++;
       continue;
     }
-    const match = (index.get(word) ?? []).find((seq) => seq.every((w, j) => wordOf(tokens[i + j]) === w));
-    if (match) {
-      i += match.length;
+    const match = (index.get(word) ?? []).find((seq) => seq.words.every((w, j) => wordOf(tokens[i + j]) === w));
+    if (!match) {
+      out.push(t);
+      i++;
       continue;
     }
-    out.push(t);
-    i++;
+    for (let j = 0; j < match.words.length; j++) {
+      if (parsedAsName(i + j, match)) out.push(tokens[i + j]!);
+    }
+    i += match.words.length;
   }
   return out;
 }
 
 const QUOTES = '"\'`“”‘’„‚«»「」『』';
-const escapeRe = (s: string): string => s.replace(/[\\^$.*+?()[\]{}|/-]/g, '\\$&');
+/** u 模式下只能转义语法字符：`\-` 在字符类外是非法转义（`"truck-driver"` 会让 RegExp 抛错） */
+const escapeRe = (s: string): string => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
 
 /** 宽松匹配：引号互通、ASCII 与全角互通、空白串与空格/tab 串互通 */
 function loosePattern(raw: string): string {
@@ -195,8 +284,14 @@ export function valueTokenRanges(source: string, lexicon: Lexicon): OffsetRange[
   } catch {
     return null;
   }
-  const values = valueTokens(tokens, lexicon);
-  const ambiguous = ambiguousWords(lexicon);
+  const spellings = keywordSpellings(lexicon);
+  let values: Token[];
+  try {
+    values = valueTokens(tokens, lexicon, spellings);
+  } catch {
+    return null;
+  }
+  const ambiguous = ambiguousWords(lexicon, spellings);
   const original = lineTable(source);
   const canonLines = canonical.split('\n');
   // 不变式：canonicalize 保持行数不变；万一对不上就无法逐行找回，每个值都按整篇源码计（宁可多拒）

@@ -6,6 +6,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 import { SemanticTokenKind as K } from '../../../src/config/token-kind.js';
 import { toCanonical, validatePolicyLayout } from '../../../src/layout/index.js';
 import type { LayoutValidation, PolicyLayout } from '../../../src/layout/index.js';
@@ -132,6 +133,33 @@ describe('layout_structural_hides_value', () => {
     const head = 'Module m.\n\nRule f given a: Int, produce Int:\n';
     const r = check([{ text: head + '  Return a ' }, { canonical: 'a', display: '' }, { text: '.\n' }]);
     assert.equal(hides(r), head.length);
+  });
+
+  it('反：值与关键词同形（参数名 `return`，`Return return.` 的第二个是参数引用）→ 按解析器角色认作值并拒绝', () => {
+    const head = 'Module m.\n\nRule f given return as Int, produce Int:\n';
+    const r = check([{ text: head + '  Return ' }, { canonical: 'return', display: '' }, { text: '.\n' }]);
+    assert.equal(hides(r), head.length);
+  });
+
+  it('反：zh 源码里与英文规范关键词同形的参数名（`返回 return。`）→ 拒绝', () => {
+    const head = '模块 m。\n\n规则 f 给定 return 作为 整数 产出 整数：\n';
+    const r = check([{ text: head + '  返回 ' }, { canonical: 'return', display: '' }, { text: '。\n' }], ZH_CN);
+    assert.equal(hides(r), head.length);
+  });
+
+  it('反：de 参数名与关键词同形（`gegeben` 在 AST 里被译作 given）→ 拒绝', () => {
+    const head = 'Modul m.\n\nRegel f gegeben gegeben als Ganzzahl, liefert Ganzzahl:\n';
+    const r = check([{ text: head + '  Gib zurück ' }, { canonical: 'gegeben', display: '' }, { text: '.\n' }], DE_DE);
+    assert.equal(hides(r), head.length);
+  });
+
+  it('反：含连字符的字符串字面量与结构 span 重叠 → 拒绝（找回原文位置时不抛正则错误）', () => {
+    assert.equal(hides(check([{ text: 'Return ' }, { canonical: '"truck-driver"', display: '' }, { text: '.' }])), 7);
+  });
+
+  it('正：运算符关键词（AST 里是 Name 节点 `and`）仍是关键词，可以在结构 span 里', () => {
+    const head = 'Module m.\n\nRule f given x as Bool, y as Bool, produce Bool:\n  Return x';
+    assert.deepEqual(check([{ text: head }, { canonical: ' and ', display: ' && ' }, { text: 'y.\n' }]), { ok: true });
   });
 
   it('正：关键词（含多词关键词）、标点、空白、注释可以在结构 span 里', () => {
