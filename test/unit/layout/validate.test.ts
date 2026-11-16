@@ -139,13 +139,13 @@ describe('layout_structural_hides_value', () => {
   it('反：值与冠词同形（`Return a a plus 1.` 的首个 a 是冠词）时，结构 span 盖住真正的值 → 拒绝', () => {
     const head = 'Module m.\n\nRule f given a as Int, produce Int:\n';
     const r = check([{ text: head + '  Return a ' }, { canonical: 'a', display: '2' }, { text: ' plus 1.\n' }]);
-    assert.equal(hides(r), head.length);
+    assert.equal(hides(r), head.length + 2); // 整行回退区间从首个非空白字符（缩进之后）起
   });
 
   it('反：值与冠词同形且紧贴句号（`Return a a.`）时，结构 span 盖住真正的值 → 拒绝', () => {
     const head = 'Module m.\n\nRule f given a: Int, produce Int:\n';
     const r = check([{ text: head + '  Return a ' }, { canonical: 'a', display: '' }, { text: '.\n' }]);
-    assert.equal(hides(r), head.length);
+    assert.equal(hides(r), head.length + 2); // 整行回退区间从首个非空白字符（缩进之后）起
   });
 
   it('反：值与关键词同形（参数名 `return`，`Return return.` 的第二个是参数引用）→ 按解析器角色认作值并拒绝', () => {
@@ -224,6 +224,52 @@ describe('layout_structural_hides_value', () => {
     const t0 = performance.now();
     assert.deepEqual(check(spans), { ok: true });
     assert.ok(performance.now() - t0 < 1000);
+  });
+
+  /** 把源码每行的行首缩进与行尾空白都切成结构 span；hidden 给出时，其最后一次出现也切成结构 span */
+  const whitespaceSpans = (source: string, hidden?: string): PolicyLayout['spans'] => {
+    const at = hidden === undefined ? -1 : source.lastIndexOf(hidden);
+    const cuts: Array<[number, number]> = [];
+    for (const m of source.matchAll(/^[ \t\u3000]+(?=\S)|[ \t]+$/gmu)) cuts.push([m.index, m.index + m[0].length]);
+    if (at >= 0) cuts.push([at, at + hidden!.length]);
+    cuts.sort((a, b) => a[0] - b[0]);
+    const spans: PolicyLayout['spans'] = [];
+    let pos = 0;
+    for (const [from, to] of cuts) {
+      if (from > pos) spans.push({ text: source.slice(pos, from) });
+      spans.push({ canonical: source.slice(from, to), display: '' });
+      pos = to;
+    }
+    if (pos < source.length) spans.push({ text: source.slice(pos) });
+    assert.equal(toCanonical({ v: 1, spans }), source);
+    return spans;
+  };
+
+  it('正：de 转写（`zurueck`→`zurück`）所在行，缩进结构 span 不与关键词同形的值重叠（可编译源码）', () => {
+    for (const indent of ['  ', '\t']) {
+      const source = `Modul m.\n\nRegel f gegeben gegeben als Ganzzahl, liefert Ganzzahl:\n${indent}Gib zurueck gegeben.\n`;
+      assert.equal(compiles(source, DE_DE), true);
+      assert.deepEqual(check(whitespaceSpans(source), DE_DE), { ok: true });
+    }
+  });
+
+  it('反：de 转写所在行，结构 span 盖住关键词同形的值 → 在值的精确起点拒绝', () => {
+    const source = 'Modul m.\n\nRegel f gegeben gegeben als Ganzzahl, liefert Ganzzahl:\n  Gib zurueck gegeben.\n';
+    assert.equal(hides(check(whitespaceSpans(source, 'gegeben'), DE_DE)), source.lastIndexOf('gegeben'));
+  });
+
+  it('正：zh 函数头经变换器改写、精确找回失败时，行尾空白结构 span 不被整行回退盖住（可编译源码）', () => {
+    const source = '模块 m。\n\n规则 f（return 作为 整数），产出 整数：  \n\u3000\u3000返回 return。\n';
+    assert.equal(compiles(source, ZH_CN), true);
+    assert.deepEqual(check(whitespaceSpans(source), ZH_CN), { ok: true });
+  });
+
+  it('反：精确找回失败的行，整行回退区间内的值与结构 span 重叠仍拒绝', () => {
+    const source = '模块 m。\n\n规则 f（return 作为 整数），产出 整数：  \n  返回 1。\n';
+    assert.equal(compiles(source, ZH_CN), true);
+    const r = check(whitespaceSpans(source, 'return'), ZH_CN);
+    // 回退区间从该行首个非空白字符起
+    assert.equal(hides(r), source.indexOf('规则'));
   });
 
   it(`反：与结构 span 精确重叠、须重解析判定的词超过 ${ROLE_PROBE_BUDGET} 个时，超出预算的一律按值计（宁可多拒）`, () => {

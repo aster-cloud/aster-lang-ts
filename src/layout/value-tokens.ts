@@ -9,8 +9,10 @@
  * 分词走生产同款 canonicalize → lex，token 位置在规范化文本上；规范化保持行数不变，于是逐行把 token 在原文该行里找回。
  * 精确定位：按顺序找回该行的**全部** token（关键词、标点也算），相邻 token 之间的原文只许是空白、冠词（规范化会删掉）
  * 与会被规范化成空格的 CJK 标点——中间没有未认领的文字，找到的位置就是这个 token 本身，同形词也不会认错。
- * 某个 token 找不回（转写、变换器改写过原文）时，该行其余部分退回宽松找回：值按序在原文里找，
+ * 词法表转写规则（de 的 `zurueck`→`zurück`）改写过的词按 canonicalize 同一规则对回原文，仍算精确找回。
+ * 某个 token 找不回（变换器改写过原文）时，该行其余部分退回宽松找回：值按序在原文里找，
  * 找不到、或值与冠词/关键词同形（可能认错到被删的冠词或同形关键词上）时退回整行——宁可多拒，不可漏判。
+ * 整行回退去掉行首缩进与行尾空白（其中不可能有 token），只含空白的结构 span 不会因此被误拒。
  */
 import { canonicalize } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
@@ -79,18 +81,24 @@ function keywordSpellings(lexicon: Lexicon): Map<string, Set<string>> {
   return spellings;
 }
 
-/** 返回一个把拼写（小写、转写后形态、去 markers 形态）加入 `into` 的函数 */
-function spellingAdder(lexicon: Lexicon, into: Set<string>): (s: string) => void {
-  // 与 canonicalize 一致：词法表的转写规则（如 de 的 ue→ü）也作用于关键词拼写
+/** 词法表转写规则（如 de 的 ue→ü）作用于一段文本，与 canonicalize 用同一组规则 */
+function transliterator(lexicon: Lexicon): ((s: string) => string) | null {
   const rules = (lexicon.canonicalization.customRules ?? []).flatMap((rule) => {
     const compiled = compileGuardedRegex(rule.pattern, 'g');
     return compiled.ok ? [{ re: compiled.regex, replacement: rule.replacement }] : [];
   });
+  return rules.length === 0 ? null : (s): string => rules.reduce((t, r) => t.replace(r.re, r.replacement), s);
+}
+
+/** 返回一个把拼写（小写、转写后形态、去 markers 形态）加入 `into` 的函数 */
+function spellingAdder(lexicon: Lexicon, into: Set<string>): (s: string) => void {
+  // 与 canonicalize 一致：词法表的转写规则（如 de 的 ue→ü）也作用于关键词拼写
+  const translit = transliterator(lexicon) ?? ((s: string): string => s);
   const markers = lexicon.punctuation.markers;
   const add = (s: string): void => {
     const lower = s.toLowerCase();
     into.add(lower);
-    into.add(rules.reduce((t, r) => t.replace(r.re, r.replacement), lower));
+    into.add(translit(lower));
     if (markers?.open && markers.close && s.length > markers.open.length + markers.close.length
       && s.startsWith(markers.open) && s.endsWith(markers.close)) {
       add(s.slice(markers.open.length, s.length - markers.close.length));
@@ -356,6 +364,19 @@ function lineTable(source: string): Array<{ start: number; text: string }> {
   return lines;
 }
 
+/**
+ * 回退区间：从首段文字的第一个非空白字符到末段文字最后一个非空白字符之后。
+ * 行首缩进与行尾空白里不可能有 token（多行字符串的中间行整行保留在区间内），去掉它们不会漏掉任何值，
+ * 只含缩进或行尾空白的结构 span 也就不会被找不回的值误判为重叠。全是空白时退回整段。
+ */
+function trimmedRange(firstStart: number, firstText: string, lastStart: number, lastText: string): OffsetRange {
+  const lead = firstText.length - firstText.trimStart().length;
+  const tail = lastText.trimEnd().length;
+  const start = firstStart + lead;
+  const end = lastStart + tail;
+  return start < end ? [start, end] : [firstStart, lastStart + lastText.length];
+}
+
 const overlaps = (a: OffsetRange, b: OffsetRange): boolean => Math.max(a[0], b[0]) < Math.min(a[1], b[1]);
 
 const WORD_CHAR = /[\p{L}\p{N}_]/u;
@@ -373,7 +394,8 @@ function strictLocator(lexicon: Lexicon): StrictLocator {
   const articles = lexicon.canonicalization.removeArticles ? lexicon.canonicalization.articles ?? [] : [];
   const articleAlt = articles.length === 0 ? ''
     : `|(?<![\\p{L}\\p{N}_])(?:${articles.map(escapeRe).join('|')})(?![\\p{L}\\p{N}_])`;
-  const gap = `(?:[\\s，；、]${articleAlt})*?`;
+  const gapUnit = `(?:[\\s，；、]${articleAlt})`;
+  const gap = `${gapUnit}*?`;
   const articleWords = new Set<string>();
   articles.forEach(spellingAdder(lexicon, articleWords));
   const cache = new Map<string, { withGap: RegExp; bare: RegExp }>();
@@ -386,14 +408,15 @@ function strictLocator(lexicon: Lexicon): StrictLocator {
     }
     return c;
   };
+  const transliterated = transliteratedLocator(lexicon, gapUnit);
   return (line, raw, cursor, next) => {
     if (articleWords.has(raw.toLowerCase())) return null;
     const re = compiled(raw).withGap;
     re.lastIndex = cursor;
     const m = re.exec(line);
-    if (!m) return null;
-    const end = m.index + m[0].length;
-    const at = end - m[1]!.length;
+    const found = m ? { at: m.index + m[0].length - m[1]!.length, end: m.index + m[0].length } : transliterated?.(line, raw, cursor);
+    if (!found) return null;
+    const { at, end } = found;
     if (WORD_CHAR.test(raw.slice(-1)) && WORD_CHAR.test(line.charAt(end))) {
       if (next === undefined) return null;
       const bare = compiled(next).bare;
@@ -401,6 +424,62 @@ function strictLocator(lexicon: Lexicon): StrictLocator {
       if (!bare.test(line)) return null;
     }
     return { at, end };
+  };
+}
+
+/** 与 canonicalize 按词转写时同一口径的标识符切分（见 canonicalizer 的 identifierTokenRegex） */
+const IDENT_RUN = /([\p{L}_][\p{L}\p{M}\p{Nd}_]*)/u;
+
+/**
+ * 精确找回的转写补充：canonicalize 按整词套用转写规则（de 的 `zurueck`→`zurück`），raw 是转写后的形态，
+ * 原文里找不到同一拼写。此时把 raw 按标识符切开，逐段在原文里接着匹配：标识符段要求原文同一位置的整个
+ * 标识符本身或其转写结果等于该段，其余段按宽松匹配。与精确找回一样只跳过空白/冠词/CJK 软标点，
+ * 中间不留未认领的文字，所以找到的仍是这个 token 本身。词法表没有转写规则时返回 null。
+ */
+function transliteratedLocator(
+  lexicon: Lexicon,
+  gapUnit: string,
+): ((line: string, raw: string, cursor: number) => { at: number; end: number } | null) | null {
+  const translit = transliterator(lexicon);
+  if (!translit) return null;
+  const gapRe = new RegExp(gapUnit, 'iuy');
+  const ident = new RegExp(IDENT_RUN.source, 'uy');
+  const looseCache = new Map<string, RegExp>();
+  const looseRe = (part: string): RegExp => {
+    let re = looseCache.get(part);
+    if (!re) looseCache.set(part, (re = new RegExp(loosePattern(part), 'iuy')));
+    return re;
+  };
+  const sticky = (re: RegExp, line: string, at: number): number | null => {
+    re.lastIndex = at;
+    const m = re.exec(line);
+    return m && m[0].length > 0 ? at + m[0].length : null;
+  };
+  const matchAt = (line: string, parts: readonly string[], at: number): number | null => {
+    let pos = at;
+    for (const [k, part] of parts.entries()) {
+      if (part === '') continue;
+      if (k % 2 === 1) {
+        const end = sticky(ident, line, pos);
+        const word = end === null ? '' : line.slice(pos, end);
+        if (end === null || (word.toLowerCase() !== part.toLowerCase() && translit(word).toLowerCase() !== part.toLowerCase())) return null;
+        pos = end;
+      } else {
+        const end = sticky(looseRe(part), line, pos);
+        if (end === null) return null;
+        pos = end;
+      }
+    }
+    return pos;
+  };
+  return (line, raw, cursor) => {
+    const parts = raw.split(IDENT_RUN);
+    if (parts.length < 3) return null;
+    for (let at: number | null = cursor; at !== null; at = sticky(gapRe, line, at)) {
+      const end = matchAt(line, parts, at);
+      if (end !== null) return { at, end };
+    }
+    return null;
   };
 }
 
@@ -430,7 +509,7 @@ export function valueTokenRanges(source: string, lexicon: Lexicon, structural?: 
   const relevant = (r: OffsetRange): boolean => structural === undefined || structural.some((s) => overlaps(r, s));
   // 不变式：canonicalize 保持行数不变；万一对不上就无法逐行找回，每个值都按整篇源码计（宁可多拒）
   if (canonLines.length !== original.length) {
-    const whole: OffsetRange = [0, source.length];
+    const whole = trimmedRange(0, source, 0, source);
     return candidates.filter((c) => !c.probe || !relevant(whole) || c.probe()).map(() => whole);
   }
   const ranges = locateCandidates(tokens, candidates, original, canonLines, lexicon, spellings);
@@ -453,10 +532,11 @@ function locateCandidates(
   const byIndex = new Map(candidates.map((c) => [c.i, c]));
   const ambiguous = ambiguousWords(lexicon, spellings);
   const strict = strictLocator(lexicon);
-  const wholeLines = (from: number, to: number): OffsetRange => [
-    original[from - 1]!.start,
-    original[to - 1]!.start + original[to - 1]!.text.length,
-  ];
+  const wholeLines = (from: number, to: number): OffsetRange => {
+    const first = original[from - 1]!;
+    const last = original[to - 1]!;
+    return trimmedRange(first.start, first.text, last.start, last.text);
+  };
   const rawOf = (t: Token): string => (canonLines[t.start.line - 1] ?? '').slice(t.start.col - 1, t.end.col - 1);
   const placed = tokens.map((t, i) => ({ t, i })).filter(({ t }) => !LAYOUT_KINDS.has(t.kind));
   const lineState = new Map<number, { cursor: number; strict: boolean }>();
