@@ -36,6 +36,7 @@ import type {
   WorkflowStmt,
   StepStmt,
   Name,
+  Parameter,
   PatternCtor,
 } from './types.js';
 import { collectLambdaCaptures } from './core/lambda-captures.js';
@@ -136,6 +137,26 @@ function lowerAnnotations(annotations: readonly Annotation[] | undefined): Core.
 }
 
 /**
+ * 形参（规则与 lambda 共用，与 aster-lang-core CoreLowering.lowerParam 一致）。annotations 先列前置注解，
+ * 再列类型最外层的 `@pii(…)`：core 的 AstBuilder.visitParam 把类型注解也并入形参注解（aster-lang-ts#328）。
+ */
+function lowerParam(p: Parameter, tvars: ReadonlySet<string>): Core.Parameter {
+  return CoreIR.Param(
+    p.name,
+    lowerType(p.type, tvars, p),
+    lowerConstraints(p.constraints),
+    p.typeInferred === true,
+    [...lowerAnnotations(p.annotations), ...outerTypeAnnotations(p.type)]
+  );
+}
+
+/** 类型最外层的注解，形同 core 的 `@pii(L1, email)`（两个位置参数 $0、$1）；ts 类型上只有 @pii 一种注解。字段与形参共用。 */
+function outerTypeAnnotations(t: Type): Core.Annotation[] {
+  if (t.kind !== 'TypePii') return [];
+  return [{ name: 'pii', args: [{ name: '$0', value: t.sensitivity }, { name: '$1', value: t.category }] }];
+}
+
+/**
  * Func.effects（ADR 0055 #5，控制器裁决）：只保留授权型具体效应 io / cpu（小写）与已声明的效应变量，
  * 按首次声明顺序去重；pure、async 与未知效应名不授权任何效应，不写入。
  * 内建名优先于效应参数：`<IO>` 这类与内建同名的效应参数由类型检查报 E213。
@@ -217,7 +238,9 @@ function lowerDecl(d: Declaration): Core.Declaration {
             canonicalOf(f.name, f.resolved),
             lowerType(f.type, NO_TYPE_VARS, f),
             lowerConstraints(f.constraints),
-            f.typeInferred === true
+            f.typeInferred === true,
+            // 与 core AstBuilder.visitField 一致：类型最外层的 @pii 同时记入字段注解（aster-lang-ts#328）
+            outerTypeAnnotations(f.type)
           ))
         ),
         d
@@ -240,12 +263,7 @@ function lowerDecl(d: Declaration): Core.Declaration {
 
 function lowerFunc(f: Func): Core.Func {
   const tvars = new Set<string>(f.typeParams ?? []);
-  const params = f.params.map(p => CoreIR.Param(
-    p.name,
-    lowerType(p.type, tvars, p),
-    lowerConstraints(p.constraints),
-    p.typeInferred === true
-  ));
+  const params = f.params.map(p => lowerParam(p, tvars));
   const ret = lowerType(f.retType, tvars, f);
   const effectParams = f.effectParams ?? [];
   const body = f.body ? inLocalScope(params.map(p => p.name), () => lowerBlock(f.body!)) : withOrigin(CoreIR.Block([]), f);
@@ -627,13 +645,8 @@ function lowerExpr(e: Expression): Core.Expression {
       // captures 只列外层局部（ADR 0056 §4.2）：先取 lambda 所在位置可见的局部，再在 lambda 形参作用域内降级函数体，
       // 最后在降级后的 IR 上判定（方法调用已改写，与 aster-lang-core 一致）
       const outer = visibleLocals();
-      const coreParams = e.params.map(p => CoreIR.Param(
-        p.name,
-        lowerType(p.type, NO_TYPE_VARS, p),
-        [],
-        // 解析器对未标注类型的 lambda 参数同样写入 typeInferred（Parameter），BaseParameter 未声明该字段
-        (p as { typeInferred?: boolean }).typeInferred === true
-      ));
+      // 解析器产出的 lambda 参数就是 Parameter（parseParamList，含约束与注解），BaseParameter 未声明这些字段
+      const coreParams = e.params.map(p => lowerParam(p as Parameter, NO_TYPE_VARS));
       const paramNames = e.params.map(p => p.name);
       const body = inLocalScope(paramNames, () => lowerBlock(e.body));
       const captures = collectLambdaCaptures(paramNames, body, outer);

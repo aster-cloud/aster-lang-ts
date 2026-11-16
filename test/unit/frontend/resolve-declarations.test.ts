@@ -127,7 +127,7 @@ describe('resolveDeclarations（R1）', () => {
   it('list of / Result of / Map 嵌套类型参数全部解析为 Driver', () => {
     const m = parse(
       'Module m.\n\nDefine Fahrer has freunde as list of Fahrer, index as map Text to Fahrer.\n\n' +
-        'Rule f given fahrer as Fahrer, produce Result of Fahrer or Text:\n  Return ok of fahrer.\n',
+        'Rule f given fahrer as Fahrer, produce Result of Fahrer and Text:\n  Return ok of fahrer.\n',
       EN_US
     );
     const r = resolveDeclarations(m, ctxOf(DRIVER));

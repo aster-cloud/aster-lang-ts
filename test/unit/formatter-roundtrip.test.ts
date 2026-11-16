@@ -126,6 +126,25 @@ describe('格式化器往返（Core IR 不变）', () => {
     assert.match(formatted, /s as Result of Int and Text/);
   });
 
+  test('形参前置注解原样输出，lambda 带注解时保留块形（aster-lang-ts#328）', () => {
+    const src = ['Module m.', '', 'Define Pair has a as Int.', '',
+      'Rule r given x as Pair of Int, @pii(L1, email) y as Text, @audit z as @pii(L2, phone) Text, produce Text:',
+      '  Let f be function given @tag(k: 1) n as Int, produce Int:', '    Return n.',
+      '  Return y.', ''].join('\n');
+    const formatted = assertRoundTrip(src);
+    assert.match(formatted, /x as Pair of Int, @pii\("L1", "email"\) y as Text, @audit z as @pii\(L2, phone\) Text/);
+    assert.match(formatted, /function with @tag\(k: 1\) n as Int, produce Int:/);
+    assert.equal(formatCNL(formatted), formatted, '格式化须幂等');
+  });
+
+  test('Maybe 内层不是名字时输出前缀 maybe（带注解、list of 等），否则输出 T?（aster-lang-ts#328）', () => {
+    const src = ['Module m.', '', 'Define U has a as Maybe @pii(L1, name) Text, b as @pii(L1, name) Text?, c as maybe Text, '
+      + 'd as maybe list of Text, e as list of Text?, f as maybe Text?.', ''].join('\n');
+    const formatted = assertRoundTrip(src);
+    assert.match(formatted, /a as maybe @pii\(L1, name\) Text, b as @pii\(L1, name\) Text\?, c as Text\?/);
+    assert.match(formatted, /d as maybe list of Text, e as list of Text\?, f as Text\?\?/);
+  });
+
   test('运算符按中缀输出，括号保持结合与优先级', () => {
     const body = [
       'Return (a plus b) times c.',

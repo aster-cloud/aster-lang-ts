@@ -47,6 +47,8 @@ export const Issue = {
     issue(ErrorCode.PARSE_EXPECTED_STATEMENT_END, { token }, message),
   unexpected: (token: string, message: string): ParseIssue =>
     issue(ErrorCode.PARSE_UNEXPECTED_TOKEN, { token }, message),
+  unexpectedExpecting: (token: string, expected: string, message: string): ParseIssue =>
+    issue(ErrorCode.PARSE_UNEXPECTED_EXPECTING, { token, expected }, message),
   unexpectedConstruct: (construct: string, message: string): ParseIssue =>
     issue(ErrorCode.PARSE_UNEXPECTED_CONSTRUCT, { construct }, message),
   misplaced: (construct: string, position: string, message: string): ParseIssue =>

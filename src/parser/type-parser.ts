@@ -10,6 +10,7 @@ import type { CapabilityKind } from '../config/semantic.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import { Issue, kwParam, lit, tokenName, type ParseErrorFn } from './parse-issue.js';
+import { skipAnnotationsFrom } from './annotation-parser.js';
 
 /**
  * 控制流/声明关键词集合——在类型位置出现时不应被视为类型名。
@@ -317,15 +318,25 @@ function continuesOfTypeArgs(ctx: ParserContext, error: ParseErrorFn): boolean {
   const comma = ctx.at(TokenKind.COMMA);
   if (!comma && !ctx.isKeyword(KW.AND)) return false;
   const next = ctx.peek(1);
-  const afterNext = ctx.peek(2);
-  const startsNamedItem = (next.kind === TokenKind.IDENT || next.kind === TokenKind.TYPE_IDENT)
-    && afterNext?.kind === TokenKind.IDENT && String(afterNext.value ?? '').toLowerCase() === KW.AS;
-  if (startsNamedItem || !canStartType(next)) return false;
+  if (startsNamedItem(ctx, 1) || !canStartType(next)) return false;
   if (comma && ctx.typeListDepth > 0) {
     error(Issue.unexpectedConstruct(lit(','),
       "Ambiguous ',' in a parenthesised type list: write 'and' for another type argument, or wrap the generic type in parentheses"));
   }
   return true;
+}
+
+/**
+ * 偏移 offset 处开始的是「名字 as」（下一个形参 / 字段），前面可以有形参注解（`, @pii(L1, email) y as Text`，aster-lang-ts#328）。
+ * 注解后面不是「名字 as」时（`, @pii(L1, email) Text`）它是带注解的类型参数。
+ */
+function startsNamedItem(ctx: ParserContext, offset: number): boolean {
+  const at = skipAnnotationsFrom(ctx, offset);
+  if (at < 0) return false;
+  const name = ctx.peek(at);
+  const as = ctx.peek(at + 1);
+  return (name.kind === TokenKind.IDENT || name.kind === TokenKind.TYPE_IDENT)
+    && as.kind === TokenKind.IDENT && String(as.value ?? '').toLowerCase() === KW.AS;
 }
 
 function parseTypePrimary(
@@ -336,6 +347,8 @@ function parseTypePrimary(
 
   if (ctx.isKeyword(KW.MAYBE)) {
     const maybeTok = ctx.nextWord();
+    // `maybe T`（≡ `T?`）不带 of：`maybe of T` 两引擎都在 of 上报 E061，与 core AstBuilder 同码同文案（aster-lang-ts#328）
+    if (ctx.isKeyword('of')) error(Issue.unexpected(lit('of'), MAYBE_OF_MESSAGE));
     const inner = parseType(ctx, error);
     const node = Node.Maybe(inner);
     assignSpan(node, spanFromSources(maybeTok, inner));
@@ -358,8 +371,14 @@ function parseTypePrimary(
     let err: Type;
     let connectorTok: Token | null = null;
 
-    if (ctx.isKeyword(KW.OR) || continuesOfTypeArgs(ctx, error)) {
-      connectorTok = ctx.isKeyword(KW.OR) ? ctx.nextWord() : ctx.next();
+    // 失败类型只用 `and` / `,` 引出，与 core 文法 ofTypeArgs 一致；`or` 不是分隔符（aster-lang-ts#328）。
+    // core 在 `or` 上报 E062（ANTLR mismatched input），这里同码同位置，并指明要写 and
+    if (ctx.isKeyword(KW.OR)) {
+      error(Issue.unexpectedExpecting(kwParam(KW.OR), kwParam(KW.AND),
+        `Unexpected ${kwq(ctx, KW.OR)}; expected ${kwq(ctx, KW.AND)} before the failure type of result`));
+    }
+    if (continuesOfTypeArgs(ctx, error)) {
+      connectorTok = ctx.next();
       err = parseType(ctx, error);
     } else {
       // Default error type is Text
@@ -486,6 +505,24 @@ function parseTypePrimary(
   error(Issue.expected(tokenName('type'), 'Expected type'));
 }
 
+/** 与 aster-lang-core AstBuilder.visitOfGenericType 的文案逐字相同。 */
+const MAYBE_OF_MESSAGE = "Unexpected 'of': write 'maybe T' or 'T?' for an optional type";
+
+/** 与 aster-lang-core AstBuilder.visitGenericType 的文案逐字相同。 */
+const ANGLE_BRACKET_GENERIC_MESSAGE =
+  "Expected 'of' after type name: angle-bracket type arguments are not supported, write 'Pair of Int and Text'";
+
+/**
+ * 尖括号泛型 `Pair<Int, Text>` 不是 Aster 语法，正式写法是 `Pair of Int and Text`（aster-lang-ts#328）。
+ * 类型名后紧跟 `<` 时在 `<` 上报 E056，码、参数与 core 相同；类型之后没有其它语法以 `<` 开头
+ * （效应参数 `<E>` 写在规则名之后，不经类型解析）。
+ */
+function rejectAngleBracketTypeArgs(ctx: ParserContext, node: Type, error: ParseErrorFn): void {
+  if (!ctx.at(TokenKind.LT)) return;
+  if (node.kind !== 'TypeName' && node.kind !== 'TypeVar' && node.kind !== 'EffectVar') return;
+  error(Issue.expectedAfter(lit('of'), tokenName('typeName'), ANGLE_BRACKET_GENERIC_MESSAGE));
+}
+
 export function parseType(
   ctx: ParserContext,
   error: ParseErrorFn
@@ -556,6 +593,7 @@ function parseTypeInner(
   }
 
   let node = parseTypePrimary(ctx, error);
+  rejectAngleBracketTypeArgs(ctx, node, error);
 
   while (ctx.at(TokenKind.QUESTION)) {
     const questionTok = ctx.next();

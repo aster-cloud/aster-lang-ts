@@ -23,6 +23,7 @@ import { kwParts, tokLowerAt, tryReadTranslatedIdent } from './context.js';
 import { TokenKind, KW } from '../frontend/tokens.js';
 import { Node } from '../ast/ast.js';
 import { parseType, parseEffectList } from './type-parser.js';
+import { parseAnnotations } from './annotation-parser.js';
 import { parseConstraints } from './constraint-parser.js';
 import { inferFieldType } from './type-inference.js';
 import {
@@ -1961,6 +1962,9 @@ export function parseParamList(
     ctx.nextWord();
     let hasMore = true;
     while (hasMore) {
+      // 形参前置注解（`given @pii(L1, email) y as Text`，aster-lang-ts#328），与 core 文法 `param: annotation* nameIdent …` 一致；
+      // 注解与规则头同处一行，不跳过换行
+      const { annotations } = parseAnnotations(ctx, error, false);
       const nameTok = ctx.peek();
       const name = parseIdent(ctx, error);
       let type: Type;
@@ -1989,10 +1993,14 @@ export function parseParamList(
       const paramSpan = colonTok
         ? spanFromSources(nameTok, colonTok, spanEnd)
         : spanFromSources(nameTok, spanEnd);
-      const param: Parameter =
-        constraints.length > 0
-          ? { name, type, constraints, ...(typeInferred ? { typeInferred: true } : {}), span: paramSpan }
-          : { name, type, ...(typeInferred ? { typeInferred: true } : {}), span: paramSpan };
+      const param: Parameter = {
+        name,
+        type,
+        ...(annotations.length > 0 ? { annotations } : {}),
+        ...(constraints.length > 0 ? { constraints } : {}),
+        ...(typeInferred ? { typeInferred: true } : {}),
+        span: paramSpan,
+      };
       params.push(param);
       if (ctx.at(TokenKind.IDENT) && ((ctx.peek().value as string) || '').toLowerCase() === KW.AND) {
         ctx.nextWord();

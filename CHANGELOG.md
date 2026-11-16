@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### 双引擎 parity：签名与类型别名语法（aster-lang-ts#328，ADR 0056 修订 A2，与 aster-lang-core 同名分支同车次）
+
+- **形参前置注解**：`given x as Pair of Int, @pii(L1, email) y as Text`、`given @pii(L2, phone) @audit p as Text`、
+  lambda 形参 `function given @seen n as Int` 现在接受（此前 E056），与 core 文法 `param: annotation* nameIdent …` 一致。
+  `X of A` 之后的分隔符后面是「注解 + 名字 as」时属于形参表。AST 的 `Parameter.annotations` 记前置注解；
+  Core IR 的 `Param.annotations` 先列前置注解、再列类型最外层的 `@pii(…)`，与 core 逐字节相同（此前
+  `given q as @pii(L1, email) Text` 的 `annotations` 在 ts 为 `[]`、在 core 为 `[pii]`）。lambda 形参的约束
+  （`required` 等）同样进入 Core IR（此前 ts 丢弃），规则与 lambda 共用同一个 `lowerParam`。
+- **`result of A or B` 改报 E062**（`Unexpected 'or'; expected 'and' …`，与 core 同码同位置）：`or` 不是失败类型分隔符，
+  写 `result of A and B` 或 `result of A, B`。此前 ts 接受、core 拒绝（这类源码从未在生产编译通过）。
+- **尖括号泛型 `Pair<Int, Text>` 统一报 E056**（`Expected 'of' after type name …`），落在 `<` 上，形参、字段、返回类型、
+  别名、lambda 位置相同。core 同步改为拒绝（此前 core 接受）。
+- **`maybe of T` 改报 E061**（`Unexpected 'of': write 'maybe T' or 'T?' …`）：前缀可空写 `maybe T`（≡ `T?`，内层可带注解，
+  如 `Maybe @pii(L1, name) Text`）。ts 一直接受 `maybe T`，core 现已接受；`maybe of T` 此前在 ts 报 E059，core 读成名为 maybe 的泛型。
+- **字段类型最外层的 `@pii(…)` 同时记入 Core IR 的 `Field.annotations`**，与 core 逐字节相同（此前 ts 为 `[]`）。
+- 大写形参名（`given Customer as Text`）与首字母大写的类型别名关键词（`Type Amount as Int.`）在 ts 的行为不变
+  （分别报 E055 / 接受），core 已与之对齐。
+- 格式化器：输出形参前置注解；lambda 形参带注解时保留块形（箭头形参表写不出注解）。Maybe 的内层不是名字时输出前缀
+  `maybe T`（此前 `Maybe @pii(…) Text` 打印成含义不同的 `@pii(…) Text?`，`maybe list of Text` 打印成 `list of Text?`）。
+- 内部：声明级注解与形参注解共用 `src/parser/annotation-parser.ts`。
+- 测试：`signature-syntax-parity` 单测、解析诊断 parity 夹具新增 12 例（与 core 逐字节相同）。
 ## 3.2.0
 
 ### W709：@pii 输入字段流入返回的 Text（aster-cloud#772 方案 3，与 aster-lang-core 同车次）

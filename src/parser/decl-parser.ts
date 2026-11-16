@@ -6,7 +6,8 @@
 import { KW, TokenKind } from '../frontend/tokens.js';
 import { kwq } from './keyword-display.js';
 import { Node } from '../ast/ast.js';
-import type { Annotation, AnnotationArg, AnnotationValue, Block, Declaration, Token, Type } from '../types.js';
+import type { Annotation, Block, Declaration, Token, Type } from '../types.js';
+import { parseAnnotations } from './annotation-parser.js';
 import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import { toDiagnostic } from '../diagnostics/diagnostics.js';
 import type { ParserContext } from './context.js';
@@ -76,96 +77,6 @@ function parseEffectParams(
   }
   ctx.next(); // consume '>'
   return names;
-}
-
-/**
- * 注解参数值（ADR 0055 #3）：只接受字符串、Int32 整数、布尔与标识符（按字符串）。
- * 浮点、Long 字面量与 null 在 v2 IR 中没有对应形状，报 E067（与 Java AstBuilder 同码同参数，控制裁决）；
- * 其它 token 报「需要注解参数值」。
- */
-function parseAnnotationValue(ctx: ParserContext, error: ParseErrorFn): AnnotationValue {
-  const tok = ctx.peek();
-  switch (tok.kind) {
-    case TokenKind.STRING:
-    case TokenKind.INT:
-    case TokenKind.BOOL:
-      ctx.next();
-      return tok.value as AnnotationValue;
-    case TokenKind.IDENT:
-    case TokenKind.TYPE_IDENT:
-      ctx.next();
-      return tok.value as string;
-    case TokenKind.FLOAT:
-    case TokenKind.LONG:
-    case TokenKind.NULL: {
-      const text = tok.kind === TokenKind.NULL ? 'null' : tok.raw ?? String(tok.value);
-      return error(Issue.invalidValue(
-        tokenName('annotationArgumentValue'),
-        text,
-        'string, Int or Bool',
-        `Annotation argument value must be a string, Int or Bool: ${text}`
-      ), tok);
-    }
-    default:
-      return error(Issue.expected(tokenName('annotationArgumentValue'), 'Expected annotation argument value'), tok);
-  }
-}
-
-/** 当前位置是否为 `name: value` 形式的命名注解参数（标识符后紧跟冒号）。 */
-function isNamedAnnotationArg(ctx: ParserContext): boolean {
-  return (ctx.at(TokenKind.IDENT) || ctx.at(TokenKind.TYPE_IDENT)) && ctx.peek(1)?.kind === TokenKind.COLON;
-}
-
-function parseAnnotationArgs(ctx: ParserContext, error: ParseErrorFn, annotation: string): readonly AnnotationArg[] | undefined {
-  if (!ctx.at(TokenKind.LPAREN)) return undefined;
-  ctx.next();
-  const args: AnnotationArg[] = [];
-  // 位置参数按出现顺序编号为 $0、$1…，与 Java AstBuilder 的键名一致；可与命名参数混用。
-  let positionalIndex = 0;
-  while (!ctx.at(TokenKind.RPAREN) && !ctx.at(TokenKind.EOF)) {
-    if (!isNamedAnnotationArg(ctx)) {
-      const value = parseAnnotationValue(ctx, error);
-      args.push({ name: `$${positionalIndex++}`, value });
-    } else {
-      const nameTok = ctx.next();
-      const name = String(nameTok.value);
-      // ADR 0055 #3：同一注解内参数名重复在解析期报 E900（IR 不变式 dup-annotation-arg 兜底）
-      if (args.some(a => a.name === name)) error(Issue.duplicateAnnotationArg(annotation, name), nameTok);
-      ctx.next();
-      const value = parseAnnotationValue(ctx, error);
-      args.push({ name, value });
-    }
-    if (ctx.at(TokenKind.COMMA)) {
-      ctx.next();
-      continue;
-    }
-    break;
-  }
-  if (!ctx.at(TokenKind.RPAREN)) {
-    error(Issue.expectedAfter(lit(')'), tokenName('annotationArguments'), "Expected ')' after annotation arguments"));
-  }
-  ctx.next();
-  return args;
-}
-
-function parseDeclAnnotations(
-  ctx: ParserContext,
-  error: ParseErrorFn
-): { annotations: readonly Annotation[]; startTok?: Token } {
-  const annotations: Annotation[] = [];
-  let startTok: Token | undefined;
-  while (ctx.at(TokenKind.AT)) {
-    const atTok = ctx.next();
-    startTok ??= atTok;
-    if (!ctx.at(TokenKind.IDENT) && !ctx.at(TokenKind.TYPE_IDENT)) {
-      error(Issue.expectedAfter(tokenName('annotationName'), lit('@'), "Expected annotation name after '@'"));
-    }
-    const name = String(ctx.next().value);
-    const args = parseAnnotationArgs(ctx, error, name);
-    annotations.push(args && args.length > 0 ? { name, args } : { name });
-    ctx.consumeNewlines();
-  }
-  return startTok ? { annotations, startTok } : { annotations };
 }
 
 /**
@@ -691,7 +602,7 @@ export function collectTopLevelDecls(
       }
       // 解析带声明级注解的函数: @entry Rule ...
       else if (ctx.at(TokenKind.AT)) {
-        const { annotations, startTok } = parseDeclAnnotations(ctx, tools.error);
+        const { annotations, startTok } = parseAnnotations(ctx, tools.error, true);
         if (!ctx.isKeyword(KW.RULE)) {
           tools.error(Issue.expectedAfter(kwParam(KW.RULE), tokenName('declarationAnnotations'), `Expected ${kwq(ctx, KW.RULE, 'Rule')} after declaration annotations`));
         }

@@ -100,7 +100,7 @@ describe('X of 参数与下一个形参的边界（parity 清扫）', () => {
     assert.equal(box.fields.map((f) => `${f.name}: ${show(f.type)}`).join('; '), 'p: Pair(Int); q: Text');
   });
 
-  // 括号 / 尖括号类型表里，`X of A, B` 的逗号既可以是 X 的下一个参数，也可以是类型表的下一项：真歧义，两引擎都报 E064
+  // 括号类型表里，`X of A, B` 的逗号既可以是 X 的下一个参数，也可以是类型表的下一项：真歧义，两引擎都报 E064
   // （写成 `X of A and B`，或把 X 包进括号 `(X of A), B`）。元数已满的 X（list / option / 已有失败类型的 result）不歧义。
   for (const params of [
     'g as (result of Int, Text) -> Bool',
