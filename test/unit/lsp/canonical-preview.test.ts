@@ -199,3 +199,78 @@ describe('registerCanonicalPreviewHandler', () => {
     assert.equal(handlerFor(undefined).call(), null);
   });
 });
+
+/** 递归去掉 origin（预览改变了行内长度，位置不参与比较）。 */
+function stripOrigin(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(stripOrigin);
+  if (!node || typeof node !== 'object') return node;
+  return Object.fromEntries(
+    Object.entries(node as Record<string, unknown>).filter(([k]) => k !== 'origin').map(([k, v]) => [k, stripOrigin(v)])
+  );
+}
+
+/** ADR §8.2 忠实性：不带词汇编译预览文本与带词汇编译源码的 Core IR（去掉 origin）相同。 */
+function assertFaithful(text: string, lexicon: Lexicon, v: DomainVocabulary): CanonicalPreview {
+  const p = preview(text, lexicon, v);
+  const withVocab = compile(text, { lexicon, vocabulary: v });
+  assert.ok(withVocab.success && withVocab.core, `带词汇编译源码失败：${JSON.stringify(withVocab.parseErrors ?? withVocab)}`);
+  const plain = compile(p.text, { lexicon });
+  assert.ok(plain.success && plain.core, `不带词汇编译预览失败：\n${p.text}`);
+  assert.deepEqual(stripOrigin(plain.core), stripOrigin(withVocab.core), `预览文本：\n${p.text}`);
+  return p;
+}
+
+const literal = (locale: string, localized: string, canonical: string): DomainVocabulary =>
+  vocab(locale, { literals: [{ canonical, localized, kind: 'literal' }] } as Partial<DomainVocabulary>);
+const fn = (locale: string, localized: string, canonical: string): DomainVocabulary =>
+  vocab(locale, { functions: [{ canonical, localized, kind: 'function' }] } as Partial<DomainVocabulary>);
+
+describe('canonicalPreview：替换落在编译器实际使用的那个词上（被删冠词与触发词同形）', () => {
+  const EN = (body: string): string => `Module m.\n\nRule greet, produce Text:\n${body}\n`;
+  const DE = (body: string): string => `Modul m.\n\nRegel gruss, liefert Text:\n${body}\n`;
+
+  it('★en `Return a a.`：规范化删掉第一个冠词 a，宏 a 展开的是第二个', () => {
+    const text = EN('  Return a a.');
+    const p = assertFaithful(text, EN_US, literal('en-US', 'a', 'hello'));
+    assert.equal(p.text, EN('  Return a "hello".'));
+    assert.equal(p.mappings.length, 1);
+    const second = text.indexOf('a a.') + 2;
+    assert.deepEqual(p.mappings[0]!.source, [second, second + 1]);
+    assert.equal(p.text.slice(...p.mappings[0]!.preview), '"hello"');
+  });
+
+  it('★en `Return a a a.`、`Return the the.`、tab 与多余空格、跨两行', () => {
+    assert.equal(assertFaithful(EN('  Return a a a.'), EN_US, literal('en-US', 'a', 'hello')).text, EN('  Return a a "hello".'));
+    assert.equal(assertFaithful(EN('  Return the the.'), EN_US, literal('en-US', 'the', 'hello')).text, EN('  Return the "hello".'));
+    assert.equal(assertFaithful(EN('\tReturn a  a.'), EN_US, literal('en-US', 'a', 'hello')).text, EN('\tReturn a  "hello".'));
+    const two = EN('  Let y be a a.\n  Let z be a.\n  Return z.');
+    assert.equal(assertFaithful(two, EN_US, literal('en-US', 'a', 'hello')).text, EN('  Let y be a "hello".\n  Let z be "hello".\n  Return z.'));
+  });
+
+  it('★de-DE `gib zurueck die die.` / `der der der` / `ein ein`：宏落在未被删的冠词形词上', () => {
+    assert.equal(assertFaithful(DE('  gib zurueck die die.'), DE_DE, literal('de-DE', 'die', 'hallo')).text, DE('  gib zurueck die "hallo".'));
+    assert.equal(assertFaithful(DE('  gib zurück der der der.'), DE_DE, literal('de-DE', 'der', 'hallo')).text, DE('  gib zurück der der "hallo".'));
+    assert.equal(assertFaithful(DE('  gib zurueck ein ein.'), DE_DE, literal('de-DE', 'ein', 'hallo')).text, DE('  gib zurueck ein "hallo".'));
+  });
+
+  it('★经词汇解析的函数名与被删冠词同形：en `a a(1)`、de `die die(1)` 换掉的是调用目标', () => {
+    const en = 'Module m.\n\nRule double given x as Int, produce Int:\n  Return x.\n\nRule g, produce Int:\n  Return a a(1).\n';
+    assert.equal(assertFaithful(en, EN_US, fn('en-US', 'a', 'double')).text, en.replace('a a(1)', 'a double(1)'));
+    const de = 'Modul m.\n\nRegel doppelt gegeben x als Ganzzahl, liefert Ganzzahl:\n  gib zurueck x.\n\nRegel g, liefert Ganzzahl:\n  gib zurueck die die(1).\n';
+    assert.equal(assertFaithful(de, DE_DE, fn('de-DE', 'die', 'doppelt')).text, de.replace('die die(1)', 'die doppelt(1)'));
+  });
+
+  it('★同一行既有被删冠词形的函数名又有宏、CRLF 换行、zh 全角写法的函数名', () => {
+    const both = 'Module m.\n\nRule double given x as Text, produce Text:\n  Return x.\n\nRule g, produce Text:\n  Return the the(the greeting).\n';
+    const v = vocab('en-US', {
+      functions: [{ canonical: 'double', localized: 'the', kind: 'function' }],
+      literals: [{ canonical: 'hi', localized: 'greeting', kind: 'literal' }],
+    } as Partial<DomainVocabulary>);
+    assert.equal(assertFaithful(both, EN_US, v).text, both.replace('the the(the greeting)', 'the double(the "hi")'));
+    const crlf = EN('  Return a a.').replace(/\n/g, '\r\n');
+    assert.equal(assertFaithful(crlf, EN_US, literal('en-US', 'a', 'hello')).text, crlf.replace('a a.', 'a "hello".'));
+    const zh = '模块 m。\n\n规则 double 给定 x 作为 整数，产出 整数：\n  返回 x。\n\n规则 g，产出 整数：\n  返回 ｄｂｌ(1)。\n';
+    assert.equal(assertFaithful(zh, ZH_CN, fn('zh-CN', 'dbl', 'double')).text, zh.replace('ｄｂｌ', 'double'));
+  });
+});
+
