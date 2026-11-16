@@ -13,6 +13,7 @@ import type { Token, Module as AstModule } from '../types.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 import { foldKey } from '../config/lexicons/identifiers/casefold.js';
+import { VERDICT_TYPE_NAME } from '../typecheck/verdict_signatures.js';
 import { typeText } from './completion.js';
 
 type Pos = { line: number; character: number };
@@ -94,12 +95,54 @@ export function isTypePosition(tokens: readonly Token[], pos: Pos, lexicon: Lexi
   const end = tail.length;
   if (endsWithAny(tail, end, openers)) return true;
   // `Pair of A and ` / `result of A and `（zh `结果 整数 并且 ` 没有 of）之后是下一个类型参数
-  if (endsWithAny(tail, end, phrasesOf(lexicon, SemanticTokenKind.AND))) return containsAny(tail, [OF, ...resultOf]);
+  const and = phrasesOf(lexicon, SemanticTokenKind.AND).find((p) => endsWith(tail, end, p));
+  if (and) return andContinuesType(tail.slice(0, end - and.length), lexicon);
   if (endsWithAny(tail, end, phrasesOf(lexicon, SemanticTokenKind.TO_WORD))) return containsAny(tail, [MAP]);
   return false;
 }
 
-/** 内置类型关键词的 lexicon 类别（Text / Int / Float / Bool） */
+/** 未闭合的类型构造词：还差几个参数、参数之间用哪个连接词 */
+interface OpenConstructor { need: number; readonly sep: 'and' | 'to' | null }
+
+/**
+ * `and` 是否引出下一个类型参数：最内层未闭合的构造词须取两个以 and 连接的参数
+ * （`result of A and B`、泛型 `Pair of A and B`），且第一个参数已写完。
+ * `list of` / `option of` / `maybe` 只取一个参数，`list of Int and ` 中的 and 不在类型里。
+ */
+function andContinuesType(words: readonly string[], lexicon: Lexicon): boolean {
+  // 词序列 → 引入的构造词（参数个数、连接词）；连接词本身不引入构造词
+  const kinds: Array<[readonly (readonly string[])[], OpenConstructor | null]> = [
+    [phrasesOf(lexicon, SemanticTokenKind.RESULT_OF), { need: 2, sep: 'and' }],
+    [[LIST_OF, ...phrasesOf(lexicon, SemanticTokenKind.OPTION_OF), ...phrasesOf(lexicon, SemanticTokenKind.MAYBE)], { need: 1, sep: null }],
+    [[MAP], { need: 2, sep: 'to' }],
+    [[...phrasesOf(lexicon, SemanticTokenKind.AND), ...phrasesOf(lexicon, SemanticTokenKind.TO_WORD)], null],
+  ];
+  const open: OpenConstructor[] = [];
+  // 一个完整的类型参数：填入最内层构造词；填满则该构造词本身成为外层的一个参数
+  const fill = (): void => {
+    while (open.length > 0 && --open[open.length - 1]!.need === 0) open.pop();
+  };
+  let i = 0;
+  while (i < words.length) {
+    const startsAt = (p: readonly string[]): boolean => p.every((w, j) => words[i + j] === w);
+    const hit = kinds.flatMap(([phrases, frame]) => phrases.filter(startsAt).map((p) => ({ len: p.length, frame })))[0];
+    if (hit) {
+      if (hit.frame) open.push({ ...hit.frame });
+      i += hit.len;
+    } else if (words[i + 1] === OF[0]) {
+      // 名字后紧跟 of 是泛型构造（`Pair of A and B`）
+      open.push({ need: 2, sep: 'and' });
+      i += 2;
+    } else {
+      fill();
+      i++;
+    }
+  }
+  const top = open[open.length - 1];
+  return top?.sep === 'and' && top.need === 1;
+}
+
+/** 内置类型关键词的 lexicon 类别（Text / Int / Float / Bool）；Verdict 不本地化，单独加入 */
 const BUILTIN_KINDS: readonly SemanticTokenKind[] = [
   SemanticTokenKind.TEXT,
   SemanticTokenKind.INT_TYPE,
@@ -116,7 +159,7 @@ const TYPE_CONSTRUCTOR_KINDS: readonly SemanticTokenKind[] = [
 
 /**
  * 类型位置的候选：本文档 Data / Enum（Class / Enum）、类型别名（TypeParameter，detail 为目标类型）、
- * 导入别名（Module，detail 为模块路径）、本地化内置类型（Class）、
+ * 导入别名（Module，detail 为模块路径）、本地化内置类型与治理返回类型 Verdict（Class）、
  * 类型构造词（Keyword：本地化的 maybe / option of / result of，以及不本地化的 list of / map）。
  * 按 ADR 0051 §6.3 折叠后的规范名去重，先出现者保留（本文档声明优先于内置类型）。
  */
@@ -140,6 +183,8 @@ export function typeCompletions(ast: AstModule | null, lexicon: Lexicon): Comple
       if (word) add(word, CompletionItemKind.Class);
     }
   }
+  // 治理规则的返回类型 Verdict 不随 lexicon 本地化
+  add(VERDICT_TYPE_NAME, CompletionItemKind.Class);
   for (const kind of TYPE_CONSTRUCTOR_KINDS) {
     for (const word of [lexicon.keywords[kind], ...(lexicon.aliases?.[kind] ?? [])]) {
       if (word) add(word, CompletionItemKind.Keyword);

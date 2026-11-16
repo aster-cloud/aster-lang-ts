@@ -79,8 +79,11 @@ const LANGS: readonly Lang[] = [
   },
 ];
 
-const builtins = (lex: Lexicon): string[] => [SemanticTokenKind.TEXT, SemanticTokenKind.INT_TYPE, SemanticTokenKind.FLOAT_TYPE, SemanticTokenKind.BOOL_TYPE]
-  .map((k) => lex.keywords[k]!);
+/** 本地化内置类型的规范拼写，加上不本地化的治理返回类型 Verdict */
+const builtins = (lex: Lexicon): string[] => [
+  ...[SemanticTokenKind.TEXT, SemanticTokenKind.INT_TYPE, SemanticTokenKind.FLOAT_TYPE, SemanticTokenKind.BOOL_TYPE].map((k) => lex.keywords[k]!),
+  'Verdict',
+];
 
 /** 类型构造关键词（maybe / option of / result of）的规范拼写 */
 const constructors = (lex: Lexicon): string[] => [SemanticTokenKind.MAYBE, SemanticTokenKind.OPTION_OF, SemanticTokenKind.RESULT_OF]
@@ -142,6 +145,13 @@ for (const lang of LANGS) {
       assert.equal(items.length, builtins(lang.lexicon).length + constructors(lang.lexicon).length + 2);
     });
 
+    it('★Verdict 在类型位置以 Class 给出（不本地化）；本文档同名声明按折叠名去重、声明优先', () => {
+      assert.equal(new Map(atEnd(lang, lang.ret).map((i) => [i.label, i])).get('Verdict')?.kind, CompletionItemKind.Class);
+      const ast = { decls: [{ kind: 'Enum', name: 'VERDICT' }], typeAliasDecls: [] } as never;
+      const hits = typeCompletions(ast, lang.lexicon).filter((i) => i.label.toLowerCase() === 'verdict');
+      assert.deepEqual(hits.map((i) => [i.label, i.kind]), [['VERDICT', CompletionItemKind.Enum]]);
+    });
+
     it('★类型位置给本地化类型构造词（maybe / option of / result of，Keyword）', () => {
       const by = new Map(atEnd(lang, lang.field).map((i) => [i.label, i]));
       for (const c of [...constructors(lang.lexicon), 'list of', 'map']) {
@@ -174,6 +184,16 @@ describe('isTypePosition 边界', () => {
     assert.equal(at('Define A has x as maybe '), true);
     assert.equal(at('Define A has x as map Text to '), true);
     assert.equal(at('Define A has x as list of '), true);
+  });
+
+  it('★and 只在两参数构造词（result of / 泛型 X of A and B）内续接类型，list of / option of / maybe 之后不是', () => {
+    assert.equal(at('Define A has x as list of Int and '), false);
+    assert.equal(at('Define A has x as option of Int and '), false);
+    assert.equal(at('Define A has x as maybe Int and '), false);
+    assert.equal(at('Define A has x as result of list of Int and '), true);
+    assert.equal(at('Define A has x as Pair of list of Int and '), true);
+    assert.equal(at('Define A has x as list of Pair of Int and '), true);
+    assert.equal(at('Define A has x as result of Int and Text and '), false);
   });
 
   it('上一条语句的 as 不外溢；空文档不是类型位置', () => {
