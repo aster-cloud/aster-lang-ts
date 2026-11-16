@@ -59,7 +59,7 @@ describe('registerCodeActionHandlers', () => {
     assert.ok(connection.handlers.codeAction, 'onCodeAction handler should be registered');
   });
 
-  it('应该对 EFF_MISSING_IO 提供 Quick Fix', async () => {
+  it('应该对 E200（EFF_MISSING_IO）提供 Quick Fix', async () => {
     const text = 'Rule fetchData:\n  return "data".';
     const connection = createMockConnection();
     const documents = createMockDocuments(text);
@@ -74,7 +74,7 @@ describe('registerCodeActionHandlers', () => {
       context: {
         diagnostics: [
           {
-            code: 'EFF_MISSING_IO',
+            code: 'E200',
             message: "Function 'fetchData' requires IO",
             range: { start: { line: 0, character: 0 }, end: { line: 0, character: 10 } },
             data: { func: 'fetchData' },
@@ -86,12 +86,12 @@ describe('registerCodeActionHandlers', () => {
     const actions = await connection.handlers.codeAction(params);
 
     assert.ok(Array.isArray(actions), 'should return array');
-    const ioAction = actions.find((a: any) => a.title.includes('Add It performs IO'));
+    const ioAction = actions.find((a: any) => a.title.includes('Add It performs io'));
     assert.ok(ioAction, 'should have IO quick fix');
     assert.strictEqual(ioAction.kind, CodeActionKind.QuickFix);
   });
 
-  it('应该对 EFF_MISSING_CPU 提供 Quick Fix', async () => {
+  it('应该对 E201（EFF_MISSING_CPU）提供 Quick Fix', async () => {
     const text = 'Rule compute:\n  return 42.';
     const connection = createMockConnection();
     const documents = createMockDocuments(text);
@@ -106,7 +106,7 @@ describe('registerCodeActionHandlers', () => {
       context: {
         diagnostics: [
           {
-            code: 'EFF_MISSING_CPU',
+            code: 'E201',
             message: "Function 'compute' requires CPU",
             range: { start: { line: 0, character: 0 }, end: { line: 0, character: 10 } },
             data: { func: 'compute' },
@@ -117,11 +117,11 @@ describe('registerCodeActionHandlers', () => {
 
     const actions = await connection.handlers.codeAction(params);
 
-    const cpuAction = actions.find((a: any) => a.title.includes('Add It performs CPU'));
+    const cpuAction = actions.find((a: any) => a.title.includes('Add It performs cpu'));
     assert.ok(cpuAction, 'should have CPU quick fix');
   });
 
-  it('应该对 EFF_SUPERFLUOUS_IO 提供移除 Quick Fix', async () => {
+  it('应该对 E203（EFF_SUPERFLUOUS_IO）提供移除 Quick Fix', async () => {
     const text = 'Rule getData. It performs IO:\n  return "data".';
     const connection = createMockConnection();
     const documents = createMockDocuments(text);
@@ -136,7 +136,7 @@ describe('registerCodeActionHandlers', () => {
       context: {
         diagnostics: [
           {
-            code: 'EFF_SUPERFLUOUS_IO',
+            code: 'E203',
             message: "Function 'getData' does not need IO",
             range: { start: { line: 0, character: 0 }, end: { line: 0, character: 10 } },
             data: { func: 'getData' },
@@ -147,7 +147,7 @@ describe('registerCodeActionHandlers', () => {
 
     const actions = await connection.handlers.codeAction(params);
 
-    const removeAction = actions.find((a: any) => a.title.includes('Remove It performs IO'));
+    const removeAction = actions.find((a: any) => a.title.includes('Remove It performs io'));
     assert.ok(removeAction, 'should have remove IO quick fix');
   });
 
@@ -387,7 +387,7 @@ describe('辅助函数测试', () => {
         context: {
           diagnostics: [
             {
-              code: 'EFF_MISSING_IO',
+              code: 'E200',
               message: "Function 'fetchData' requires IO",
               range: { start: { line: 0, character: 0 }, end: { line: 0, character: 10 } },
               // 注意：没有 data.func
@@ -457,7 +457,7 @@ describe('辅助函数测试', () => {
         context: {
           diagnostics: [
             {
-              code: 'EFF_MISSING_IO',
+              code: 'E200',
               message: "Function 'fetchData' requires IO",
               range: { start: { line: 0, character: 0 }, end: { line: 0, character: 10 } },
               data: { func: 'fetchData' },
@@ -467,12 +467,12 @@ describe('辅助函数测试', () => {
       };
 
       const actions = await connection.handlers.codeAction(params);
-      const ioAction = actions.find((a: any) => a.title.includes('Add It performs IO'));
+      const ioAction = actions.find((a: any) => a.title.includes('Add It performs io'));
 
       assert.ok(ioAction?.edit?.changes, 'should have edit changes');
       const edits = ioAction.edit.changes['file:///test.aster'];
       assert.ok(Array.isArray(edits), 'should have text edits');
-      assert.ok(edits[0]?.newText?.includes('It performs IO'), 'should insert effect declaration');
+      assert.ok(edits[0]?.newText?.includes('It performs io'), 'should insert effect declaration');
     });
 
     it('应该在已有效果声明时返回 null', async () => {
@@ -490,7 +490,7 @@ describe('辅助函数测试', () => {
         context: {
           diagnostics: [
             {
-              code: 'EFF_MISSING_IO',
+              code: 'E200',
               message: "Function 'fetchData' requires IO",
               range: { start: { line: 0, character: 0 }, end: { line: 0, character: 10 } },
               data: { func: 'fetchData' },
@@ -500,7 +500,7 @@ describe('辅助函数测试', () => {
       };
 
       const actions = await connection.handlers.codeAction(params);
-      const ioAction = actions.find((a: any) => a.title.includes('Add It performs IO'));
+      const ioAction = actions.find((a: any) => a.title.includes('Add It performs io'));
 
       // 应该没有 IO action，因为已经有效果声明了
       assert.strictEqual(ioAction, undefined, 'should not offer to add effect when already present');
@@ -523,7 +523,7 @@ describe('辅助函数测试', () => {
         context: {
           diagnostics: [
             {
-              code: 'EFF_SUPERFLUOUS_IO',
+              code: 'E203',
               message: "Function 'getData' does not need IO",
               range: { start: { line: 0, character: 0 }, end: { line: 0, character: 10 } },
               data: { func: 'getData' },
@@ -533,7 +533,7 @@ describe('辅助函数测试', () => {
       };
 
       const actions = await connection.handlers.codeAction(params);
-      const removeAction = actions.find((a: any) => a.title.includes('Remove It performs IO'));
+      const removeAction = actions.find((a: any) => a.title.includes('Remove It performs io'));
 
       assert.ok(removeAction?.edit?.changes, 'should have edit changes');
       const edits = removeAction.edit.changes['file:///test.aster'];

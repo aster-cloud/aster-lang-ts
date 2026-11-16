@@ -31,6 +31,8 @@ function show(t: Type): string {
     case 'Maybe': return `Maybe(${show(t.type)})`;
     case 'Result': return `Result(${show(t.ok)}, ${show(t.err)})`;
     case 'Map': return `Map(${show(t.key)}, ${show(t.val)})`;
+    case 'TypeApp': return `${t.base}(${t.args.map(show).join(', ')})`;
+    case 'FuncType': return `Func(${t.params.map(show).join(', ')} -> ${show(t.ret)})`;
     default: return t.kind;
   }
 }
@@ -53,5 +55,64 @@ describe('X of 的元数（core#256）', () => {
   ];
   for (const [params, expected] of cases) {
     it(params, () => assert.equal(paramsOf(params), expected));
+  }
+});
+
+/**
+ * `X of` 的参数与下一个形参 / 字段的边界（parity 清扫 1.0.48，裁决见 aster-lang-test#174 跟进 PR）：
+ * 分隔符（`and` / `,`）之后若是「名字 as」，分隔符属于外层（下一个形参 / 字段），否则在元数允许时属于类型参数。
+ * 与 core 文法 ofTypeArgs 一致——core 用 LL 前瞻在「名字 as」处退出循环，ts 此前贪婪吞掉分隔符后报 E056。
+ * `result of A, B` 与 `result of A and B` 同义（core 一直接受逗号，保持既有源码含义不变）。
+ */
+describe('X of 参数与下一个形参的边界（parity 清扫）', () => {
+  const cases: Array<[string, string]> = [
+    ['x as Pair of Int, y as Text', 'x: Pair(Int); y: Text'],
+    ['x as Pair of Int and y as Text', 'x: Pair(Int); y: Text'],
+    ['x as Pair of Int, Text', 'x: Pair(Int, Text)'],
+    ['x as Pair of Int and Text, y as Text', 'x: Pair(Int, Text); y: Text'],
+    ['x as result of Int and y as Text', 'x: Result(Int, Text); y: Text'],
+    ['x as result of Int, y as Text', 'x: Result(Int, Text); y: Text'],
+    ['x as result of Int, Text', 'x: Result(Int, Text)'],
+    ['x as result of Int, list of Text', 'x: Result(Int, List(Text))'],
+    ['x as result of Int, Text and y as Text', 'x: Result(Int, Text); y: Text'],
+    ['x as Pair of result of Int, Text', 'x: Pair(Result(Int, Text))'],
+    ['x as Pair of result of Int and Text, Bool', 'x: Pair(Result(Int, Text), Bool)'],
+    ['g as (list of Int, Text) -> Bool', 'g: Func(List(Int), Text -> Bool)'],
+    ['g as (result of Int and Text) -> Bool', 'g: Func(Result(Int, Text) -> Bool)'],
+    ['g as ((Pair of Int), Text) -> Bool', 'g: Func(Pair(Int), Text -> Bool)'],
+  ];
+  for (const [params, expected] of cases) {
+    it(params, () => assert.equal(paramsOf(params), expected));
+  }
+
+  it('返回类型里的 `result of A, B`', () => {
+    const r = parse(lex(canonicalize('Module m.\n\nRule f given x as Int, produce result of Int, Text:\n  Return ok of x.\n')));
+    assert.deepEqual(r.diagnostics.filter((d) => d.severity === 'error'), []);
+    const f = r.ast.decls.find((d) => d.kind === 'Func') as Func;
+    assert.equal(show(f.retType), 'Result(Int, Text)');
+  });
+
+  it('字段表里的 `Pair of Int, y as Text`', () => {
+    const r = parse(lex(canonicalize('Module m.\n\nDefine Box has p as Pair of Int, q as Text.\n')));
+    assert.deepEqual(r.diagnostics.filter((d) => d.severity === 'error'), []);
+    const box = r.ast.decls.find((d) => d.kind === 'Data');
+    assert.ok(box && box.kind === 'Data');
+    assert.equal(box.fields.map((f) => `${f.name}: ${show(f.type)}`).join('; '), 'p: Pair(Int); q: Text');
+  });
+
+  // 括号 / 尖括号类型表里，`X of A, B` 的逗号既可以是 X 的下一个参数，也可以是类型表的下一项：真歧义，两引擎都报 E064
+  // （写成 `X of A and B`，或把 X 包进括号 `(X of A), B`）。元数已满的 X（list / option / 已有失败类型的 result）不歧义。
+  for (const params of [
+    'g as (result of Int, Text) -> Bool',
+    'g as (Pair of Int, Text) -> Bool',
+    'g as (Map Text to Pair of Int, Text) -> Bool',
+    'g as ((Int) -> Pair of Int, Text) -> Bool',
+  ]) {
+    it(`歧义逗号报 E064：${params}`, () => {
+      const source = `Module m.\n\nRule f given ${params}, produce Int:\n  Return 1.\n`;
+      const errors = parse(lex(canonicalize(source))).diagnostics.filter((d) => d.severity === 'error');
+      assert.equal(errors[0]?.code, 'E064', JSON.stringify(errors));
+      assert.equal(errors[0]?.span?.start.line, 3);
+    });
   }
 });

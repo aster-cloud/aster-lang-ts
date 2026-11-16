@@ -6,7 +6,6 @@ import {
   type CapabilityContext,
   isAllowed,
   normalizeManifest,
-  parseLegacyCapability,
 } from '../effects/capabilities.js';
 import { CapabilityKind } from '../config/semantic.js';
 import { inferEffects } from '../effects/effect_inference.js';
@@ -225,16 +224,9 @@ export function typecheckModuleWithCapabilities(
   for (const d of m.decls) {
     if (d.kind !== 'Func') continue;
 
+    // 受 manifest 约束的能力 = 显式声明 ∪ 函数体实际用到（与 core CapabilityChecker.checkManifestConstraints 一致，
+    // ADR 0056 §4.1、#320）。裸 `It performs io` 不再展开成预置能力：它不调用任何能力时不该被 manifest 拒绝。
     const declaredCaps = new Set<CapabilityKind>();
-    for (const eff of d.effects) {
-      const effName = String(eff).toLowerCase();
-      if (effName === 'io') {
-        for (const cap of parseLegacyCapability('io')) declaredCaps.add(cap);
-      } else if (effName === 'cpu') {
-        declaredCaps.add(CapabilityKind.CPU);
-      }
-    }
-
     const meta = d as unknown as { effectCaps: readonly CapabilityKind[]; effectCapsExplicit: boolean };
     if (meta.effectCapsExplicit) {
       for (const cap of meta.effectCaps) declaredCaps.add(cap);

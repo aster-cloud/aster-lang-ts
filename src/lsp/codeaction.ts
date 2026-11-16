@@ -40,34 +40,42 @@ export function registerCodeActionHandlers(
     const capsPath = ConfigService.getInstance().capsManifestPath || '';
     const lexicon = getLexiconForDoc?.(params.textDocument.uri);
     const ui = getLspUiTexts(lexicon);
+    // 同一函数常同时带 E200 / E205 / E303 等多条同义诊断，同一修复只提供一次
+    const offered = new Set<string>();
 
     for (const d of params.context.diagnostics) {
       const code = (d.code as string) || '';
 
-      // 处理缺失的 IO/CPU 效果声明
-      if (code === 'EFF_MISSING_IO' || code === 'EFF_MISSING_CPU') {
-        const cap = code.endsWith('IO') ? 'IO' : 'CPU';
+      // 缺失 / 多余的 io、cpu 效果声明（LSP 诊断的 code 是码表值 E2xx / E30x）
+      const missing = MISSING_EFFECT_CODES.get(code);
+      if (missing) {
         const func = ((d as any).data?.func as string) || extractFuncNameFromMessage(d.message);
-        const edit = headerInsertEffectEdit(text, func, cap);
-        if (edit) actions.push({
-          title: `Add It performs ${cap} to '${func}'`,
-          kind: CodeActionKind.QuickFix,
-          edit: { changes: { [params.textDocument.uri]: [edit] } },
-          diagnostics: [d],
-        });
+        const fix = headerInsertEffectEdit(text, func, missing);
+        if (fix && !offered.has(`${func}:${fix.title}`)) {
+          offered.add(`${func}:${fix.title}`);
+          actions.push({
+            title: `${fix.title} '${func}'`,
+            kind: CodeActionKind.QuickFix,
+            edit: { changes: { [params.textDocument.uri]: [fix.edit] } },
+            diagnostics: [d],
+          });
+        }
       }
 
-      // 处理多余的 IO/CPU 效果声明
-      if (code === 'EFF_SUPERFLUOUS_IO' || code === 'EFF_SUPERFLUOUS_CPU') {
-        const cap = code.endsWith('IO') ? 'IO' : 'CPU';
+      const superfluous = SUPERFLUOUS_EFFECT_CODES.get(code);
+      if (superfluous) {
         const func = ((d as any).data?.func as string) || extractFuncNameFromMessage(d.message);
-        const edit = headerRemoveEffectEdit(text, func);
-        if (edit) actions.push({
-          title: `Remove It performs ${cap} from '${func}'`,
-          kind: CodeActionKind.QuickFix,
-          edit: { changes: { [params.textDocument.uri]: [edit] } },
-          diagnostics: [d],
-        });
+        const edit = headerRemoveEffectEdit(text, func, superfluous);
+        const title = `Remove It performs ${superfluous} from '${func}'`;
+        if (edit && !offered.has(title)) {
+          offered.add(title);
+          actions.push({
+            title,
+            kind: CodeActionKind.QuickFix,
+            edit: { changes: { [params.textDocument.uri]: [edit] } },
+            diagnostics: [d],
+          });
+        }
       }
 
       // 处理能力清单相关的 Quick Fix
@@ -393,35 +401,91 @@ function extractModuleName(text: string): string | null {
   return m?.[1] ?? null;
 }
 
+/** 缺少效果声明的诊断码 → 应补的效果（规范小写写法；core 词法把大写 IO 当类型名，见 aster-lang-ts#310）。 */
+const MISSING_EFFECT_CODES: ReadonlyMap<string, 'io' | 'cpu'> = new Map([
+  [ErrorCode.EFF_MISSING_IO, 'io'],
+  [ErrorCode.EFF_INFER_MISSING_IO, 'io'],
+  [ErrorCode.CAPABILITY_INFER_MISSING_IO, 'io'],
+  [ErrorCode.EFF_MISSING_CPU, 'cpu'],
+  [ErrorCode.EFF_INFER_MISSING_CPU, 'cpu'],
+  [ErrorCode.CAPABILITY_INFER_MISSING_CPU, 'cpu'],
+]);
+
+/** 多余效果声明的诊断码 → 可移除的效果。 */
+const SUPERFLUOUS_EFFECT_CODES: ReadonlyMap<string, 'io' | 'cpu'> = new Map([
+  [ErrorCode.EFF_SUPERFLUOUS_IO, 'io'],
+  [ErrorCode.EFF_INFER_REDUNDANT_IO, 'io'],
+  [ErrorCode.EFF_SUPERFLUOUS_CPU, 'cpu'],
+  [ErrorCode.EFF_INFER_REDUNDANT_CPU, 'cpu'],
+]);
+
+/** 规则头所在行（规则头写在一行，aster-lang-core#266）。 */
+function findRuleHeaderLine(lines: readonly string[], func: string): number {
+  const header = new RegExp(`^\\s*Rule\\s+${escapeRegExp(func)}\\b`, 'i');
+  return lines.findIndex((line) => header.test(line));
+}
+
+/** 规则头里的 `It performs <名字>` 及其后是否紧跟 `:` / `.`（没有能力列表）。 */
+const PERFORMS_CLAUSE = /\bIt performs\s+([^\s.:,[\]]+)(\s*[:.]\s*$)?/i;
+
 /**
- * 辅助函数：在函数头部插入效果声明
+ * 辅助函数：在规则头补上效果声明，返回动作标题前缀与编辑。
+ * - 没有 `It performs`：在结尾的 `:` / `.` 前插入 `. It performs io`；
+ * - 已有 `It performs cpu` 而缺 io：改成 io（io 涵盖 cpu）；
+ * - 已有未知效果名（如 `It performs teleport`，按 pure 处理、不授权任何效应）：改成所缺的效果，能力列表保留；
+ * - 已有效应变量 E 且没有能力列表：改成 `It performs io with E`；
+ * - 已声明所缺效果（或缺 cpu 而已有 io）时不提供。
  */
-function headerInsertEffectEdit(text: string, func: string, cap: 'IO' | 'CPU'): TextEdit | null {
+function headerInsertEffectEdit(
+  text: string,
+  func: string,
+  eff: 'io' | 'cpu'
+): { title: string; edit: TextEdit } | null {
   const lines = text.split(/\r?\n/);
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] ?? '';
-    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${escapeRegExp(func)}\\b`).test(line)) {
-      if (/It performs/i.test(line)) return null;
-      const withEff = line.replace(/(:|\.)\s*$/, `. It performs ${cap}:`);
-      return TextEdit.replace({ start: { line: i, character: 0 }, end: { line: i, character: line.length } }, withEff);
-    }
+  const i = findRuleHeaderLine(lines, func);
+  if (i < 0) return null;
+  const line = lines[i]!;
+  const replaceLine = (newText: string): TextEdit =>
+    TextEdit.replace({ start: { line: i, character: 0 }, end: { line: i, character: line.length } }, newText);
+
+  const m = PERFORMS_CLAUSE.exec(line);
+  if (!m) {
+    if (!/[:.]\s*$/.test(line)) return null;
+    return { title: `Add It performs ${eff} to`, edit: replaceLine(line.replace(/\s*([:.])\s*$/, `. It performs ${eff}$1`)) };
   }
-  return null;
+  const word = m[1]!;
+  const lower = word.toLowerCase();
+  if (lower === eff || lower === 'io') return null;
+  const at = m.index + m[0].indexOf(word);
+  const effectParams = /<([^>]*)>/.exec(line.slice(0, m.index))?.[1]?.split(/\s*(?:,|\band\b)\s*/) ?? [];
+  if (effectParams.includes(word)) {
+    if (!m[2] || eff !== 'io') return null;
+    return {
+      title: `Add io to It performs ${word} in`,
+      edit: replaceLine(line.slice(0, at) + `io with ${word}` + line.slice(at + word.length)),
+    };
+  }
+  return {
+    title: `Replace It performs ${word} with ${eff} in`,
+    edit: replaceLine(line.slice(0, at) + eff + line.slice(at + word.length)),
+  };
 }
 
 /**
- * 辅助函数：从函数头部移除效果声明
+ * 辅助函数：从规则头移除多余的 `It performs io` / `It performs cpu`（大小写不敏感）。
+ * 带能力列表或效应变量时不提供：去掉效果会让能力列表失去依附。
  */
-function headerRemoveEffectEdit(text: string, func: string): TextEdit | null {
+function headerRemoveEffectEdit(text: string, func: string, eff: 'io' | 'cpu'): TextEdit | null {
   const lines = text.split(/\r?\n/);
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] ?? '';
-    if (/^Rule\s+/i.test(line) && new RegExp(`\\b${escapeRegExp(func)}\\b`).test(line) && /It performs/i.test(line)) {
-      const cleaned = line.replace(/\. It performs (IO|CPU):/i, ':');
-      return TextEdit.replace({ start: { line: i, character: 0 }, end: { line: i, character: line.length } }, cleaned);
-    }
-  }
-  return null;
+  const i = findRuleHeaderLine(lines, func);
+  if (i < 0) return null;
+  const line = lines[i]!;
+  const clause = new RegExp(`\\.\\s*It performs\\s+${eff}\\s*([:.])\\s*$`, 'i');
+  if (!clause.test(line)) return null;
+  return TextEdit.replace(
+    { start: { line: i, character: 0 }, end: { line: i, character: line.length } },
+    line.replace(clause, '$1')
+  );
 }
 
 /**

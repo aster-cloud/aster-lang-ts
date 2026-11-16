@@ -559,61 +559,72 @@ Rule pipeline of Source and Target given items as List of Source, produce Result
     });
   });
 
-  describe('多行参数列表与缩进', () => {
-    test('应该解析 given 子句的多行参数', () => {
-      const module = parseSource(`
-Module test.parser.params.multiline_with.
+  describe('规则头不跨行（aster-lang-core#266）', () => {
+    // 裁决（parity 清扫 1.0.48）：规则头从 Rule 到 `:` / `.` 必须写在一行，与 core 文法 funcDecl 一致。
+    // ts 此前在规则头里任意跳过 NEWLINE / INDENT / DEDENT，接受 core 拒收的多种写法；续行比语句缩进更深时
+    // 还会吞掉缩进记号，正是 ADR 0026 §2 只允许「等缩进续行」所排除的布局歧义。生产编译走 core，
+    // 这些写法从来编译不过，拒收不改变任何既有有效源码的含义。
+    const headerErrors = (source: string) =>
+      parseWithDiag(source).diagnostics.filter(d => d.severity === 'error');
+
+    const cases: Array<[string, string, number]> = [
+      ['逗号后换行再写 produce', `
+Module m.
+
+Rule f given x as Int,
+  produce Int:
+  Return x.
+`, 4],
+      ['given 后换行列参数', `
+Module m.
 
 Rule summarize given
   first as Text,
-  second as Text,
-  third as Text, produce Text:
+  second as Text, produce Text:
   Return Text.concat(first, second).
-`);
-      const func = findFunc(module, 'summarize');
-      assert.equal(func.params.length, 3);
-      assert.deepEqual(
-        func.params.map(param => param.name),
-        ['first', 'second', 'third']
-      );
-    });
+`, 4],
+      ['and 后换行', `
+Module m.
 
-    test('应该在多行参数后继续解析效果声明', () => {
-      const module = parseSource(`
-Module test.parser.params.multiline_effect.
+Rule f given x as Int and
+  y as Int, produce Int:
+  Return x.
+`, 4],
+      ['多行参数后接效果声明', `
+Module m.
 
 Rule compute given
   value as Int,
   factor as Int, produce Int. It performs cpu:
   Return value times factor.
-`);
-      const func = findFunc(module, 'compute');
-      assert.equal(func.params.length, 2);
-      assert.deepEqual(
-        func.params.map(param => param.name),
-        ['value', 'factor']
-      );
-      assert.deepEqual(func.effects, ['cpu']);
-    });
+`, 4],
+      ['produce 后的句点与 It performs 分两行', `
+Module m.
 
-    test('应该在多行参数中保留约束', () => {
+Rule f given x as Int, produce Int.
+It performs io:
+  Return x.
+`, 5],
+    ];
+    for (const [name, source, line] of cases) {
+      test(`拒收：${name}`, () => {
+        const errors = headerErrors(source);
+        assert.ok(errors.length > 0, `应报解析错误：${source}`);
+        assert.equal(errors[0]!.span?.start.line, line, JSON.stringify(errors[0]));
+      });
+    }
+
+    test('单行规则头不受影响', () => {
       const module = parseSource(`
-Module test.parser.params.multiline_constraints.
+Module m.
 
-Rule filter given
-  query as Text required,
-  limit as Int, produce List of Text:
+Rule filter given query as Text required, limit as Int, produce List of Text. It performs io:
   Return List.empty().
 `);
       const func = findFunc(module, 'filter');
-      assert.equal(func.params.length, 2);
-      const queryParam = func.params[0];
-      assert.ok(queryParam, '应该存在 query 参数');
-      if (!queryParam) {
-        assert.fail('缺少 query 参数');
-      }
-      assert.ok(queryParam.constraints && queryParam.constraints.length === 1);
-      assert.equal(queryParam.constraints![0]!.kind, 'Required');
+      assert.deepEqual(func.params.map(p => p.name), ['query', 'limit']);
+      assert.equal(func.params[0]!.constraints?.[0]?.kind, 'Required');
+      assert.deepEqual(func.effects, ['io']);
     });
   });
 

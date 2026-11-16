@@ -80,7 +80,7 @@
 | 错误码 | 严重性 | 消息模板 | 解决方案 |
 |--------|--------|----------|----------|
 | **E600** `LOWER_UNKNOWN_DECL_KIND` | 🔴 error | Unknown declaration kind: &#123;kind&#125; | The lowering stage received a declaration node it does not recognize. This is an engine defect, not a problem with the policy; report it together with the source. |
-| **E601** `LOWER_UNKNOWN_EFFECT` | 🔴 error | Unknown effect '&#123;effect&#125;', valid values: &#123;valid&#125; | Declare only the supported effects (io, cpu) or an effect variable declared on the rule. |
+| **E601** `LOWER_UNKNOWN_EFFECT` | 🔴 error | Unknown effect '&#123;effect&#125;', valid values: &#123;valid&#125; | Reserved: no longer emitted. Unknown effect names are accepted and checked as pure (they grant no effect); declare io or cpu, or an effect variable declared on the rule, to grant one. |
 | **E602** `LOWER_UNKNOWN_STMT_KIND` | 🔴 error | lowerStmt: unhandled statement kind '&#123;kind&#125;' | The lowering stage received a statement node it does not recognize. This is an engine defect, not a problem with the policy; report it together with the source. |
 | **E603** `LOWER_UNKNOWN_EXPR_KIND` | 🔴 error | Unknown expression kind: &#123;kind&#125; | The lowering stage received an expression node it does not recognize. This is an engine defect, not a problem with the policy; report it together with the source. |
 | **E604** `LOWER_UNKNOWN_PATTERN_KIND` | 🔴 error | Unknown pattern kind: &#123;kind&#125; | The lowering stage received a pattern node it does not recognize. This is an engine defect, not a problem with the policy; report it together with the source. |

@@ -905,7 +905,7 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     category: 'lowering',
     severity: 'error',
     message: "Unknown effect '{effect}', valid values: {valid}",
-    help: "Declare only the supported effects (io, cpu) or an effect variable declared on the rule.",
+    help: "Reserved: no longer emitted. Unknown effect names are accepted and checked as pure (they grant no effect); declare io or cpu, or an effect variable declared on the rule, to grant one.",
   },
   [ErrorCode.LOWER_UNKNOWN_STMT_KIND]: {
     code: ErrorCode.LOWER_UNKNOWN_STMT_KIND,

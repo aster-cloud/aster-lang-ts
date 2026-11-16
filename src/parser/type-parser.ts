@@ -271,11 +271,16 @@ function parseParenOrFuncType(
   const lparen = ctx.next();
   const params: Type[] = [];
   let annotated = false;
-  do {
-    if (params.length > 0) ctx.next(); // 消费 ','
-    annotated ||= ctx.at(TokenKind.AT);
-    params.push(parseType(ctx, error));
-  } while (ctx.at(TokenKind.COMMA));
+  ctx.typeListDepth++;
+  try {
+    do {
+      if (params.length > 0) ctx.next(); // 消费 ','
+      annotated ||= ctx.at(TokenKind.AT);
+      params.push(parseType(ctx, error));
+    } while (ctx.at(TokenKind.COMMA));
+  } finally {
+    ctx.typeListDepth--;
+  }
   if (!ctx.at(TokenKind.RPAREN)) error(Issue.expectedAfter(lit(')'), tokenName('type'), "Expected ')' after type"));
   ctx.next(); // 消费 ')'
 
@@ -290,6 +295,37 @@ function parseParenOrFuncType(
   if (params.length > 1) error(Issue.expectedAfter(lit('->'), tokenName('functionParameterTypes'), "Expected '->' after function parameter types"));
   if (annotated) error(Issue.expectedAfter(lit('->'), tokenName('annotatedFunctionParameterType'), "Expected '->' after annotated function parameter type"));
   return params[0]!;
+}
+
+/** 记号能否开始一个类型（与 parseTypePrimary / parseTypeInner 的入口一致）。 */
+function canStartType(tok: Token | undefined): boolean {
+  if (!tok) return false;
+  if (tok.kind === TokenKind.LPAREN || tok.kind === TokenKind.AT || tok.kind === TokenKind.TYPE_IDENT) return true;
+  return tok.kind === TokenKind.IDENT && !isControlKeyword(String(tok.value ?? '').toLowerCase());
+}
+
+/**
+ * 当前记号是 `X of A` 之后的分隔符（`and` / `,`），且它引出的是 X 的下一个类型参数（调用方已按元数判定 X 还能接参数）。
+ *
+ * 与 core 文法 ofTypeArgs 的前瞻一致（parity 清扫 1.0.48）：
+ * - 分隔符后是「名字 as」：它开始的是下一个形参 / 字段，分隔符留给外层（`given x as Pair of Int, y as Text`）；
+ * - 分隔符后的记号不能开始类型（如 `produce`）：同样留给外层；
+ * - 否则归 X。在括号类型表里，逗号此时也可以读作类型表的下一项（`(result of Int, Text) -> Bool`），
+ *   是真歧义：报 E064，要求写 `and` 或给 X 加括号，与 core AstBuilder 同码。
+ */
+function continuesOfTypeArgs(ctx: ParserContext, error: ParseErrorFn): boolean {
+  const comma = ctx.at(TokenKind.COMMA);
+  if (!comma && !ctx.isKeyword(KW.AND)) return false;
+  const next = ctx.peek(1);
+  const afterNext = ctx.peek(2);
+  const startsNamedItem = (next.kind === TokenKind.IDENT || next.kind === TokenKind.TYPE_IDENT)
+    && afterNext?.kind === TokenKind.IDENT && String(afterNext.value ?? '').toLowerCase() === KW.AS;
+  if (startsNamedItem || !canStartType(next)) return false;
+  if (comma && ctx.typeListDepth > 0) {
+    error(Issue.unexpectedConstruct(lit(','),
+      "Ambiguous ',' in a parenthesised type list: write 'and' for another type argument, or wrap the generic type in parentheses"));
+  }
+  return true;
 }
 
 function parseTypePrimary(
@@ -322,8 +358,8 @@ function parseTypePrimary(
     let err: Type;
     let connectorTok: Token | null = null;
 
-    if (ctx.isKeyword(KW.OR) || ctx.isKeyword(KW.AND)) {
-      connectorTok = ctx.nextWord();
+    if (ctx.isKeyword(KW.OR) || continuesOfTypeArgs(ctx, error)) {
+      connectorTok = ctx.isKeyword(KW.OR) ? ctx.nextWord() : ctx.next();
       err = parseType(ctx, error);
     } else {
       // Default error type is Text
@@ -422,12 +458,8 @@ function parseTypePrimary(
       let more = true;
       while (more) {
         args.push(parseType(ctx, error));
-        if (ctx.isKeyword(KW.AND)) {
-          ctx.nextWord();
-          continue;
-        }
-        if (ctx.at(TokenKind.COMMA)) {
-          ctx.next();
+        if (continuesOfTypeArgs(ctx, error)) {
+          ctx.next(); // 消费 `and` / `,`
           continue;
         }
         more = false;

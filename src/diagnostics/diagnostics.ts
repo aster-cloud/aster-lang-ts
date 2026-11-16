@@ -23,6 +23,7 @@ export enum DiagnosticCode {
 
   // Lowering errors (L101-L199)：仅作构造入口，诊断实际发共享码 E600–E605（见 Diagnostics）
   L101_UnknownDeclKind = 'L101',
+  /** 保留：E601 已无发出点（未知效果名按 pure 处理，aster-lang-ts#304 / #309） */
   L102_UnknownEffect = 'L102',
   L103_UnknownStmtKind = 'L103',
   L104_UnknownExprKind = 'L104',
@@ -365,12 +366,6 @@ export const Diagnostics = {
     DiagnosticBuilder.error(DiagnosticCode.L101_UnknownDeclKind)
       .withErrorCode(ErrorCode.LOWER_UNKNOWN_DECL_KIND, { kind })
       .withMessage(`Unknown declaration kind: ${kind}`)
-      .withPosition(pos),
-
-  unknownEffect: (effect: string, validEffects: string, pos: Position): DiagnosticBuilder =>
-    DiagnosticBuilder.error(DiagnosticCode.L102_UnknownEffect)
-      .withErrorCode(ErrorCode.LOWER_UNKNOWN_EFFECT, { effect, valid: validEffects })
-      .withMessage(`Unknown effect '${effect}', valid values: ${validEffects}`)
       .withPosition(pos),
 
   unknownStmtKind: (kind: string, pos: Position): DiagnosticBuilder =>
