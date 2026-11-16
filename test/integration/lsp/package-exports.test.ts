@@ -10,7 +10,7 @@ import { resolve } from 'node:path';
 
 const PKG = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as {
   name: string;
-  exports: Record<string, { types: string; import: string }>;
+  exports: Record<string, string | { types: string; import: string }>;
 };
 
 describe('包入口：LSP 补全', () => {
@@ -35,13 +35,20 @@ describe('包入口：LSP 补全', () => {
     assert.equal(impl.CANONICAL_PREVIEW_METHOD, browser.CANONICAL_PREVIEW_METHOD);
     // 类型契约须出现在两个入口的发布声明文件中
     for (const entry of ['./browser', './lsp']) {
-      const dts = readFileSync(resolve(PKG.exports[entry]!.types), 'utf8');
+      const target = PKG.exports[entry];
+      assert.ok(target !== undefined && typeof target !== 'string', `${entry} 须为 {types, import} 形态的入口`);
+      const dts = readFileSync(resolve(target.types), 'utf8');
       assert.match(dts, /\bCanonicalPreview\b[^;]*canonical-preview-contract\.js/, entry);
     }
   });
 
   it('exports 中每个入口的产物都存在', () => {
     for (const [entry, target] of Object.entries(PKG.exports)) {
+      // 字符串形态的入口（如 ./runner 单文件 CLI）没有类型声明，只查产物
+      if (typeof target === 'string') {
+        assert.ok(existsSync(resolve(target)), `${entry} → ${target}`);
+        continue;
+      }
       assert.ok(existsSync(resolve(target.import)), `${entry} → ${target.import}`);
       assert.ok(existsSync(resolve(target.types)), `${entry} → ${target.types}`);
     }
