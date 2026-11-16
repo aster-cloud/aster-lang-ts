@@ -18,6 +18,11 @@ on:
       trainId:
         required: false
         type: string
+      forceTests:
+        description: '发布 run 跑完整测试而不要求 main CI 已通过（ADR 0053 修订 A2 的逃生口）'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: release-${{ github.repository }}-${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
@@ -44,6 +49,7 @@ jobs:
       - name: Create & push release tag
         env:
           VERSION: ${{ inputs.version }}
+          FORCE_TESTS: ${{ inputs.forceTests }}
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
           if [ "$VERSION" != "$PKG_VERSION" ]; then
@@ -57,16 +63,45 @@ jobs:
           if git show-ref --verify --quiet "refs/tags/$TAG"; then
             TAG_SHA=$(git rev-list -n1 "$TAG"); HEAD_SHA=$(git rev-parse HEAD)
             if [ "$TAG_SHA" = "$HEAD_SHA" ]; then
+              # ADR 0053 修订 A2：tag 已在本 commit 上时 dispatch 是 no-op，tag 消息不会再变；本次要求 forceTests 而已有
+              # tag 不带标记，就明确失败，不让 forceTests 被静默忽略。
+              if [ "$FORCE_TESTS" = "true" ] && ! git cat-file -p "refs/tags/$TAG" | grep -qxF "release-gate: force-tests"; then
+                echo "::error::$TAG 已存在但不带 force-tests 标记，本次 forceTests=true 不会生效。该版本尚未发布时：删除远端 tag（git push origin :refs/tags/$TAG）后重新 dispatch；或让 main CI 变绿后重跑该 tag 的 publish run。"; exit 1
+              fi
               echo "::notice::$TAG already on this commit → no-op (idempotent)"; exit 0
             fi
             echo "::error::$TAG exists but points to $TAG_SHA, not HEAD $HEAD_SHA"; exit 1
           fi
-          git tag "$TAG"
+          # ADR 0053 修订 A2：forceTests 时打 annotated tag，消息带标记，tag-push 的发布 run 据此跑完整测试。
+          if [ "$FORCE_TESTS" = "true" ]; then
+            git tag -a "$TAG" -m "release-gate: force-tests"
+          else
+            git tag "$TAG"
+          fi
           git push origin "$TAG"
 
-  # First run CI to ensure tests pass（仅 tag-push 路径）
-  ci:
+  # ADR 0053 修订 A2：发布的 commit 必须已在 main CI 上通过（ci.yml 的 test (24) 是 typecheck / lint /
+  # 单测 / 集成 / golden / property / fuzz 的超集），发布 run 不再重跑测试。
+  # tag 带「release-gate: force-tests」时门禁跳过，由下面的 full-tests 跑完整测试。
+  gate:
     if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      force-tests: ${{ steps.ci-gate.outputs.force-tests }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Require main CI green for this commit
+        id: ci-gate
+        uses: aster-cloud/aster-lang-platform/.github/actions/require-main-ci-green@main
+
+  # 完整测试：只在 force-tests 时跑（内容即此前每次发布都跑的 ci job）。
+  full-tests:
+    needs: gate
+    if: github.event_name == 'push' && needs.gate.outputs.force-tests == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -141,9 +176,14 @@ jobs:
       - name: Run golden tests
         run: pnpm run test:golden
 
-  # Publish to npm only after CI passes
+  # 门禁通过（或 force-tests 下完整测试通过）后才发布。条件写全两种合法组合，其余（门禁失败、
+  # force-tests 却没跑测试、测试失败）一律不发布。
   publish:
-    needs: ci
+    needs: [gate, full-tests]
+    if: >-
+      !cancelled() && needs.gate.result == 'success' && (
+        (needs.gate.outputs.force-tests == 'true' && needs.full-tests.result == 'success') ||
+        (needs.gate.outputs.force-tests == 'false' && needs.full-tests.result == 'skipped'))
     runs-on: ubuntu-latest
 
     permissions:
@@ -154,34 +194,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # ★与 ci job 同因：publish job 也会跑 `pnpm test`（prepublish 链路），
-      #   故同样需要 aster-lang-core 并列存在，否则错误码单源门禁按
-      #   fail-closed 设计中断发布。
-      #   （上一版只修了 ci job，实测 publish job 仍以同一断言失败。）
-      - name: Checkout aster-lang-core (错误码单源门禁需要)
-        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
-        with:
-          repository: aster-cloud/aster-lang-core
-          path: aster-lang-core
-          token: ${{ secrets.CROSS_REPO_TOKEN }}
-
-      # ★prepublishOnly 会再跑一遍全量测试（clean → build → test），同样需要 aster-lang-test
-      - name: Checkout aster-lang-test (prepublishOnly 全量测试需要)
-        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
-        with:
-          repository: aster-cloud/aster-lang-test
-          path: aster-lang-test
-          token: ${{ secrets.CROSS_REPO_TOKEN }}
-
-      # Core IR v2（ADR 0055 §3）：schema 副本 parity 与 readCoreIr 负例夹具直读 locales 的
-      # core-ir/，缺失即失败（test/helpers/locales-core-ir.ts）。与 ci.yml 保持一致。
-      - name: Checkout aster-lang-locales
-        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
-        with:
-          repository: aster-cloud/aster-lang-locales
-          path: aster-lang-locales
-          token: ${{ secrets.CROSS_REPO_TOKEN }}
-
+      # 发布 job 只构建与打包（prepublishOnly：clean → build → browser 入口检查 → 发布包冒烟），
+      # 不跑测试，故不再检出 core / test / locales，也不构建语料 loader（ts#318 / ts#319 两次补的正是它们）。
+      # 构建本身不读兄弟仓（已在无兄弟仓的隔离目录里验证 `pnpm run build`）。
       - name: Install pnpm
         uses: pnpm/action-setup@v6
 
@@ -194,11 +209,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      # prepublishOnly 的全量测试同样读兄弟 checkout 的语料，须先构建其 loader 产物
-      - name: Build aster-lang-test corpus loader
-        working-directory: aster-lang-test/packages/js
-        run: pnpm install --frozen-lockfile --ignore-workspace && pnpm run build
 
       - name: Build
         run: pnpm run build
