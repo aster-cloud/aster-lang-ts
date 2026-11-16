@@ -109,12 +109,13 @@ function endsWithConstruct(e: Expression): boolean {
   }
 }
 
-/** 字段、参数与 lambda 参数的共同形状 */
+/** 字段、参数与 lambda 参数的共同形状；annotations 只有形参有（前置注解） */
 interface Binding {
   readonly name: string;
   readonly type: Type;
   readonly typeInferred?: boolean;
   readonly constraints?: readonly Constraint[];
+  readonly annotations?: readonly Annotation[];
 }
 
 function indent(n: number): string {
@@ -123,6 +124,8 @@ function indent(n: number): string {
 
 /** 箭头 lambda 的 Lambda 节点：块体只有一条 Return 且返回类型正是由该表达式推断而来 */
 function isArrowLambda(e: Expression & { kind: 'Lambda' }): boolean {
+  // 箭头形参表 `(x as Int) =>` 写不出形参注解，带注解时保留块形
+  if (e.params.some(p => ((p as Binding).annotations ?? []).length > 0)) return false;
   const only = e.body.statements.length === 1 ? e.body.statements[0] : undefined;
   if (only === undefined || only.kind !== 'Return') return false;
   return JSON.stringify(inferLambdaReturnType(only.expr)) === JSON.stringify(stripSpans(e.retType));
@@ -179,9 +182,10 @@ class CnlPrinter {
 
   /** 字段与参数同一写法：推断出的类型不写出，其后跟约束 */
   binding(b: Binding): string {
+    const annotations = (b.annotations ?? []).map(a => this.annotation(a));
     const typed = b.typeInferred ? b.name : `${b.name} as ${this.type(b.type)}`;
     const constraints = (b.constraints ?? []).map(c => this.constraint(c));
-    return [typed, ...constraints].join(' ');
+    return [...annotations, typed, ...constraints].join(' ');
   }
 
   constraint(c: Constraint): string {
@@ -410,8 +414,11 @@ class CnlPrinter {
       case 'TypeVar':
         return t.name;
       case 'Maybe':
-        // `(A) -> B?` 的 `?` 归返回类型，可空的函数类型须加括号
-        return t.type.kind === 'FuncType' ? `(${this.type(t.type)})?` : `${this.type(t.type)}?`;
+        // 后缀 `?` 只跟在名字（或另一个 `?`）后面；`(A) -> B?` 的 `?` 归返回类型，可空的函数类型须加括号。
+        // 其余内层写前缀 `maybe T`：`@pii(…) T?` 会读成注解包在 Maybe 外面，`list of T?` 会读成 list of (T?)，都改变含义
+        if (t.type.kind === 'FuncType') return `(${this.type(t.type)})?`;
+        if (t.type.kind === 'TypeName' || t.type.kind === 'TypeVar' || t.type.kind === 'Maybe') return `${this.type(t.type)}?`;
+        return `maybe ${this.type(t.type)}`;
       case 'Option':
         return `Option of ${this.type(t.type)}`;
       case 'Result':

@@ -57,14 +57,16 @@ export const Core = {
     name: string,
     type: CoreTypes.Type,
     constraints: readonly CoreTypes.Constraint[] = [],
-    typeInferred = false
-  ): CoreTypes.Field => ({ name, type, annotations: [], constraints, typeInferred }),
+    typeInferred = false,
+    annotations: readonly CoreTypes.Annotation[] = []
+  ): CoreTypes.Field => ({ name, type, annotations, constraints, typeInferred }),
   Param: (
     name: string,
     type: CoreTypes.Type,
     constraints: readonly CoreTypes.Constraint[] = [],
-    typeInferred = false
-  ): CoreTypes.Parameter => ({ name, type, annotations: [], constraints, typeInferred }),
+    typeInferred = false,
+    annotations: readonly CoreTypes.Annotation[] = []
+  ): CoreTypes.Parameter => ({ name, type, annotations, constraints, typeInferred }),
   Enum: (name: string, variants: readonly string[]): CoreTypes.Enum => ({
     kind: 'Enum',
     name,

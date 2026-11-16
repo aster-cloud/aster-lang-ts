@@ -481,7 +481,7 @@ Rule wrap of T given value as T, produce List of T:
       const module = parseSource(`
 Module test.parser.func_type_params.multi.
 
-Rule pair of Left and Right given left as Left and right as Right, produce Result of Left or Right:
+Rule pair of Left and Right given left as Left and right as Right, produce Result of Left and Right:
   Return Result.ok(left).
 `);
       const func = findFunc(module, 'pair');
@@ -528,7 +528,7 @@ Rule compose of Input, Middle and Output given first as Input, second as Middle,
       const module = parseSource(`
 Module test.parser.func_type_params.complex.
 
-Rule pipeline of Source and Target given items as List of Source, produce Result of Map Source to Target or Text:
+Rule pipeline of Source and Target given items as List of Source, produce Result of Map Source to Target and Text:
   Return Result.err("empty").
 `);
       const func = findFunc(module, 'pipeline');
@@ -944,7 +944,7 @@ Rule parse given payload as Option of Text?, produce Bool:
       const module = parseSource(`
 Module test.parser.types.result.
 
-Rule convert given input as Result of Int or Text, produce Int:
+Rule convert given input as Result of Int and Text, produce Int:
   Return 0.
 `);
       const func = findFunc(module, 'convert');
@@ -1056,7 +1056,7 @@ Rule secure given field as @pii(L2, email) Text, produce Text:
       const module = parseSource(`
 Module test.parser.types.map_result.
 
-Rule inspect given entry as Map Text to Result of Int or Text, produce Bool:
+Rule inspect given entry as Map Text to Result of Int and Text, produce Bool:
   Return true.
 `);
       const func = findFunc(module, 'inspect');
@@ -1082,7 +1082,7 @@ Rule inspect given entry as Map Text to Result of Int or Text, produce Bool:
       const module = parseSource(`
 Module test.parser.types.result_option.
 
-Rule decide given payload as Result of Option of Text or List of Text, produce Bool:
+Rule decide given payload as Result of Option of Text and List of Text, produce Bool:
   Return true.
 `);
       const func = findFunc(module, 'decide');

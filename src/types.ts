@@ -320,6 +320,8 @@ export interface Func extends Resolvable, Base.BaseFunc<Span, readonly string[],
 }
 
 export interface Parameter extends Resolvable, Base.BaseParameter<Type> {
+  /** 形参前置注解（`given @pii(L1, email) y as Text`），按源码顺序；类型上的 `@pii` 仍在 type 的 TypePii 节点里 */
+  readonly annotations?: readonly Annotation[];
   /** CNL 约束列表 */
   readonly constraints?: readonly Constraint[];
   /** 标记类型是否为推断得出（用于诊断和文档生成） */
