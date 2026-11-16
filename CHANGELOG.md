@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.1.0
+
+> **次版本号的理由**：包的公开导出（`package.json` 的 `exports` 可达的声明）没有删减或改签名；被删除的
+> `Diagnostics.unknownEffect` 与 `parseLegacyCapability` 都不在 `exports` 中、不能被包外导入。但下面的语法裁决
+> 让部分此前能编译的源码改报 error 级诊断，不是补丁级变化，按 ADR 0046 §11.7 第 11 条（1.6.0 先例）取 minor。
+
+### 双引擎 parity 清扫（ADR 0056 修订 A1，与 aster-lang-core 1.0.48 同车次）
+
+- **规则头必须写在一行**（aster-lang-core#266）：从 `Rule` 到结尾的 `:` / `.`（含 `It performs …`）不再跳过换行与缩进。
+  「逗号后换行再写 produce」「given 后逐行列参数」「`produce T.` 换行再写 `It performs`」此前在 ts 接受，现报解析错误，
+  与 core 一致（这些写法从未在生产编译通过）。
+- **`X of` 参数与下一个形参 / 字段的边界与 core 一致**：分隔符后是「名字 as」或不能开始类型的记号时属于外层，
+  `given x as Pair of Int, y as Text`、`result of Int and y as Text`（此前 E056）与 `result of Int, Text`（此前 E055）现在接受。
+- **E064：括号类型表里的歧义逗号**：函数类型参数表里 `X of A, B` 的逗号在 X 还能接参数时报 E064 `Unexpected ','`
+  （此前 ts 读作类型表下一项，core 读作 X 的参数，两端 IR 不同），改写为 `and` 或给 X 加括号。
+- **格式化器**：类型参数以开放元数的 `X of …` 结尾且后面紧跟分隔符时加括号（此前会把 `((Pair of Int), Text) -> Bool`
+  打印成含义不同的 `(Pair of Int, Text) -> Bool`）；`Result` 用 `and` 输出。
+- **manifest 能力检查与 core 一致**（#320）：受 manifest 约束的能力 = 显式声明 ∪ 函数体实际用到；裸 `It performs io` /
+  `cpu` 不再展开成预置能力；manifest 的 `io` / `cpu` 类别键按 `shared/capabilities.json` 的 `class` 展开（io 补上
+  Network、Process、Payment、Inventory，cpu 补上 Crypto），同表里具体能力键覆盖类别键。
+- **LSP 效果快修**（#310）：按码表值（E200 / E205 / E303 等）触发，插入小写 `It performs io` / `cpu`，规则头已有
+  `It performs` 时也给出修复。
+- **E601 改为保留码**（#309）：已无发出点，码表 help 同步说明；删除无调用方的内部构造器 `Diagnostics.unknownEffect`。
+- 测试：`X of` 元数与解析诊断 parity 夹具（#326）。
+
 ## 3.0.0
 
 > **主版本号的理由**：下面「删除的 API」中，公开类型 `Lexicon`
