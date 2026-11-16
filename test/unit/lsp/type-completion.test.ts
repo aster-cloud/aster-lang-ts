@@ -136,6 +136,10 @@ for (const lang of LANGS) {
       assert.ok(!labels.includes('Driver') && !labels.includes('Score') && !labels.includes('L'), `不应给声明类型：${labels}`);
       const typeKinds: (number | undefined)[] = [CompletionItemKind.Class, CompletionItemKind.TypeParameter, CompletionItemKind.Module];
       assert.ok(items.every((i) => !typeKinds.includes(i.kind)), '表达式位置不应有 Class / TypeParameter / Module 项');
+      // 类型关键词（内置类型、Verdict、类型构造词）只属类型位置，任何 kind 都不应出现在表达式补全里
+      const typeWords = [...builtins(lang.lexicon), ...constructors(lang.lexicon), 'list of', 'map', lang.localizedText];
+      const leaked = labels.filter((l) => typeWords.includes(l));
+      assert.deepEqual(leaked, [], `表达式位置不应给类型关键词：${leaked}`);
       assert.ok(labels.includes(lang.lexicon.keywords[SemanticTokenKind.RETURN]!), '应回到关键词补全');
     });
 

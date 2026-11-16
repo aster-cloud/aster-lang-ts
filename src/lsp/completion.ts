@@ -30,7 +30,7 @@ import { EN_US } from '../config/lexicons/en-US.js';
 import { resolveDocument } from './resolution.js';
 import { localizedField, memberCompletionResult } from './member-completion.js';
 import type { MemberCompletionOptions } from './member-completion.js';
-import { isTypePosition, typeCompletions } from './type-completion.js';
+import { isTypePosition, typeCompletions, typeOnlyKeywords } from './type-completion.js';
 import { vocabularyTermCompletions } from './vocabulary-completion.js';
 
 /*
@@ -413,8 +413,10 @@ function keywordCompletions(lexicon: Lexicon | undefined): CompletionItem[] {
         ...Object.values(lexicon.keywords),
         ...(lexicon.aliases ? Object.values(lexicon.aliases).flat() : []),
       ]
-    : Object.values(KW); // 无 lexicon 上下文时回退英文规范拼写
-  const completions: CompletionItem[] = [...new Set(keywords)].map(keyword => ({
+    : Object.values(KW); // 无 lexicon 上下文时回退英文规范拼写（KW 不含类型词）
+  // 内置类型（Int / Ganzzahl / 整数 …）与类型构造词只在类型位置给出（typeCompletions）
+  const typeOnly = lexicon ? typeOnlyKeywords(lexicon) : new Set<string>();
+  const completions: CompletionItem[] = [...new Set(keywords)].filter(keyword => !typeOnly.has(keyword)).map(keyword => ({
     label: keyword,
     kind: CompletionItemKind.Keyword,
     data: keyword,

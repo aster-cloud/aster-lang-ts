@@ -300,6 +300,20 @@ const TYPE_CONSTRUCTOR_KINDS: readonly SemanticTokenKind[] = [
 ];
 
 /**
+ * 只属类型位置的关键词拼写（内置类型与类型构造词，含别名）：表达式等非类型位置的关键词补全须排除它们
+ * （T10「非类型位置不再给类型」）。同一拼写若也是某个非类型关键词（如某语言里同形），则保留在通用补全中。
+ */
+export function typeOnlyKeywords(lexicon: Lexicon): Set<string> {
+  const typeKinds = new Set<string>([...BUILTIN_KINDS, ...TYPE_CONSTRUCTOR_KINDS]);
+  const spellings = (kind: string): string[] => {
+    const k = kind as SemanticTokenKind;
+    return [lexicon.keywords[k], ...(lexicon.aliases?.[k] ?? [])].filter((w): w is string => !!w);
+  };
+  const other = new Set(Object.keys(lexicon.keywords).filter((k) => !typeKinds.has(k)).flatMap(spellings));
+  return new Set([...typeKinds].flatMap(spellings).filter((w) => !other.has(w)));
+}
+
+/**
  * 类型位置的候选：本文档 Data / Enum（Class / Enum）、类型别名（TypeParameter，detail 为目标类型）、
  * 导入别名（Module，detail 为模块路径）、本地化内置类型与治理返回类型 Verdict（Class）、
  * 类型构造词（Keyword：本地化的 maybe / option of / result of，以及不本地化的 list of / map）。
