@@ -82,6 +82,10 @@ const LANGS: readonly Lang[] = [
 const builtins = (lex: Lexicon): string[] => [SemanticTokenKind.TEXT, SemanticTokenKind.INT_TYPE, SemanticTokenKind.FLOAT_TYPE, SemanticTokenKind.BOOL_TYPE]
   .map((k) => lex.keywords[k]!);
 
+/** 类型构造关键词（maybe / option of / result of）的规范拼写 */
+const constructors = (lex: Lexicon): string[] => [SemanticTokenKind.MAYBE, SemanticTokenKind.OPTION_OF, SemanticTokenKind.RESULT_OF]
+  .map((k) => lex.keywords[k]!);
+
 /** 把 tail 作为末行放在 head 之后，光标置于行末。 */
 function atEnd(lang: Lang, tail: string, extra: readonly string[] = []): Item[] {
   const doc = docOf([...lang.head, ...extra, tail]);
@@ -129,8 +133,19 @@ for (const lang of LANGS) {
       assert.equal(hits[0]!.kind, CompletionItemKind.Class);
     });
 
-    it('typeCompletions 无 AST 时只给内置类型', () => {
-      assert.deepEqual(typeCompletions(null, lang.lexicon).map((i) => i.label).sort(), builtins(lang.lexicon).sort());
+    it('typeCompletions 无 AST 时只给内置类型（Class）与类型构造词（Keyword）', () => {
+      const items = typeCompletions(null, lang.lexicon);
+      const ofKind = (k: number) => items.filter((i) => i.kind === k).map((i) => i.label).sort();
+      assert.deepEqual(ofKind(CompletionItemKind.Class), builtins(lang.lexicon).sort());
+      assert.deepEqual(ofKind(CompletionItemKind.Keyword), [...constructors(lang.lexicon), 'list of', 'map'].sort());
+      assert.equal(items.length, builtins(lang.lexicon).length + constructors(lang.lexicon).length + 2);
+    });
+
+    it('★类型位置给本地化类型构造词（maybe / option of / result of，Keyword）', () => {
+      const by = new Map(atEnd(lang, lang.field).map((i) => [i.label, i]));
+      for (const c of [...constructors(lang.lexicon), 'list of', 'map']) {
+        assert.equal(by.get(c)?.kind, CompletionItemKind.Keyword, `缺少类型构造词 ${c}`);
+      }
     });
   });
 }
@@ -167,5 +182,41 @@ describe('isTypePosition 边界', () => {
 
   it('★Let 注解类型位置：Let x as 之后是类型', () => {
     assert.equal(at('Rule f given y as Int, produce Int:\n  Let x as '), true);
+  });
+});
+
+describe('isTypePosition 本地化类型参数位置', () => {
+  const at = (lexicon: Lexicon, text: string): boolean => {
+    const lines = text.split('\n');
+    const tokens = parseDocumentText(text, lexicon, undefined, undefined).tokens as never;
+    return isTypePosition(tokens, { line: lines.length - 1, character: lines[lines.length - 1]!.length }, lexicon);
+  };
+
+  it('★de-DE：多词关键字 Option aus / Ergebnis aus 按 token 序列匹配，und 引出下一个类型参数', () => {
+    const head = 'Modul m.\n\nDefiniere A hat x als ';
+    assert.equal(at(DE_DE, head + 'Option aus '), true);
+    assert.equal(at(DE_DE, head + 'Ergebnis aus '), true);
+    assert.equal(at(DE_DE, head + 'Ergebnis aus Ganzzahl und '), true);
+    assert.equal(at(DE_DE, head + 'vielleicht '), true);
+    assert.equal(at(DE_DE, head + 'Paar of Ganzzahl und '), true);
+    assert.equal(at(DE_DE, head + 'map Text auf '), true);
+    assert.equal(at(DE_DE, head + 'Option '), false, '只写了多词关键字的前半');
+    assert.equal(at(DE_DE, 'Modul m.\n\nRegel f gegeben x als Ganzzahl und '), false, '形参之间的 und 不是类型参数位置');
+  });
+
+  it('★zh-CN：结果 / 选项 / 可选 之后、结果 … 并且 之后是类型位置', () => {
+    const head = '模块 m。\n\n定义 A 包含 x 作为 ';
+    assert.equal(at(ZH_CN, head + '结果 '), true);
+    assert.equal(at(ZH_CN, head + '结果 整数 并且 '), true);
+    assert.equal(at(ZH_CN, head + '选项 '), true);
+    assert.equal(at(ZH_CN, head + '可选 '), true);
+    assert.equal(at(ZH_CN, '模块 m。\n\n规则 f 给定 x 作为 整数 并且 '), false, '形参之间的 并且 不是类型参数位置');
+  });
+
+  it('en-US 对照：option of / result of … and', () => {
+    const head = 'Module m.\n\nDefine A has x as ';
+    assert.equal(at(EN_US, head + 'option of '), true);
+    assert.equal(at(EN_US, head + 'result of Int and '), true);
+    assert.equal(at(EN_US, head + 'option '), false);
   });
 });

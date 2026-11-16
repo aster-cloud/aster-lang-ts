@@ -22,11 +22,33 @@ type Coord = { readonly line: number; readonly col: number };
 const BOUNDARY_KINDS: ReadonlySet<unknown> = new Set([TokenKind.NEWLINE, TokenKind.COLON]);
 const SKIP_KINDS: ReadonlySet<unknown> = new Set([TokenKind.COMMENT, TokenKind.INDENT, TokenKind.DEDENT]);
 
-/** 该文档语言中某关键字的全部写法（规范拼写 + 别名，小写） */
-function wordsOf(lexicon: Lexicon, kind: SemanticTokenKind): ReadonlySet<string> {
+/**
+ * 该文档语言中某关键字的全部写法（规范拼写 + 别名），每种写法按空白切成小写词序列：
+ * 多词关键字（`option of`、de `Option aus`、de `Ergebnis aus`）在 token 流里是多个 token，须按序列匹配。
+ */
+function phrasesOf(lexicon: Lexicon, kind: SemanticTokenKind): string[][] {
   const words = [lexicon.keywords[kind], ...(lexicon.aliases?.[kind] ?? [])].filter((w): w is string => !!w);
-  return new Set(words.map((w) => w.toLowerCase()));
+  return words.map((w) => w.toLowerCase().split(/\s+/).filter(Boolean)).filter((p) => p.length > 0);
 }
+
+/**
+ * 不随 lexicon 本地化的类型构造词：`list of T`、`map K to V`、`Pair of A and B` 的 of
+ * 在所有语言里都按英文书写（type-parser 直接匹配这些字面量，lexicon 中没有对应类别）。
+ */
+const LIST_OF: readonly string[] = ['list', 'of'];
+const MAP: readonly string[] = ['map'];
+const OF: readonly string[] = ['of'];
+
+/** words 中以下标 end（不含）结尾的一段是否恰为 phrase */
+function endsWith(words: readonly string[], end: number, phrase: readonly string[]): boolean {
+  if (end < phrase.length) return false;
+  return phrase.every((w, i) => words[end - phrase.length + i] === w);
+}
+const endsWithAny = (words: readonly string[], end: number, phrases: readonly (readonly string[])[]): boolean =>
+  phrases.some((p) => endsWith(words, end, p));
+/** words 中任意位置是否出现 phrases 之一 */
+const containsAny = (words: readonly string[], phrases: readonly (readonly string[])[]): boolean =>
+  words.some((_, i) => endsWithAny(words, i + 1, phrases));
 
 const valueOf = (t: Token | undefined): string => (typeof t?.value === 'string' ? t.value.toLowerCase() : '');
 const endsAtOrBefore = (a: Coord, b: Coord): boolean => a.line < b.line || (a.line === b.line && a.col <= b.col);
@@ -56,32 +78,24 @@ function statementBefore(tokens: readonly Token[], pos: Pos): Token[] {
  * 语句以「引用」关键字开头时 `as` 引入的是导入别名，不是类型。
  */
 export function isTypePosition(tokens: readonly Token[], pos: Pos, lexicon: Lexicon): boolean {
-  const stmt = statementBefore(tokens, pos);
-  const prev = stmt[stmt.length - 1];
-  if (!prev) return false;
-  const asWords = wordsOf(lexicon, SemanticTokenKind.IMPORT_ALIAS);
-  const produceWords = wordsOf(lexicon, SemanticTokenKind.FUNC_PRODUCE);
-  const importWords = wordsOf(lexicon, SemanticTokenKind.IMPORT);
-  if (importWords.has(valueOf(stmt[0]))) return false;
-  const prevWord = valueOf(prev);
-  if (asWords.has(prevWord) || produceWords.has(prevWord)) return true;
+  const words = statementBefore(tokens, pos).map(valueOf);
+  if (words.length === 0) return false;
+  if (phrasesOf(lexicon, SemanticTokenKind.IMPORT).some((p) => endsWith(words, p.length, p))) return false;
+  const anchors = [...phrasesOf(lexicon, SemanticTokenKind.IMPORT_ALIAS), ...phrasesOf(lexicon, SemanticTokenKind.FUNC_PRODUCE)];
+  if (endsWithAny(words, words.length, anchors)) return true;
 
   // 类型参数列表：锚点（as / produce）之后的类型构造词，Let 的 `be` 之后不再是类型
-  const anchor = stmt.findIndex((t) => asWords.has(valueOf(t)) || produceWords.has(valueOf(t)));
+  const anchor = words.findIndex((_, i) => endsWithAny(words, i + 1, anchors));
   if (anchor < 0) return false;
-  const beWords = wordsOf(lexicon, SemanticTokenKind.BE);
-  const tail = stmt.slice(anchor + 1);
-  if (tail.some((t) => beWords.has(valueOf(t)))) return false;
-  const openers = new Set<string>([
-    'of', 'list', 'map',
-    ...wordsOf(lexicon, SemanticTokenKind.MAYBE),
-    ...wordsOf(lexicon, SemanticTokenKind.OPTION_OF),
-    ...wordsOf(lexicon, SemanticTokenKind.RESULT_OF),
-  ]);
-  if (openers.has(prevWord)) return true;
-  const words = tail.map(valueOf);
-  if (prevWord === 'and' || wordsOf(lexicon, SemanticTokenKind.AND).has(prevWord)) return words.includes('of');
-  if (wordsOf(lexicon, SemanticTokenKind.TO_WORD).has(prevWord)) return words.includes('map');
+  const tail = words.slice(anchor + 1);
+  if (containsAny(tail, phrasesOf(lexicon, SemanticTokenKind.BE))) return false;
+  const resultOf = phrasesOf(lexicon, SemanticTokenKind.RESULT_OF);
+  const openers = [OF, MAP, ...phrasesOf(lexicon, SemanticTokenKind.MAYBE), ...phrasesOf(lexicon, SemanticTokenKind.OPTION_OF), ...resultOf];
+  const end = tail.length;
+  if (endsWithAny(tail, end, openers)) return true;
+  // `Pair of A and ` / `result of A and `（zh `结果 整数 并且 ` 没有 of）之后是下一个类型参数
+  if (endsWithAny(tail, end, phrasesOf(lexicon, SemanticTokenKind.AND))) return containsAny(tail, [OF, ...resultOf]);
+  if (endsWithAny(tail, end, phrasesOf(lexicon, SemanticTokenKind.TO_WORD))) return containsAny(tail, [MAP]);
   return false;
 }
 
@@ -93,9 +107,17 @@ const BUILTIN_KINDS: readonly SemanticTokenKind[] = [
   SemanticTokenKind.BOOL_TYPE,
 ];
 
+/** 类型构造关键词的 lexicon 类别（maybe / option of / result of）；值构造词（ok of、some of、none）不属类型位置 */
+const TYPE_CONSTRUCTOR_KINDS: readonly SemanticTokenKind[] = [
+  SemanticTokenKind.MAYBE,
+  SemanticTokenKind.OPTION_OF,
+  SemanticTokenKind.RESULT_OF,
+];
+
 /**
  * 类型位置的候选：本文档 Data / Enum（Class / Enum）、类型别名（TypeParameter，detail 为目标类型）、
- * 导入别名（Module，detail 为模块路径）、本地化内置类型（Class）。
+ * 导入别名（Module，detail 为模块路径）、本地化内置类型（Class）、
+ * 类型构造词（Keyword：本地化的 maybe / option of / result of，以及不本地化的 list of / map）。
  * 按 ADR 0051 §6.3 折叠后的规范名去重，先出现者保留（本文档声明优先于内置类型）。
  */
 export function typeCompletions(ast: AstModule | null, lexicon: Lexicon): CompletionItem[] {
@@ -118,5 +140,11 @@ export function typeCompletions(ast: AstModule | null, lexicon: Lexicon): Comple
       if (word) add(word, CompletionItemKind.Class);
     }
   }
+  for (const kind of TYPE_CONSTRUCTOR_KINDS) {
+    for (const word of [lexicon.keywords[kind], ...(lexicon.aliases?.[kind] ?? [])]) {
+      if (word) add(word, CompletionItemKind.Keyword);
+    }
+  }
+  for (const phrase of [LIST_OF, MAP]) add(phrase.join(' '), CompletionItemKind.Keyword);
   return [...items.values()];
 }
