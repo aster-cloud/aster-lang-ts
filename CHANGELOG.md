@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.2.0
+
+### W709：@pii 输入字段流入返回的 Text（aster-cloud#772 方案 3，与 aster-lang-core 同车次）
+
+- **新警告 W709 `GOV_PII_RETURNED_AS_TEXT`**（`governance` 类，恒为 warning、不阻断保存）：函数声明返回 `Text`（或返回类型
+  由推断得到且返回值已知是文本）时，返回值由 `@pii` 形参或 `@pii` 记录字段经 `+` / `Text.concat` 拼接、Let / Set 绑定、
+  if 表达式分支构成，在该 Return 处按字段报告，参数 `{rule}` 与 `{field}`（以参数名为前缀的字段路径，如 `applicant.name`）。
+  执行输出原样落库并在日志页展示，日志面的输入打码（ADR 0042 §12.6）覆盖不到它，由策略作者负责。
+- 保守口径：只看声明类型；不跨函数、不进集合、不经其他内置调用传播；返回类型声明为 `@pii(...) Text` 或不是 Text 时不报。
+- 新文件 `src/governance/pii-text-return.ts`（Java 镜像 `PiiTextReturnAnalyzer`），由 `checkGovernance` 调用，Node 与浏览器
+  两条类型检查路径都会给出；共享夹具 `shared/governance_pii_text_return_parity.json` 与 aster-lang-core 逐字节相同。
+- 码表、`docs/error-codes.md` 与 `diagnostic-overlays.generated.ts`（zh-CN / de-DE / hi-IN 译文）同步。
+
 ## 3.1.0
 
 > **次版本号的理由**：包的公开导出（`package.json` 的 `exports` 可达的声明）没有删减或改签名；被删除的

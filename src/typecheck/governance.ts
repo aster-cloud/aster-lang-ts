@@ -24,6 +24,7 @@ import {
   type ProfileDef,
 } from '../governance/controls.js';
 import { analyzeInputRefs } from '../governance/input-refs.js';
+import { analyzePiiTextReturns } from '../governance/pii-text-return.js';
 import { DiagnosticBuilder } from './diagnostics.js';
 import { originToSpan } from './pure.js';
 import { VERDICT_TYPE_NAME, isVerdictCall } from './verdict_signatures.js';
@@ -99,7 +100,7 @@ function isRegistered(key: string, registry: ControlRegistry): boolean {
   return isWellFormedControlKey(key) && registry.has(key);
 }
 
-/** 单条规则：E702 注解参数、多个 @id，记录 id 归属或报 W700，W704 未登记控制点，E706 档案要求。 */
+/** 单条规则：E702 注解参数、多个 @id，记录 id 归属或报 W700，W704 未登记控制点，W709 @pii 字段流入返回的 Text，E706 档案要求。 */
 function checkFunc(
   module: GovernanceModule,
   func: Core.Func,
@@ -128,6 +129,10 @@ function checkFunc(
   for (const key of new Set(controls(func))) {
     if (isRegistered(key, registry)) continue;
     b.warning(ErrorCode.GOV_CONTROL_UNREGISTERED, span, { control: key, rule, version: registry.version });
+  }
+  // aster-cloud#772：@pii 输入字段流入返回的 Text 给 W709，与档案无关，永不阻断。
+  for (const leak of analyzePiiTextReturns(module, func)) {
+    b.warning(ErrorCode.GOV_PII_RETURNED_AS_TEXT, originToSpan(leak.origin), { rule, field: leak.field });
   }
   if (profile) checkProfile(module, func, profile, b, registry);
 }
@@ -202,7 +207,7 @@ export interface GovernanceModule {
 
 /**
  * 检查整个模块：E702 注解参数、W700 缺 @id、E701 模块内 @id 重复、W704 未登记控制点、
- * E705/E706/E708 档案（ADR 0046）、Verdict 符号预占。
+ * W709 @pii 字段流入返回的 Text（aster-cloud#772）、E705/E706/E708 档案（ADR 0046）、Verdict 符号预占。
  * opts.controls 可注入控制注册表，缺省用内置副本（ADR 0045 §3）。
  */
 export function checkGovernance(

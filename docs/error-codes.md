@@ -2,7 +2,7 @@
 
 本文档列出了 Aster 语言编译器和类型检查器使用的所有错误码。
 
-**总计**: 125 个错误码
+**总计**: 126 个错误码
 
 ## 按类别分类
 
@@ -54,7 +54,7 @@
 
 ### governance (governance)
 
-共 14 个错误码
+共 15 个错误码
 
 | 错误码 | 严重性 | 消息模板 | 解决方案 |
 |--------|--------|----------|----------|
@@ -72,6 +72,7 @@
 | **E724** `CEDAR_SCHEMA_INVALID` | 🔴 error | Generated Cedar for rule '&#123;rule&#125;' failed schema validation: &#123;detail&#125; | This is an exporter defect; the export was withheld. Please report it. |
 | **W700** `GOV_VERDICT_RULE_MISSING_ID` | 🟡 warning | Rule '&#123;rule&#125;' returns Verdict but has no @id annotation | Add @id("RULE-001") so every decision can be traced to a stable rule identity. |
 | **W704** `GOV_CONTROL_UNREGISTERED` | 🟡 warning | Control '&#123;control&#125;' on rule '&#123;rule&#125;' is not registered (controls registry &#123;version&#125;) | Use a registered key such as EU_AI_ACT:ART14, or add it to aster-lang-locales controls/registry.json (format FRAMEWORK:ARTICLE, at most 64 characters). |
+| **W709** `GOV_PII_RETURNED_AS_TEXT` | 🟡 warning | Rule '&#123;rule&#125;' returns Text built from @pii field '&#123;field&#125;'; the execution output is stored and shown unmasked | Leave the field out of the returned text or return a non-Text result; if the output must contain it, declare the return type as @pii(level, category) Text to record that it is PII. |
 
 ### 降级（AST → Core IR） (lowering)
 
