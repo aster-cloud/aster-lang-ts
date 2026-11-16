@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### 许可证声明与 LICENSE 文件一致
+
+- `package.json` 的 `license` 由 `MIT` 改为 `Apache-2.0`，浏览器包头注释同步修改。仓库 LICENSE 文件一直是 Apache License 2.0，此前的 `MIT` 声明有误；以 LICENSE 为准（产品负责人确认）。ADR 0059 的 P3（自包含导出打包运行时）以许可证一致为前提。
+
 ## 3.2.0
 
 > **次版本号的理由**：包的公开声明只增不删、无签名变化——在 `v3.1.0` 与本版各自 `pnpm run build` 对比 `dist/**/*.d.ts`：
