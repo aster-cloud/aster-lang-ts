@@ -207,6 +207,22 @@ export interface EvalResult {
   error?: string;
   /** 执行耗时（毫秒） */
   executionTimeMs?: number;
+  /**
+   * 失败类别（失败时）：`'resource'` 表示调用深度超限或 JS 栈溢出（{@link ResourceExhaustedError}），
+   * 包格式 CLI 据此报 `RESOURCE_EXHAUSTED` 而不是 `EVAL_ERROR`（ADR 0059 修订 1 A4）。其余失败不带此字段。
+   */
+  errorKind?: 'resource';
+}
+
+/** 求值选项。 */
+export interface EvaluateOptions {
+  /** 步数上限（缺省 {@link MAX_STEPS}）；受信、计算量已知有界的调用方可上调 */
+  maxSteps?: number;
+  /**
+   * 调用深度上限（缺省 {@link MAX_CALL_DEPTH} = 50，浏览器 / cloud 现有行为不变）。包格式 CLI 用 10 000，
+   * 并在 `stackSizeMb: 32` 的 Worker 中求值，使该上限先于 JS 栈溢出触发（ADR 0059 修订 1 A4）。
+   */
+  maxCallDepth?: number;
 }
 
 /**
@@ -221,11 +237,11 @@ export function evaluate(
   core: CoreTypes.Module,
   functionName: string,
   context: Record<string, unknown>,
-  options?: { maxSteps?: number },
+  options?: EvaluateOptions,
 ): EvalResult {
   const start = performance.now();
   try {
-    const interp = new Interpreter(core, options?.maxSteps ?? MAX_STEPS);
+    const interp = new Interpreter(core, options?.maxSteps ?? MAX_STEPS, options?.maxCallDepth ?? MAX_CALL_DEPTH);
     const value = interp.callFunction(functionName, context);
     return {
       success: true,
@@ -233,6 +249,15 @@ export function evaluate(
       executionTimeMs: Math.round((performance.now() - start) * 100) / 100,
     };
   } catch (err) {
+    const resource = asResourceExhausted(err);
+    if (resource) {
+      return {
+        success: false,
+        error: resource.message,
+        errorKind: 'resource',
+        executionTimeMs: Math.round((performance.now() - start) * 100) / 100,
+      };
+    }
     if (err instanceof InterpreterError) {
       return {
         success: false,
@@ -258,6 +283,29 @@ class InterpreterError extends Error {
     super(message);
     this.name = 'InterpreterError';
   }
+}
+
+/**
+ * 资源耗尽：调用深度超过上限，或求值中出现 JS 栈溢出。继承 InterpreterError，
+ * 对只认 InterpreterError 的既有调用方行为不变；{@link evaluate} 把它标成 `errorKind: 'resource'`。
+ */
+export class ResourceExhaustedError extends InterpreterError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ResourceExhaustedError';
+  }
+}
+
+/** V8 栈溢出的固定文本（`RangeError`）。 */
+const JS_STACK_OVERFLOW = 'Maximum call stack size exceeded';
+
+/** 把调用深度超限与 JS 栈溢出归为资源耗尽；其他错误返回 undefined。 */
+function asResourceExhausted(err: unknown): ResourceExhaustedError | undefined {
+  if (err instanceof ResourceExhaustedError) return err;
+  if (err instanceof RangeError && err.message === JS_STACK_OVERFLOW) {
+    return new ResourceExhaustedError(`JavaScript stack overflow: ${JS_STACK_OVERFLOW}`);
+  }
+  return undefined;
 }
 
 /** Return 语句信号（非错误，用于控制流） */
@@ -825,9 +873,16 @@ class Interpreter {
   private readonly maxSteps: number;
   /** 调用深度计数器（防无限递归） */
   private callDepth = 0;
+  /** 调用深度上限（默认 MAX_CALL_DEPTH，包格式 CLI 上调） */
+  private readonly maxCallDepth: number;
 
-  constructor(private readonly module: CoreTypes.Module, maxSteps: number = MAX_STEPS) {
+  constructor(
+    private readonly module: CoreTypes.Module,
+    maxSteps: number = MAX_STEPS,
+    maxCallDepth: number = MAX_CALL_DEPTH,
+  ) {
     this.maxSteps = maxSteps > 0 ? maxSteps : MAX_STEPS;
+    this.maxCallDepth = maxCallDepth > 0 ? maxCallDepth : MAX_CALL_DEPTH;
     this.funcs = new Map();
     this.dataDecls = new Map();
     this.enumVariantToEnum = new Map();
@@ -880,10 +935,8 @@ class Interpreter {
   /** 执行函数体 */
   private invokeFunc(func: CoreTypes.Func, env: Env): unknown {
     this.callDepth++;
-    if (this.callDepth > MAX_CALL_DEPTH) {
-      throw new InterpreterError(
-        `Maximum call depth (${MAX_CALL_DEPTH}) exceeded`,
-      );
+    if (this.callDepth > this.maxCallDepth) {
+      throw new ResourceExhaustedError(`Maximum call depth (${this.maxCallDepth}) exceeded`);
     }
 
     try {
@@ -1282,8 +1335,8 @@ class Interpreter {
       callEnv.set(closure.params[i]!.name, i < args.length ? args[i] : null);
     }
     this.callDepth++;
-    if (this.callDepth > MAX_CALL_DEPTH) {
-      throw new InterpreterError(`Maximum call depth (${MAX_CALL_DEPTH}) exceeded`);
+    if (this.callDepth > this.maxCallDepth) {
+      throw new ResourceExhaustedError(`Maximum call depth (${this.maxCallDepth}) exceeded`);
     }
     try {
       this.execBlock(closure.body, callEnv);

@@ -405,25 +405,8 @@ export function parseStatement(
     if ((ctx.isKeyword('a') && tokLowerAt(ctx, ctx.index + 1) === 'function') || ctx.isKeyword('function')) {
       if (ctx.isKeyword('a')) ctx.nextWord(); // optional 'a'
       const functionTok = ctx.nextWord(); // 'function'
-      const params = parseParamList(ctx, error);
-      expectCommaOr(ctx);
-      const produceTok = ctx.peek();
-      expectKeyword(ctx, error, KW.PRODUCE, Issue.expected(kwParam(KW.PRODUCE), `Expected ${kwq(ctx, KW.PRODUCE)} and return type`));
-      let retType: Type;
-      if (ctx.at(TokenKind.COLON)) {
-        // 推断返回类型的占位锚定在 produce 关键词（ADR 0056 §3.3，与 aster-lang-core 一致）
-        retType = Node.TypeName('Unknown');
-        assignSpan(retType, spanFromTokens(produceTok, produceTok));
-      } else {
-        retType = parseType(ctx, error);
-      }
-      if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfterIn(lit(':'), tokenName('returnType'), tokenName('lambda'), "Expected ':' after return type in lambda"));
-      ctx.next();
-      expectNewline(ctx, error);
-      const body = parseBlock(ctx, error);
-      const lambda = Node.Lambda(params, retType, body);
+      const lambda = parseLambdaAfterFunction(ctx, error, functionTok);
       const lambdaEnd = lastNonLayoutToken(ctx);
-      assignSpan(lambda, spanFromTokens(functionTok, lambdaEnd));
       const nd = Node.Let(name, lambda);
       assignSpan(nd, spanFromTokens(letTok, lambdaEnd));
       if (nameTok) (nd as { nameSpan?: import('../types.js').Span }).nameSpan = spanFromToken(nameTok);
@@ -1497,6 +1480,46 @@ function parsePrefixOperatorCall(
   return assignSpan(Node.Call(target, args), spanFromTokens(opTok, lastNonLayoutToken(ctx)));
 }
 
+/**
+ * `function` 之后的形参表、`produce` 返回类型与 lambda 体（Let 右侧与表达式位置共用），span 从 startTok 起。
+ *
+ * 体是换行后的缩进块，或冒号后同一行的单条 `Return expr.`：与 core 文法 `lambdaExpr: … COLON (returnStmt | NEWLINE block)`
+ * 一致（aster-lang-ts#334，ts 此前只收块形、报 E055 Expected newline）。单条 Return 包成一个块，块的位置与整个
+ * lambda 相同（与 core AstBuilder.visitLambdaExpr 一致）。
+ */
+function parseLambdaAfterFunction(ctx: ParserContext, error: ParseErrorFn, startTok: Token): Expression {
+  const params = parseParamList(ctx, error);
+  expectCommaOr(ctx);
+  const produceTok = ctx.peek();
+  expectKeyword(ctx, error, KW.PRODUCE, Issue.expected(kwParam(KW.PRODUCE), `Expected ${kwq(ctx, KW.PRODUCE)} and return type`));
+  let retType: Type;
+  if (ctx.at(TokenKind.COLON)) {
+    // 推断返回类型的占位锚定在 produce 关键词（ADR 0056 §3.3，与 aster-lang-core 一致）
+    retType = Node.TypeName('Unknown');
+    assignSpan(retType, spanFromTokens(produceTok, produceTok));
+  } else {
+    retType = parseType(ctx, error);
+  }
+  if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfterIn(lit(':'), tokenName('returnType'), tokenName('lambda'), "Expected ':' after return type in lambda"));
+  ctx.next();
+  let body: Block;
+  if (ctx.isKeyword(KW.RETURN)) {
+    const retTok = ctx.nextWord();
+    const expr = parseExpr(ctx, error);
+    expectPeriodEnd(ctx, error);
+    const ret = Node.Return(expr);
+    assignSpan(ret, spanFromTokens(retTok, lastNonLayoutToken(ctx)));
+    body = Node.Block([ret]);
+    assignSpan(body, spanFromTokens(startTok, lastNonLayoutToken(ctx)));
+  } else {
+    expectNewline(ctx, error);
+    body = parseBlock(ctx, error);
+  }
+  const lambda = Node.Lambda(params, retType, body);
+  assignSpan(lambda, spanFromTokens(startTok, lastNonLayoutToken(ctx)));
+  return lambda;
+}
+
 function parsePrimary(
   ctx: ParserContext,
   error: ParseErrorFn
@@ -1515,27 +1538,7 @@ function parsePrimary(
   if ((ctx.isKeyword('a') && tokLowerAt(ctx, ctx.index + 1) === 'function') || ctx.isKeyword('function')) {
     const optionalATok = ctx.isKeyword('a') ? ctx.nextWord() : null; // optional 'a'
     const functionTok = ctx.nextWord(); // 'function'
-    const params = parseParamList(ctx, error);
-    expectCommaOr(ctx);
-    const produceTok = ctx.peek();
-    expectKeyword(ctx, error, KW.PRODUCE, Issue.expected(kwParam(KW.PRODUCE), `Expected ${kwq(ctx, KW.PRODUCE)} and return type`));
-    let retType: Type;
-    if (ctx.at(TokenKind.COLON)) {
-      // 推断返回类型的占位锚定在 produce 关键词（ADR 0056 §3.3，与 aster-lang-core 一致）
-      retType = Node.TypeName('Unknown');
-      assignSpan(retType, spanFromTokens(produceTok, produceTok));
-    } else {
-      retType = parseType(ctx, error);
-    }
-    if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfterIn(lit(':'), tokenName('returnType'), tokenName('lambda'), "Expected ':' after return type in lambda"));
-    ctx.next();
-    expectNewline(ctx, error);
-    const body = parseBlock(ctx, error);
-    const lambda = Node.Lambda(params, retType, body);
-    const lambdaEnd = lastNonLayoutToken(ctx);
-    const lambdaStart = optionalATok ?? functionTok;
-    assignSpan(lambda, spanFromTokens(lambdaStart, lambdaEnd));
-    return lambda;
+    return parseLambdaAfterFunction(ctx, error, optionalATok ?? functionTok);
   }
   // Lambda (short form): (x: Text, y: Int) => expr
   if (ctx.at(TokenKind.LPAREN)) {

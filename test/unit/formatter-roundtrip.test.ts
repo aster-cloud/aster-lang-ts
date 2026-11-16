@@ -145,6 +145,30 @@ describe('格式化器往返（Core IR 不变）', () => {
     assert.match(formatted, /d as maybe list of Text, e as list of Text\?, f as Text\?\?/);
   });
 
+  test('字段前置注解原样输出（aster-lang-ts#334）', () => {
+    const src = ['Module m.', '', 'Define Pair has a as Int.', '',
+      'Define C has x as Pair of Int, @pii(L1, email) y as Text, @audit z as @pii(L2, phone) Text, @tag(k: 1) n.', ''].join('\n');
+    const formatted = assertRoundTrip(src);
+    assert.match(formatted, /Define C has x as Pair of Int, @pii\("L1", "email"\) y as Text, @audit z as @pii\(L2, phone\) Text, @tag\(k: 1\) n\./);
+    assert.equal(formatCNL(formatted), formatted, '格式化须幂等');
+  });
+
+  test('下一项没有写出类型时，开放元数的 X of 加括号，不输出两引擎都拒绝的 `Pair of Int, y`（aster-lang-ts#334）', () => {
+    const src = ['Module m.', '', 'Define Pair has a as Int.', '',
+      'Define B has x as (Pair of Int), y, p as (Pair of Int), @audit q, r as Pair of Int, s as Text, t as Pair of Int required, u.', '',
+      'Rule f given x as (Pair of Int), y, produce Int:', '  Return 1.', ''].join('\n');
+    const formatted = assertRoundTrip(src);
+    assert.match(formatted, /x as \(Pair of Int\), y, p as \(Pair of Int\), @audit q, r as Pair of Int, s as Text, t as Pair of Int required, u\./);
+    assert.match(formatted, /Rule f given x as \(Pair of Int\), y, produce Int:/);
+    assert.equal(formatCNL(formatted), formatted, '格式化须幂等');
+  });
+
+  test('lambda 单行体按块形输出（aster-lang-ts#334）', () => {
+    const src = ['Module m.', '', 'Rule f given x as Int, produce Int:',
+      '  Let g be function given y as Int, produce Int: Return y plus x.', '  Return g(x).', ''].join('\n');
+    assertRoundTrip(src);
+  });
+
   test('运算符按中缀输出，括号保持结合与优先级', () => {
     const body = [
       'Return (a plus b) times c.',

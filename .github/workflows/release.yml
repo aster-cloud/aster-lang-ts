@@ -231,6 +231,20 @@ jobs:
           generate_release_notes: true
           draft: false
 
+      # 单文件 runner（ADR 0059 P1 T5）：dist/runner/aster.mjs 与其 sha256 作为 Release 资产上传，
+      # 再下载回读，校验 sha256 并与本次构建产物逐字节比较，确认资产即发布的那一份。
+      - name: Upload single-file runner (aster.mjs + sha256)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" dist/runner/aster.mjs dist/runner/aster.mjs.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+          CHECK=$(mktemp -d)
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern 'aster.mjs' --pattern 'aster.mjs.sha256' --dir "$CHECK"
+          (cd "$CHECK" && sha256sum -c aster.mjs.sha256)
+          cmp "$CHECK/aster.mjs" dist/runner/aster.mjs
+
       # 下游升级不再由本 workflow 推送触发：aster-cloud 与 aster-dev 各自的 auto-upgrade.yml
       # 每日定时拉取 npm 最新版并开升级 PR（跨 org 凭据刻意不放宽，原派发一直 403）；
       # aster-lang-dev 已归档（由 aster-dev 取代）。

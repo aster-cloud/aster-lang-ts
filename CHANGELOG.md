@@ -1,5 +1,75 @@
 # Changelog
 
+## Unreleased
+
+### 许可证声明与 LICENSE 文件一致
+
+- `package.json` 的 `license` 由 `MIT` 改为 `Apache-2.0`，浏览器包头注释同步修改。仓库 LICENSE 文件一直是 Apache License 2.0，此前的 `MIT` 声明有误；以 LICENSE 为准（产品负责人确认）。ADR 0059 的 P3（自包含导出打包运行时）以许可证一致为前提。
+
+### 包格式 v1：单文件 runner `dist/runner/aster.mjs`（ADR 0059 P1 T5，aster-cloud/aster-cloud#797）
+
+- `pnpm run build` 末尾用 esbuild 打出 `dist/runner/aster.mjs`（ESM、minify、只 import Node 内置模块，约 0.64 MiB）与
+  `dist/runner/aster.mjs.sha256`；同一文件既是 CLI 主线程又是求值 Worker（`new Worker(new URL(import.meta.url))`）。
+  体积预算 1 MiB（修订 1 A3），超出即构建失败，CI `package-v1` job 另有显式体积门。
+- 新导出 `@aster-cloud/aster-lang-ts/runner`；发布 workflow 把 `aster.mjs` 与 `aster.mjs.sha256` 上传为 GitHub Release 资产并下载回读校验。
+- `test/package-v1/runner-bundle.test.ts`：把 bundle 拷到仓外临时目录重跑全部一致性用例。README 新增「Running exported policy packages」。
+
+### 包格式 v1：`aster` 的 compile / run / verify / inspect / version（ADR 0059 P1 T4，aster-cloud/aster-cloud#797）
+
+- `aster run <pkg> --input <file|-> [--entry] [--timeout] [--jwks|--pubkey] [--allow-unsigned]`、`aster verify <pkg> [--recompile] [--probes]`、
+  `aster inspect <pkg>`、`aster compile <pkg|file.aster> [--out] [--locale] [--alias-set] [--vocabulary] [--allow-structural]`、`aster version`：
+  stdout 恒为一行值规范 JSON（`run` / `inspect` 失败与 `USAGE` 输出错误信封，`verify` 输出检查项），诊断只写 stderr，退出码 0–5 见
+  aster-lang-test `conformance/package-v1/exit-codes.json`。这五个子命令绕过 cac，用严格语法解析（重复 / 未知选项、缺值都是 `USAGE`）；
+  未知子命令同样报 `USAGE` 信封。
+- 求值在 `worker_threads` Worker 中进行（`resourceLimits.stackSizeMb = 32`，`maxCallDepth = 10 000`），`--timeout`（缺省 5 s，≤ 300 s）
+  到点 `terminate()` 并报 `TIMEOUT`；深递归报 `RESOURCE_EXHAUSTED`。`verify --probes` 每条按 `--timeout` 计时，结果不符报 `PROBE_MISMATCH`。
+- `jvm` / `class` / `jar` / `truffle` / `parse` / `core` 的帮助说明加 `[dev]` 前缀。
+- 新 CI job `package-v1`：dist CLI 跑 `conformance/package-v1/` 全部用例（`pnpm run test:package-v1`，已并入 `pnpm test`）。
+
+### 包格式 v1：读包、完整性、签名、取 IR、输入与求值（ADR 0059 P1 T2 + T3，aster-cloud/aster-cloud#797）
+
+- 新目录 `src/policy-package/`（与既有 `src/package/` 依赖管理器无关），按 aster-lang-test `conformance/package-v1/README.md`
+  的检查顺序实现 read → manifest → signature → integrity → ir → entry → input → eval 各阶段，错误码、退出码与固定 message
+  取自同目录 `exit-codes.json`（`errors.ts`，兄弟仓 parity 测试守住）。
+- 读包：目录与 zip 按文件类型区分（与扩展名无关），目录内符号链接、单文件 / 累计 > 64 MiB 即失败；zip 同时解析中央目录与本地头并
+  要求一致，`node:zlib` 以「声明大小 + 1」为上限解压，deflate 流之后的多余字节、CRC 不符、ZIP64、加密、非唯一根目录都报 `PKG_INTEGRITY`。
+- manifest：严格 JSON（无 BOM / 重复键 / 孤立代理项，深度 ≤ 64）→ 文件字节等于规范 JSON → `format` / `formatVersion`（先于 schema）
+  → schema（`manifest-1.0.schema.json` 逐字节副本，ajv 2020 strict）→ 语义规则 → `coreIr.version`。
+- 签名：`manifest.sig.json` 严格 JSON + schema + 规范 base64url，内置锚 `trust/export-jwks.json`（P1 为空）或 `--jwks` / `--pubkey`
+  （原始公钥不看 kid，单个 JWK 带 kid 时必须相符），`node:crypto` Ed25519 验签。
+- 取 IR：A 包严格读入 `compiled/core.json`（`PKG_UNSUPPORTED_IR`）；B 包按 manifest 本地编译并比对 `coreIr.positionFreeSha256`
+  （去掉 `origin.*.col`，修订 1 A2），不等或编译失败为 `PKG_IR_DRIFT`。aliasSet 按 aster-api `AliasOverlayLexicon` 的**合并**语义叠加，
+  并先过新移植的 `validateAliasSet`（aster-api `UserAliasValidator` VERSION 1 的全部规则）。
+- 输入：键恰为形参名，Int 为 int32、Long 为安全整数或 int64 字符串、Decimal 为 ≤ 80 位数字的字符串等（修订 2 R7）。
+- 值规范 JSON（`value-json.ts`）：键按码点升序、整数精确、Double 按 ECMAScript 写法、Decimal 普通写法、Enum 去掉 `"__type":"?"`、
+  嵌套 ≤ 64 层（修订 1 A1、修订 2 R9）。
+- 解释器：`evaluate` 选项新增 `maxCallDepth`（缺省仍为 50，浏览器 / cloud 行为不变）；新增导出 `ResourceExhaustedError`，调用深度超限
+  与 JS 栈溢出在 `EvalResult` 中标为 `errorKind: 'resource'`。
+
+### 双引擎 parity：#328 之后余下的七处解析分歧（aster-lang-ts#334，ADR 0056 修订 A3，与 aster-lang-core 同车次）
+
+- **字段前置注解**：`Define C has @pii(L1, email) email as Text, @audit name as @pii(L1, name) Text.`、多行字段表里的
+  `@audit score as Int` 现在接受（此前 E055 Expected field name），与 core 文法 `field: annotation* nameIdent …` 一致，
+  与形参注解（#328）同法：`X of A` 的分隔符后面是「注解 + 名字 as」时属于字段表。AST 的 `Field.annotations` 记前置注解；
+  Core IR 的 `Field.annotations` 先列前置注解、再列类型最外层的 `@pii(…)`，与 core 逐字节相同。
+- **lambda 单行体**：`Let g be function given y as Int, produce Int: Return y plus 1.` 与表达式位置的
+  `List.map(xs, function given a as Int, produce Int: Return a.)` 现在接受（此前 E055 Expected newline），与 core 文法
+  `lambdaExpr: … COLON (returnStmt | NEWLINE block)` 一致：冒号后同一行只能是一条 `Return`，包成一个块，块的位置与整个
+  lambda 相同（与 core 一致）。Let 右侧与表达式位置的 lambda 改为共用 `parseLambdaAfterFunction`。
+- **`X of A` 的分隔符之后的裸小写名字改报 E055**（`Expected type name: 'y' would be read as another type argument; …`，
+  与 core 同码、同参数 `{token: token.typeName}`、同文案、同位置）：`given x as Pair of Int, y, produce Int`、
+  `Pair of Int and y`、`result of Int, y`、`Pair of Int, @audit y` 的 `y` 此前被静默读成 Pair 的类型参数，core 一直拒绝。
+  写 `y as <Type>`，或给泛型加括号 `(Pair of Int), y`。内建类型关键词（`text` / `int` / `float` / `bool`）、`maybe T`、
+  `map K to V`、`foo of …`、天城文名字与 list / option（只收一个参数）之后的名字不受影响。
+- 大写字段名（`Define Order with Id as Text.`，E055 `token.fieldName`）、大写规则名（`Rule Approve …`，E055）、
+  下划线开头的标识符（`_x`，词法 E050）与导入关键词 `USE` / `uSe` 在 ts 的行为不变（拒绝 / 拒绝 / 拒绝 / 接受），
+  core 已与之对齐；新测试锁住这四处。
+- 格式化器：输出字段前置注解；下一项没有写出类型（`, y`、`, @audit y`）时，以开放元数的 `X of …` 结尾的字段 / 形参类型
+  加括号输出 `(Pair of Int), y`（此前输出 `Pair of Int, y`，重新解析会改变含义，现在则两引擎都拒绝）。LSP 不生成任何被新规则
+  拒绝的写法（补全只给关键词 / 类型名，代码动作不生成字段、规则名或形参表）。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 11 例，与 aster-lang-core 逐字节相同；新增
+  `test/unit/parser/declaration-syntax-parity.test.ts`，`formatter-roundtrip` 新增 3 例。
+
 ## 3.2.0
 
 > **次版本号的理由**：包的公开声明只增不删、无签名变化——在 `v3.1.0` 与本版各自 `pnpm run build` 对比 `dist/**/*.d.ts`：

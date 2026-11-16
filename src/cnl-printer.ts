@@ -109,7 +109,7 @@ function endsWithConstruct(e: Expression): boolean {
   }
 }
 
-/** 字段、参数与 lambda 参数的共同形状；annotations 只有形参有（前置注解） */
+/** 字段、参数与 lambda 参数的共同形状；annotations 是前置注解（形参 #328、字段 #334） */
 interface Binding {
   readonly name: string;
   readonly type: Type;
@@ -172,18 +172,27 @@ class CnlPrinter {
   }
 
   data(d: Data): string {
-    const fields = d.fields.map(f => this.binding(f));
-    return `Define ${d.name} has ${fields.join(', ')}.`;
+    return `Define ${d.name} has ${this.bindings(d.fields)}.`;
   }
 
   enumDecl(e: Enum): string {
     return `Define ${e.name} as one of ${e.variants.join(', ')}.`;
   }
 
-  /** 字段与参数同一写法：推断出的类型不写出，其后跟约束 */
-  binding(b: Binding): string {
+  /**
+   * 逗号分隔的字段 / 形参表。下一项没有写出类型（`, y`、`, @tag y`）时，本项以开放元数的 `X of …` 结尾的类型要加括号：
+   * 否则逗号后的名字会被读成 X 的类型参数（两引擎都报 E055，aster-lang-ts#334）。下一项写了 `as` 时由「名字 as」前瞻
+   * 把逗号留给外层，不加括号。
+   */
+  bindings(bs: readonly Binding[]): string {
+    return bs.map((b, i) => this.binding(b, bs[i + 1]?.typeInferred === true)).join(', ');
+  }
+
+  /** 字段与参数同一写法：推断出的类型不写出，其后跟约束；beforeBareName 见 bindings */
+  binding(b: Binding, beforeBareName = false): string {
     const annotations = (b.annotations ?? []).map(a => this.annotation(a));
-    const typed = b.typeInferred ? b.name : `${b.name} as ${this.type(b.type)}`;
+    const type = beforeBareName && (b.constraints ?? []).length === 0 ? this.typeBeforeSeparator(b.type) : this.type(b.type);
+    const typed = b.typeInferred ? b.name : `${b.name} as ${type}`;
     const constraints = (b.constraints ?? []).map(c => this.constraint(c));
     return [...annotations, typed, ...constraints].join(' ');
   }
@@ -207,7 +216,7 @@ class CnlPrinter {
 
   func(f: Func): string {
     const typeParams = this.explicitTypeParams(f);
-    const params = f.params.length > 0 ? ` given ${f.params.map(p => this.binding(p)).join(', ')}` : '';
+    const params = f.params.length > 0 ? ` given ${this.bindings(f.params)}` : '';
     const ret = f.retTypeInferred ? '' : ` ${this.type(f.retType)}`;
     const effects = this.effectClause(f);
     const head = `Rule ${f.name}${typeParams}${params}, produce${ret}${effects}`;
@@ -400,7 +409,7 @@ class CnlPrinter {
       return `(${ps.join(', ')}) => ${this.expr(ret.expr)}`;
     }
     const lvl = this.level;
-    const params = e.params.length > 0 ? ` with ${e.params.map(p => this.binding(p)).join(', ')}` : '';
+    const params = e.params.length > 0 ? ` with ${this.bindings(e.params)}` : '';
     const unknown = e.retType.kind === 'TypeName' && e.retType.name === 'Unknown';
     const ret = unknown ? '' : ` ${this.type(e.retType)}`;
     const body = this.block(e.body, lvl + 1);
