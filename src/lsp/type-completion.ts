@@ -70,12 +70,13 @@ function tokensBefore(tokens: readonly Token[], pos: Pos): Token[] {
 
 /** 句点后紧跟空白才是语句结束；`foo.bar` 中的点不是边界 */
 function dotEndsStatement(t: Token, next: Token | undefined): boolean {
-  return t.kind === TokenKind.DOT && (!next || next.start.line !== t.end.line || next.start.col > t.end.col);
+  return t.kind === TokenKind.DOT
+    && (!next || next.kind === TokenKind.NEWLINE || next.start.line !== t.end.line || next.start.col > t.end.col);
 }
 
-/** before 中当前语句（换行 / 冒号 / 语句句点之后）的起始下标 */
-function statementStart(before: readonly Token[]): number {
-  let from = before.length;
+/** before 中下标 end（不含）之前当前语句（换行 / 冒号 / 语句句点之后）的起始下标 */
+function statementStart(before: readonly Token[], end = before.length): number {
+  let from = end;
   while (from > 0 && !BOUNDARY_KINDS.has(before[from - 1]!.kind) && !dotEndsStatement(before[from - 1]!, before[from])) from--;
   return from;
 }
@@ -95,22 +96,27 @@ function tokensEndWith(before: readonly Token[], end: number, phrases: readonly 
 }
 
 /**
- * 语法角色判定所需的词表：引出名字槽的关键词（字段 has / with、形参 given、续接 and、Let、类型别名 Type）
- * 与函数头关键词（Rule）。逗号按 token 种类判定。
+ * 语法角色判定所需的词表：
+ * - 声明里引出名字槽的关键词（字段 has / with、形参 given、续接 and）——只在声明语句里成立，
+ *   表达式里的 with 构造、and 运算、逗号分隔的实参之后写的是值；
+ * - 声明头：函数头（Rule）与类型定义（Define），二者的名字列表可跨行续写；
+ * - 自带名字槽的语句头（Let、类型别名 Type）：名字紧跟语句头本身。
  */
 interface Roles {
   readonly nameIntroducers: readonly (readonly string[])[];
   readonly funcHead: readonly (readonly string[])[];
+  readonly declHead: readonly (readonly string[])[];
+  readonly bindingHead: readonly (readonly string[])[];
 }
 
 function rolesOf(lexicon: Lexicon): Roles {
+  const funcHead = phrasesOf(lexicon, SemanticTokenKind.FUNC_TO);
   return {
-    nameIntroducers: [
-      ...[SemanticTokenKind.TYPE_HAS, SemanticTokenKind.TYPE_WITH, SemanticTokenKind.FUNC_GIVEN, SemanticTokenKind.AND, SemanticTokenKind.LET]
-        .flatMap((k) => phrasesOf(lexicon, k)),
-      TYPE_ALIAS_HEAD,
-    ],
-    funcHead: phrasesOf(lexicon, SemanticTokenKind.FUNC_TO),
+    nameIntroducers: [SemanticTokenKind.TYPE_HAS, SemanticTokenKind.TYPE_WITH, SemanticTokenKind.FUNC_GIVEN, SemanticTokenKind.AND]
+      .flatMap((k) => phrasesOf(lexicon, k)),
+    funcHead,
+    declHead: [...funcHead, ...phrasesOf(lexicon, SemanticTokenKind.TYPE_DEF)],
+    bindingHead: [...phrasesOf(lexicon, SemanticTokenKind.LET), TYPE_ALIAS_HEAD],
   };
 }
 
@@ -123,18 +129,38 @@ function afterIntroducer(before: readonly Token[], i: number, roles: Roles): boo
   return j >= 0 && tokensEndWith(before, j + 1, roles.nameIntroducers);
 }
 
-/** before[i] 是否处在名字槽：紧跟在逗号或名字引导词之后（可跨行） */
+/** before 中从 from 起（跳过换行）是否以 phrases 之一开头；返回该语句头末词的下标，否则 -1 */
+function headEnd(before: readonly Token[], from: number, phrases: readonly (readonly string[])[]): number {
+  const longest = Math.max(0, ...phrases.map((ph) => ph.length));
+  const idx: number[] = [];
+  for (let k = from; k < before.length && idx.length < longest; k++) if (before[k]!.kind !== TokenKind.NEWLINE) idx.push(k);
+  const p = phrases.find((ph) => ph.every((w, k) => k < idx.length && valueOf(before[idx[k]!]) === w));
+  return p ? idx[p.length - 1]! : -1;
+}
+
+/** before[i] 所在逻辑语句（跨换行，止于冒号 / 语句句点）的起始下标 */
+function logicalStart(before: readonly Token[], i: number): number {
+  let from = i;
+  while (from > 0 && before[from - 1]!.kind !== TokenKind.COLON && !dotEndsStatement(before[from - 1]!, before[from])) from--;
+  return from;
+}
+
+/**
+ * before[i] 是否处在名字槽：
+ * - 在声明（函数头 / Define，可跨行）里紧跟逗号或名字引导词；
+ * - 或紧跟 Let / Type 语句头本身（本行语句，上一行未写句点也不受影响）。
+ */
 function inNameSlot(before: readonly Token[], i: number, roles: Roles): boolean {
   const j = prevSignificant(before, i);
-  return j >= 0 && (before[j]!.kind === TokenKind.COMMA || afterIntroducer(before, i, roles));
+  if (j < 0) return false;
+  if (j === headEnd(before, statementStart(before, i), roles.bindingHead)) return true;
+  if (headEnd(before, logicalStart(before, i), roles.declHead) < 0) return false;
+  return before[j]!.kind === TokenKind.COMMA || afterIntroducer(before, i, roles);
 }
 
 /** before[i] 所在逻辑语句（跨换行，止于冒号 / 语句句点）是否以函数头关键词开头 */
 function inFunctionHeader(before: readonly Token[], i: number, roles: Roles): boolean {
-  let from = i;
-  while (from > 0 && before[from - 1]!.kind !== TokenKind.COLON && !dotEndsStatement(before[from - 1]!, before[from])) from--;
-  const head = before.slice(from).filter((t) => t.kind !== TokenKind.NEWLINE);
-  return roles.funcHead.some((p) => p.every((w, k) => valueOf(head[k]) === w));
+  return headEnd(before, logicalStart(before, i), roles.funcHead) >= 0;
 }
 
 /** 光标前的 token 与光标后第一个有效 token（判断逗号后的 produce 是不是形参名时要看它后面是否跟 as） */
@@ -156,21 +182,18 @@ function isAliasAnchor(ctx: Context, start: number): boolean {
 }
 
 /**
- * `produce`（FUNC_PRODUCE）是否为返回类型锚点：
+ * `produce`（FUNC_PRODUCE）是否为返回类型锚点：须处在函数头内（`Rule f produce`、`给定 a 作为 A 产出`，可跨行）；
+ * `Return produce`、表达式里逗号之后、Define 字段列表里的 produce 都是名字或值。函数头内：
  * - 紧跟名字引导词（`given produce`）时是形参名；
- * - 紧跟逗号时是返回类型关键词，除非其后紧跟 as（`, produce as Int` 是形参名）；
- * - 否则须处在函数头内（`Rule f produce`、`给定 a 作为 A 产出`）；`Return produce` 中的 produce 是值。
+ * - 紧跟逗号时是返回类型关键词，除非其后紧跟 as（`, produce as Int` 是形参名）。
  */
 function isProduceAnchor(ctx: Context, start: number, end: number): boolean {
   const { before, roles } = ctx;
-  if (afterIntroducer(before, start, roles)) return false;
-  const prev = prevSignificant(before, start);
-  if (prev < 0) return false;
-  if (before[prev]!.kind === TokenKind.COMMA) {
-    const next = end < before.length ? before[end] : ctx.afterCursor;
-    return !phrasesOf(ctx.lexicon, SemanticTokenKind.IMPORT_ALIAS).some((p) => p[0] === valueOf(next));
-  }
-  return inFunctionHeader(before, start, roles);
+  if (prevSignificant(before, start) < 0 || afterIntroducer(before, start, roles)) return false;
+  if (!inFunctionHeader(before, start, roles)) return false;
+  if (before[prevSignificant(before, start)]!.kind !== TokenKind.COMMA) return true;
+  const next = end < before.length ? before[end] : ctx.afterCursor;
+  return !phrasesOf(ctx.lexicon, SemanticTokenKind.IMPORT_ALIAS).some((p) => p[0] === valueOf(next));
 }
 
 /** before 中以下标 end（不含）结尾的一段是否为按语法角色成立的类型锚点（as / produce） */

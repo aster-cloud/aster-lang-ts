@@ -260,6 +260,24 @@ describe('isTypePosition 边界', () => {
     assert.equal(at('Rule f given\n  x as Int,\n  produce '), true);
   });
 
+  it('★逗号 / 名字引导词只在声明（函数头、Define）里引出名字槽：表达式里的逗号、with、and 之后不是类型位置', () => {
+    const head = 'Rule f given x as Int, y as Int, produce Int:\n';
+    assert.equal(at(head + '  Return g with x, y as '), false);
+    assert.equal(at(head + '  Return g with x, produce '), false);
+    assert.equal(at(head + '  Return g with x as '), false, '表达式里的 with 构造');
+    assert.equal(at(head + '  Return x and y as '), false, '表达式里的 and');
+    assert.equal(at(head + '  Let z be g with x, y as '), false);
+    assert.equal(at(head + '  Let z be g with x, produce '), false);
+    assert.equal(at(head + '  Return g(x, y as '), false, '调用实参');
+    assert.equal(at(head + '  If x greater than 1, y as '), false);
+    assert.equal(at(head + '  Return g with x,\n    y as '), false, '表达式续行');
+    assert.equal(at('Define A has x as Int, produce '), false, 'Define 里逗号后的 produce 是字段名');
+    assert.equal(at('Define A has x as Int, y as '), true);
+    assert.equal(at('Define A with x as Int, y as '), true);
+    assert.equal(at('Rule f given x as Int and y as '), true);
+    assert.equal(at(head + '  Return g\n  Let z as '), true, '上一行未写句点时 Let 注解仍是类型位置');
+  });
+
   it('★Let 注解类型位置：Let x as 之后是类型', () => {
     assert.equal(at('Rule f given y as Int, produce Int:\n  Let x as '), true);
   });
@@ -308,6 +326,26 @@ describe('isTypePosition 本地化类型参数位置', () => {
     assert.equal(at(ZH_CN, '模块 m。\n\n规则 g 给定 as 作为 整数，产出 整数：\n  返回 as '), false);
     assert.equal(at(ZH_CN, '模块 m。\n\n规则 g 给定 as as 整数，产出 整数：\n  返回 as '), false);
     assert.equal(at(DE_DE, 'Modul m.\n\nRegel h gegeben as as '), true, '形参名之后的 as 仍是类型位置');
+  });
+
+  it('★de-DE / zh-CN：表达式里的逗号、mit / 包含 之后不是类型位置，声明里仍是', () => {
+    const de = 'Modul m.\n\nRegel f gegeben x als Ganzzahl, y als Ganzzahl, liefert Ganzzahl:\n';
+    assert.equal(at(DE_DE, de + '  Gib zurück g mit x, y als '), false);
+    assert.equal(at(DE_DE, de + '  Gib zurück g mit x, liefert '), false);
+    assert.equal(at(DE_DE, de + '  Gib zurück g mit x, y as '), false);
+    assert.equal(at(DE_DE, de + '  Gib zurück g mit x, produce '), false);
+    assert.equal(at(DE_DE, de + '  Gib zurück g mit x als '), false);
+    assert.equal(at(DE_DE, 'Modul m.\n\nDefiniere A hat x als Ganzzahl, y als '), true);
+    assert.equal(at(DE_DE, 'Modul m.\n\nRegel f gegeben x als Ganzzahl, liefert '), true);
+    const zh = '模块 m。\n\n规则 f 给定 x 作为 整数，y 作为 整数，产出 整数：\n';
+    assert.equal(at(ZH_CN, zh + '  返回 g 包含 x，y 作为 '), false);
+    assert.equal(at(ZH_CN, zh + '  返回 g 包含 x，产出 '), false);
+    assert.equal(at(ZH_CN, zh + '  返回 g 包含 x，y as '), false);
+    assert.equal(at(ZH_CN, zh + '  返回 g 包含 x 作为 '), false);
+    assert.equal(at(ZH_CN, zh + '  令 z 定义为 g 包含 x，y 作为 '), false);
+    assert.equal(at(ZH_CN, '模块 m。\n\n定义 A 包含 x 作为 整数，y 作为 '), true);
+    assert.equal(at(ZH_CN, '模块 m。\n\n规则 f 给定 x 作为 整数，产出 '), true);
+    assert.equal(at(ZH_CN, '模块 m。\n\n规则 f（x 作为 整数，y 作为 '), true, '括号式函数头');
   });
 
   it('en-US 对照：option of / result of … and', () => {
