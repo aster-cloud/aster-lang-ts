@@ -6,6 +6,26 @@
 
 - `package.json` 的 `license` 由 `MIT` 改为 `Apache-2.0`，浏览器包头注释同步修改。仓库 LICENSE 文件一直是 Apache License 2.0，此前的 `MIT` 声明有误；以 LICENSE 为准（产品负责人确认）。ADR 0059 的 P3（自包含导出打包运行时）以许可证一致为前提。
 
+### 包格式 v1：读包、完整性、签名、取 IR、输入与求值（ADR 0059 P1 T2 + T3，aster-cloud/aster-cloud#797）
+
+- 新目录 `src/policy-package/`（与既有 `src/package/` 依赖管理器无关），按 aster-lang-test `conformance/package-v1/README.md`
+  的检查顺序实现 read → manifest → signature → integrity → ir → entry → input → eval 各阶段，错误码、退出码与固定 message
+  取自同目录 `exit-codes.json`（`errors.ts`，兄弟仓 parity 测试守住）。
+- 读包：目录与 zip 按文件类型区分（与扩展名无关），目录内符号链接、单文件 / 累计 > 64 MiB 即失败；zip 同时解析中央目录与本地头并
+  要求一致，`node:zlib` 以「声明大小 + 1」为上限解压，deflate 流之后的多余字节、CRC 不符、ZIP64、加密、非唯一根目录都报 `PKG_INTEGRITY`。
+- manifest：严格 JSON（无 BOM / 重复键 / 孤立代理项，深度 ≤ 64）→ 文件字节等于规范 JSON → `format` / `formatVersion`（先于 schema）
+  → schema（`manifest-1.0.schema.json` 逐字节副本，ajv 2020 strict）→ 语义规则 → `coreIr.version`。
+- 签名：`manifest.sig.json` 严格 JSON + schema + 规范 base64url，内置锚 `trust/export-jwks.json`（P1 为空）或 `--jwks` / `--pubkey`
+  （原始公钥不看 kid，单个 JWK 带 kid 时必须相符），`node:crypto` Ed25519 验签。
+- 取 IR：A 包严格读入 `compiled/core.json`（`PKG_UNSUPPORTED_IR`）；B 包按 manifest 本地编译并比对 `coreIr.positionFreeSha256`
+  （去掉 `origin.*.col`，修订 1 A2），不等或编译失败为 `PKG_IR_DRIFT`。aliasSet 按 aster-api `AliasOverlayLexicon` 的**合并**语义叠加，
+  并先过新移植的 `validateAliasSet`（aster-api `UserAliasValidator` VERSION 1 的全部规则）。
+- 输入：键恰为形参名，Int 为 int32、Long 为安全整数或 int64 字符串、Decimal 为 ≤ 80 位数字的字符串等（修订 2 R7）。
+- 值规范 JSON（`value-json.ts`）：键按码点升序、整数精确、Double 按 ECMAScript 写法、Decimal 普通写法、Enum 去掉 `"__type":"?"`、
+  嵌套 ≤ 64 层（修订 1 A1、修订 2 R9）。
+- 解释器：`evaluate` 选项新增 `maxCallDepth`（缺省仍为 50，浏览器 / cloud 行为不变）；新增导出 `ResourceExhaustedError`，调用深度超限
+  与 JS 栈溢出在 `EvalResult` 中标为 `errorKind: 'resource'`。
+
 ## 3.2.0
 
 > **次版本号的理由**：包的公开声明只增不删、无签名变化——在 `v3.1.0` 与本版各自 `pnpm run build` 对比 `dist/**/*.d.ts`：
