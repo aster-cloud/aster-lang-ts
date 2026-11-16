@@ -7,7 +7,8 @@
  *
  * 替换位置一律由 canonicalize 自身证明（canonical-runs.ts）：规范化会删冠词、转写关键词，
  * 原文里同形的词（`Return a a.` 里被删的冠词 `a`）不能凭文字相同认作编译器用的那个词。
- * 证明不了的位置不替换——预览在该处保留原写法，不会换错词。
+ * ★失败闭锁：任何一处该替换的位置证明不了（含探测预算耗尽）、或两处替换区间冲突，就不给预览（返回 null，
+ *   与「文档不存在」同一契约）。只替换一部分的文本不带词汇编译后含义不同，比没有预览更糟。
  *
  * 偏移一律是 UTF-16 code unit（ADR §7.8），与 Monaco / LSP 默认的 positionEncoding 一致。
  */
@@ -26,7 +27,7 @@ import { RESOLVER_VERSION } from '../version.js';
 import { resolveDocument } from './resolution.js';
 import type { ResolutionSite, ResolvableDocument } from './resolution.js';
 import { alignTokensToSource } from './source-positions.js';
-import { proveRunSources, sameWordUnder } from './canonical-runs.js';
+import { DEFAULT_PROBE_BUDGET, proveRunSources, sameWordUnder } from './canonical-runs.js';
 import type { RunTarget } from './canonical-runs.js';
 
 import { CANONICAL_PREVIEW_METHOD } from './canonical-preview-contract.js';
@@ -52,22 +53,38 @@ type Range = readonly [number, number];
  * `written !== canonical` 的解析位置换成规范名；字面量宏取编译器展开的那批词（不带词汇的规范化文本上
  * 按 literalMacroRuns 命中），换成展开后的字符串字面量。
  */
-export function buildCanonicalPreview(text: string, doc: ResolvableDocument, lexicon?: Lexicon): CanonicalPreview {
+export function buildCanonicalPreview(
+  text: string,
+  doc: ResolvableDocument,
+  lexicon?: Lexicon,
+  options: CanonicalPreviewOptions = {},
+): CanonicalPreview | null {
   const effective = lexicon ?? defaultLexicon();
-  const sameWord = sameWordUnder((w) => canonicalize(w, effective));
-  return apply(text, [
-    ...siteReplacements(text, doc, effective, sameWord),
-    ...literalReplacements(text, doc, effective, sameWord),
-  ]);
+  const prove: Prove = {
+    sameWord: sameWordUnder((w) => canonicalize(w, effective)),
+    budget: options.probeBudget ?? DEFAULT_PROBE_BUDGET,
+  };
+  const sites = siteReplacements(text, doc, effective, prove);
+  const literals = sites && literalReplacements(text, doc, effective, prove);
+  return sites && literals ? apply(text, [...sites, ...literals]) : null;
 }
 
-type SameWord = (sourceRun: string, canonicalRun: string) => boolean;
+/** 预览选项：probeBudget 为逐候选探测的工作量预算（见 canonical-runs.ts），测试用来触发失败闭锁 */
+export interface CanonicalPreviewOptions {
+  readonly probeBudget?: number;
+}
+
+interface Prove {
+  readonly sameWord: (sourceRun: string, canonicalRun: string) => boolean;
+  readonly budget: number;
+}
 
 /**
  * 解析位置的替换。解析位置的 span 来自按顺序查找对齐的 token，可能落在同形的被删冠词上，
  * 所以先把它换回解析所用的规范化 token（带词汇规范化文本上的位置），再由探针证明其原文位置。
+ * 任何一处证明不了返回 null。
  */
-function siteReplacements(text: string, doc: ResolvableDocument, lexicon: Lexicon, sameWord: SameWord): Replacement[] {
+function siteReplacements(text: string, doc: ResolvableDocument, lexicon: Lexicon, prove: Prove): Replacement[] | null {
   const sites = resolveDocument(doc).sites.filter((s) => s.written !== s.canonical);
   if (sites.length === 0) return [];
   const options: Lexicon | CanonicalizerOptions = doc.vocabulary ? { lexicon, vocabulary: doc.vocabulary } : lexicon;
@@ -93,18 +110,21 @@ function siteReplacements(text: string, doc: ResolvableDocument, lexicon: Lexico
     });
     located = sites.map((site) => ({ site, target: canonicalTarget(site, idents, toRange) }));
   } catch {
-    return [];
+    return null;
   }
-  const found = proveRunSources(text, can, recanonicalize, located.map((l) => l.target ?? { line: 0, col: -1 }), sameWord);
-  return located.flatMap(({ site }, i) => {
+  if (located.some((l) => !l.target)) return null;
+  const found = proveRunSources(text, can, recanonicalize, located.map((l) => l.target!), prove.sameWord, prove.budget);
+  const out: Replacement[] = [];
+  for (const [i, { site }] of located.entries()) {
     const at = found[i];
-    if (!at) return [];
+    if (!at) return null;
     const [start, firstEnd] = at;
     // 写法跨多段（点分路径）时只证明了首段，其余段须与写法逐字相同
     const end = site.written.length === firstEnd - start ? firstEnd : start + site.written.length;
-    if (end !== firstEnd && nfc(text.slice(start, end)) !== nfc(site.written)) return [];
-    return [{ start, end, text: site.canonical, canonical: site.canonical, role: site.role }];
-  });
+    if (end !== firstEnd && nfc(text.slice(start, end)) !== nfc(site.written)) return null;
+    out.push({ start, end, text: site.canonical, canonical: site.canonical, role: site.role });
+  }
+  return out;
 }
 
 /** 带词汇规范化文本上的标识符 token：[a, b) 为其对齐后的原文区间，line / col / text 为规范化文本上的位置与文字 */
@@ -146,8 +166,8 @@ function canonicalTarget(site: ResolutionSite, idents: readonly IdentToken[], to
   return undefined;
 }
 
-/** 字面量宏的替换：编译器在规范化文本上展开的每一处，证明其原文位置后换成字符串字面量。 */
-function literalReplacements(text: string, doc: ResolvableDocument, lexicon: Lexicon, sameWord: SameWord): Replacement[] {
+/** 字面量宏的替换：编译器在规范化文本上展开的每一处，证明其原文位置后换成字符串字面量。任何一处证明不了返回 null。 */
+function literalReplacements(text: string, doc: ResolvableDocument, lexicon: Lexicon, prove: Prove): Replacement[] | null {
   const literals = doc.vocabulary?.literals;
   if (!literals || literals.size === 0) return [];
   const quotes = lexicon.punctuation.stringQuotes;
@@ -156,7 +176,7 @@ function literalReplacements(text: string, doc: ResolvableDocument, lexicon: Lex
   try {
     can = recanonicalize(text);
   } catch {
-    return [];
+    return null;
   }
   const lineStarts = [0];
   for (let i = can.indexOf('\n'); i >= 0; i = can.indexOf('\n', i + 1)) lineStarts.push(i + 1);
@@ -166,23 +186,33 @@ function literalReplacements(text: string, doc: ResolvableDocument, lexicon: Lex
     while (lineStarts[line - 1]! > r.offset) line--;
     return { line, col: r.offset - lineStarts[line - 1]! };
   });
-  const found = proveRunSources(text, can, recanonicalize, targets, sameWord);
-  return runs.flatMap((r, i) => {
+  const found = proveRunSources(text, can, recanonicalize, targets, prove.sameWord, prove.budget);
+  const out: Replacement[] = [];
+  for (const [i, r] of runs.entries()) {
     const at = found[i];
-    if (!at) return [];
+    if (!at) return null;
     const literal = quotes.open + escapeStringLiteral(r.value, quotes.close) + quotes.close;
-    return [{ start: at[0], end: at[1], text: literal, canonical: r.value, role: 'LITERAL' }];
-  });
+    out.push({ start: at[0], end: at[1], text: literal, canonical: r.value, role: 'LITERAL' });
+  }
+  return out;
 }
 
-/** 按源码偏移升序替换；同一区间只替换一次，与已替换区间重叠者丢弃。preview 区间按已替换长度累计推出。 */
-function apply(text: string, replacements: readonly Replacement[]): CanonicalPreview {
+/**
+ * 按源码偏移升序替换；preview 区间按已替换长度累计推出。同一区间、同一替换文字的重复项只替换一次；
+ * 区间重叠而替换不同时无从取舍，返回 null（失败闭锁）。
+ */
+function apply(text: string, replacements: readonly Replacement[]): CanonicalPreview | null {
   const ordered = [...replacements].sort((a, b) => a.start - b.start || b.end - a.end);
   const mappings: CanonicalPreview['mappings'] = [];
   let out = '';
   let cursor = 0;
+  let last: Replacement | undefined;
   for (const r of ordered) {
-    if (r.start < cursor) continue;
+    if (r.start < cursor) {
+      if (last && r.start === last.start && r.end === last.end && r.text === last.text) continue;
+      return null;
+    }
+    last = r;
     out += text.slice(cursor, r.start);
     const previewStart = out.length;
     out += r.text;

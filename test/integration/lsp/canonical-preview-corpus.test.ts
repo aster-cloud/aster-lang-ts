@@ -88,6 +88,7 @@ function assertParity(c: Case): void {
   const preview = buildCanonicalPreview(c.source, parseDocumentWith(c.source, c.lexicon, scopes), c.lexicon);
   const withVocab = compile(c.source, { lexicon: c.lexicon, vocabulary: c.vocabulary });
   assert.ok(withVocab.success && withVocab.core, `带词汇编译源码失败：${JSON.stringify(withVocab)}`);
+  assert.ok(preview, `${c.name}：预览为 null（有替换位置证明不了）`);
   const plain = compile(preview.text, { lexicon: c.lexicon });
   assert.ok(plain.success && plain.core, `不带词汇编译预览失败：\n${preview.text}\n${JSON.stringify(plain)}`);
   assert.deepEqual(stripOrigin(plain.core), stripOrigin(withVocab.core), `预览文本：\n${preview.text}`);

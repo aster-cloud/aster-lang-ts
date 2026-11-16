@@ -40,7 +40,9 @@ const DE_VOCAB = vocab('de-DE', {
 
 function preview(text: string, lexicon: Lexicon, vocabulary?: DomainVocabulary): CanonicalPreview {
   const scopes = vocabulary ? buildVocabularyScopes(vocabulary) : undefined;
-  return buildCanonicalPreview(text, parseDocumentWith(text, lexicon, scopes), lexicon);
+  const p = buildCanonicalPreview(text, parseDocumentWith(text, lexicon, scopes), lexicon);
+  assert.ok(p, '预览不应为 null');
+  return p;
 }
 
 /** 原文中第 nth 次出现 needle 的 [start, end)（UTF-16）。 */
@@ -258,6 +260,33 @@ describe('canonicalPreview：替换落在编译器实际使用的那个词上（
     assert.equal(assertFaithful(en, EN_US, fn('en-US', 'a', 'double')).text, en.replace('a a(1)', 'a double(1)'));
     const de = 'Modul m.\n\nRegel doppelt gegeben x als Ganzzahl, liefert Ganzzahl:\n  gib zurueck x.\n\nRegel g, liefert Ganzzahl:\n  gib zurueck die die(1).\n';
     assert.equal(assertFaithful(de, DE_DE, fn('de-DE', 'die', 'doppelt')).text, de.replace('die die(1)', 'die doppelt(1)'));
+  });
+
+  it('★同一行 10 个 `a a(1)` 以 plus 相连：每个调用目标都换掉，被删的冠词一个不动', () => {
+    const calls = Array.from({ length: 10 }, () => 'a a(1)').join(' plus ');
+    const en = `Module m.\n\nRule double given x as Int, produce Int:\n  Return x.\n\nRule g, produce Int:\n  Return ${calls}.\n`;
+    const p = assertFaithful(en, EN_US, fn('en-US', 'a', 'double'));
+    assert.equal(p.text, en.replace(calls, Array.from({ length: 10 }, () => 'a double(1)').join(' plus ')));
+    assert.equal(p.mappings.length, 10);
+  });
+
+  it('★压力：同一行 50 个 `a a(1)`、宏与函数同形混排，预览仍忠实', () => {
+    const calls = Array.from({ length: 50 }, () => 'a a(1)').join(' plus ');
+    const en = `Module m.\n\nRule double given x as Int, produce Int:\n  Return x.\n\nRule g, produce Int:\n  Return ${calls}.\n`;
+    const p = assertFaithful(en, EN_US, fn('en-US', 'a', 'double'));
+    assert.equal(p.mappings.length, 50);
+    const lits = Array.from({ length: 50 }, () => 'the the').join(' plus ');
+    const txt = `Module m.\n\nRule greet, produce Text:\n  Return ${lits}.\n`;
+    const q = assertFaithful(txt, EN_US, literal('en-US', 'the', 'hi'));
+    assert.equal(q.text, txt.replace(lits, Array.from({ length: 50 }, () => 'the "hi"').join(' plus ')));
+  });
+
+  it('★证明不了的替换不静默略过：整份预览返回 null（探测预算耗尽时）', () => {
+    const en = 'Module m.\n\nRule double given x as Int, produce Int:\n  Return x.\n\nRule g, produce Int:\n  Return a a(1) plus a a(1).\n';
+    const v = fn('en-US', 'a', 'double');
+    const doc = parseDocumentWith(en, EN_US, buildVocabularyScopes(v));
+    assert.equal(buildCanonicalPreview(en, doc, EN_US, { probeBudget: 0 }), null);
+    assert.notEqual(buildCanonicalPreview(en, doc, EN_US), null);
   });
 
   it('★同一行既有被删冠词形的函数名又有宏、CRLF 换行、zh 全角写法的函数名', () => {

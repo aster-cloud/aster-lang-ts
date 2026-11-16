@@ -50,6 +50,41 @@ describe('proveRunSources', () => {
   });
 });
 
+describe('proveRunSources：同一行同形候选数不受轮数上限影响', () => {
+  it('★一行 30 组 `a a` 共 60 个候选：每段都对应各组的第二个 a', () => {
+    const src = `Return ${Array.from({ length: 30 }, () => 'a a').join(', ')}.`;
+    const can = dropArticles(src);
+    const targets = [...can.matchAll(/\ba\b/g)].map((m) => ({ line: 1, col: m.index }));
+    assert.equal(targets.length, 30);
+    const found = proveRunSources(src, can, dropArticles, targets, same);
+    const seconds = [...src.matchAll(/a a/g)].map((m) => [m.index + 2, m.index + 3]);
+    assert.deepEqual(found, seconds);
+  });
+
+  // 假规范化器：删掉紧挨句号的 ` a`——被删的是同形词里靠后的那个，对齐假设（先跳过靠前的）必然猜错，
+  // 只能逐个候选单独探测；12 个候选需要 12 轮，超过旧实现的 8 轮上限
+  const dropLast = (s: string): string => s.replace(/ a(?=\.)/g, '');
+
+  it('★对齐假设猜错时逐个探测，轮数不设上限：12 个同形候选全部证明', () => {
+    const src = `x ${Array.from({ length: 12 }, () => 'a').join(' ')}.`;
+    const can = dropLast(src);
+    const targets = [...can.matchAll(/\ba\b/g)].map((m) => ({ line: 1, col: m.index }));
+    assert.equal(targets.length, 11);
+    const found = proveRunSources(src, can, dropLast, targets, same);
+    assert.deepEqual(found, [...src.matchAll(/\ba\b/g)].slice(0, 11).map((m) => [m.index, m.index + 1]));
+  });
+
+  it('★探测预算耗尽时证明不了的一律 undefined（不猜、不截断成部分结果后冒充完整）', () => {
+    const src = 'x a a.';
+    const can = dropLast(src);
+    assert.equal(can, 'x a.');
+    const targets = [{ line: 1, col: 2 }];
+    assert.deepEqual(proveRunSources(src, can, dropLast, targets, same, 0), [undefined]);
+    assert.deepEqual(proveRunSources(src, can, dropLast, targets, same, src.length), [undefined]);
+    assert.deepEqual(proveRunSources(src, can, dropLast, targets, same, 2 * src.length), [[2, 3]]);
+  });
+});
+
 describe('literalMacroRuns', () => {
   it('按折叠键命中完整标识符，字符串内不算，偏移为 UTF-16', () => {
     const literals = new Map([['greeting', 'hi']]);
