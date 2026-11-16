@@ -239,8 +239,8 @@ function lowerDecl(d: Declaration): Core.Declaration {
             lowerType(f.type, NO_TYPE_VARS, f),
             lowerConstraints(f.constraints),
             f.typeInferred === true,
-            // 与 core AstBuilder.visitField 一致：类型最外层的 @pii 同时记入字段注解（aster-lang-ts#328）
-            outerTypeAnnotations(f.type)
+            // 与 core AstBuilder.visitField 一致：先列前置注解（aster-lang-ts#334），再列类型最外层的 @pii（aster-lang-ts#328）
+            [...lowerAnnotations(f.annotations), ...outerTypeAnnotations(f.type)]
           ))
         ),
         d

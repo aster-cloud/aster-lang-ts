@@ -9,6 +9,7 @@ import type { ParserContext } from './context.js';
 import { tryReadTranslatedIdent } from './context.js';
 import { parseType } from './type-parser.js';
 import { parseConstraints } from './constraint-parser.js';
+import { parseAnnotations } from './annotation-parser.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
 import { inferFieldType } from './type-inference.js';
 import { Issue, tokenName, type ParseErrorFn } from './parse-issue.js';
@@ -53,6 +54,9 @@ export function parseFieldList(
     ctx.consumeNewlines();
     ctx.consumeIndent();
 
+    // 字段前置注解（`has @pii(L1, email) email as Text`，aster-lang-ts#334），与形参注解同法、与 core 文法
+    // `field: annotation* nameIdent …` 一致；注解与字段名同处一行，不跳过换行
+    const { annotations } = parseAnnotations(ctx, error, false);
     const nameTok = ctx.peek();
 
     // 解析字段名：先尝试还原"被翻译成关键词的标识符"（非英文词法包），否则要求普通标识符。
@@ -96,9 +100,11 @@ export function parseFieldList(
       ? spanFromSources(nameTok, colonTok, spanEnd)
       : spanFromSources(nameTok, spanEnd);
 
+    // 字段位置从字段名起，前置注解不计入（与 core AstBuilder.visitField 一致）
     const field: Field = {
       name,
       type: t,
+      ...(annotations.length > 0 ? { annotations } : {}),
       ...(constraints.length > 0 ? { constraints } : {}),
       ...(typeInferred ? { typeInferred: true } : {}),
       span: fieldSpan,
