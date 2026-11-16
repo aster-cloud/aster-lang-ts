@@ -4,7 +4,7 @@
  * 值 token = 关键词、标点、空白、注释以外的 token：标识符、数字、字符串、布尔与 null 字面量。
  * 关键词候选按词法表拼写找出：主拼写 + 别名 + 版本冻结的 aliasSet，以及解析器在任何 locale 下都认的
  * 英文规范拼写（KW / en-US，如 zh 源码里的 `then`/`else`）；多词关键词须整段连续匹配。
- * 拼写只是候选：每个候选再按解析器角色判定（换成探针名重解析），被读作名字的仍是值。
+ * 拼写只是候选：每个候选再按解析器角色判定（先看基线 AST，判不了再换成探针名重解析，次数有上限），被读作名字的仍是值。
  *
  * 分词走生产同款 canonicalize → lex，token 位置在规范化文本上；规范化保持行数不变，
  * 于是逐行把值 token 按顺序在原文该行里找回（引号、全角字符宽松匹配，因为规范化会改写它们）。
@@ -98,7 +98,7 @@ function spellingAdder(lexicon: Lexicon, into: Set<string>): (s: string) => void
 }
 
 /** 一条关键词拼写：小写词序列与其英文规范词 */
-type KeywordSeq = { words: string[]; english: ReadonlySet<string> };
+export type KeywordSeq = { words: string[]; english: ReadonlySet<string> };
 
 /** 关键词拼写按首词索引（长的在前，便于最长匹配） */
 function keywordIndex(spellings: Map<string, Set<string>>): Map<string, KeywordSeq[]> {
@@ -141,11 +141,15 @@ function astStrings(node: unknown, into: Set<string> = new Set()): Set<string> {
   return into;
 }
 
-const posKey = (p: { line: number; col: number }): string => `${p.line}:${p.col}`;
+type Pos = { line: number; col: number };
+type Spanned = { kind?: unknown; name?: unknown; span?: { start: Pos; end: Pos }; nameSpan?: { start: Pos } };
+
+const posKey = (p: Pos): string => `${p.line}:${p.col}`;
+const posBefore = (a: Pos, b: Pos): boolean => a.line < b.line || (a.line === b.line && a.col < b.col);
 
 /**
  * AST 中必为名字的位置：类型名、参数、字段、声明名的起点。落在这些位置上的词不必探测，直接是值
- * （运算符 `and`/`not` 也是 Name 节点，故 Name 不在此列，仍须探测）。
+ * （运算符 `and`/`not` 也是 Name 节点，故 Name 不在此列，仍须另行判定）。
  */
 function namePositions(node: unknown, inList = false, into: Set<string> = new Set()): Set<string> {
   if (Array.isArray(node)) {
@@ -153,55 +157,120 @@ function namePositions(node: unknown, inList = false, into: Set<string> = new Se
     return into;
   }
   if (!node || typeof node !== 'object') return into;
-  const n = node as { kind?: unknown; span?: { start: { line: number; col: number } }; nameSpan?: { start: { line: number; col: number } } };
+  const n = node as Spanned;
   if ((n.kind === 'TypeName' || inList) && n.span) into.add(posKey(n.span.start));
   if (n.nameSpan) into.add(posKey(n.nameSpan.start));
   for (const [k, v] of Object.entries(node)) namePositions(v, k === 'params' || k === 'fields', into);
   return into;
 }
 
+/** 运算符所占的 token 区间：infix 为二元运算，prefix 为一元 `not`（其后不紧跟括号才算，见 roleJudge） */
+type OperatorSpan = { start: Pos; end: Pos; prefix: boolean };
+
 /**
- * 按解析器角色判定拼写像关键词的词：把它换成一个源码里没有的探针名重新解析，
- * 探针进了 AST 且没有新增诊断，说明解析器在这个位置把它当名字读（参数、引用、类型名……），即是值。
- * 先用基线 AST 的字符串集合过滤：拼写（或其英文规范词）不在 AST 里的词不可能被读作名字，不必探测。
+ * 解析器读作运算符的位置。二元运算降为 `Call(Name(op), [left, right])`，目标在首个实参之后——
+ * 用户函数调用 `f(x)`、`apply f to x` 的目标都在实参之前，所以「目标在首参之后」只可能是运算符。
+ * 一元 `not x` 降为 `Call(Name('not'), [x])`，调用起点就是目标起点。
  */
-function nameRoleProbe(tokens: readonly Token[], lexicon: Lexicon): (i: number, seq: KeywordSeq) => boolean {
-  const base = parseWithLexicon(tokens, lexicon);
+function operatorSpans(node: unknown, into: OperatorSpan[] = []): OperatorSpan[] {
+  if (Array.isArray(node)) {
+    node.forEach((n) => operatorSpans(n, into));
+    return into;
+  }
+  if (!node || typeof node !== 'object') return into;
+  const n = node as Spanned & { target?: Spanned; args?: Spanned[] };
+  const target = n.target;
+  if (n.kind === 'Call' && target?.kind === 'Name' && target.span && Array.isArray(n.args)) {
+    const first = n.args[0]?.span;
+    if (first && posBefore(first.start, target.span.start)) {
+      into.push({ start: target.span.start, end: target.span.end, prefix: false });
+    } else if (target.name === 'not' && n.args.length === 1 && n.span && posKey(n.span.start) === posKey(target.span.start)) {
+      into.push({ start: target.span.start, end: target.span.end, prefix: true });
+    }
+  }
+  for (const v of Object.values(node)) operatorSpans(v, into);
+  return into;
+}
+
+/** 单次 validate 最多为判定词角色重解析的次数；超出预算的词一律按值计（宁可多拒） */
+export const ROLE_PROBE_BUDGET = 16;
+
+/** 词角色判定：settle 只读基线 AST（零次额外解析），判不了时返回 null，再由 probe 重解析 */
+export type RoleJudge = {
+  /** true = 值，false = 关键词，null = 须重解析 */
+  settle(i: number, seq: KeywordSeq): boolean | null;
+  /** 把第 i 个 token 换成探针名重解析；true = 值。解析抛错或预算用尽都按值计 */
+  probe(i: number): boolean;
+};
+
+/**
+ * 按解析器角色判定拼写像关键词的词。基线只解析一次，多数词由基线 AST 直接判定：
+ * - 拼写（或其英文规范词）不在 AST 字符串里 → 不可能被读作名字，是关键词；
+ * - 落在类型名、参数、字段、声明名的起点 → 是值；
+ * - 落在解析器读作运算符的位置（二元运算的目标、不带括号的一元 not）→ 是关键词。
+ * 其余的词才换成源码里没有的探针名重解析：探针进了 AST 且没有新增诊断，说明解析器在这个位置把它当名字读，即是值。
+ * 重解析是整篇解析，单次调用最多 ROLE_PROBE_BUDGET 次，保证上限内任何源码的代价都是常数次整篇解析。
+ * `parse` 仅供测试注入。
+ */
+export function roleJudge(
+  tokens: readonly Token[],
+  lexicon: Lexicon,
+  parse: typeof parseWithLexicon = parseWithLexicon,
+): RoleJudge {
+  const base = parse(tokens, lexicon);
   const names = astStrings(base.ast);
   const positions = namePositions(base.ast);
+  const operators = operatorSpans(base.ast);
   const baseDiagnostics = base.diagnostics.length;
   const baseText = JSON.stringify(base.ast).toLowerCase();
   let probe = 'zqprobe';
   while (baseText.includes(probe)) probe += 'q';
-  return (i, seq) => {
-    if (![...seq.words, ...seq.english].some((w) => names.has(w))) return false;
-    const t = tokens[i]!;
-    if (positions.has(posKey(t.start))) return true;
-    const upper = typeof t.value === 'string' && /^\p{Lu}/u.test(t.value);
-    const probed = tokens.slice();
-    probed[i] = { ...t, kind: upper ? TokenKind.TYPE_IDENT : TokenKind.IDENT, value: upper ? probe.toUpperCase() : probe };
-    try {
-      const r = parseWithLexicon(probed, lexicon);
-      return r.diagnostics.length <= baseDiagnostics && JSON.stringify(r.ast).toLowerCase().includes(probe);
-    } catch {
-      return false;
-    }
+  let budget = ROLE_PROBE_BUDGET;
+  const isOperator = (i: number): boolean => {
+    const at = tokens[i]!.start;
+    return operators.some((op) => !posBefore(at, op.start) && posBefore(at, op.end)
+      && !(op.prefix && tokens[i + 1]?.kind === TokenKind.LPAREN));
+  };
+  return {
+    settle(i, seq): boolean | null {
+      if (![...seq.words, ...seq.english].some((w) => names.has(w))) return false;
+      if (positions.has(posKey(tokens[i]!.start))) return true;
+      if (isOperator(i)) return false;
+      return null;
+    },
+    probe(i): boolean {
+      if (budget <= 0) return true;
+      budget--;
+      const t = tokens[i]!;
+      const upper = typeof t.value === 'string' && /^\p{Lu}/u.test(t.value);
+      const probed = tokens.slice();
+      probed[i] = { ...t, kind: upper ? TokenKind.TYPE_IDENT : TokenKind.IDENT, value: upper ? probe.toUpperCase() : probe };
+      try {
+        const r = parse(probed, lexicon);
+        return r.diagnostics.length <= baseDiagnostics && JSON.stringify(r.ast).toLowerCase().includes(probe);
+      } catch {
+        return true;
+      }
+    },
   };
 }
+
+/** 值 token 候选；带 probe 的须重解析才能定，由调用方决定要不要花这次解析 */
+type ValueCandidate = { token: Token; probe?: () => boolean };
 
 /**
  * 从非 trivia 的 token 流中挑出值 token。拼写像关键词（含多词关键词）的词按解析器角色逐个判定，
  * 不只看拼写：`Rule f given return as Int …: Return return.` 里第二个 `return` 是参数引用，是值。
  */
-function valueTokens(tokens: readonly Token[], lexicon: Lexicon, spellings: Map<string, Set<string>>): Token[] {
+function valueTokens(tokens: readonly Token[], lexicon: Lexicon, spellings: Map<string, Set<string>>): ValueCandidate[] {
   const index = keywordIndex(spellings);
-  const parsedAsName = nameRoleProbe(tokens, lexicon);
-  const out: Token[] = [];
+  const judge = roleJudge(tokens, lexicon);
+  const out: ValueCandidate[] = [];
   let i = 0;
   while (i < tokens.length) {
     const t = tokens[i]!;
     if (LITERAL_KINDS.has(t.kind)) {
-      out.push(t);
+      out.push({ token: t });
       i++;
       continue;
     }
@@ -212,12 +281,15 @@ function valueTokens(tokens: readonly Token[], lexicon: Lexicon, spellings: Map<
     }
     const match = (index.get(word) ?? []).find((seq) => seq.words.every((w, j) => wordOf(tokens[i + j]) === w));
     if (!match) {
-      out.push(t);
+      out.push({ token: t });
       i++;
       continue;
     }
     for (let j = 0; j < match.words.length; j++) {
-      if (parsedAsName(i + j, match)) out.push(tokens[i + j]!);
+      const k = i + j;
+      const settled = judge.settle(k, match);
+      if (settled === null) out.push({ token: tokens[k]!, probe: () => judge.probe(k) });
+      else if (settled) out.push({ token: tokens[k]! });
     }
     i += match.words.length;
   }
@@ -272,10 +344,14 @@ function lineTable(source: string): Array<{ start: number; text: string }> {
   return lines;
 }
 
+const overlaps = (a: OffsetRange, b: OffsetRange): boolean => Math.max(a[0], b[0]) < Math.min(a[1], b[1]);
+
 /**
  * 值 token 在原文中的区间，按出现顺序。源码无法分词时返回 null（调用方应视为无法证明不重叠）。
+ * 给出 `structural` 时，须重解析才能定角色的词只在它可能落到的区间（所在整行）与结构 span 重叠时才判定，
+ * 其余按值计——不与任何结构 span 重叠的值不会导致拒绝，不必花这次解析。
  */
-export function valueTokenRanges(source: string, lexicon: Lexicon): OffsetRange[] | null {
+export function valueTokenRanges(source: string, lexicon: Lexicon, structural?: readonly OffsetRange[]): OffsetRange[] | null {
   let canonical: string;
   let tokens: Token[];
   try {
@@ -285,9 +361,9 @@ export function valueTokenRanges(source: string, lexicon: Lexicon): OffsetRange[
     return null;
   }
   const spellings = keywordSpellings(lexicon);
-  let values: Token[];
+  let candidates: ValueCandidate[];
   try {
-    values = valueTokens(tokens, lexicon, spellings);
+    candidates = valueTokens(tokens, lexicon, spellings);
   } catch {
     return null;
   }
@@ -295,12 +371,19 @@ export function valueTokenRanges(source: string, lexicon: Lexicon): OffsetRange[
   const original = lineTable(source);
   const canonLines = canonical.split('\n');
   // 不变式：canonicalize 保持行数不变；万一对不上就无法逐行找回，每个值都按整篇源码计（宁可多拒）
-  if (canonLines.length !== original.length) return values.map((): OffsetRange => [0, source.length]);
-  const cursor = new Map<number, number>();
+  const linesAligned = canonLines.length === original.length;
   const wholeLines = (from: number, to: number): OffsetRange => [
     original[from - 1]!.start,
     original[to - 1]!.start + original[to - 1]!.text.length,
   ];
+  // 一个值 token 下面最多映射到的区间：所在的整行（跨行 token 为其各行）
+  const widest = (t: Token): OffsetRange =>
+    linesAligned ? wholeLines(t.start.line, Math.min(t.end.line, original.length)) : [0, source.length];
+  const relevant = (t: Token): boolean => structural === undefined || structural.some((s) => overlaps(widest(t), s));
+  // 关键词形态的词与冠词/关键词同形，作为值时按整行计、不推进逐行游标，先剔除不影响其余 token 的找回位置
+  const values = candidates.filter((c) => !c.probe || !relevant(c.token) || c.probe()).map((c) => c.token);
+  if (!linesAligned) return values.map((): OffsetRange => [0, source.length]);
+  const cursor = new Map<number, number>();
 
   return values.map((t): OffsetRange => {
     const line = t.start.line;

@@ -70,7 +70,7 @@ function assertStructuralHidesNoValue(layout: PolicyLayout, source: string, lexi
     at += len;
   }
   if (structural.length === 0) return;
-  const values = valueTokenRanges(source, lexicon);
+  const values = valueTokenRanges(source, lexicon, structural);
   if (values === null) {
     throw new LayoutError('layout_structural_hides_value', 'source cannot be tokenized; structural spans cannot be verified', {
       offset: structural[0]![0],

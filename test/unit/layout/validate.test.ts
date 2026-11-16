@@ -162,6 +162,55 @@ describe('layout_structural_hides_value', () => {
     assert.deepEqual(check([{ text: head }, { canonical: ' and ', display: ' && ' }, { text: 'y.\n' }]), { ok: true });
   });
 
+  it('正：上限内的大源码（约 1,700 个 `and` 运算符）加一个结构 span，校验在 1 秒内完成', () => {
+    const head = 'Module m.\n\nRule f given x as Bool, produce Bool:\n';
+    const line = '  Let y be x and x and x and x and x and x and x and x and x and x and x and x and x.\n';
+    const tail = '  Return x.\n';
+    let body = '';
+    while (Buffer.byteLength(head + body + line + tail) < 12200) body += line;
+    const source = head + body + tail;
+    const t0 = performance.now();
+    const r = check([{ text: source.slice(0, -2) }, { canonical: '.\n', display: ';' }]);
+    const ms = performance.now() - t0;
+    assert.deepEqual(r, { ok: true });
+    assert.ok(ms < 1000, `耗时 ${ms.toFixed(0)}ms`);
+  });
+
+  it('正：每行缩进都是结构 span 时，中缀与前缀运算符不逐个重解析，仍通过且在 1 秒内完成', () => {
+    const head = 'Module m.\n\nRule f given x as Bool, produce Bool:\n';
+    const spans: PolicyLayout['spans'] = [{ text: head }];
+    let bytes = head.length;
+    for (let n = 0; bytes < 11500; n++) {
+      const text = `Let y${n} be x and not x and x or x and x and not x and x and x or x.\n`;
+      spans.push({ canonical: '  ', display: '' }, { text });
+      bytes += 2 + text.length;
+    }
+    spans.push({ canonical: '  ', display: '' }, { text: 'Return x.\n' });
+    const t0 = performance.now();
+    const r = check(spans);
+    const ms = performance.now() - t0;
+    assert.deepEqual(r, { ok: true });
+    assert.ok(ms < 1000, `耗时 ${ms.toFixed(0)}ms`);
+  });
+
+  it('反：须重解析判定的词超出预算时一律按值计（宁可多拒），且耗时有界', () => {
+    // 参数名 `be` 让每个关键词 `be` 都须重解析判定；每行缩进都是结构 span，于是每一行的 `be` 都要判定
+    const head = 'Module m.\n\nRule f given x as Bool, be as Bool, produce Bool:\n';
+    const spans: PolicyLayout['spans'] = [{ text: head }];
+    let bytes = head.length;
+    for (let n = 0; n < 190; n++) {
+      const text = `Let y${n} be x.\n`;
+      spans.push({ canonical: '  ', display: '' }, { text });
+      bytes += 2 + text.length;
+    }
+    spans.push({ canonical: '  ', display: '' }, { text: 'Return x.\n' });
+    const t0 = performance.now();
+    const r = check(spans);
+    const ms = performance.now() - t0;
+    assert.equal(hides(r) !== undefined, true);
+    assert.ok(ms < 1000, `耗时 ${ms.toFixed(0)}ms`);
+  });
+
   it('正：关键词（含多词关键词）、标点、空白、注释可以在结构 span 里', () => {
     assert.deepEqual(
       check([
