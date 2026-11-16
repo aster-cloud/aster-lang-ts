@@ -21,9 +21,11 @@ function collect(
   buckets: Iterable<readonly Candidate[]>,
   kind: CompletionItemKind,
   roleLabel: string,
+  takenCanonicals?: ReadonlySet<string>,
 ): void {
   for (const bucket of buckets) {
     for (const c of bucket) {
+      if (takenCanonicals?.has(foldKey(c.canonical))) continue;
       const key = foldKey(c.written);
       if (out.has(key)) continue;
       out.set(key, { label: c.written, insertText: c.written, kind, detail: `${c.canonical} · ${roleLabel}`, data: c.written });
@@ -31,11 +33,19 @@ function collect(
   }
 }
 
-export function vocabularyTermCompletions(scopes: VocabularyScopes | undefined, role: VocabularyRole): CompletionItem[] {
+/**
+ * `takenCanonicals`：已被其它来源（文档声明、别名、内置）占用的折叠后规范名（ADR 0051 §6.3），
+ * 仅对 type 角色生效：规范名冲突时让位于既有项。
+ */
+export function vocabularyTermCompletions(
+  scopes: VocabularyScopes | undefined,
+  role: VocabularyRole,
+  takenCanonicals?: ReadonlySet<string>,
+): CompletionItem[] {
   if (!scopes) return [];
   const out = new Map<string, CompletionItem>();
   if (role === 'type') {
-    collect(out, scopes.types.values(), CompletionItemKind.Class, 'type');
+    collect(out, scopes.types.values(), CompletionItemKind.Class, 'type', takenCanonicals);
     return [...out.values()];
   }
   collect(out, scopes.functions.values(), CompletionItemKind.Function, 'function');

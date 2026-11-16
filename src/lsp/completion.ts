@@ -179,8 +179,9 @@ function termCompletionsAt(
     return { types: null, values: vocabularyTermCompletions(entry.vocabulary, 'value') };
   }
   const items = typeCompletions(entry.ast, lex);
+  // 类型位置按折叠后的规范名去重（ADR 0051 §6.3）：文档/别名/内置项胜出，规范名冲突的词汇项被丢弃
   const seen = new Set(items.map((i) => foldKey(i.label)));
-  const extra = vocabularyTermCompletions(entry.vocabulary, 'type').filter((i) => !seen.has(foldKey(i.label)));
+  const extra = vocabularyTermCompletions(entry.vocabulary, 'type', seen).filter((i) => !seen.has(foldKey(i.label)));
   return { types: [...items, ...extra], values: [] };
 }
 

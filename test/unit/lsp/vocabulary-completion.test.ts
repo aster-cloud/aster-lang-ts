@@ -78,8 +78,11 @@ describe('补全接线', () => {
   it('类型位置并入词汇类型，与已声明类型按折叠名去重', () => {
     const doc = docOf([...HEAD, 'Definiere Owner hat d als ']);
     const items = completeAt(doc, doc.lines.length - 1, doc.lines[doc.lines.length - 1]!.length, DE_DE);
-    assert.equal(items.filter((i) => i.label === 'Fahrer').length, 1);
+    // 按折叠后的规范名去重：文档声明的 Driver 胜出，词汇项 Fahrer（规范名 Driver）被丢弃
+    assert.equal(items.filter((i) => i.label === 'Fahrer').length, 0);
     assert.equal(items.filter((i) => i.label.toLowerCase() === 'driver').length, 1);
+    // 规范名不冲突的词汇类型保留
+    assert.equal(items.filter((i) => i.label === 'Gemeinsam').length, 1);
     assert.ok(!items.some((i) => i.label === 'prüfen'), '类型位置不给函数');
   });
 });
