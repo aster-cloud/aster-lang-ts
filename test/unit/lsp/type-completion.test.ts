@@ -41,6 +41,12 @@ interface Lang {
   readonly importAs: string;
   readonly shared: readonly string[];
   readonly localizedText: string;
+  /** 形参名与 as / produce 关键词同形的函数头（以 `:` 结尾） */
+  readonly kwHeader: string;
+  /** 函数体内引用这些形参的表达式前缀：as / produce 在此是值，不是类型锚点 */
+  readonly kwExprs: readonly string[];
+  /** 同一函数头里形参名之后的 as 仍是类型位置 */
+  readonly kwParamType: string;
 }
 
 const LANGS: readonly Lang[] = [
@@ -54,6 +60,9 @@ const LANGS: readonly Lang[] = [
     importAs: 'Use foo.baz as ',
     shared: ['Define Fahrer has fahrer as Int.', 'Type fahrer as Int.'],
     localizedText: 'Text',
+    kwHeader: 'Rule g given as as Int, produce as Int, produce Int:',
+    kwExprs: ['  Return as ', '  Return produce ', '  Let y be as ', '  Return g with as '],
+    kwParamType: 'Rule h given as as ',
   },
   {
     name: 'de-DE', lexicon: DE_DE,
@@ -65,6 +74,9 @@ const LANGS: readonly Lang[] = [
     importAs: 'verwende foo.baz als ',
     shared: ['Definiere Fahrer hat fahrer als Ganzzahl.', 'Type fahrer als Ganzzahl.'],
     localizedText: 'Text',
+    kwHeader: 'Regel g gegeben als als Ganzzahl, liefert als Ganzzahl, liefert Ganzzahl:',
+    kwExprs: ['  gib zurueck als ', '  gib zurueck liefert ', '  sei y gleich als '],
+    kwParamType: 'Regel h gegeben als als ',
   },
   {
     name: 'zh-CN', lexicon: ZH_CN,
@@ -76,6 +88,9 @@ const LANGS: readonly Lang[] = [
     importAs: '引用 foo.baz 作为 ',
     shared: ['定义 司机 包含 司机 作为 整数。', 'Type 司机 作为 整数。'],
     localizedText: '文本',
+    kwHeader: '规则 g 给定 作为 作为 整数，产出 作为 整数，产出 整数：',
+    kwExprs: ['  返回 作为 ', '  返回 产出 ', '  令 y 定义为 作为 '],
+    kwParamType: '规则 h 给定 作为 作为 ',
   },
 ];
 
@@ -122,6 +137,18 @@ for (const lang of LANGS) {
       const typeKinds: (number | undefined)[] = [CompletionItemKind.Class, CompletionItemKind.TypeParameter, CompletionItemKind.Module];
       assert.ok(items.every((i) => !typeKinds.includes(i.kind)), '表达式位置不应有 Class / TypeParameter / Module 项');
       assert.ok(labels.includes(lang.lexicon.keywords[SemanticTokenKind.RETURN]!), '应回到关键词补全');
+    });
+
+    it('★与 as / produce 同形的形参在表达式里是值：不给类型项；形参名之后的 as 仍是类型位置', () => {
+      const typeKinds: (number | undefined)[] = [CompletionItemKind.Class, CompletionItemKind.TypeParameter, CompletionItemKind.Module];
+      for (const expr of lang.kwExprs) {
+        const items = atEnd(lang, expr, [lang.kwHeader]);
+        const labels = items.map((i) => i.label);
+        assert.ok(!labels.includes('Driver') && !labels.includes('Score'), `${expr.trim()}：不应给类型 ${labels}`);
+        assert.ok(items.every((i) => !typeKinds.includes(i.kind)), `${expr.trim()}：表达式位置不应有类型项`);
+      }
+      const labels = atEnd(lang, lang.kwParamType).map((i) => i.label);
+      assert.ok(labels.includes('Driver') && labels.includes('Score'), `${lang.kwParamType}：${labels}`);
     });
 
     it('导入别名 as 之后不是类型位置', () => {
@@ -199,6 +226,38 @@ describe('isTypePosition 边界', () => {
   it('上一条语句的 as 不外溢；空文档不是类型位置', () => {
     assert.equal(at('Define A has x as Int.\n'), false);
     assert.equal(at(''), false);
+  });
+
+  it('★as / produce 只在名字槽之后算锚点：语句开头、给定之后（正在写形参名）都不是', () => {
+    const head = 'Rule f given as as Int, produce as Int, produce Int:\n';
+    assert.equal(at(head + '  Return as '), false);
+    assert.equal(at(head + '  Return produce '), false);
+    assert.equal(at(head + '  Return as and '), false);
+    assert.equal(at(head + '  Return produce of '), false);
+    assert.equal(at('Rule f given as '), false, 'given 之后写的是形参名');
+    assert.equal(at('Rule f given produce '), false, 'given 之后写的是形参名');
+    assert.equal(at('Rule f given as as '), true);
+    assert.equal(at('Rule f given produce as '), true);
+    assert.equal(at('Rule f given as as Int, produce '), true);
+    assert.equal(at('Rule f given as as Pair of Int and '), true);
+    assert.equal(at('Rule f produce '), true, '无形参的函数头');
+    assert.equal(at('Rule f given a as Int produce '), true, '类型之后直接写 produce');
+    assert.equal(at('Let as as '), true);
+    assert.equal(at('Let as '), false, 'Let 之后写的是名字');
+  });
+
+  it('逗号后的 produce 其后紧跟 as 时是形参名（光标在行中）', () => {
+    const text = 'Rule f given a as Int, produce as Int, produce Int:';
+    const col = 'Rule f given a as Int, produce '.length;
+    assert.equal(isTypePosition(tokensOf(text), { line: 0, character: col }, EN_US), false);
+    const ret = 'Rule f given a as Int, produce as Int, produce '.length;
+    assert.equal(isTypePosition(tokensOf(text), { line: 0, character: ret }, EN_US), true);
+  });
+
+  it('多行声明：上一行以 has / 逗号结尾时，行首名字之后的 as 仍是类型位置', () => {
+    assert.equal(at('Define A has\n  x as '), true);
+    assert.equal(at('Define A has\n  x as Int,\n  y as '), true);
+    assert.equal(at('Rule f given\n  x as Int,\n  produce '), true);
   });
 
   it('★Let 注解类型位置：Let x as 之后是类型', () => {

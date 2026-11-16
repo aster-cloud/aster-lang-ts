@@ -54,41 +54,157 @@ const containsAny = (words: readonly string[], phrases: readonly (readonly strin
 const valueOf = (t: Token | undefined): string => (typeof t?.value === 'string' ? t.value.toLowerCase() : '');
 const endsAtOrBefore = (a: Coord, b: Coord): boolean => a.line < b.line || (a.line === b.line && a.col <= b.col);
 
-/** 光标之前、当前语句内的 token（不含正在输入的名字前缀，按出现顺序）。 */
-function statementBefore(tokens: readonly Token[], pos: Pos): Token[] {
+/** 光标之前的有效 token（不含注释 / 缩进 / EOF，也不含正在输入的名字前缀，按出现顺序）。 */
+function tokensBefore(tokens: readonly Token[], pos: Pos): Token[] {
   const cursor: Coord = { line: pos.line + 1, col: pos.character + 1 };
   const before = tokens.filter((t) => t.end && !SKIP_KINDS.has(t.kind) && t.kind !== TokenKind.EOF && endsAtOrBefore(t.end, cursor));
   const last = before[before.length - 1];
   const typing = last && last.end.line === cursor.line && last.end.col === cursor.col
     && (last.kind === TokenKind.IDENT || last.kind === TokenKind.TYPE_IDENT);
   if (typing) before.pop();
+  return before;
+}
+
+/** 句点后紧跟空白才是语句结束；`foo.bar` 中的点不是边界 */
+function dotEndsStatement(t: Token, next: Token | undefined): boolean {
+  return t.kind === TokenKind.DOT && (!next || next.start.line !== t.end.line || next.start.col > t.end.col);
+}
+
+/** before 中当前语句（换行 / 冒号 / 语句句点之后）的起始下标 */
+function statementStart(before: readonly Token[]): number {
   let from = before.length;
-  while (from > 0) {
-    const t = before[from - 1]!;
-    const next = before[from];
-    // 句点后紧跟空白才是语句结束；`foo.bar` 中的点不是边界
-    const dotEndsStatement = t.kind === TokenKind.DOT && (!next || next.start.line !== t.end.line || next.start.col > t.end.col);
-    if (BOUNDARY_KINDS.has(t.kind) || dotEndsStatement) break;
-    from--;
+  while (from > 0 && !BOUNDARY_KINDS.has(before[from - 1]!.kind) && !dotEndsStatement(before[from - 1]!, before[from])) from--;
+  return from;
+}
+
+/** before[i] 之前最近的非换行 token 下标（跨行：多行字段 / 形参列表的续行看上一行行尾）；没有时为 -1 */
+function prevSignificant(before: readonly Token[], i: number): number {
+  let j = i - 1;
+  while (j >= 0 && before[j]!.kind === TokenKind.NEWLINE) j--;
+  return j;
+}
+
+const isName = (t: Token | undefined): boolean => t?.kind === TokenKind.IDENT || t?.kind === TokenKind.TYPE_IDENT;
+
+/** before 中以下标 end（不含）结尾的一段 token 词是否恰为 phrases 之一（多词关键字须在同一语句内连续出现） */
+function tokensEndWith(before: readonly Token[], end: number, phrases: readonly (readonly string[])[]): boolean {
+  return phrases.some((p) => end >= p.length && p.every((w, k) => valueOf(before[end - p.length + k]) === w));
+}
+
+/**
+ * 语法角色判定所需的词表：引出名字槽的关键词（字段 has / with、形参 given、续接 and、Let、类型别名 Type）
+ * 与函数头关键词（Rule）。逗号按 token 种类判定。
+ */
+interface Roles {
+  readonly nameIntroducers: readonly (readonly string[])[];
+  readonly funcHead: readonly (readonly string[])[];
+}
+
+function rolesOf(lexicon: Lexicon): Roles {
+  return {
+    nameIntroducers: [
+      ...[SemanticTokenKind.TYPE_HAS, SemanticTokenKind.TYPE_WITH, SemanticTokenKind.FUNC_GIVEN, SemanticTokenKind.AND, SemanticTokenKind.LET]
+        .flatMap((k) => phrasesOf(lexicon, k)),
+      TYPE_ALIAS_HEAD,
+    ],
+    funcHead: phrasesOf(lexicon, SemanticTokenKind.FUNC_TO),
+  };
+}
+
+/** 类型别名声明 `Type X as T` 的引导词不随 lexicon 本地化 */
+const TYPE_ALIAS_HEAD: readonly string[] = ['type'];
+
+/** before[i] 之前（可跨行）是否紧跟名字引导词；逗号单独判定 */
+function afterIntroducer(before: readonly Token[], i: number, roles: Roles): boolean {
+  const j = prevSignificant(before, i);
+  return j >= 0 && tokensEndWith(before, j + 1, roles.nameIntroducers);
+}
+
+/** before[i] 是否处在名字槽：紧跟在逗号或名字引导词之后（可跨行） */
+function inNameSlot(before: readonly Token[], i: number, roles: Roles): boolean {
+  const j = prevSignificant(before, i);
+  return j >= 0 && (before[j]!.kind === TokenKind.COMMA || afterIntroducer(before, i, roles));
+}
+
+/** before[i] 所在逻辑语句（跨换行，止于冒号 / 语句句点）是否以函数头关键词开头 */
+function inFunctionHeader(before: readonly Token[], i: number, roles: Roles): boolean {
+  let from = i;
+  while (from > 0 && before[from - 1]!.kind !== TokenKind.COLON && !dotEndsStatement(before[from - 1]!, before[from])) from--;
+  const head = before.slice(from).filter((t) => t.kind !== TokenKind.NEWLINE);
+  return roles.funcHead.some((p) => p.every((w, k) => valueOf(head[k]) === w));
+}
+
+/** 光标前的 token 与光标后第一个有效 token（判断逗号后的 produce 是不是形参名时要看它后面是否跟 as） */
+interface Context {
+  readonly before: readonly Token[];
+  readonly afterCursor: Token | undefined;
+  readonly lexicon: Lexicon;
+  readonly roles: Roles;
+}
+
+/**
+ * `as`（IMPORT_ALIAS）是否为类型锚点：前一个 token 须是处在名字槽的名字
+ * （`has x as`、`given x as`、`, y as`、`Let x as`、`Type S as`，名字槽可在上一行行尾）。
+ * `Return as`、`given as`（正在写形参名）中的 as 是值或名字本身。
+ */
+function isAliasAnchor(ctx: Context, start: number): boolean {
+  const name = prevSignificant(ctx.before, start);
+  return name >= 0 && isName(ctx.before[name]) && inNameSlot(ctx.before, name, ctx.roles);
+}
+
+/**
+ * `produce`（FUNC_PRODUCE）是否为返回类型锚点：
+ * - 紧跟名字引导词（`given produce`）时是形参名；
+ * - 紧跟逗号时是返回类型关键词，除非其后紧跟 as（`, produce as Int` 是形参名）；
+ * - 否则须处在函数头内（`Rule f produce`、`给定 a 作为 A 产出`）；`Return produce` 中的 produce 是值。
+ */
+function isProduceAnchor(ctx: Context, start: number, end: number): boolean {
+  const { before, roles } = ctx;
+  if (afterIntroducer(before, start, roles)) return false;
+  const prev = prevSignificant(before, start);
+  if (prev < 0) return false;
+  if (before[prev]!.kind === TokenKind.COMMA) {
+    const next = end < before.length ? before[end] : ctx.afterCursor;
+    return !phrasesOf(ctx.lexicon, SemanticTokenKind.IMPORT_ALIAS).some((p) => p[0] === valueOf(next));
   }
-  return before.slice(from);
+  return inFunctionHeader(before, start, roles);
+}
+
+/** before 中以下标 end（不含）结尾的一段是否为按语法角色成立的类型锚点（as / produce） */
+function anchorEndsAt(ctx: Context, end: number): boolean {
+  const { before, lexicon } = ctx;
+  const hit = (kind: SemanticTokenKind): readonly string[] | undefined =>
+    phrasesOf(lexicon, kind).find((p) => tokensEndWith(before, end, [p]));
+  const alias = hit(SemanticTokenKind.IMPORT_ALIAS);
+  if (alias && isAliasAnchor(ctx, end - alias.length)) return true;
+  const produce = hit(SemanticTokenKind.FUNC_PRODUCE);
+  return !!produce && isProduceAnchor(ctx, end - produce.length, end);
+}
+
+/** 光标之后第一个有效 token */
+function tokenAfter(tokens: readonly Token[], pos: Pos): Token | undefined {
+  const cursor: Coord = { line: pos.line + 1, col: pos.character + 1 };
+  return tokens.find((t) => t.end && !SKIP_KINDS.has(t.kind) && t.kind !== TokenKind.NEWLINE && !endsAtOrBefore(t.end, cursor));
 }
 
 /**
  * 光标是否位于类型位置。
  * 语句以「引用」关键字开头时 `as` 引入的是导入别名，不是类型。
+ * 锚点（as / produce）按语法角色识别：与关键词同形的形参 / 局部名出现在表达式里时不算锚点。
  */
 export function isTypePosition(tokens: readonly Token[], pos: Pos, lexicon: Lexicon): boolean {
-  const words = statementBefore(tokens, pos).map(valueOf);
+  const before = tokensBefore(tokens, pos);
+  const from = statementStart(before);
+  const words = before.slice(from).map(valueOf);
   if (words.length === 0) return false;
   if (phrasesOf(lexicon, SemanticTokenKind.IMPORT).some((p) => endsWith(words, p.length, p))) return false;
-  const anchors = [...phrasesOf(lexicon, SemanticTokenKind.IMPORT_ALIAS), ...phrasesOf(lexicon, SemanticTokenKind.FUNC_PRODUCE)];
-  if (endsWithAny(words, words.length, anchors)) return true;
+  const ctx: Context = { before, afterCursor: tokenAfter(tokens, pos), lexicon, roles: rolesOf(lexicon) };
+  if (anchorEndsAt(ctx, before.length)) return true;
 
   // 类型参数列表：锚点（as / produce）之后的类型构造词，Let 的 `be` 之后不再是类型
-  const anchor = words.findIndex((_, i) => endsWithAny(words, i + 1, anchors));
-  if (anchor < 0) return false;
-  const tail = words.slice(anchor + 1);
+  const anchorEnd = words.findIndex((_, i) => anchorEndsAt(ctx, from + i + 1));
+  if (anchorEnd < 0) return false;
+  const tail = words.slice(anchorEnd + 1);
   if (containsAny(tail, phrasesOf(lexicon, SemanticTokenKind.BE))) return false;
   const resultOf = phrasesOf(lexicon, SemanticTokenKind.RESULT_OF);
   const openers = [OF, MAP, ...phrasesOf(lexicon, SemanticTokenKind.MAYBE), ...phrasesOf(lexicon, SemanticTokenKind.OPTION_OF), ...resultOf];
