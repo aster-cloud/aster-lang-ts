@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseArgs, parseTimeout } from '../../../src/policy-package/argv.js';
 import { Readable } from 'node:stream';
 import { probeMatches, readAll, runCommand } from '../../../src/policy-package/cli.js';
@@ -142,4 +143,20 @@ test('probeMatches：期望形状不完整或不可写出时判为不符，而�
   assert.equal(probeMatches(null, ok), false);
   assert.equal(probeMatches({ code: 'EVAL_ERROR', ok: false }, { ok: false, code: 'EVAL_ERROR', message: '' }), true);
   assert.equal(probeMatches({ code: 'EVAL_ERROR', ok: false }, { ok: false, code: 'TIMEOUT', message: '' }), false);
+});
+
+test('求值开始前的安全看门狗：Worker 迟迟不发 started 时报 EVAL_ERROR，不挂住', async () => {
+  const { evaluateInWorker } = await import('../../../src/policy-package/cli.js');
+  const dir = mkdtempSync(join(tmpdir(), 'aster-watchdog-'));
+  try {
+    const stuck = join(dir, 'stuck.mjs');
+    writeFileSync(stuck, 'setInterval(() => {}, 1000);\n');
+    const start = performance.now();
+    const r = await evaluateInWorker({ coreJson: '{}', entry: 'f', input: {} }, 5000, pathToFileURL(stuck), 300);
+    assert.equal(r.ok, false);
+    assert.equal(!r.ok && r.code, 'EVAL_ERROR');
+    assert.ok(performance.now() - start < 3000);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

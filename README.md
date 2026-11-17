@@ -64,7 +64,13 @@ node aster.mjs run ./my-policy.zip --input - < input.json                     # 
   failures, 4 unsupported package / IR drift / compile errors, 5 `TIMEOUT` / `RESOURCE_EXHAUSTED`.
 - Signatures are verified by default against the built-in trust anchor (empty until export keys are published);
   pass `--jwks <file|https-url>` or `--pubkey <file>`, or `--allow-unsigned` for unsigned packages.
-- Evaluation runs in a worker thread with a `--timeout` (default `5s`, at most `300s`).
+- Evaluation runs in a worker thread with a `--timeout` (default `5s`, at most `300s`). The clock starts right before
+  evaluation; worker start-up, reading the Core IR and converting the input are not counted. Those phases have no loops and
+  their inputs are bounded by the package and input size limits; a 60 s safety watchdog still stops them (`EVAL_ERROR`) if
+  they ever stall.
+- `compile --out <file>` writes a temporary file in the same directory and renames it over the target, so the target is
+  never half-written and nothing is left behind on an orderly failure. A process killed (SIGKILL) between the write and the
+  rename can leave a `.<name>.<pid>.<random>.tmp` file next to the target.
 - Long values above 2⁵³ are printed as exact JSON integers; read `value` with a big-number JSON parser if you need them.
 - The package format, exit codes and output envelopes are defined by aster-lang-test `conformance/package-v1/`.
 

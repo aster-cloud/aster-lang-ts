@@ -78,3 +78,17 @@ test('锚 URL 必须是字面量小写 https://；本地锚文件超过 1 MiB �
   assert.equal(await usageOf(loadTrustAnchor({ jwks: big })), 'USAGE');
   assert.equal(await usageOf(loadTrustAnchor({ pubkey: big })), 'USAGE');
 });
+
+test('信任根：缺省 CA + 系统 CA，ASTER_ANCHOR_CA_FILE 追加且去重', { skip }, async () => {
+  const tls = await import('node:tls');
+  const { anchorCaCertificates } = await import('../../../src/policy-package/trust-anchor.js');
+  const base = anchorCaCertificates({});
+  const expected = new Set([...tls.getCACertificates('default'), ...tls.getCACertificates('system')]);
+  assert.deepEqual(new Set(base), expected);
+  assert.equal(base.length, expected.size, '应去重');
+  const pem = readFileSync(join(dir, 'cert.pem'), 'utf8');
+  const withExtra = anchorCaCertificates({ ASTER_ANCHOR_CA_FILE: join(dir, 'cert.pem') });
+  assert.ok(withExtra.includes(pem), '应含追加的测试证书');
+  for (const c of base) assert.ok(withExtra.includes(c), '追加不得替换缺省 / 系统 CA');
+  assert.equal(withExtra.length, base.length + 1);
+});

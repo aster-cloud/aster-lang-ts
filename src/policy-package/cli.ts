@@ -49,6 +49,9 @@ export interface CommandIo {
   readonly workerUrl?: URL;
 }
 
+/** 求值开始前（不计入 `--timeout`）的安全看门狗。 */
+export const PRE_EVAL_WATCHDOG_MS = 60_000;
+
 /** Worker 线程栈（修订 1 A4）。 */
 export const WORKER_STACK_SIZE_MB = 32;
 
@@ -131,7 +134,12 @@ function factsWarning(ctx: Ctx, pkg: LoadedPackage): void {
 export type EvalOutcome = EvaluatePackageResult | { readonly ok: false; readonly code: 'TIMEOUT' | 'RESOURCE_EXHAUSTED' | 'EVAL_ERROR'; readonly message: string };
 
 /** 在 Worker 中求值；Worker 发出 `started` 后开始计时，到点 `terminate()` 并报 TIMEOUT。 */
-export function evaluateInWorker(job: EvalJob, timeoutMs: number, workerUrl: URL): Promise<EvalOutcome> {
+export function evaluateInWorker(
+  job: EvalJob,
+  timeoutMs: number,
+  workerUrl: URL,
+  preEvalWatchdogMs: number = PRE_EVAL_WATCHDOG_MS,
+): Promise<EvalOutcome> {
   return new Promise((resolve) => {
     const worker = new Worker(workerUrl, { workerData: job, resourceLimits: { stackSizeMb: WORKER_STACK_SIZE_MB } });
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -143,8 +151,15 @@ export function evaluateInWorker(job: EvalJob, timeoutMs: number, workerUrl: URL
       void worker.terminate();
       resolve(o);
     };
+    // 未计时阶段（Worker 启动、IR 读入、实参转换）的安全看门狗：输入受包体积上限约束、没有循环，正常远小于此值；
+    // 超出说明环境异常，按 Worker 内部错误报 EVAL_ERROR，进程不挂住
+    timer = setTimeout(
+      () => finish({ ok: false, code: 'EVAL_ERROR', message: `求值开始前的准备超过 ${preEvalWatchdogMs} ms` }),
+      preEvalWatchdogMs,
+    );
     worker.on('message', (m: WorkerMessage) => {
       if (m.type === 'started') {
+        clearTimeout(timer);
         timer = setTimeout(() => finish({ ok: false, code: 'TIMEOUT', message: `求值超过 ${timeoutMs} ms` }), timeoutMs);
         return;
       }
@@ -384,9 +399,6 @@ function decodeSource(bytes: Uint8Array, path: string): string {
   }
 }
 
-/** 只含 ASCII 空白（空格、\t、\n、\r）或为空的源码。 */
-const isBlankSource = (text: string): boolean => /^[ \t\n\r]*$/.test(text);
-
 /** `--out`：父目录必须存在、是目录且可写；目标本身不能是已存在的目录。在编译之前判定。 */
 function checkOutPath(out: string): void {
   const parent = dirname(resolvePath(out));
@@ -406,7 +418,10 @@ function checkOutPath(out: string): void {
   if (isDir) throw usageError(`--out 指向已存在的目录：${out}`);
 }
 
-/** 原子写入：同目录临时文件写完再改名；失败时清理临时文件、不动目标。 */
+/**
+ * 原子写入：同目录临时文件写完再改名；失败时清理临时文件、不动目标。目标文件永远不会处于写了一半的状态；
+ * 但若进程在写完临时文件与改名之间被 SIGKILL，同目录会残留 `.<name>.<pid>.<随机>.tmp`（「不留临时文件」只对有序失败成立）。
+ */
 function writeAtomically(out: string, content: string): void {
   const target = resolvePath(out);
   const tmp = join(dirname(target), `.${basename(target)}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`);
@@ -446,7 +461,6 @@ async function cmdCompile(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
       const vocabBytes = vocab === undefined ? undefined : readJsonOption(vocab, '--vocabulary');
       const text = decodeSource(source, path);
       try {
-        if (isBlankSource(text)) throw new CompileFailure(['源码为空或只有空白']);
         coreJson = compileSource(text, {
           locale,
           aliasSet: aliasBytes === undefined ? null : parseAliasSetJson(aliasBytes),

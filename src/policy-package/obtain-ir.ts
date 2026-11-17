@@ -28,6 +28,9 @@ export class CompileFailure extends Error {
   }
 }
 
+/** 只含 ASCII 空白（空格、\t、\n、\r）或为空的源码；U+00A0、U+3000 等其他 Unicode 空白不算。 */
+export const isBlankSource = (text: string): boolean => /^[ \t\n\r]*$/.test(text);
+
 export interface CompileSourceOptions {
   readonly locale: string;
   readonly aliasSet?: AliasSet | null | undefined;
@@ -84,6 +87,8 @@ export function parseVocabularyJson(bytes: Uint8Array): DomainVocabulary {
 
 /** 源码 → 规范 Core IR 字节（aliasSet 先校验再叠加）。失败抛 {@link CompileFailure}。 */
 export function compileSource(source: string, opts: CompileSourceOptions): string {
+  // 空白源码（只含 ASCII 空白）不交给编译器：源码形态与包形态同一判定（README「compile」）
+  if (isBlankSource(source)) throw new CompileFailure(['源码为空或只含 ASCII 空白']);
   const base = lexiconForLocale(opts.locale);
   let scopes;
   try {
