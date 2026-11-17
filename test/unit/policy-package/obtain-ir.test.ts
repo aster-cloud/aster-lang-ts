@@ -52,3 +52,16 @@ test('改错 positionFreeSha256 并重新签名的 B 包报 PKG_IR_DRIFT；A 包
   assert.equal(codeOf(() => obtainIr(pkg('tamper/b-position-free-hash-wrong'))), 'ir:PKG_IR_DRIFT');
   assert.equal(codeOf(() => obtainIr(pkg('tamper/a-compiled-core-unreadable'))), 'ir:PKG_UNSUPPORTED_IR');
 });
+
+test('evaluatePackage：IR 读入、实参转换之后才回调计时起点，且只回调一次', async () => {
+  const { evaluatePackage } = await import('../../../src/policy-package/evaluate-package.js');
+  const { compileSource } = await import('../../../src/policy-package/obtain-ir.js');
+  const core = compileSource('Module m.\n\nRule f given d as Decimal, produce Decimal:\n  Return d.', { locale: 'en-US' });
+  const events: string[] = [];
+  const r = evaluatePackage(core, 'f', { d: '1.50' }, () => events.push('start'));
+  assert.deepEqual(r, { ok: true, valueJson: '"1.5"' });
+  assert.deepEqual(events, ['start']);
+  // 入口不存在时不开始计时
+  assert.equal(evaluatePackage(core, 'nosuch', {}, () => events.push('again')).ok, false);
+  assert.deepEqual(events, ['start']);
+});

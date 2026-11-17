@@ -1,0 +1,80 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:https';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
+import { PackageError } from '../../../src/policy-package/errors.js';
+import { fetchJwks, loadTrustAnchor } from '../../../src/policy-package/trust-anchor.js';
+
+// https 信任锚取回的细则（aster-lang-test#218 README「信任锚」与 2026-11-17 裁决）：直连不读代理变量、只认 301/302/303/307/308、
+// Accept-Encoding: identity、非 identity 的 Content-Encoding 失败、本地锚文件 ≤ 1 MiB。一致性夹具 https-jwks-* 覆盖其余规则。
+const JWKS = JSON.stringify({ keys: [{ crv: 'Ed25519', kid: 'k', kty: 'OKP', x: '8dfz-daPQgc3ZDU3qhgH23T0RCgeJU6POxG70ZlJ9HA' }] });
+
+const dir = mkdtempSync(join(tmpdir(), 'aster-anchor-unit-'));
+const gen = spawnSync('openssl', [
+  'req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-days', '1',
+  '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1',
+  '-keyout', join(dir, 'key.pem'), '-out', join(dir, 'cert.pem'),
+]);
+const skip = gen.status === 0 ? false : 'openssl 不可用';
+
+const usageOf = async (p: Promise<unknown>): Promise<string | undefined> => {
+  try {
+    await p;
+    return undefined;
+  } catch (e) {
+    return e instanceof PackageError ? e.code : String(e);
+  }
+};
+
+test('https 锚：直连、只认五种重定向、identity 编码', { skip }, async () => {
+  let acceptEncoding: string | undefined;
+  const server = createServer({ key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) }, (req, res) => {
+    acceptEncoding = req.headers['accept-encoding'];
+    switch (req.url) {
+      case '/ok':
+        return void res.writeHead(200).end(JWKS);
+      case '/identity':
+        return void res.writeHead(200, { 'content-encoding': 'identity' }).end(JWKS);
+      case '/gzip':
+        return void res.writeHead(200, { 'content-encoding': 'gzip' }).end(gzipSync(JWKS));
+      case '/relative':
+        return void res.writeHead(307, { location: 'ok' }).end();
+      case '/s300':
+        return void res.writeHead(300, { location: '/ok' }).end();
+      case '/s304':
+        return void res.writeHead(304, { location: '/ok' }).end();
+      case '/no-location':
+        return void res.writeHead(302).end();
+      default:
+        return void res.writeHead(404).end();
+    }
+  });
+  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  const base = `https://localhost:${(server.address() as { port: number }).port}`;
+  const env = { ASTER_ANCHOR_CA_FILE: join(dir, 'cert.pem'), HTTPS_PROXY: 'http://127.0.0.1:9', https_proxy: 'http://127.0.0.1:9', NO_PROXY: '' };
+  try {
+    // 代理变量指向不可达地址也照常直连
+    assert.equal(Buffer.from(await fetchJwks(`${base}/ok`, env)).toString(), JWKS);
+    assert.equal(acceptEncoding, 'identity');
+    assert.equal(Buffer.from(await fetchJwks(`${base}/identity`, env)).toString(), JWKS);
+    assert.equal(Buffer.from(await fetchJwks(`${base}/relative`, env)).toString(), JWKS);
+    for (const p of ['/gzip', '/s300', '/s304', '/no-location', '/missing']) assert.equal(await usageOf(fetchJwks(`${base}${p}`, env)), 'USAGE', p);
+    // ASTER_ANCHOR_CA_FILE 是追加：不给时自签名证书不受信任
+    assert.equal(await usageOf(fetchJwks(`${base}/ok`, {})), 'USAGE');
+    assert.equal(await usageOf(fetchJwks(`${base}/ok`, { ASTER_ANCHOR_CA_FILE: join(dir, 'missing.pem') })), 'USAGE');
+  } finally {
+    server.close();
+  }
+});
+
+test('锚 URL 必须是字面量小写 https://；本地锚文件超过 1 MiB 为 USAGE', async () => {
+  for (const u of ['HTTPS://localhost/x', 'http://localhost/x', 'ftp://localhost/x']) assert.equal(await usageOf(loadTrustAnchor({ jwks: u })), 'USAGE', u);
+  const big = join(dir, 'big-jwks.json');
+  writeFileSync(big, JWKS + ' '.repeat(1024 * 1024));
+  assert.equal(await usageOf(loadTrustAnchor({ jwks: big })), 'USAGE');
+  assert.equal(await usageOf(loadTrustAnchor({ pubkey: big })), 'USAGE');
+});

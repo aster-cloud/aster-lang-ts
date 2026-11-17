@@ -1,6 +1,6 @@
 /**
  * 求值 Worker（ADR 0059 §4.3、修订 1 A4）：主线程以 `resourceLimits.stackSizeMb = 32` 启动 Worker，
- * Worker 先发 `started`（主线程从此刻起计时），再同步求值并发回结果；到点未返回由主线程 `terminate()`。
+ * Worker 读入 IR、转换实参之后、调用 `evaluate` 之前发 `started`（主线程从此刻起计时），再同步求值并发回结果；到点未返回由主线程 `terminate()`。
  * dist 形态由 `worker-entry.ts` 启动本函数，单文件 bundle 由 `scripts/runner-entry.ts` 在非主线程时启动。
  */
 import { parentPort, workerData } from 'node:worker_threads';
@@ -22,6 +22,6 @@ export function runEvalWorker(): void {
   const port = parentPort;
   if (!port) throw new Error('runEvalWorker 只能在 Worker 线程中调用');
   const job = workerData as EvalJob;
-  port.postMessage({ type: 'started' } satisfies WorkerMessage);
-  port.postMessage({ type: 'result', result: evaluatePackage(job.coreJson, job.entry, job.input) } satisfies WorkerMessage);
+  const result = evaluatePackage(job.coreJson, job.entry, job.input, () => port.postMessage({ type: 'started' } satisfies WorkerMessage));
+  port.postMessage({ type: 'result', result } satisfies WorkerMessage);
 }

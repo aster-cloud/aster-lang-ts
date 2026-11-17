@@ -24,6 +24,10 @@ test('argv：选项两种写法、先后任意、开关、缺省超时', () => {
   assert.equal(a.timeoutMs, 5000);
   assert.equal(parseArgs(['verify', 'p', '--timeout', '300000ms']).timeoutMs, 300_000);
   assert.equal(parseTimeout('2s'), 2000);
+  // `--` 结束选项解析
+  const dd = parseArgs(['run', '--input', '-', '--', '--weird-name']);
+  assert.equal(dd.path, '--weird-name');
+  assert.equal(parseArgs(['run', '--input=--', 'p']).values.get('input'), '--');
 });
 
 test('argv：重复、未知、缺值、开关带值、位置参数个数、run 缺 --input、超时语法都是 USAGE', () => {
@@ -39,6 +43,10 @@ test('argv：重复、未知、缺值、开关带值、位置参数个数、run 
   usage(['run', 'p']);
   usage(['version', 'x']);
   usage(['inspect', 'p', '--entry', 'x']);
+  usage(['run', 'p', '--input', '-', '--entry=']);
+  usage(['run', 'p', '--input', '-', '--entry', '']);
+  usage(['run', 'p', '--input', '-', '--entry', '--']);
+  usage(['compile', 'x.aster', '--entry', 'e']);
   for (const t of ['0s', '1.5s', '01s', '5', '300001ms', '1s\n', '']) usage(['verify', 'p', '--timeout', t]);
 });
 
@@ -75,6 +83,15 @@ test('compile <file.aster>：成功输出规范 IR；非法 aliasSet 为 COMPILE
     assert.equal(w.stdout, '');
     assert.equal(readFileSync(out, 'utf8') + '\n', ok.stdout);
     assert.equal((await runCommand(['compile', join(dir, 'missing.aster')], io)).exitCode, 2);
+    // 前导 BOM 去掉一个后照常编译；非法 UTF-8 为 USAGE；只含 ASCII 空白为 COMPILE_ERROR
+    writeFileSync(join(dir, 'bom.aster'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), readFileSync(src)]));
+    assert.equal((await runCommand(['compile', join(dir, 'bom.aster'), '--alias-set', join(dir, 'ok.json')], io)).exitCode, 0);
+    writeFileSync(join(dir, 'bad-utf8.aster'), Buffer.from([0x4d, 0xff, 0x0a]));
+    assert.equal((await runCommand(['compile', join(dir, 'bad-utf8.aster')], io)).exitCode, 2);
+    writeFileSync(join(dir, 'blank.aster'), ' \t\r\n');
+    assert.equal((JSON.parse((await runCommand(['compile', join(dir, 'blank.aster')], io)).stdout) as { error: { code: string } }).error.code, 'COMPILE_ERROR');
+    // --out 指向已存在的目录：编译之前即 USAGE
+    assert.equal((await runCommand(['compile', src, '--alias-set', join(dir, 'ok.json'), '--out', dir], io)).exitCode, 2);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -110,12 +110,21 @@ export function compileSource(source: string, opts: CompileSourceOptions): strin
   return result.coreJson;
 }
 
+/**
+ * `.aster` 源码的解码（README「compile」）：严格 UTF-8，去掉至多一个开头的 BOM；非法字节抛 StrictJsonError。
+ * `compile <file.aster>` 与包内 `policy/policy.aster` 共用。
+ */
+export function decodeSourceText(bytes: Uint8Array): string {
+  const body = bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? bytes.subarray(3) : bytes;
+  return decodeUtf8Strict(body);
+}
+
 /** 按 manifest 本地编译包内 `policy/`（B 包的 run、两种包的 `verify --recompile`、`compile <pkg>` 共用）。 */
 export function compilePackageSource(pkg: LoadedPackage): string {
   const file = (p: string): Uint8Array | undefined => pkg.files.get(p);
   let source: string;
   try {
-    source = decodeUtf8Strict(file('policy/policy.aster')!);
+    source = decodeSourceText(file('policy/policy.aster')!);
   } catch {
     throw new CompileFailure(['policy/policy.aster 不是合法 UTF-8']);
   }

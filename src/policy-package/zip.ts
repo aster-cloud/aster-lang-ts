@@ -10,7 +10,7 @@
  */
 import { crc32, inflateRawSync } from 'node:zlib';
 import { fail } from './errors.js';
-import { isPackagePath, isSafeZipRoot, MAX_PACKAGE_BYTES } from './paths.js';
+import { isPackagePath, isSafeZipRoot, MAX_PACKAGE_BYTES, MAX_PACKAGE_ENTRIES } from './paths.js';
 
 const SIG_LOCAL = 0x04034b50;
 const SIG_CENTRAL = 0x02014b50;
@@ -43,6 +43,8 @@ function readCentralDirectory(buf: Buffer): { entries: CentralEntry[]; cdOff: nu
   if (count === 0xffff || cdSize === 0xffffffff || cdOff === 0xffffffff) bad('ZIP64');
   if (cdOff + cdSize !== e) bad('中央目录与 EOCD 之间有间隙');
   if (count === 0) bad('空 zip');
+  // 条目数在解析中央目录与解压之前判定（README「体积上限」）
+  if (count > MAX_PACKAGE_ENTRIES) bad(`条目数超过 ${MAX_PACKAGE_ENTRIES}`);
   const entries: CentralEntry[] = [];
   let p = cdOff;
   for (let i = 0; i < count; i++) {
