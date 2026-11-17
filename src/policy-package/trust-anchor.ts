@@ -206,6 +206,24 @@ export function resolveReference(baseUrl: string, reference: string): string {
   return out;
 }
 
+/**
+ * 解析后的重定向目标在发请求之前的检查（README「信任锚」）：必须有 authority 且 host 非空；不得带 userinfo；
+ * 端口若出现必须是 1–65535 的十进制；`[` / `]` 只能作为 IP-literal host 的首尾出现。任一不满足为 USAGE。
+ */
+export function checkRedirectTarget(target: string): void {
+  const { authority } = splitReference(target);
+  const bad = (why: string): never => usage(`重定向目标不合法（${why}）：${target}`);
+  if (authority === undefined || authority === '') bad('缺少 host');
+  if (authority!.includes('@')) bad('带 userinfo');
+  const m = /^(\[[^[\]]*\]|[^[\]:]*)(?::([^[\]]*))?$/.exec(authority!);
+  if (!m) return bad('方括号只能包围 IP-literal host');
+  const [, host, port] = m;
+  if (host === '' || host === '[]') bad('host 为空');
+  if (port !== undefined) {
+    if (!/^[0-9]+$/.test(port) || Number(port) < 1 || Number(port) > 65535) bad('端口不是 1–65535 的十进制');
+  }
+}
+
 /** 被当作重定向跟随的状态码；其他 3xx 一律 USAGE。 */
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
@@ -288,6 +306,7 @@ export async function fetchJwks(url: string, env: NodeJS.ProcessEnv = process.en
         if (res.location === undefined) return usage(`--jwks ${current} 返回 ${res.status} 但没有 Location`);
         if (hop + 1 > JWKS_MAX_REDIRECTS) return usage(`--jwks 重定向超过 ${JWKS_MAX_REDIRECTS} 次`);
         current = resolveReference(current, res.location);
+        checkRedirectTarget(current);
         continue;
       }
       if (res.status < 200 || res.status > 299) return usage(`--jwks ${current} 返回 HTTP ${res.status}`);

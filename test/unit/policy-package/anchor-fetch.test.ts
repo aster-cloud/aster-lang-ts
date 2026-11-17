@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { PackageError } from '../../../src/policy-package/errors.js';
-import { fetchJwks, isUriReference, loadTrustAnchor, resolveReference } from '../../../src/policy-package/trust-anchor.js';
+import { checkRedirectTarget, fetchJwks, isUriReference, loadTrustAnchor, resolveReference } from '../../../src/policy-package/trust-anchor.js';
 
 // https 信任锚取回的细则（aster-lang-test#218 README「信任锚」与 2026-11-17 裁决）：直连不读代理变量、只认 301/302/303/307/308、
 // Accept-Encoding: identity、非 identity 的 Content-Encoding 失败、本地锚文件 ≤ 1 MiB。一致性夹具 https-jwks-* 覆盖其余规则。
@@ -154,6 +154,53 @@ test('https 锚：Location 相对解析（RFC 3986 §5.2）、scheme 不区分�
   try {
     for (const p of ['/a/b/c/rel', '/a/b/c/up', '/q', '/upper']) assert.equal(Buffer.from(await fetchJwks(`${base}${p}`, env)).toString(), JWKS, p);
     for (const p of ['/space', '/backslash', '/latin1', '/empty']) assert.equal(await usageOf(fetchJwks(`${base}${p}`, env)), 'USAGE', p);
+  } finally {
+    server.close();
+  }
+});
+
+test('重定向目标：host 非空、端口 1–65535、无 userinfo、方括号只围 IP-literal', () => {
+  const usage = (u: string): void =>
+    assert.throws(() => checkRedirectTarget(u), (e: unknown) => e instanceof PackageError && e.code === 'USAGE', u);
+  for (const ok of ['https://h/x', 'https://h:1/x', 'https://h:65535', 'https://[::1]:8443/x', 'https://127.0.0.1/x', 'https://h?q', 'https://h#f']) {
+    checkRedirectTarget(ok);
+  }
+  for (const bad of [
+    'https:///x', 'https://:443/x', 'https:x', 'https:/x', 'https://u@h/x', 'https://u:p@h/x', 'https://@h/x',
+    'https://h:0/x', 'https://h:65536/x', 'https://h:/x', 'https://h:8a/x', 'https://h:+1/x', 'https://[]/x',
+    'https://h[1]/x', 'https://[::1/x', 'https://::1]/x', 'https://h:[1]/x', 'https://[::1]x/x',
+  ]) {
+    usage(bad);
+  }
+});
+
+test('https 锚：解析后的重定向目标不合法即 USAGE，且不发请求', { skip }, async () => {
+  let hits = 0;
+  const server = createServer({ key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) }, (req, res) => {
+    hits++;
+    const loc = (l: string): void => void res.writeHead(302, { location: l }).end();
+    switch (req.url) {
+      case '/userinfo':
+        return loc('https://user@localhost/x');
+      case '/port0':
+        return loc('https://localhost:0/x');
+      case '/empty-host':
+        return loc('https:///x');
+      case '/bracket':
+        return loc('https://local[host]/x');
+      default:
+        return void res.writeHead(404).end();
+    }
+  });
+  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  const base = `https://localhost:${(server.address() as { port: number }).port}`;
+  const env = { ASTER_ANCHOR_CA_FILE: join(dir, 'cert.pem') };
+  try {
+    for (const p of ['/userinfo', '/port0', '/empty-host', '/bracket']) {
+      const before = hits;
+      assert.equal(await usageOf(fetchJwks(`${base}${p}`, env)), 'USAGE', p);
+      assert.equal(hits, before + 1, `${p}：不应向不合法的目标发请求`);
+    }
   } finally {
     server.close();
   }
