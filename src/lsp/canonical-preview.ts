@@ -9,7 +9,7 @@
  * 原文里同形的词（`Return a a.` 里被删的冠词 `a`）不能凭文字相同认作编译器用的那个词。
  * ★失败闭锁：任何一处该替换的位置证明不了（含探测预算耗尽）、或两处替换区间冲突，就不给预览（返回 null，
  *   与「文档不存在」同一契约）。只替换一部分的文本不带词汇编译后含义不同，比没有预览更糟。
- *   宏值需要转义时同样不给预览（编译器不转义宏值，见 needsEscape）。
+ *   宏值写成字面量后不能原样往返时同样不给预览（见 roundTrips）。
  *
  * 偏移一律是 UTF-16 code unit（ADR §7.8），与 Monaco / LSP 默认的 positionEncoding 一致。
  */
@@ -18,7 +18,6 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { canonicalize, literalMacroRuns } from '../frontend/canonicalizer.js';
 import type { CanonicalizerOptions } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
-import { escapeStringLiteral } from '../frontend/string-escapes.js';
 import { nfc } from '../config/lexicons/identifiers/casefold.js';
 import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/index.js';
 import type { Lexicon } from '../config/lexicons/types.js';
@@ -169,7 +168,7 @@ function canonicalTarget(site: ResolutionSite, idents: readonly IdentToken[], to
 
 /**
  * 字面量宏的替换：编译器在规范化文本上展开的每一处，证明其原文位置后换成字符串字面量。
- * 任何一处证明不了、或宏值需要转义（见 needsEscape），返回 null。
+ * 任何一处证明不了、或宏值写成字面量后不能原样往返（见 roundTrips），返回 null。
  */
 function literalReplacements(text: string, doc: ResolvableDocument, lexicon: Lexicon, prove: Prove): Replacement[] | null {
   const literals = doc.vocabulary?.literals;
@@ -194,22 +193,30 @@ function literalReplacements(text: string, doc: ResolvableDocument, lexicon: Lex
   const out: Replacement[] = [];
   for (const [i, r] of runs.entries()) {
     const at = found[i];
-    if (!at || needsEscape(r.value, quotes)) return null;
-    out.push({ start: at[0], end: at[1], text: quotes.open + r.value + quotes.close, canonical: r.value, role: 'LITERAL' });
+    const lit = quotes.open + r.value + quotes.close;
+    if (!at || !roundTrips(lit, r.value, lexicon)) return null;
+    out.push({ start: at[0], end: at[1], text: lit, canonical: r.value, role: 'LITERAL' });
   }
   return out;
 }
 
 /**
- * 宏值写进字面量是否需要转义：反斜杠、当前 lexicon 的开 / 闭引号、`"` 与 `'`、控制字符
- * （即 escapeStringLiteral 会改写的字符，外加开引号）。
- * ★编译器的 expandLiteralMacros 把宏值原样拼进引号、不转义（aster-lang-ts#345）：`C:\new` 展开后
- *   被 lexer 读成「C: 换行 ew」。预览若写转义形式，不带词汇编译出的值与带词汇编译源码的值不同；
- *   若照抄原值，又会让评审者看到同样含糊的写法。两条路径对这类值给不出一致的规范形式，故整份预览失败闭锁。
- *   编译器两侧（TS 与 Java）改为转义后，这里改回输出 escapeStringLiteral 的结果。
+ * 字面量 `lit`（开引号 + 宏值 + 闭引号）能否原样往返：不带词汇规范化不改写它，且 lex 后恰为一个字符串 token、值即宏值。
+ * ★编译器先规范化、后展开宏，宏值原样拼进引号（不转义，aster-lang-ts#345）；预览文本却要再经一次规范化与 lex。
+ *   规范化会改写字符串内部（弯引号 “ ” ‘ ’ 改成 ASCII 引号、制表符改成空格），lexer 会解释反斜杠转义、
+ *   在结束引号处截断；凡此种种，两条路径得到的值不同，预览无从忠实，整份预览失败闭锁。
+ *   换行等控制字符另行拒绝：单个字面量的往返证明不了整份文档按行规范化（缩进、续行）不受影响，
+ *   且原样写进预览评审者也看不见。
  */
-function needsEscape(value: string, quotes: { readonly open: string; readonly close: string }): boolean {
-  return escapeStringLiteral(value, quotes.close) !== value || value.includes(quotes.open) || value.includes(quotes.close);
+function roundTrips(lit: string, value: string, lexicon: Lexicon): boolean {
+  if (/\p{Cc}/u.test(value)) return false;
+  try {
+    if (canonicalize(lit, lexicon) !== lit) return false;
+    const tokens = lex(lit, lexicon).filter((t) => t.kind !== TokenKind.EOF);
+    return tokens.length === 1 && tokens[0]!.kind === TokenKind.STRING && tokens[0]!.value === value;
+  } catch {
+    return false;
+  }
 }
 
 /**

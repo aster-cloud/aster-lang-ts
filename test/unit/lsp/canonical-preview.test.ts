@@ -13,7 +13,6 @@ import {
   CANONICAL_PREVIEW_METHOD,
 } from '../../../src/lsp/canonical-preview.js';
 import type { CanonicalPreview } from '../../../src/lsp/canonical-preview.js';
-import { escapeStringLiteral } from '../../../src/frontend/string-escapes.js';
 import { parseDocumentWith } from '../../../src/lsp/parse-document.js';
 import { buildVocabularyScopes } from '../../../src/config/lexicons/identifiers/scopes.js';
 import type { DomainVocabulary } from '../../../src/config/lexicons/identifiers/types.js';
@@ -148,6 +147,12 @@ const LITERAL_CASES = [
     quote: ['"', '"'],
   },
   {
+    name: 'de-DE',
+    lexicon: DE_DE,
+    doc: (word: string) => `Modul m.\n\nRegel gruss, liefert Text:\n  gib zurück ${word}.\n`,
+    quote: ['"', '"'],
+  },
+  {
     name: 'zh-CN',
     lexicon: ZH_CN,
     doc: (word: string) => `模块 m。\n\n规则 greet，产出 文本：\n  返回 ${word}。\n`,
@@ -183,28 +188,37 @@ for (const c of LITERAL_CASES) {
       assert.equal(p.text, c.doc(`${c.quote[0]}${value}${c.quote[1]}`));
     });
 
-    // 编译器的 expandLiteralMacros 把宏值原样拼进引号（不转义，aster-lang-ts#345），
-    // 需要转义的值（反斜杠、当前 lexicon 的引号、" 与 '、控制字符）在两条路径上含义不同，预览无从忠实，一律不给（失败闭锁）
-    const needsEscape = new Set(['C:\\new', 'a\\b', 'a"b', 'a\'b', 'a\nb', 'a\tb', 'a\u0001b', `a${c.quote[0]}b`, `a${c.quote[1]}b`]);
-    for (const value of needsEscape) {
-      it(`★宏值需要转义（${JSON.stringify(value)}）时预览为 null`, () => {
+    // 编译器先规范化、后展开宏，宏值原样拼进引号（不转义，aster-lang-ts#345）；预览文本则要再经一次规范化。
+    // 字面量读不回原值（反斜杠转义、当前 lexicon 的结束引号、" 在 ASCII 引号里），或规范化会改写它
+    // （弯引号 “ ” ‘ ’ 改成 ASCII 引号、制表符），或含换行等控制字符：预览无从忠实，一律不给（失败闭锁）
+    const unfaithful = ['C:\\new', 'a\\b', 'a"b', 'a\nb', 'a\tb', 'a\u0001b', `a${c.quote[1]}b`, '“curly”', 'a“b'];
+    for (const value of unfaithful) {
+      it(`★宏值无法原样往返（${JSON.stringify(value)}）时预览为 null`, () => {
         const text = c.doc('greeting');
         const v = vocab(c.lexicon.id, { literals: [{ canonical: value, localized: 'greeting', kind: 'literal' }] } as Partial<DomainVocabulary>);
         const doc = parseDocumentWith(text, c.lexicon, buildVocabularyScopes(v));
         assert.equal(buildCanonicalPreview(text, doc, c.lexicon), null);
       });
     }
+
+    // 能原样往返的值照常预览，且与带词汇编译源码的 Core IR 相同（撇号很常见，如 driver's licence）
+    // zh 的开引号「不结束字符串，`「a「b」` 读回 a「b
+    const roundTrips = ["don't", "it's 'ok'", ...(c.quote[0] === c.quote[1] ? [] : [`a${c.quote[0]}b`])];
+    for (const value of roundTrips) {
+      it(`★宏值能原样往返（${JSON.stringify(value)}）：预览与带词汇编译源码的 Core IR 相同`, () => {
+        const p = assertFaithful(c.doc('greeting'), c.lexicon, literal(c.lexicon.id, 'greeting', value));
+        assert.equal(p.text, c.doc(`${c.quote[0]}${value}${c.quote[1]}`));
+      });
+    }
+
+    it('★宏值 ‘single’：要么预览为 null，要么与带词汇编译源码的 Core IR 相同（不得静默改成 ASCII 引号）', () => {
+      const text = c.doc('greeting');
+      const v = literal(c.lexicon.id, 'greeting', '‘single’');
+      const p = buildCanonicalPreview(text, parseDocumentWith(text, c.lexicon, buildVocabularyScopes(v)), c.lexicon);
+      if (p) assert.equal(assertFaithful(text, c.lexicon, v).text, c.doc(`${c.quote[0]}‘single’${c.quote[1]}`));
+    });
   });
 }
-
-describe('escapeStringLiteral', () => {
-  it('readEscape 的逆：单字符转义、其余控制字符与结束引号写作 \\uXXXX', () => {
-    assert.equal(escapeStringLiteral('\\"\'\n\r\t\b\f\0', '"'), '\\\\\\"\\\'\\n\\r\\t\\b\\f\\0');
-    assert.equal(escapeStringLiteral('a\u0001b\u001f', '"'), 'a\\u0001b\\u001F');
-    assert.equal(escapeStringLiteral('「x」', '」'), '「x\\u300D');
-    assert.equal(escapeStringLiteral('😀é', '」'), '😀é');
-  });
-});
 
 describe('registerCanonicalPreviewHandler', () => {
   function handlerFor(text: string | undefined) {
