@@ -123,17 +123,22 @@ const JWKS_MAX_REDIRECTS = 3;
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
 /**
- * TLS 信任根：缺省用 Node 的缺省 CA；仅供测试的 `ASTER_ANCHOR_CA_FILE`（PEM）**追加**到缺省 CA 之后（只用于取信任锚）。
- * 返回 undefined 表示用缺省信任库。
+ * 取信任锚用的 TLS 信任根（README「信任锚」）：Node 缺省 CA（内置 Mozilla 根 + `NODE_EXTRA_CA_CERTS`）+ 操作系统信任库，
+ * 再**追加**仅供测试的 `ASTER_ANCHOR_CA_FILE`（PEM）；去重后返回。总是显式给出列表：Node 的缺省信任库不含系统 CA
+ * （除非以 `--use-system-ca` 启动），而只要给 `ca` 就会替换缺省信任库，所以缺省、系统与追加三部分必须一起列出。
  */
-function trustedCas(env: NodeJS.ProcessEnv): string[] | undefined {
+export function anchorCaCertificates(env: NodeJS.ProcessEnv): string[] {
+  const get = (tls as { getCACertificates?: (kind: 'default' | 'system') => string[] }).getCACertificates;
+  const cas = get ? [...get('default'), ...get('system')] : [...tls.rootCertificates];
   const extra = env['ASTER_ANCHOR_CA_FILE'];
-  if (!extra) return undefined;
-  try {
-    return [...tls.rootCertificates, readFileSync(extra, 'utf8')];
-  } catch {
-    return usage(`ASTER_ANCHOR_CA_FILE 不可读：${extra}`);
+  if (extra) {
+    try {
+      cas.push(readFileSync(extra, 'utf8'));
+    } catch {
+      usage(`ASTER_ANCHOR_CA_FILE 不可读：${extra}`);
+    }
   }
+  return [...new Set(cas)];
 }
 
 interface FetchedResponse {
@@ -179,8 +184,7 @@ function getOnce(url: string, agent: https.Agent, deadline: number): Promise<Fet
 export async function fetchJwks(url: string, env: NodeJS.ProcessEnv = process.env): Promise<Uint8Array> {
   if (!url.startsWith('https://')) usage(`--jwks 的 URL 必须以小写 https:// 开头：${url}`);
   const deadline = Date.now() + JWKS_FETCH_TIMEOUT_MS;
-  const ca = trustedCas(env);
-  const agent = new https.Agent(ca ? { ca } : {});
+  const agent = new https.Agent({ ca: anchorCaCertificates(env) });
   try {
     let current = url;
     for (let hop = 0; ; hop++) {

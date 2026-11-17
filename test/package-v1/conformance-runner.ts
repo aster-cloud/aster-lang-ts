@@ -233,7 +233,7 @@ export function defineConformanceSuite(label: string, cli: readonly string[]): v
     }
     assert.ok(total >= 400, `用例数异常偏少：${total}`);
   });
-  test(`${label}：超时用例（串行，--timeout 1s 时进程墙钟 < 2.5 s）`, async (t) => {
+  test(`${label}：超时用例（串行，--timeout 1s 时进程墙钟在 [0.9 s, 2.5 s)）`, async (t) => {
     const { normalizeStdout } = (await import(pathToFileURL(join(root, 'normalize-stdout.mjs')).href)) as {
       normalizeStdout: (s: string) => string;
     };
@@ -243,6 +243,10 @@ export function defineConformanceSuite(label: string, cli: readonly string[]): v
         const r = await runCli(cli, c.args, cwd, stdinOf(c));
         assert.equal(normalizeStdout(r.stdout), c.expectedStdout);
         assert.equal(r.exit, c.expectedExit);
+        // 下界防止计时器提前触发（例如误用了更小的值）；上界防止挂住。超时值取自用例参数
+        const limit = c.args.find((a, i) => c.args[i - 1] === '--timeout') ?? c.args.find((a) => a.startsWith('--timeout='))?.slice(10);
+        assert.equal(limit, '1s', 'TIMEOUT 用例应为 --timeout 1s');
+        assert.ok(r.ms >= 900, `TIMEOUT 用例过早结束：${Math.round(r.ms)} ms`);
         assert.ok(r.ms < 2500, `TIMEOUT 用例耗时 ${Math.round(r.ms)} ms`);
       });
     }

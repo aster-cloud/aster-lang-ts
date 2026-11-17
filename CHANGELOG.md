@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### 包格式 v1：#349 评审跟进（aster-cloud/aster-cloud#797）
+
+- https 信任锚的 TLS 信任根改为 Node 缺省 CA（内置根 + `NODE_EXTRA_CA_CERTS`）+ 操作系统信任库，`ASTER_ANCHOR_CA_FILE` 在其上追加、去重；
+  此前缺省情形不含系统 CA，设了 `ASTER_ANCHOR_CA_FILE` 时又会丢掉 `NODE_EXTRA_CA_CERTS`。
+- 求值开始前（Worker 启动、IR 读入、实参转换，不计入 `--timeout`）加 60 s 安全看门狗，超出报 `EVAL_ERROR`，进程不挂住。
+- `compile` 的空白源码判定移入 `compileSource`，源码形态与包形态（以及 B 包本地重编译）同一判定。
+- README：说明未计时阶段的上界与 `--out` 在 SIGKILL 下可能残留的临时文件；一致性运行器给 TIMEOUT 用例加 ≥ 0.9 s 的下界。
+
 ### 包格式 v1：按 aster-lang-test#218 收紧 CLI 规则（ADR 0059 P1，aster-cloud/aster-cloud#797）
 
 - 命令行：`--` 结束选项解析；`--opt=` 与单独给出的空值（`--entry ""`）为 `USAGE`；`--opt --` 视为缺值。
