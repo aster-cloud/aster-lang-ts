@@ -145,7 +145,7 @@ test('probeMatches：期望形状不完整或不可写出时判为不符，而�
   assert.equal(probeMatches({ code: 'EVAL_ERROR', ok: false }, { ok: false, code: 'TIMEOUT', message: '' }), false);
 });
 
-test('求值开始前的安全看门狗：Worker 迟迟不发 started 时报 EVAL_ERROR，不挂住', async () => {
+test('求值开始前的安全看门狗：Worker 迟迟不发 started 时报 RESOURCE_EXHAUSTED，不挂住', async () => {
   const { evaluateInWorker } = await import('../../../src/policy-package/cli.js');
   const dir = mkdtempSync(join(tmpdir(), 'aster-watchdog-'));
   try {
@@ -154,7 +154,7 @@ test('求值开始前的安全看门狗：Worker 迟迟不发 started 时报 EVA
     const start = performance.now();
     const r = await evaluateInWorker({ coreJson: '{}', entry: 'f', input: {} }, 5000, pathToFileURL(stuck), 300);
     assert.equal(r.ok, false);
-    assert.equal(!r.ok && r.code, 'EVAL_ERROR');
+    assert.equal(!r.ok && r.code, 'RESOURCE_EXHAUSTED');
     assert.ok(performance.now() - start < 3000);
   } finally {
     rmSync(dir, { recursive: true, force: true });
