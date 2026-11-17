@@ -170,6 +170,7 @@ test('请求目标：host 非空、端口 1–65535、无 userinfo、方括号�
     'https://h:0/x', 'https://h:65536/x', 'https://h:/x', 'https://h:8a/x', 'https://h:+1/x', 'https://[]/x',
     'https://h[1]/x', 'https://[::1/x', 'https://::1]/x', 'https://h:[1]/x', 'https://[::1]x/x',
     'https://h/a[b]', 'https://h/x?q=[1]', 'https://h/x#[f]', 'https://h:000443/x', 'https://[zz]/x', 'http://h/x',
+    'https://a:b:443/x', 'https://a:b/x', 'https://::1/x',
   ]) {
     usage(bad);
   }
@@ -210,5 +211,30 @@ test('https 锚：解析后的重定向目标不合法即 USAGE，且不发请�
 test('首个 --jwks URL 同样按请求目标检查（userinfo / 端口 / 方括号即 USAGE，不发请求）', async () => {
   for (const u of ['https://u@localhost/x', 'https://localhost:0/x', 'https://localhost/a[b]', 'https://:443/x']) {
     assert.equal(await usageOf(fetchJwks(u, {})), 'USAGE', u);
+  }
+});
+
+test('首个 --jwks URL 先做字符级 URI-reference 校验：非 ASCII、非法 %XX、反斜杠、空格、控制字符、host 内冒号都是 USAGE，不发请求', async () => {
+  for (const u of ['https://h/\u00e9', 'https://h/%zz', 'https://h/\\x', 'https://h/a b', 'https://h/\u0001', 'https://h\u00e9/x', 'https://a:b:443/x']) {
+    assert.equal(await usageOf(fetchJwks(u, {})), 'USAGE', JSON.stringify(u));
+  }
+});
+
+test('首个 URL 字符不合法时不向服务发任何请求', { skip }, async () => {
+  let hits = 0;
+  const server = createServer({ key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) }, (_req, res) => {
+    hits++;
+    res.writeHead(200).end(JWKS);
+  });
+  await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+  const base = `https://localhost:${(server.address() as { port: number }).port}`;
+  const env = { ASTER_ANCHOR_CA_FILE: join(dir, 'cert.pem') };
+  try {
+    for (const p of ['/é', '/%zz', '/\\x', '/a b']) assert.equal(await usageOf(fetchJwks(`${base}${p}`, env)), 'USAGE', p);
+    assert.equal(hits, 0);
+    assert.equal(Buffer.from(await fetchJwks(`${base}/ok`, env)).toString(), JWKS);
+    assert.equal(hits, 1);
+  } finally {
+    server.close();
   }
 });

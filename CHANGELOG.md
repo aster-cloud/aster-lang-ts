@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### 包格式 v1：首个 `--jwks` URL 的字符级校验（ADR 0059 P1 终审 V-1，aster-cloud/aster-cloud#797）
+
+- 首个 `--jwks <https-url>` 与重定向 `Location` 同一字符级 URI-reference 校验（裸空格、反斜杠、控制字符、未编码的非 ASCII、非法 `%XX` 都不合法），
+  再做请求目标检查；非方括号 host 中另不得含 `:`。任一不满足在发出任何请求之前即 `USAGE`（此前 `https://h/é`、`/%zz`、`/\x` 会原样发出）。
+
 ### 包格式 v1：重定向目标的发送前检查（ADR 0059 P1 T8 评审 N-1，aster-cloud/aster-cloud#797）
 
 - `--jwks <https-url>` 的首个 URL 与每个解析后的重定向目标在发请求之前检查（`checkRequestTarget`，与参照实现 `validateRequestTarget` 同一判定）：
