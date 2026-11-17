@@ -100,23 +100,33 @@ export function defineConformanceSuite(label: string, cli: readonly string[]): v
       normalizeStdout: (s: string) => string;
     };
     let total = 0;
+    const pending: Promise<unknown>[] = [];
+    // TIMEOUT 用例断言的是墙钟耗时；与其余用例并发时 CPU 争用会把启动与编译拖慢一倍以上（CI 4 核上实测 2–3 s），
+    // 量到的是调度噪声而不是 CLI 的超时行为。故它们等其余用例全部结束后逐个运行。
+    const timed: { name: string; c: ConformanceCase; cwd: string }[] = [];
+    const runCase = async (c: ConformanceCase, cwd: string): Promise<void> => {
+      const r = await runCli(cli, c.args, cwd, stdinOf(c));
+      assert.equal(normalizeStdout(r.stdout), c.expectedStdout);
+      assert.equal(r.exit, c.expectedExit);
+      if (c.code === 'TIMEOUT') assert.ok(r.ms < 2500, `TIMEOUT 用例耗时 ${Math.round(r.ms)} ms`);
+    };
     for (const rel of files) {
       const cwd = dirname(join(root, rel));
       for (const c of readCases(rel)) {
         if (c.engines && !c.engines.includes('node')) continue;
         total++;
+        const name = `${rel} › ${c.name}`;
+        if (c.code === 'TIMEOUT') {
+          timed.push({ name, c, cwd });
+          continue;
+        }
         const todo = KNOWN_RED.has(c.name) ? 'aster-lang-test 夹具待修（见 KNOWN_RED）' : undefined;
-        void t.test(`${rel} › ${c.name}`, todo ? { todo } : {}, async () => {
-          const r = await runCli(cli, c.args, cwd, stdinOf(c));
-          assert.equal(normalizeStdout(r.stdout), c.expectedStdout);
-          assert.equal(r.exit, c.expectedExit);
-          if (c.code === 'TIMEOUT') assert.ok(r.ms < 2500, `TIMEOUT 用例耗时 ${Math.round(r.ms)} ms`);
-        });
+        pending.push(t.test(name, todo ? { todo } : {}, () => runCase(c, cwd)));
       }
     }
     for (const c of readCases('tamper/test-time.json') as TestTimeCase[]) {
       total++;
-      void t.test(`tamper/test-time.json › ${c.name}`, async () => {
+      pending.push(t.test(`tamper/test-time.json › ${c.name}`, async () => {
         const tmp = mkdtempSync(join(tmpdir(), 'aster-pkg-v1-'));
         try {
           const { args, stdin } = materialize(c, tmp);
@@ -126,8 +136,14 @@ export function defineConformanceSuite(label: string, cli: readonly string[]): v
         } finally {
           rmSync(tmp, { recursive: true, force: true });
         }
-      });
+      }));
     }
+    await Promise.allSettled(pending);
+    for (const { name, c, cwd } of timed) {
+      const todo = KNOWN_RED.has(c.name) ? 'aster-lang-test 夹具待修（见 KNOWN_RED）' : undefined;
+      await t.test(name, todo ? { todo } : {}, () => runCase(c, cwd));
+    }
+    assert.ok(timed.length > 0, '未找到 TIMEOUT 用例');
     assert.ok(total >= 400, `用例数异常偏少：${total}`);
   });
 }

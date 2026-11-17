@@ -112,7 +112,7 @@
     "test:integration": "pnpm run build && pnpm run test:integration:run",
     "test:integration:run": "node --test 'dist/test/integration/**/*.test.js'",
     "test:package-v1": "pnpm run build && pnpm run test:package-v1:run",
-    "test:package-v1:run": "node --test 'dist/test/package-v1/**/*.test.js'",
+    "test:package-v1:run": "node --test --test-concurrency=1 'dist/test/package-v1/**/*.test.js'",
     "test:golden": "pnpm run build && pnpm run test:golden:run",
     "test:golden:run": "node dist/scripts/golden.js",
     "dual-engine:runner": "node scripts/dual-engine-runner.mjs",
