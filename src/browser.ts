@@ -450,6 +450,16 @@ export { CONTROLS_REGISTRY } from './governance/controls-registry.data.js';
 export type { ControlsRegistryData, LocalizedTitle } from './governance/controls-registry.data.js';
 export type { TypecheckDiagnostic } from './types.js';
 
+// ============================================================================
+// LayoutMap（ADR 0058 §7.10）：与 `./layout` 子路径同一实现
+// ============================================================================
+
+export * from './layout/index.js';
+
+// `aster/canonicalPreview` 请求名与响应形状（ADR 0058 §8.2），与 `./lsp` 子路径同一契约
+export { CANONICAL_PREVIEW_METHOD } from './lsp/canonical-preview-contract.js';
+export type { CanonicalPreview } from './lsp/canonical-preview-contract.js';
+
 /**
  * Compile and type check CNL source in one call
  *

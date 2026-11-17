@@ -86,7 +86,7 @@ export interface ScopedResolutionSite {
  * R2 只读观察者（供 LSP 悬停与补全）：报告解析结果与 §4 静态类型，不影响输出与诊断。
  */
 export interface TypedReferenceObserver {
-  /** 字段段与成员位置的解析结果 */
+  /** 字段段、成员位置与 R1 未命中的值位置名字的解析结果 */
   readonly onScopedSite?: (site: ScopedResolutionSite) => void;
   /** 值位置名字（含点分路径）解析后的静态类型；未知、动态或不透明时为 undefined */
   readonly onTypedName?: (name: Core.Name, type: Core.Type | undefined) => void;
@@ -478,7 +478,11 @@ function resolveUnderEnum(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionM
 function resolveValue(r: Resolver, f: Frame, n: Core.Name, mark: ResolutionMark, callee: boolean): Core.Name {
   if (mark.r1Role !== undefined || isBuiltinValue(n.name)) return n;
   const picked = chooseValue(r, f.scope, mark.written);
-  if (picked.kind === 'hit') return renamed(n, { name: picked.entry.canonical }, mark.written, picked.entry.canonical, picked.entry.role);
+  if (picked.kind === 'hit') {
+    const { canonical, role } = picked.entry;
+    observeSite(r, () => ({ span: spanOf(n), written: mark.written, canonical, role }));
+    return renamed(n, { name: canonical }, mark.written, canonical, role);
+  }
   // UFCS 拆出的部分可能来自限定调用（`io.get(…)`），首段为命名空间时不报 E802
   if (picked.kind === 'ambiguous' || mark.ufcs) return n;
   const owners = [...r.t.enums].filter(([, ms]) => ms.includes(nfc(mark.written)));
@@ -756,7 +760,9 @@ function patNameMember(r: Resolver, p: Core.PatName, mark: ResolutionMark, subje
   if (member.entry.canonical !== nfc(mark.written)) {
     warn(r, ErrorCode.RESOLVED_WITHOUT_TYPE, spanOf(p), mark.written, 'MEMBER_REF', [member.entry]);
   }
-  return renamed(p, { name: member.entry.canonical }, mark.written, member.entry.canonical, 'MEMBER_REF');
+  const canonical = member.entry.canonical;
+  observeSite(r, () => ({ span: spanOf(p), written: mark.written, canonical, role: 'MEMBER_REF' }));
+  return renamed(p, { name: canonical }, mark.written, canonical, 'MEMBER_REF');
 }
 
 function patNameUnderEnum(r: Resolver, p: Core.PatName, mark: ResolutionMark, e: string): Core.PatName | undefined {

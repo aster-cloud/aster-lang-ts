@@ -22,7 +22,7 @@ import { dirname, join } from 'node:path';
 import { compile, evaluate, ZH_CN, initializeAllBundledLexicons } from '../../dist/src/browser.js';
 import { SemanticTokenKind as K } from '../../dist/src/config/token-kind.js';
 import { vocabularyRegistry, initBuiltinVocabularies } from '../../dist/src/config/lexicons/identifiers/registry.js';
-import { toCanonical, toDisplay, verifyContentParity } from './layout-map.mjs';
+import { toCanonical, toDisplay, verifyContentParity } from '../../dist/src/layout/index.js';
 import { JINGYESI_LAYOUT } from './jingyesi.layout.mjs';
 
 initializeAllBundledLexicons();

@@ -103,7 +103,7 @@ function getKeywordWordSet(lexicon: Lexicon): ReadonlySet<string> {
  *
  * 注：正则带 `/g` 有 lastIndex 状态，故用工厂每次返回全新实例，避免跨调用串扰。
  */
-function identifierTokenRegex(): RegExp {
+export function identifierTokenRegex(): RegExp {
   return /[\p{L}_][\p{L}\p{M}\p{Nd}_]*/gu;
 }
 
@@ -814,24 +814,53 @@ function normalizeRest(
     .join('');
 }
 
+/** 一处字面量宏命中：触发词在文本中的 UTF-16 偏移、原样写法与展开值。 */
+export interface LiteralMacroRun {
+  readonly offset: number;
+  readonly text: string;
+  readonly value: string;
+}
+
 /**
- * 把字面量宏触发词展开为字符串字面量（按折叠键匹配完整标识符 token）。
- * 字符串字面量内部不展开；展开结果用当前 lexicon 的引号包裹，后续 segmentString 会把它当作字符串保护。
+ * 字面量宏在文本中的全部命中（按折叠键匹配完整标识符 token，字符串字面量内部不算），按偏移升序。
+ * 是 expandLiteralMacros 的定位步骤本身：展开只是把这些命中换成字符串字面量。
+ * LSP 的词汇规范预览（ADR 0058 §8.2）用它对不带词汇的规范化文本取宏位置，与编译器展开的是同一批词。
+ */
+export function literalMacroRuns(
+  source: string,
+  literals: ReadonlyMap<string, string>,
+  quotes: { open: string; close: string },
+): LiteralMacroRun[] {
+  // 与 applyCustomRulesKeywordGated 共用同一 token 切分口径（见 identifierTokenRegex）
+  const IDENT_RE = identifierTokenRegex();
+  const runs: LiteralMacroRun[] = [];
+  let base = 0;
+  for (const segment of segmentString(source, quotes)) {
+    if (!segment.inString) {
+      for (const m of segment.text.matchAll(IDENT_RE)) {
+        const value = literals.get(foldKey(m[0]));
+        if (value !== undefined) runs.push({ offset: base + m.index, text: m[0], value });
+      }
+    }
+    base += segment.text.length;
+  }
+  return runs;
+}
+
+/**
+ * 把字面量宏触发词展开为字符串字面量（命中见 literalMacroRuns）。
+ * 展开结果用当前 lexicon 的引号包裹，后续 segmentString 会把它当作字符串保护。
  */
 function expandLiteralMacros(
   source: string,
   literals: ReadonlyMap<string, string>,
   quotes: { open: string; close: string },
 ): string {
-  // 与 applyCustomRulesKeywordGated 共用同一 token 切分口径（见 identifierTokenRegex）
-  const IDENT_RE = identifierTokenRegex();
-  return segmentString(source, quotes)
-    .map(segment => {
-      if (segment.inString) return segment.text;
-      return segment.text.replace(IDENT_RE, token => {
-        const content = literals.get(foldKey(token));
-        return content === undefined ? token : `${quotes.open}${content}${quotes.close}`;
-      });
-    })
-    .join('');
+  let out = '';
+  let cursor = 0;
+  for (const run of literalMacroRuns(source, literals, quotes)) {
+    out += `${source.slice(cursor, run.offset)}${quotes.open}${run.value}${quotes.close}`;
+    cursor = run.offset + run.text.length;
+  }
+  return out + source.slice(cursor);
 }

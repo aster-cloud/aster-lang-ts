@@ -71,6 +71,7 @@ import { registerFormattingHandlers } from './formatting.js';
 import { registerCodeActionHandlers } from './codeaction.js';
 import { registerSymbolsHandlers } from './symbols.js';
 import { registerTokensHandlers, SEM_LEGEND } from './tokens.js';
+import { registerCanonicalPreviewHandler } from './canonical-preview.js';
 import { registerHealthHandlers, incrementRestartCount } from './health.js';
 import { DebounceMap } from './debounce-map.js';
 import { ConfigService } from '../config/config-service.js';
@@ -229,9 +230,10 @@ connection.onInitialize(async (params: InitializeParams) => {
       /* ★能力探测标志：客户端据此决定注册哪些功能，而不是猜服务端版本。
        *   localizedParsing      —— 非英文文档的 hover/跳转/符号等按 lexicon 解析（旧版恒抛错）
        *   openDocumentNavigation —— 引用/重命名读打开中的内存文本（旧版对 inmemory 文档恒空）
+       *   canonicalPreview      —— 支持 `aster/canonicalPreview` 请求（词汇规范预览，ADR 0058 §8.2）
        *   旧版服务端不带这些标志，客户端应只对 en-US 注册基于解析的功能，且不注册引用/重命名。 */
       experimental: {
-        aster: { localizedParsing: true, openDocumentNavigation: true },
+        aster: { localizedParsing: true, openDocumentNavigation: true, canonicalPreview: true },
       },
       codeActionProvider: {
         codeActionKinds: [CodeActionKind.QuickFix],
@@ -402,6 +404,9 @@ connection.onInitialized(() => {
 
   // Register tokens handlers (semantic tokens, inlay hints, document highlight)
   registerTokensHandlers(connection, documents, getOrParse, typeText, exprTypeText, tokenNameAt, collectLetsWithSpan);
+
+  // Register aster/canonicalPreview（词汇规范预览）
+  registerCanonicalPreviewHandler(connection, documents, getOrParse, getLexiconForDoc);
 });
 
 // The example settings

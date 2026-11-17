@@ -21,6 +21,7 @@ import {
   findDeclAt,
   findPatternBindingDetail,
   findLocalLetWithExpr,
+  within,
 } from './shared.js';
 import {
   isAstFunc,
@@ -30,6 +31,7 @@ import {
 import type {
   Module as AstModule,
   Block as AstBlock,
+  Span,
 } from '../../types.js';
 import type { Lexicon } from '../../config/lexicons/types.js';
 import { getLspUiTexts } from '../../config/lexicons/lsp-ui-texts.js';
@@ -162,6 +164,8 @@ function baseHover(
       if (!name) return undefined;
       return (ast2.decls as unknown[]).find(d => (isAstFunc(d) || isAstData(d) || isAstEnum(d)) && (d as { name: string }).name === name);
     };
+    const aliasInfo = aliasHoverAtSite(ast2, tokenNameAtOptimized(tokenIndex, pos), pos);
+    if (aliasInfo) return { contents: { kind: 'markdown', value: aliasInfo } };
     const decl = findDeclAt(ast2, pos);
     if (decl) {
       if (isAstFunc(decl)) {
@@ -186,9 +190,14 @@ function baseHover(
             const hint = exprTypeText(localInfo.expr);
             return { contents: { kind: 'markdown', value: `${ui.localLabel} ${nameAt}${hint ? ': ' + hint : ''}` } };
           }
+          // 同名的参数 / 局部名已在上面优先；非类型位置上顶层函数 / 类型 / 枚举又先于别名
+          // （`Type score as Int` 与 `Rule score …` 并存时，函数声明名与 `score()` 调用指的是函数；
+          // 类型位置上的别名已由 aliasHoverAtSite 先行处理）。剩下的才按名字认别名（如表达式里的导入别名限定名）
           const named = topLevelByName(nameAt);
           const namedText = named ? describeDecl(named) : null;
           if (namedText) return { contents: { kind: 'markdown', value: namedText } };
+          const aliasByName = aliasHoverByName(ast2, nameAt);
+          if (aliasByName) return { contents: { kind: 'markdown', value: aliasByName } };
         }
         return { contents: { kind: 'markdown', value: `${ui.functionLabel} ${f.name} — ${funcDetail(f)}` } };
       }
@@ -206,6 +215,38 @@ function baseHover(
     // ignore
   }
   return null;
+}
+
+/** 类型别名名显示 `type X as T`，导入别名名显示 `use M as X`（只到模块名为止，R58 延后跨模块成员）。 */
+function aliasHoverByName(ast: AstModule, name: string | null): string | null {
+  if (!name) return null;
+  const alias = ast.typeAliasDecls?.find(a => a.name === name);
+  if (alias) return `type ${alias.name} as ${typeText(alias.type)}`;
+  for (const d of ast.decls) {
+    if (d.kind === 'Import' && d.asName === name) return `use ${d.name} as ${name}`;
+  }
+  return null;
+}
+
+/**
+ * 光标处的名字确实指向别名时才给别名 hover：别名 / 导入声明本身，或类型位置（TypeName）上的别名名。
+ * 表达式与参数位置的同名名字由参数 / 局部名 hover 处理（`Type score as Int` 与参数 `score` 并存）。
+ */
+function aliasHoverAtSite(ast: AstModule, name: string | null, pos: { line: number; character: number }): string | null {
+  if (!name) return null;
+  const alias = ast.typeAliasDecls?.find(a => a.name === name);
+  if (alias && (within(alias.span, pos) || typeNameAt(ast.decls, name, pos))) return aliasHoverByName(ast, name);
+  const imp = ast.decls.find(d => d.kind === 'Import' && d.asName === name && within(d.span, pos));
+  return imp ? aliasHoverByName(ast, name) : null;
+}
+
+/** AST 中是否有名为 `name`、覆盖光标的 TypeName 节点 */
+function typeNameAt(node: unknown, name: string, pos: { line: number; character: number }): boolean {
+  if (Array.isArray(node)) return node.some(n => typeNameAt(n, name, pos));
+  if (!node || typeof node !== 'object') return false;
+  const n = node as { kind?: unknown; name?: unknown; span?: Span };
+  if (n.kind === 'TypeName' && n.name === name && within(n.span, pos)) return true;
+  return Object.values(node).some(v => typeNameAt(v, name, pos));
 }
 
 /**

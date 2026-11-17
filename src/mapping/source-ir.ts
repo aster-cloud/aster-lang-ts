@@ -6,7 +6,7 @@ import type { TextSpan } from './mapping-ir.js';
  * <h2>它解决的问题，与 LayoutMap 不是同一个</h2>
  *
  * ```
- *   LayoutMap（aster-dev/src/lib/layout-map.ts）
+ *   LayoutMap（src/layout/，`@aster-cloud/aster-lang-ts/layout`）
  *     display ↔ canonical，用于**本来就是 Aster 源码**的文本（《静夜思》demo）
  *     手写、平铺、全文档逐字符覆盖 —— 20 字的诗可以，50 页的 Policy 不行
  *

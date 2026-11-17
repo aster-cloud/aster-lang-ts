@@ -50,3 +50,7 @@ export {
   TaskStatus,
 } from './task-queue.js';
 export type { Task, TaskQueueConfig, QueueStats } from './task-queue.js';
+
+// 导出 `aster/canonicalPreview` 契约（ADR 0058 §8.2）
+export { CANONICAL_PREVIEW_METHOD } from './canonical-preview-contract.js';
+export type { CanonicalPreview } from './canonical-preview-contract.js';

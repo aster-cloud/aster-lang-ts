@@ -170,7 +170,15 @@ function collectR1Sites(ast: AstModule): ResolutionSite[] {
     }
   };
   visit(ast, undefined);
-  return out;
+  return [...typeAliasSites(ast), ...out];
+}
+
+/** 类型别名声明名（`type X as …`）：R1 结果在 resolvedTypeAliases，位置取同序的 typeAliasDecls。 */
+function typeAliasSites(ast: AstModule): ResolutionSite[] {
+  return (ast.resolvedTypeAliases ?? []).flatMap((r, i) => {
+    const span = ast.typeAliasDecls?.[i]?.span;
+    return span ? [{ span, written: r.written, canonical: r.canonical, role: r.role }] : [];
+  });
 }
 
 /** 枚举成员规范名 → 唯一所属枚举（多个枚举同名成员时不给父名）。 */

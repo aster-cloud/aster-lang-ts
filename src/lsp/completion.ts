@@ -30,6 +30,9 @@ import { EN_US } from '../config/lexicons/en-US.js';
 import { resolveDocument } from './resolution.js';
 import { localizedField, memberCompletionResult } from './member-completion.js';
 import type { MemberCompletionOptions } from './member-completion.js';
+import { isTypePosition, typeCompletions, typeOnlyKeywords } from './type-completion.js';
+import { vocabularyTermCompletions } from './vocabulary-completion.js';
+import { VERDICT_ARITY, VERDICT_TYPE_NAME } from '../typecheck/verdict_signatures.js';
 
 /*
  * 包入口 `./lsp/completion` 的公开补全 API：成员补全及其所需的文档解析一并从此导出，
@@ -155,6 +158,44 @@ function fieldCompletionsAt(
   const member = memberCompletionResult(entry, params.position, lexicon, options);
   if (member.items) return member;
   return { items: constructFieldCompletions(entry, params.position, lexicon), incomplete: member.incomplete };
+}
+
+/**
+ * 光标在类型位置时给类型候选（本文档声明、内置类型与词汇类型，按折叠名去重）；
+ * 其它位置 types 为 null，values 给 Verdict 命名空间（Value）与词汇函数、枚举成员。
+ */
+function termCompletionsAt(
+  documents: { get(uri: string): TextDocument | undefined },
+  getOrParse: (doc: TextDocument) => CompletionDocument,
+  params: { textDocument?: { uri: string }; position?: { line: number; character: number } } | undefined,
+  lexicon: Lexicon | undefined,
+): { types: CompletionItem[] | null; values: CompletionItem[] } {
+  const none = { types: null, values: [] };
+  if (!params?.textDocument || !params.position) return none;
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return none;
+  const entry = getOrParse(doc);
+  const lex = lexicon ?? EN_US;
+  if (!isTypePosition(entry.tokens, params.position, lex)) {
+    return { types: null, values: [verdictValueCompletion(), ...vocabularyTermCompletions(entry.vocabulary, 'value', { lexicon: lex })] };
+  }
+  const items = typeCompletions(entry.ast, lex);
+  // 类型位置按折叠名去重（ADR 0051 §6.3）：文档/别名/内置项胜出，写法或规范名与之相同的词汇项让位
+  const takenLabels = new Set(items.map((i) => foldKey(i.label)));
+  return { types: [...items, ...vocabularyTermCompletions(entry.vocabulary, 'type', { takenLabels, lexicon: lex })], values: [] };
+}
+
+/**
+ * 表达式位置的 `Verdict`（ADR 0039）：治理规则的返回表达式 `Verdict.allow()` / `Verdict.deny(…)` 以它为前缀。
+ * 在这里它是构造器的命名空间（值），不是类型：kind 为 Value，与类型位置的 Verdict（Class）区分。
+ */
+function verdictValueCompletion(): CompletionItem {
+  return {
+    label: VERDICT_TYPE_NAME,
+    kind: CompletionItemKind.Value,
+    detail: [...VERDICT_ARITY.keys()].join(' / '),
+    data: VERDICT_TYPE_NAME,
+  };
 }
 
 const CONTROL_ARG = /@control\(\s*"([^"]*)$/;
@@ -365,7 +406,7 @@ function findCallInfoAt(
   return null;
 }
 
-/** 通用补全：该文档 lexicon 的关键词（含别名）、常见类型与注解名。 */
+/** 通用补全：该文档 lexicon 的关键词（含别名）与注解名；类型只在类型位置给出（见 type-completion.ts）。 */
 function keywordCompletions(lexicon: Lexicon | undefined): CompletionItem[] {
   // ★关键词必须取自**该文档的 lexicon**，而不是硬编码的英文 KW。
   //
@@ -385,22 +426,14 @@ function keywordCompletions(lexicon: Lexicon | undefined): CompletionItem[] {
         ...Object.values(lexicon.keywords),
         ...(lexicon.aliases ? Object.values(lexicon.aliases).flat() : []),
       ]
-    : Object.values(KW); // 无 lexicon 上下文时回退英文规范拼写
-  const completions: CompletionItem[] = [...new Set(keywords)].map(keyword => ({
+    : Object.values(KW); // 无 lexicon 上下文时回退英文规范拼写（KW 不含类型词）
+  // 内置类型（Int / Ganzzahl / 整数 …）与类型构造词只在类型位置给出（typeCompletions）
+  const typeOnly = lexicon ? typeOnlyKeywords(lexicon) : new Set<string>();
+  const completions: CompletionItem[] = [...new Set(keywords)].filter(keyword => !typeOnly.has(keyword)).map(keyword => ({
     label: keyword,
     kind: CompletionItemKind.Keyword,
     data: keyword,
   }));
-
-  // 添加常见类型补全
-  const types = ['Text', 'Int', 'Bool', 'Float', 'User', 'Result', 'Option', 'Maybe', 'Verdict'];
-  types.forEach(type => {
-    completions.push({
-      label: type,
-      kind: CompletionItemKind.Class,
-      data: type,
-    });
-  });
 
   // 添加注解名称补全
   const annotations = ['NotEmpty', 'Range', 'Pattern'];
@@ -439,7 +472,10 @@ export function registerCompletionHandlers(
     // `x.` 之后且接收者类型已知、或位于构造的字段名位置：只列该 struct 的字段
     const fields = fieldCompletionsAt(documents, getOrParse, params, getLexiconForDoc?.(params.textDocument.uri), clientOptions);
     if (fields.items) return { isIncomplete: false, items: fields.items };
-    return { isIncomplete: fields.incomplete, items: keywordCompletions(getLexiconForDoc?.(params.textDocument.uri)) };
+    const terms = termCompletionsAt(documents, getOrParse, params, getLexiconForDoc?.(params.textDocument.uri));
+    if (terms.types) return { isIncomplete: false, items: terms.types };
+    const keywords = keywordCompletions(getLexiconForDoc?.(params.textDocument.uri));
+    return { isIncomplete: fields.incomplete, items: [...keywords, ...terms.values] };
   });
 
   // 补全项解析：为选中的补全项提供额外信息

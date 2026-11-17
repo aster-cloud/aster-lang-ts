@@ -26,6 +26,22 @@ describe('包入口：LSP 补全', () => {
     assert.deepEqual(items?.map((i) => i.label).sort(), ['age', 'name']);
   });
 
+  it('./browser 与 ./lsp 导出 aster/canonicalPreview 契约，与 server 实现同一常量', async () => {
+    const browser = (await import(`${PKG.name}/browser`)) as typeof import('../../../src/browser.js');
+    const lsp = (await import(`${PKG.name}/lsp`)) as typeof import('../../../src/lsp/index.js');
+    const impl = await import('../../../src/lsp/canonical-preview.js');
+    assert.equal(browser.CANONICAL_PREVIEW_METHOD, 'aster/canonicalPreview');
+    assert.equal(lsp.CANONICAL_PREVIEW_METHOD, 'aster/canonicalPreview');
+    assert.equal(impl.CANONICAL_PREVIEW_METHOD, browser.CANONICAL_PREVIEW_METHOD);
+    // 类型契约须出现在两个入口的发布声明文件中
+    for (const entry of ['./browser', './lsp']) {
+      const target = PKG.exports[entry];
+      assert.ok(target !== undefined && typeof target !== 'string', `${entry} 须为 {types, import} 形态的入口`);
+      const dts = readFileSync(resolve(target.types), 'utf8');
+      assert.match(dts, /\bCanonicalPreview\b[^;]*canonical-preview-contract\.js/, entry);
+    }
+  });
+
   it('exports 中每个入口的产物都存在', () => {
     for (const [entry, target] of Object.entries(PKG.exports)) {
       // 字符串形态的入口（如 ./runner 单文件 CLI）没有类型声明，只查产物

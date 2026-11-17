@@ -218,11 +218,19 @@ describe('E8xx / W8xx 与编译结果', () => {
 describe('解析前标识符替换已删除', () => {
   it('src/ 中不再有 translateIdentifiers 与 toCanonical', () => {
     const hits: string[] = [];
+    // src/layout 的 toCanonical 是 LayoutMap 的 span 拼接（ADR 0058 §7.10 规定的导出名），与词汇标识符替换无关：
+    // 该目录只豁免 toCanonical，translateIdentifiers 仍禁止
+    const layoutDir = path.resolve(process.cwd(), 'src', 'layout');
     const walk = (dir: string): void => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const p = path.join(dir, entry.name);
-        if (entry.isDirectory()) walk(p);
-        else if (/\.ts$/.test(entry.name) && /translateIdentifiers|toCanonical\b/.test(fs.readFileSync(p, 'utf8'))) hits.push(p);
+        if (entry.isDirectory()) {
+          walk(p);
+          continue;
+        }
+        if (!/\.ts$/.test(entry.name)) continue;
+        const forbidden = p.startsWith(layoutDir + path.sep) ? /translateIdentifiers/ : /translateIdentifiers|toCanonical\b/;
+        if (forbidden.test(fs.readFileSync(p, 'utf8'))) hits.push(p);
       }
     };
     walk(path.resolve(process.cwd(), 'src'));

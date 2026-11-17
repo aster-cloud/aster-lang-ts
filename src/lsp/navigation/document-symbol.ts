@@ -10,7 +10,7 @@ import type {
 } from 'vscode-languageserver/node.js';
 import { SymbolKind } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { formatFieldDetail } from '../completion.js';
+import { formatFieldDetail, typeText } from '../completion.js';
 import { parse } from '../../parser.js';
 import {
   getSpan,
@@ -205,9 +205,31 @@ export function registerDocumentSymbolHandler(
             pushChild(moduleParent, fs);
             break;
           }
+          case 'Import': {
+            if (!d.asName) break;
+            const sp = getSpan(d);
+            pushChild(moduleParent, {
+              name: d.asName,
+              kind: SymbolKind.Module,
+              range: spanOrDoc(sp, doc),
+              selectionRange: spanOrDoc(sp, doc),
+              detail: d.name,
+            });
+            break;
+          }
           default:
             break;
         }
+      }
+      // 类型别名不进 decls，从 Module.typeAliasDecls 取
+      for (const a of ast2.typeAliasDecls ?? []) {
+        pushChild(moduleParent, {
+          name: a.name,
+          kind: SymbolKind.TypeParameter,
+          range: spanOrDoc(a.span, doc),
+          selectionRange: spanOrDoc(a.span, doc),
+          detail: typeText(a.type),
+        });
       }
       return symbols;
     } catch {

@@ -10,8 +10,8 @@
 // 缩进/规范换行）在显示层被替换成原诗标点或隐藏，于是诗回到它本来的样子，而 canonical
 // 一字未改、仍可编译运行。
 
-/** @type {import('./layout-map.mjs').LayoutSpan[]} */
-export const JINGYESI_LAYOUT = [
+/** @type {import('../../dist/src/layout/index.js').PolicyLayout} */
+export const JINGYESI_LAYOUT = { v: 1, spans: [
   // 第一句：内容「床前 明月光」——两视图都原样出现。
   { text: '床前 明月光' },
   // 句1↔句2 之间：canonical 用「。+换行」结束语句；display 用原诗的「，+换行」。
@@ -28,4 +28,4 @@ export const JINGYESI_LAYOUT = [
   { text: '低头 思故乡' },
   // 末句收尾：canonical 用「。」；display 也用「。」（原诗末句句号）。
   { canonical: '。', display: '。' },
-];
+] };
