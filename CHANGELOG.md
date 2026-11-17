@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### 词法空白只认 ASCII，与 aster-lang-core 对齐（aster-cloud/aster-lang-ts#348）
+
+- **破坏性（此前接受的源码改为报错）**：规范化阶段「去行尾空白」「去标点前空白」改用 Java `\s` 的 ASCII 集合 `[ \t\n\x0B\f\r]`，
+  「清空只含空白的行」「整行注释」改为只认空格与 `\t`。U+00A0、U+2000–U+200A、U+202F、U+205F、U+1680、U+2028/2029、
+  非开头的 U+FEFF，以及 zh-CN 以外词法表里的 U+3000，出现在行尾、只含它们的行、`.` `,` `:` 等标点之前、整行注释之前或
+  只含它们的源码里时，不再被吞掉，而是与 core 一样在该字符上报 **E050**（此前 ts / 编辑器 / LSP 接受、生产 aster-api 报 E050）。
+  token 之间与缩进里的这些字符两引擎此前已一致报 E050，不变；zh-CN 的 U+3000 仍由全角转半角换成空格，照常是空白；
+  字符串字面量与注释正文里的任何空白照旧原样保留。
+- 标点前去空白的标点集合与 core 一致、不再分词法表（`.,:` 与 `。：，`，句末档另加 `;?!` 与 `！；？`，再加词法表的非 ASCII
+  句末符如 `।`）：zh-CN / hi-IN 里句末符、逗号、冒号前的 `\x0B` `\f` 此前报 E050、core 接受，现在照常去掉；
+  zh-CN / hi-IN 标点前的普通空格同样去掉，该位置之后 token 的列号与 core 一致（Core IR `origin.*.col` 可能因此变化）。
+- 只含空白的行改为只在字符串字面量之外清空，行界按 Java 的行终止符（`\n` `\r` U+0085 U+2028 U+2029）判定：
+  此前字符串里两个 U+2028 之间的空格会被删掉（静默改变字符串值），core 保留。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 12 条用例（与 aster-lang-core 副本 byte-identical）；
+  aster-lang-test 的 `compile/source-only-nbsp-is-not-blank`、`compile/source-only-ideographic-space-is-not-blank`
+  去掉 `knownEngineDivergence`，两个 CLI 期望相同。
+
 ### 包格式 v1：首个 `--jwks` URL 的字符级校验（ADR 0059 P1 终审 V-1，aster-cloud/aster-cloud#797）
 
 - 首个 `--jwks <https-url>` 与重定向 `Location` 同一字符级 URI-reference 校验（裸空格、反斜杠、控制字符、未编码的非 ASCII、非法 `%XX` 都不合法），

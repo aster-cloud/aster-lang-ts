@@ -161,24 +161,52 @@ export interface CanonicalizerOptions {
   vocabulary?: VocabularyScopes | undefined;
 }
 
-// 默认正则表达式（英语）
-const LINE_COMMENT_RE = /^\s*(?:\/\/|#)/;
+// 词法空白只认 ASCII（aster-lang-ts#348，与 aster-lang-core Canonicalizer 对齐）。
+//
+// ★JS 的 `\s` / trim() 含 Unicode 空白（U+00A0、U+2000–U+200A、U+202F、U+205F、U+1680、
+//   U+2028/2029、U+3000、U+FEFF），Java 的 `\s` 只是 ASCII [ \t\n\x0B\f\r]，Java 词法器的空白
+//   只有空格与 \t。此前 ts 在「行尾 / 只含空白的行 / 标点前 / 整行注释前」用 JS 口径把这些字符吞掉，
+//   同一份源码 ts（编辑器 / LSP）编译通过、Java（生产 aster-api）报 E050。现在这几处一律用 Java 口径，
+//   其余 Unicode 空白原样交给词法器报 E050；zh-CN 的 U+3000 由全角转半角先换成空格，不受影响。
+//
+// 整行注释：行首只允许空格与 \t（Java removeCommentsFromCode 删掉注释后，行首残留的 Unicode 空白照样报 E050）。
+const LINE_COMMENT_RE = /^[ \t]*(?:\/\/|#)/;
 const SPACE_RUN_RE = /[ \t]+/g;
 
-// 标点字符集合（按语言/是否句末区分）。
+// 标点字符集合（是否句末两档，与 Java PUNCT_NORMAL_RE / PUNCT_FINAL_RE 同集、不分词法表）。
 // 这些集合用于「删除紧邻标点之前的空白」的线性扫描，取代原先
 // `/\s+([标点])/g` 形式的正则——后者存在多项式回溯（polynomial ReDoS）风险：
 // 对长空白串（其后并非标点）会在每个起点重复贪婪匹配再回退，退化为 O(n²)。
 // 线性扫描逐字符处理，语义完全一致（删除标点前的整段空白），且无回溯。
-const PUNCT_NORMAL_CHARS = '.,:';
-const PUNCT_FINAL_CHARS = '.,:!;?';
+// ★中文标点在本步之前已被 normalizeCJKPunctuation 换成 ASCII，所以 zh-CN 实际命中的是 `.,:`；
+//   此前 zh-CN 只认中文标点，ASCII 标点前的空白（含 \x0B \f）一律不删，与 Java 不一致。
+const PUNCT_NORMAL_CHARS = '.,:。：，';
+const PUNCT_FINAL_CHARS = '.,:!;?。：，！；？';
 
-// 中文标点集合
-const ZH_PUNCT_NORMAL_CHARS = '。，：、';
-const ZH_PUNCT_FINAL_CHARS = '。，：、！；？';
+// 单字符空白判定（在单个字符上求值，无回溯）：Java `\s` 的 ASCII 集合，不含 Unicode 空白。
+const WHITESPACE_CHAR_RE = /[ \t\n\v\f\r]/;
 
-// 单字符空白判定（在单个字符上求值，无回溯）。语义与正则 `\s` 等价。
-const WHITESPACE_CHAR_RE = /\s/;
+/**
+ * 「只含空白的行」里的空白：前后都是文本首尾或 Java 行终止符的 [ \t] 串（不用 m 标志：JS 的 m 不认 U+0085）。
+ * 后行断言只看一个字符，`[ \t]+` 只在空白串起点展开，线性无回溯。
+ */
+const BLANK_RUN_RE = /(?<=^|[\n\r\u0085\u2028\u2029])[ \t]+(?=$|[\n\r\u0085\u2028\u2029])/g;
+
+/** 清空字符串外一段代码里只含 [ \t] 的行；atStart / atEnd 表示该段的首 / 尾是否就是全文首 / 尾（否则紧挨着字符串）。 */
+function clearBlankRuns(text: string, atStart: boolean, atEnd: boolean): string {
+  return text.replace(BLANK_RUN_RE, (run: string, offset: number) => {
+    const touchesStart = offset === 0 && !atStart;
+    const touchesEnd = offset + run.length === text.length && !atEnd;
+    return touchesStart || touchesEnd ? run : '';
+  });
+}
+
+/** 去掉末尾的 ASCII 空白（Java TRAILING_SPACE_RE 的集合）；从尾部线性回退，无正则回溯。 */
+function trimEndAsciiSpace(text: string): string {
+  let end = text.length;
+  while (end > 0 && WHITESPACE_CHAR_RE.test(text[end - 1]!)) end--;
+  return end === text.length ? text : text.slice(0, end);
+}
 
 // 行分隔符：正则元字符 `.`（无 s 标志）无法匹配的字符。换行 \n/\r 在
 // canonicalize 阶段已被归一并按 \n 切分，此处只可能残留 U+2028/U+2029。
@@ -193,14 +221,10 @@ const LINE_SEPARATOR_RE = /[\n\r\u2028\u2029]/;
  * @returns 标点字符集合字符串，用于线性扫描判定
  */
 function getPunctuationChars(lexicon?: Lexicon, isFinal?: boolean): string {
-  const effectiveLexicon = getEffectiveLexicon(lexicon);
-
-  // 根据 whitespaceMode 选择标点集合
-  if (effectiveLexicon.canonicalization.whitespaceMode === 'chinese') {
-    return isFinal ? ZH_PUNCT_FINAL_CHARS : ZH_PUNCT_NORMAL_CHARS;
-  }
-
-  return isFinal ? PUNCT_FINAL_CHARS : PUNCT_NORMAL_CHARS;
+  const base = isFinal ? PUNCT_FINAL_CHARS : PUNCT_NORMAL_CHARS;
+  // 非 ASCII 句末符（如天城文 danda「।」）：Java 先归一成「.」再去空白，ts 由词法器直接认，故并入集合
+  const statementEnd = getEffectiveLexicon(lexicon).punctuation.statementEnd;
+  return statementEnd.length === 1 && !base.includes(statementEnd) ? base + statementEnd : base;
 }
 
 /**
@@ -576,8 +600,15 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   //   跳到错误的行——不报错、不崩溃，只是指错地方。
   //   Java 侧 canonicalizer 把注释置空但保留行数（115 → 115），故 Java 一直是对的。
   //
-  // `[^\S\n]` = 空白字符但排除换行，因此逐行生效、行数不变。
-  marked = marked.replace(/^[^\S\n]+$/gm, '');
+  // 与 Java finalWhitespaceNormalization 的 `(?m)^[ \t]+$` 逐段对齐（aster-lang-ts#348）：
+  //   - 只认 ASCII 空格与制表符：只含 U+00A0 等 Unicode 空白的行不清空，交给词法器报 E050；
+  //   - 只在字符串字面量**之外**清空：此前全局替换会把字符串里两个 U+2028 之间的空格删掉（静默改值）；
+  //   - 行界按 Java 的行终止符（\n \r U+0085 U+2028 U+2029）与段首段尾判定，逐行生效、行数不变。
+  //   - 段首段尾只在它同时是全文首尾时才算行界：两个字符串之间的空格（`"a" "b"`）不是空行。
+  const segments = segmentString(marked, quotes);
+  marked = segments
+    .map((segment, i) => (segment.inString ? segment.text : clearBlankRuns(segment.text, i === 0, i === segments.length - 1)))
+    .join('');
 
   // 字面量宏展开（词汇中只有它在解析前处理：它决定 token 类别）
   if (literals && literals.size > 0) {
@@ -804,9 +835,8 @@ function normalizeRest(
       normalized = stripSpaceBeforePunct(normalized, punctChars);
 
       if (trimTrailing && index === segments.length - 1) {
-        // 去除末尾空白：trimEnd() 的空白集合与正则 `\s`（WhiteSpace ∪ LineTerminator）
-        // 按 ECMAScript 规范完全一致，等价于原 `/\s+$/g` 且线性无回溯。
-        normalized = normalized.trimEnd();
+        // 去除末尾 ASCII 空白（不用 trimEnd()：它连 Unicode 空白一起去掉，见 WHITESPACE_CHAR_RE）
+        normalized = trimEndAsciiSpace(normalized);
       }
 
       return normalized;
