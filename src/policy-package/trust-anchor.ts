@@ -247,13 +247,14 @@ const IP_LITERAL = /^\[(?:[0-9A-Fa-f:.]+|[vV][0-9A-Fa-f]+\.[A-Za-z0-9\-._~!$&'()
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
 /**
- * 取信任锚用的 TLS 信任根（README「信任锚」）：操作系统信任库 ∪ Node 内置 CA（`getCACertificates('system')` ∪ `'bundled'`），
- * 再**追加**仅供测试的 `ASTER_ANCHOR_CA_FILE`（PEM）；去重后返回。总是显式给出列表：Node 的缺省信任库不含系统 CA
- * （除非以 `--use-system-ca` 启动），而只要给 `ca` 就会替换缺省信任库，所以系统、内置与追加三部分必须一起列出。
+ * 取信任锚用的 TLS 信任根（README「信任锚」：运行时的标准信任配置 + `ASTER_ANCHOR_CA_FILE`）：Node 缺省 CA
+ * （`getCACertificates('default')`：内置根 + `NODE_EXTRA_CA_CERTS`）∪ 操作系统信任库（`'system'`），再**追加**仅供测试的
+ * `ASTER_ANCHOR_CA_FILE`（PEM）；去重后返回。总是显式给出列表：Node 的缺省信任库不含系统 CA（除非以 `--use-system-ca` 启动），
+ * 而只要给 `ca` 就会替换缺省信任库，所以缺省、系统与追加三部分必须一起列出。
  */
 export function anchorCaCertificates(env: NodeJS.ProcessEnv): string[] {
-  const get = (tls as { getCACertificates?: (kind: 'bundled' | 'system') => string[] }).getCACertificates;
-  const cas = get ? [...get('system'), ...get('bundled')] : [...tls.rootCertificates];
+  const get = (tls as { getCACertificates?: (kind: 'default' | 'system') => string[] }).getCACertificates;
+  const cas = get ? [...get('default'), ...get('system')] : [...tls.rootCertificates];
   const extra = env['ASTER_ANCHOR_CA_FILE'];
   if (extra) {
     try {

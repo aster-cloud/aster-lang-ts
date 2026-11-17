@@ -79,11 +79,11 @@ test('锚 URL 必须是字面量小写 https://；本地锚文件超过 1 MiB �
   assert.equal(await usageOf(loadTrustAnchor({ pubkey: big })), 'USAGE');
 });
 
-test('信任根：系统 CA + 内置 CA，ASTER_ANCHOR_CA_FILE 追加且去重', { skip }, async () => {
+test('信任根：缺省 CA（含 NODE_EXTRA_CA_CERTS）+ 系统 CA，ASTER_ANCHOR_CA_FILE 追加且去重', { skip }, async () => {
   const tls = await import('node:tls');
   const { anchorCaCertificates } = await import('../../../src/policy-package/trust-anchor.js');
   const base = anchorCaCertificates({});
-  const expected = new Set([...tls.getCACertificates('system'), ...tls.getCACertificates('bundled')]);
+  const expected = new Set([...tls.getCACertificates('default'), ...tls.getCACertificates('system')]);
   assert.deepEqual(new Set(base), expected);
   assert.equal(base.length, expected.size, '应去重');
   const pem = readFileSync(join(dir, 'cert.pem'), 'utf8');
