@@ -5,7 +5,9 @@
  *   - 子命令 `compile`、`run`、`verify`、`inspect`、`version`；未知子命令为 USAGE；
  *   - 带值选项写成 `--opt value` 或 `--opt=value`；开关不接受 `=`；选项与位置参数先后任意；
  *   - 同一选项出现两次、未知选项、缺值、位置参数个数不对都是 USAGE；
- *   - `--opt value` 形式中，若下一个 token 本身是该子命令认识的选项（`--x` 或 `--x=…`），视为缺值（与 picocli 缺省相同）。
+ *   - `--opt value` 形式中，若下一个 token 本身是该子命令认识的选项（`--x` 或 `--x=…`）或 `--`，视为缺值（与 picocli 缺省相同）；
+ *     值为空串（`--opt=` 或 `--opt ""`）也是 USAGE；
+ *   - `--` 结束选项解析，其后的参数一律是位置参数；「未知选项」按子命令判（`compile --entry` 是 USAGE）。
  *   - `--timeout` 匹配 `^(0|[1-9][0-9]*)(ms|s)(?![\s\S])`，> 0 且 ≤ 300 s；缺省 5 s。
  */
 import { fail } from './errors.js';
@@ -73,29 +75,34 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   const values = new Map<string, string>();
   const flags = new Set<string>();
   const positionals: string[] = [];
+  let endOfOptions = false;
   for (let i = 0; i < rest.length; i++) {
     const tok = rest[i]!;
-    if (!tok.startsWith('--')) {
+    if (endOfOptions || !tok.startsWith('--')) {
       positionals.push(tok);
+      continue;
+    }
+    if (tok === '--') {
+      // `--` 结束选项解析，其后一律是位置参数
+      endOfOptions = true;
       continue;
     }
     const eq = tok.indexOf('=');
     const name = eq < 0 ? tok.slice(2) : tok.slice(2, eq);
+    if (!spec.values.includes(name) && !spec.flags.includes(name)) usage(`未知选项：${tok}`);
     if (values.has(name) || flags.has(name)) usage(`选项重复：--${name}`);
     if (spec.flags.includes(name)) {
       if (eq >= 0) usage(`开关 --${name} 不接受值`);
       flags.add(name);
       continue;
     }
-    if (!spec.values.includes(name)) usage(`未知选项：${tok}`);
-    if (eq >= 0) {
-      values.set(name, tok.slice(eq + 1));
-      continue;
+    const value = eq >= 0 ? tok.slice(eq + 1) : rest[i + 1];
+    if (eq < 0) {
+      if (value === undefined || value === '--' || isKnownOption(value)) usage(`--${name} 缺少值`);
+      i++;
     }
-    const next = rest[i + 1];
-    if (next === undefined || isKnownOption(next)) usage(`--${name} 缺少值`);
-    values.set(name, next!);
-    i++;
+    if (value === '') usage(`--${name} 的值为空`);
+    values.set(name, value!);
   }
   if (positionals.length !== spec.positionals) usage(`${command} 需要 ${spec.positionals} 个位置参数，实际 ${positionals.length} 个`);
   if (command === 'run' && !values.has('input')) usage('run 必须给出 --input（- 表示 stdin）');

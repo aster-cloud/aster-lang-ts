@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### 包格式 v1：按 aster-lang-test#218 收紧 CLI 规则（ADR 0059 P1，aster-cloud/aster-cloud#797）
+
+- 命令行：`--` 结束选项解析；`--opt=` 与单独给出的空值（`--entry ""`）为 `USAGE`；`--opt --` 视为缺值。
+- 读包：目录形态与 zip 的条目数上限 1 024（目录计入子目录、不含包根），目录嵌套深度上限 32；目录按名字的 UTF-8 字节序遍历，
+  子目录先判深度再计数、普通文件先计数再判大小；zip 在找到 EOCD 后、解析中央目录之前判条目数。
+- 信任锚：`--jwks <https-url>` 只接受字面量小写 `https://`，一律直连（忽略全部代理环境变量），只跟随 301/302/303/307/308 且至多 3 次
+  https → https，请求 `Accept-Encoding: identity`、拒绝其他 `Content-Encoding`，只认 2xx，响应体 ≤ 1 MiB，全部跳合计 10 s；
+  `ASTER_ANCHOR_CA_FILE`（仅测试）追加到缺省 CA；本地 `--jwks` / `--pubkey` 文件 ≤ 1 MiB。任何失败为 `USAGE`。
+- `compile`：位置参数以 `.aster` 结尾即源码形态（不存在、是目录为 `USAGE`）；源码按严格 UTF-8 解码并去掉至多一个 BOM（非法为 `USAGE`），
+  只含 ASCII 空白为 `COMPILE_ERROR`；`--locale` 只接受 en-US / zh-CN / de-DE / hi-IN；`--allow-structural` 只能与 `--alias-set` 同用；
+  aliasSet / 词汇文件不是严格 JSON 为 `USAGE`，aliasSet 形状不对或未知 kind 为 `COMPILE_ERROR`，`null` 即无别名；`--out` 的父目录与
+  目标在编译之前判定（父目录不存在 / 不可写、目标是目录为 `USAGE`），成功时同目录临时文件写完再改名，失败不留任何文件。
+  包内 `policy/policy.aster` 同样去掉开头 BOM。
+- 超时计时起点改为 Worker 内 IR 已读入、实参已转换之后、调用 `evaluate` 之前。
+- 一致性测试：新增 `compile/cases.json` 与 `https-jwks-*`、条目数 / 深度等运行时夹具；`KNOWN_RED` 删除。夹具标 `knownEngineDivergence`
+  的两行（只含 U+00A0 / U+3000 的源码，aster-cloud/aster-lang-ts#348）在 ts 上按 todo 运行。
+
 ### 许可证声明与 LICENSE 文件一致
 
 - `package.json` 的 `license` 由 `MIT` 改为 `Apache-2.0`，浏览器包头注释同步修改。仓库 LICENSE 文件一直是 Apache License 2.0，此前的 `MIT` 声明有误；以 LICENSE 为准（产品负责人确认）。ADR 0059 的 P3（自包含导出打包运行时）以许可证一致为前提。

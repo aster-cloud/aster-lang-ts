@@ -4,6 +4,10 @@
 
 /** zip 文件本身、解压后单条 / 累计、目录形态单文件 / 累计的上限。 */
 export const MAX_PACKAGE_BYTES = 64 * 1024 * 1024;
+/** 包内条目数上限：目录形态数普通文件与子目录（不含包根），zip 数 EOCD 记录的条目（含目录条目）。 */
+export const MAX_PACKAGE_ENTRIES = 1024;
+/** 目录形态的子目录嵌套深度上限（包根的直接子目录为第 1 层）。 */
+export const MAX_DIR_DEPTH = 32;
 /** `manifest.json` 上限（超出为 manifest 阶段的 PKG_INVALID_MANIFEST）。 */
 export const MAX_MANIFEST_BYTES = 1024 * 1024;
 /** `manifest.sig.json` 上限（超出为 signature 阶段的 PKG_SIGNATURE）。 */

@@ -5,7 +5,9 @@
  * 「第一项失败即停止」、固定 message、stdout 恒为一行值规范 JSON + `\n`、诊断只写 stderr。
  * {@link runCommand} 是纯函数式入口（返回 stdout / stderr / 退出码），`scripts/aster.ts` 与单文件 bundle 都只调它。
  */
-import { readFileSync, statSync, writeFileSync } from 'node:fs';
+import { accessSync, constants as fsConstants, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { basename, dirname, join, resolve as resolvePath } from 'node:path';
 import { MAX_INPUT_BYTES } from './paths.js';
 import { Worker } from 'node:worker_threads';
 import { anchorKids, builtinTrustAnchor, loadTrustAnchor, type TrustAnchor } from './trust-anchor.js';
@@ -20,6 +22,7 @@ import {
   CompileFailure,
   compilePackageSource,
   compileSource,
+  decodeSourceText,
   parseAliasSetJson,
   parseVocabularyJson,
   positionFreeSha256,
@@ -28,7 +31,7 @@ import {
 } from './obtain-ir.js';
 import { readPackage, type LoadedPackage } from './read-package.js';
 import { verifySignature } from './signature.js';
-import { decodeUtf8Strict, isJsonObject, parseStrictJson, type JsonValue } from './strict-json.js';
+import { isJsonObject, parseStrictJson, type JsonValue } from './strict-json.js';
 import { valueJson, type ValueTree } from './value-json.js';
 import type { EvalJob, WorkerMessage } from './worker-eval.js';
 
@@ -348,66 +351,126 @@ function cmdVersion(ctx: Ctx): CommandResult {
   );
 }
 
+const usageError = (why: string): PackageError => new PackageError('USAGE', 'usage', why);
+
+/** 读取 compile 的配置 / 源码文件：不存在、不是普通文件或不可读都是 USAGE。 */
 function readOptionFile(path: string, opt: string): Uint8Array {
   try {
+    if (!statSync(path).isFile()) throw usageError(`${opt} 不是普通文件：${path}`);
     return readFileSync(path);
-  } catch {
-    throw new PackageError('USAGE', 'usage', `${opt} 文件不可读：${path}`);
+  } catch (e) {
+    if (e instanceof PackageError) throw e;
+    throw usageError(`${opt} 不存在或不可读：${path}`);
   }
 }
 
-/** `compile <pkg>`：按 manifest 编译包内源码；`compile <file.aster>`：按 --locale / --alias-set / --vocabulary 编译。 */
+/** compile 的 aliasSet / 词汇文件：必须是严格 JSON，否则 USAGE（形状由编译阶段判，失败为 COMPILE_ERROR）。 */
+function readJsonOption(path: string, opt: string): Uint8Array {
+  const bytes = readOptionFile(path, opt);
+  try {
+    parseStrictJson(bytes, { maxDepth: 64 });
+  } catch (e) {
+    throw usageError(`${opt} 不是严格 JSON：${(e as Error).message}`);
+  }
+  return bytes;
+}
+
+/** `.aster` 源码：严格 UTF-8（去掉至多一个前导 BOM），非法为 USAGE。 */
+function decodeSource(bytes: Uint8Array, path: string): string {
+  try {
+    return decodeSourceText(bytes);
+  } catch {
+    throw usageError(`源码不是合法 UTF-8：${path}`);
+  }
+}
+
+/** 只含 ASCII 空白（空格、\t、\n、\r）或为空的源码。 */
+const isBlankSource = (text: string): boolean => /^[ \t\n\r]*$/.test(text);
+
+/** `--out`：父目录必须存在、是目录且可写；目标本身不能是已存在的目录。在编译之前判定。 */
+function checkOutPath(out: string): void {
+  const parent = dirname(resolvePath(out));
+  try {
+    if (!statSync(parent).isDirectory()) throw usageError(`--out 的父目录不是目录：${parent}`);
+    accessSync(parent, fsConstants.W_OK);
+  } catch (e) {
+    if (e instanceof PackageError) throw e;
+    throw usageError(`--out 的父目录不存在或不可写：${parent}`);
+  }
+  let isDir = false;
+  try {
+    isDir = statSync(out).isDirectory();
+  } catch {
+    // 目标不存在：正常
+  }
+  if (isDir) throw usageError(`--out 指向已存在的目录：${out}`);
+}
+
+/** 原子写入：同目录临时文件写完再改名；失败时清理临时文件、不动目标。 */
+function writeAtomically(out: string, content: string): void {
+  const target = resolvePath(out);
+  const tmp = join(dirname(target), `.${basename(target)}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`);
+  try {
+    writeFileSync(tmp, content, { flag: 'wx' });
+    renameSync(tmp, target);
+  } catch (e) {
+    rmSync(tmp, { force: true });
+    throw usageError(`--out 写入失败：${(e as Error).message}`);
+  }
+}
+
+/** compile 源码形态支持的词法表（两侧都内置的四个）。 */
+export const COMPILE_LOCALES: ReadonlySet<string> = new Set(['en-US', 'zh-CN', 'de-DE', 'hi-IN']);
+
+/**
+ * `compile <pkg|file.aster>`（README「compile」）：位置参数以 `.aster` 结尾即源码形态（不存在、是目录或不是普通文件为 USAGE），
+ * 否则为包形态（目录或 zip）。只解析与降级，不做类型检查。成功写规范 IR（stdout 加 `\n`，或 `--out` 原子写文件、stdout 为空）。
+ */
 async function cmdCompile(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
   const meta = newMeta();
   const path = args.path!;
-  let isPackage: boolean;
   try {
-    isPackage = statSync(path).isDirectory() || !path.endsWith('.aster');
-  } catch {
-    isPackage = !path.endsWith('.aster');
-  }
-  try {
-    const sourceOnly = ['locale', 'alias-set', 'vocabulary'].filter((o) => args.values.has(o));
-    if (isPackage && (sourceOnly.length > 0 || args.flags.has('allow-structural'))) {
-      throw new PackageError('USAGE', 'usage', '编译包时 locale / aliasSet / 词汇取自 manifest，不接受 --locale / --alias-set / --vocabulary / --allow-structural');
-    }
-    if (!isPackage && (args.values.has('jwks') || args.values.has('pubkey') || args.flags.has('allow-unsigned'))) {
-      throw new PackageError('USAGE', 'usage', '编译 .aster 源文件不接受 --jwks / --pubkey / --allow-unsigned');
-    }
+    const out = args.values.get('out');
+    if (out !== undefined) checkOutPath(out);
     let coreJson: string;
-    try {
-      if (isPackage) {
-        const pkg = loadTrusted(path, await anchorOf(args), args.flags.has('allow-unsigned'), meta);
-        coreJson = compilePackageSource(pkg);
-        ctx.stderr.push(`positionFreeSha256 ${positionFreeSha256(coreJson)}（manifest ${pkg.manifest.coreIr.positionFreeSha256}）`);
-      } else {
-        const source = readOptionFile(path, '源文件');
-        const alias = args.values.get('alias-set');
-        const vocab = args.values.get('vocabulary');
-        let text: string;
-        try {
-          text = decodeUtf8Strict(source);
-        } catch {
-          throw new CompileFailure([`${path} 不是合法 UTF-8`]);
-        }
+    if (path.endsWith('.aster')) {
+      const source = readOptionFile(path, '源文件');
+      for (const o of ['jwks', 'pubkey']) if (args.values.has(o)) throw usageError(`源码形态不接受 --${o}`);
+      if (args.flags.has('allow-unsigned')) throw usageError('源码形态不接受 --allow-unsigned');
+      const alias = args.values.get('alias-set');
+      if (args.flags.has('allow-structural') && alias === undefined) throw usageError('--allow-structural 只能与 --alias-set 同用');
+      const locale = args.values.get('locale') ?? 'en-US';
+      if (!COMPILE_LOCALES.has(locale)) throw usageError(`--locale 不受支持：${locale}`);
+      const aliasBytes = alias === undefined ? undefined : readJsonOption(alias, '--alias-set');
+      const vocab = args.values.get('vocabulary');
+      const vocabBytes = vocab === undefined ? undefined : readJsonOption(vocab, '--vocabulary');
+      const text = decodeSource(source, path);
+      try {
+        if (isBlankSource(text)) throw new CompileFailure(['源码为空或只有空白']);
         coreJson = compileSource(text, {
-          locale: args.values.get('locale') ?? 'en-US',
-          aliasSet: alias === undefined ? null : parseAliasSetJson(readOptionFile(alias, '--alias-set')),
+          locale,
+          aliasSet: aliasBytes === undefined ? null : parseAliasSetJson(aliasBytes),
           allowStructural: args.flags.has('allow-structural'),
-          vocabulary: vocab === undefined ? undefined : parseVocabularyJson(readOptionFile(vocab, '--vocabulary')),
+          vocabulary: vocabBytes === undefined ? undefined : parseVocabularyJson(vocabBytes),
         });
+      } catch (e) {
+        if (e instanceof CompileFailure) throw new PackageError('COMPILE_ERROR', 'ir', e.diagnostics.join('\n'));
+        throw e;
       }
-    } catch (e) {
-      if (e instanceof CompileFailure) throw new PackageError('COMPILE_ERROR', 'ir', e.diagnostics.join('\n'));
-      throw e;
+    } else {
+      for (const o of ['locale', 'alias-set', 'vocabulary']) if (args.values.has(o)) throw usageError(`包形态不接受 --${o}（取自 manifest）`);
+      if (args.flags.has('allow-structural')) throw usageError('包形态不接受 --allow-structural（取自 manifest）');
+      const pkg = loadTrusted(path, await anchorOf(args), args.flags.has('allow-unsigned'), meta);
+      try {
+        coreJson = compilePackageSource(pkg);
+      } catch (e) {
+        if (e instanceof CompileFailure) throw new PackageError('COMPILE_ERROR', 'ir', e.diagnostics.join('\n'));
+        throw e;
+      }
+      ctx.stderr.push(`positionFreeSha256 ${positionFreeSha256(coreJson)}（manifest ${pkg.manifest.coreIr.positionFreeSha256}）`);
     }
-    const outPath = args.values.get('out');
-    if (outPath === undefined) return resultOf(ctx, `${coreJson}\n`, 0);
-    try {
-      writeFileSync(outPath, coreJson);
-    } catch (e) {
-      throw new PackageError('USAGE', 'usage', `--out 不可写：${(e as Error).message}`);
-    }
+    if (out === undefined) return resultOf(ctx, `${coreJson}\n`, 0);
+    writeAtomically(out, coreJson);
     return resultOf(ctx, '', 0);
   } catch (e) {
     if (e instanceof PackageError) return failed(ctx, e, meta);

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { parseArgs } from '../../../src/policy-package/argv.js';
 import { PackageError } from '../../../src/policy-package/errors.js';
 import { parseInput, type IrView } from '../../../src/policy-package/input.js';
 import { obtainIr } from '../../../src/policy-package/obtain-ir.js';
@@ -14,8 +15,9 @@ const irCache = new Map<string, { ir: IrView; entry: string }>();
 /** 从用例参数取包路径与 --entry，返回 IR 与入口。 */
 function target(c: ConformanceCase, dir: string): { ir: IrView; entry: string } {
   const args = [...c.args];
-  const pos = args.filter((a, i) => i > 0 && !a.startsWith('--') && !args[i - 1]!.startsWith('--'));
-  const at = args.findIndex((a) => a === '--entry' || a.startsWith('--entry='));
+  const parsed = parseArgs(args);
+  const pos = [parsed.path!];
+
   const key = join(dir, pos[0]!);
   let t = irCache.get(key);
   if (!t) {
@@ -23,7 +25,7 @@ function target(c: ConformanceCase, dir: string): { ir: IrView; entry: string } 
     t = { ir: JSON.parse(obtainIr(p).coreJson) as IrView, entry: defaultEntry(p.manifest) };
     irCache.set(key, t);
   }
-  const entry = at < 0 ? t.entry : args[at]!.includes('=') ? args[at]!.split('=')[1]! : args[at + 1]!;
+  const entry = parsed.values.get('entry') ?? t.entry;
   return { ir: t.ir, entry };
 }
 

@@ -18,11 +18,20 @@ export type EvaluatePackageResult =
   | { readonly ok: true; readonly valueJson: string }
   | { readonly ok: false; readonly code: 'EVAL_ERROR' | 'RESOURCE_EXHAUSTED' | 'ENTRY_NOT_FOUND'; readonly message: string };
 
-/** 求值。`input` 是 {@link parseInput} 校验过的树。 */
-export function evaluatePackage(coreJson: string, entry: string, input: { [key: string]: JsonValue }): EvaluatePackageResult {
+/**
+ * 求值。`input` 是 {@link parseInput} 校验过的树。`beforeEvaluate` 在 IR 已读入、实参已转换之后、调用 `evaluate` 之前回调——
+ * 超时从这一刻起计（README「命令行」的计时起点），Worker 在这里通知主线程开始计时。
+ */
+export function evaluatePackage(
+  coreJson: string,
+  entry: string,
+  input: { [key: string]: JsonValue },
+  beforeEvaluate: () => void = () => {},
+): EvaluatePackageResult {
   const ir = JSON.parse(coreJson) as IrView;
   if (!findFunc(ir, entry)) return { ok: false, code: 'ENTRY_NOT_FOUND', message: `入口 ${entry} 不在 IR 中` };
   const ctx = toGuestContext(input, ir, entry);
+  beforeEvaluate();
   const r = evaluate(ir as unknown as Core.Module, entry, ctx, { maxSteps: Number.MAX_SAFE_INTEGER, maxCallDepth: CLI_MAX_CALL_DEPTH });
   if (!r.success) return { ok: false, code: r.errorKind === 'resource' ? 'RESOURCE_EXHAUSTED' : 'EVAL_ERROR', message: r.error ?? '求值失败' };
   try {
