@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### 包格式 v1：重定向 Location 的 RFC 3986 规则（ADR 0059 P1 T8 评审，aster-cloud/aster-cloud#797）
+
+- `--jwks <https-url>` 跟随重定向时，`Location` 原文必须是 RFC 3986 的 URI-reference（空、空格、反斜杠、控制字符、未编码的非 ASCII 都为 `USAGE`），
+  校验通过后才按 §5.2（含 §5.2.4 remove_dot_segments）相对当前请求 URL 解析——自行实现，不用 `new URL()`（它会静默修补这些字符，且对 `https:x` 之类按 WHATWG 规则处理）；重定向目标的 scheme 不区分大小写（`HTTPS://` 照常跟随）。
+
 ### 包格式 v1：求值前看门狗报 RESOURCE_EXHAUSTED（#350 评审 N2，aster-cloud/aster-cloud#797）
 
 - 60 s 求值前安全看门狗到点时改报 `RESOURCE_EXHAUSTED`（退出码 5，资源类结果，不在逐字节一致的承诺内；JVM 同码）。
