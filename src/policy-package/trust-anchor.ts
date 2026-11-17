@@ -206,13 +206,51 @@ export function resolveReference(baseUrl: string, reference: string): string {
   return out;
 }
 
+/**
+ * 请求目标在发出请求之前的检查（README「信任锚」，与参照实现 `validateRequestTarget` 同一判定）：首个 `--jwks` URL 与每个解析后的
+ * 重定向目标都要满足——host 非空；端口可省略，给出时必须是 1–5 位十进制且在 1–65535 内（空端口 `h:` 同样拒绝）；不得含 userinfo
+ * （`u:p@`、`u@`、空的 `@`）；`[` `]` 只能作为 IP-literal host 的边界，出现在普通 host、路径、查询或片段中即拒绝。任一不满足为 USAGE。
+ */
+export function checkRequestTarget(target: string): void {
+  const bad = (why: string): never => usage(`请求目标不合法（${why}）：${target}`);
+  const m = /^https:\/\/([^/?#]*)([^?#]*)(\?[^#]*)?(#.*)?$/.exec(target);
+  if (!m) return bad('不是 https URL');
+  const [, authority = '', path = '', query = '', fragment = ''] = m;
+  if (authority.includes('@')) bad('含 userinfo');
+  let host = authority;
+  let port: string | undefined;
+  if (authority.startsWith('[')) {
+    const close = authority.indexOf(']');
+    if (close < 0) bad('IP-literal 缺少 ]');
+    host = authority.slice(0, close + 1);
+    const rest = authority.slice(close + 1);
+    if (rest !== '' && !rest.startsWith(':')) bad('IP-literal 之后只能是 :port');
+    if (rest !== '') port = rest.slice(1);
+    if (!IP_LITERAL.test(host)) bad('IP-literal 不合法');
+  } else {
+    const colon = authority.lastIndexOf(':');
+    if (colon >= 0) {
+      host = authority.slice(0, colon);
+      port = authority.slice(colon + 1);
+    }
+    if (/[[\]]/.test(host)) bad('[ ] 只能用于 IP-literal host');
+  }
+  if (host === '') bad('host 为空');
+  if (port !== undefined && (!/^[0-9]{1,5}$/.test(port) || Number(port) < 1 || Number(port) > 65535)) bad('端口不是 1–65535 的十进制');
+  if (/[[\]]/.test(path + query + fragment)) bad('[ ] 只能用于 IP-literal host');
+}
+
+/** RFC 3986 IP-literal = "[" ( IPv6address / IPvFuture ) "]"（字符级）。 */
+const IP_LITERAL = /^\[(?:[0-9A-Fa-f:.]+|[vV][0-9A-Fa-f]+\.[A-Za-z0-9\-._~!$&'()*+,;=:]+)\]$/;
+
 /** 被当作重定向跟随的状态码；其他 3xx 一律 USAGE。 */
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
 /**
- * 取信任锚用的 TLS 信任根（README「信任锚」）：Node 缺省 CA（内置 Mozilla 根 + `NODE_EXTRA_CA_CERTS`）+ 操作系统信任库，
- * 再**追加**仅供测试的 `ASTER_ANCHOR_CA_FILE`（PEM）；去重后返回。总是显式给出列表：Node 的缺省信任库不含系统 CA
- * （除非以 `--use-system-ca` 启动），而只要给 `ca` 就会替换缺省信任库，所以缺省、系统与追加三部分必须一起列出。
+ * 取信任锚用的 TLS 信任根（README「信任锚」：运行时的标准信任配置 + `ASTER_ANCHOR_CA_FILE`）：Node 缺省 CA
+ * （`getCACertificates('default')`：内置根 + `NODE_EXTRA_CA_CERTS`）∪ 操作系统信任库（`'system'`），再**追加**仅供测试的
+ * `ASTER_ANCHOR_CA_FILE`（PEM）；去重后返回。总是显式给出列表：Node 的缺省信任库不含系统 CA（除非以 `--use-system-ca` 启动），
+ * 而只要给 `ca` 就会替换缺省信任库，所以缺省、系统与追加三部分必须一起列出。
  */
 export function anchorCaCertificates(env: NodeJS.ProcessEnv): string[] {
   const get = (tls as { getCACertificates?: (kind: 'default' | 'system') => string[] }).getCACertificates;
@@ -271,6 +309,7 @@ function getOnce(url: string, agent: https.Agent, deadline: number): Promise<Fet
  */
 export async function fetchJwks(url: string, env: NodeJS.ProcessEnv = process.env): Promise<Uint8Array> {
   if (!url.startsWith('https://')) usage(`--jwks 的 URL 必须以小写 https:// 开头：${url}`);
+  checkRequestTarget(url);
   const deadline = Date.now() + JWKS_FETCH_TIMEOUT_MS;
   const agent = new https.Agent({ ca: anchorCaCertificates(env) });
   try {
@@ -288,6 +327,7 @@ export async function fetchJwks(url: string, env: NodeJS.ProcessEnv = process.en
         if (res.location === undefined) return usage(`--jwks ${current} 返回 ${res.status} 但没有 Location`);
         if (hop + 1 > JWKS_MAX_REDIRECTS) return usage(`--jwks 重定向超过 ${JWKS_MAX_REDIRECTS} 次`);
         current = resolveReference(current, res.location);
+        checkRequestTarget(current);
         continue;
       }
       if (res.status < 200 || res.status > 299) return usage(`--jwks ${current} 返回 HTTP ${res.status}`);

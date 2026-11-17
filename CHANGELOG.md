@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### 包格式 v1：重定向目标的发送前检查（ADR 0059 P1 T8 评审 N-1，aster-cloud/aster-cloud#797）
+
+- `--jwks <https-url>` 的首个 URL 与每个解析后的重定向目标在发请求之前检查（`checkRequestTarget`，与参照实现 `validateRequestTarget` 同一判定）：
+  host 非空；端口若出现必须是 1–5 位十进制且在 1–65535 内（空端口同样拒绝）；不得带 userinfo；`[` / `]` 只能作为 IP-literal host 的边界，
+  出现在普通 host、路径、查询或片段中即拒绝。任一不满足为 `USAGE`，不发请求。
+
 ### 包格式 v1：重定向 Location 的 RFC 3986 规则（ADR 0059 P1 T8 评审，aster-cloud/aster-cloud#797）
 
 - `--jwks <https-url>` 跟随重定向时，`Location` 原文必须是 RFC 3986 的 URI-reference（空、空格、反斜杠、控制字符、未编码的非 ASCII 都为 `USAGE`），
