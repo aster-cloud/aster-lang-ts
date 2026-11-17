@@ -66,8 +66,9 @@ node aster.mjs run ./my-policy.zip --input - < input.json                     # 
   pass `--jwks <file|https-url>` or `--pubkey <file>`, or `--allow-unsigned` for unsigned packages.
 - Evaluation runs in a worker thread with a `--timeout` (default `5s`, at most `300s`). The clock starts right before
   evaluation; worker start-up, reading the Core IR and converting the input are not counted. Those phases have no loops and
-  their inputs are bounded by the package and input size limits; a 60 s safety watchdog still stops them (`EVAL_ERROR`) if
-  they ever stall.
+  their inputs are bounded by the package and input size limits; a 60 s safety watchdog still stops them if they ever stall,
+  reported as `RESOURCE_EXHAUSTED` (exit 5; a resource-class outcome, outside the byte-identical promise). A worker that
+  crashes before evaluation starts is reported as before.
 - `compile --out <file>` writes a temporary file in the same directory and renames it over the target, so the target is
   never half-written and nothing is left behind on an orderly failure. A process killed (SIGKILL) between the write and the
   rename can leave a `.<name>.<pid>.<random>.tmp` file next to the target.

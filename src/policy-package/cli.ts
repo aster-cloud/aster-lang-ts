@@ -152,9 +152,9 @@ export function evaluateInWorker(
       resolve(o);
     };
     // 未计时阶段（Worker 启动、IR 读入、实参转换）的安全看门狗：输入受包体积上限约束、没有循环，正常远小于此值；
-    // 超出说明环境异常，按 Worker 内部错误报 EVAL_ERROR，进程不挂住
+    // 超出按资源类结果报 RESOURCE_EXHAUSTED（不在逐字节一致的承诺内，JVM 同码），进程不挂住；Worker 在 started 前崩溃仍按原码
     timer = setTimeout(
-      () => finish({ ok: false, code: 'EVAL_ERROR', message: `求值开始前的准备超过 ${preEvalWatchdogMs} ms` }),
+      () => finish({ ok: false, code: 'RESOURCE_EXHAUSTED', message: `求值开始前的准备超过 ${preEvalWatchdogMs} ms` }),
       preEvalWatchdogMs,
     );
     worker.on('message', (m: WorkerMessage) => {

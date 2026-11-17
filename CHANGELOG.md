@@ -2,11 +2,16 @@
 
 ## Unreleased
 
+### 包格式 v1：求值前看门狗报 RESOURCE_EXHAUSTED（#350 评审 N2，aster-cloud/aster-cloud#797）
+
+- 60 s 求值前安全看门狗到点时改报 `RESOURCE_EXHAUSTED`（退出码 5，资源类结果，不在逐字节一致的承诺内；JVM 同码）。
+  Worker 在开始求值前崩溃仍按原有的码报告。
+
 ### 包格式 v1：#349 评审跟进（aster-cloud/aster-cloud#797）
 
 - https 信任锚的 TLS 信任根改为 Node 缺省 CA（内置根 + `NODE_EXTRA_CA_CERTS`）+ 操作系统信任库，`ASTER_ANCHOR_CA_FILE` 在其上追加、去重；
   此前缺省情形不含系统 CA，设了 `ASTER_ANCHOR_CA_FILE` 时又会丢掉 `NODE_EXTRA_CA_CERTS`。
-- 求值开始前（Worker 启动、IR 读入、实参转换，不计入 `--timeout`）加 60 s 安全看门狗，超出报 `EVAL_ERROR`，进程不挂住。
+- 求值开始前（Worker 启动、IR 读入、实参转换，不计入 `--timeout`）加 60 s 安全看门狗，进程不挂住（到点的错误码见上条）。
 - `compile` 的空白源码判定移入 `compileSource`，源码形态与包形态（以及 B 包本地重编译）同一判定。
 - README：说明未计时阶段的上界与 `--out` 在 SIGKILL 下可能残留的临时文件；一致性运行器给 TIMEOUT 用例加 ≥ 0.9 s 的下界。
 
