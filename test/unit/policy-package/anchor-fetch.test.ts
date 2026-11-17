@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { PackageError } from '../../../src/policy-package/errors.js';
-import { checkRedirectTarget, fetchJwks, isUriReference, loadTrustAnchor, resolveReference } from '../../../src/policy-package/trust-anchor.js';
+import { checkRequestTarget, fetchJwks, isUriReference, loadTrustAnchor, resolveReference } from '../../../src/policy-package/trust-anchor.js';
 
 // https 信任锚取回的细则（aster-lang-test#218 README「信任锚」与 2026-11-17 裁决）：直连不读代理变量、只认 301/302/303/307/308、
 // Accept-Encoding: identity、非 identity 的 Content-Encoding 失败、本地锚文件 ≤ 1 MiB。一致性夹具 https-jwks-* 覆盖其余规则。
@@ -79,11 +79,11 @@ test('锚 URL 必须是字面量小写 https://；本地锚文件超过 1 MiB �
   assert.equal(await usageOf(loadTrustAnchor({ pubkey: big })), 'USAGE');
 });
 
-test('信任根：缺省 CA + 系统 CA，ASTER_ANCHOR_CA_FILE 追加且去重', { skip }, async () => {
+test('信任根：系统 CA + 内置 CA，ASTER_ANCHOR_CA_FILE 追加且去重', { skip }, async () => {
   const tls = await import('node:tls');
   const { anchorCaCertificates } = await import('../../../src/policy-package/trust-anchor.js');
   const base = anchorCaCertificates({});
-  const expected = new Set([...tls.getCACertificates('default'), ...tls.getCACertificates('system')]);
+  const expected = new Set([...tls.getCACertificates('system'), ...tls.getCACertificates('bundled')]);
   assert.deepEqual(new Set(base), expected);
   assert.equal(base.length, expected.size, '应去重');
   const pem = readFileSync(join(dir, 'cert.pem'), 'utf8');
@@ -159,16 +159,17 @@ test('https 锚：Location 相对解析（RFC 3986 §5.2）、scheme 不区分�
   }
 });
 
-test('重定向目标：host 非空、端口 1–65535、无 userinfo、方括号只围 IP-literal', () => {
+test('请求目标：host 非空、端口 1–65535、无 userinfo、方括号只围 IP-literal', () => {
   const usage = (u: string): void =>
-    assert.throws(() => checkRedirectTarget(u), (e: unknown) => e instanceof PackageError && e.code === 'USAGE', u);
+    assert.throws(() => checkRequestTarget(u), (e: unknown) => e instanceof PackageError && e.code === 'USAGE', u);
   for (const ok of ['https://h/x', 'https://h:1/x', 'https://h:65535', 'https://[::1]:8443/x', 'https://127.0.0.1/x', 'https://h?q', 'https://h#f']) {
-    checkRedirectTarget(ok);
+    checkRequestTarget(ok);
   }
   for (const bad of [
     'https:///x', 'https://:443/x', 'https:x', 'https:/x', 'https://u@h/x', 'https://u:p@h/x', 'https://@h/x',
     'https://h:0/x', 'https://h:65536/x', 'https://h:/x', 'https://h:8a/x', 'https://h:+1/x', 'https://[]/x',
     'https://h[1]/x', 'https://[::1/x', 'https://::1]/x', 'https://h:[1]/x', 'https://[::1]x/x',
+    'https://h/a[b]', 'https://h/x?q=[1]', 'https://h/x#[f]', 'https://h:000443/x', 'https://[zz]/x', 'http://h/x',
   ]) {
     usage(bad);
   }
@@ -203,5 +204,11 @@ test('https 锚：解析后的重定向目标不合法即 USAGE，且不发请�
     }
   } finally {
     server.close();
+  }
+});
+
+test('首个 --jwks URL 同样按请求目标检查（userinfo / 端口 / 方括号即 USAGE，不发请求）', async () => {
+  for (const u of ['https://u@localhost/x', 'https://localhost:0/x', 'https://localhost/a[b]', 'https://:443/x']) {
+    assert.equal(await usageOf(fetchJwks(u, {})), 'USAGE', u);
   }
 });

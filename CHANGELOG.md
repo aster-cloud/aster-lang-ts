@@ -4,8 +4,10 @@
 
 ### 包格式 v1：重定向目标的发送前检查（ADR 0059 P1 T8 评审 N-1，aster-cloud/aster-cloud#797）
 
-- `--jwks <https-url>` 的重定向解析之后、发请求之前检查目标：host 非空；端口若出现必须是 1–65535 的十进制（`host:` 空端口同样不合法）；
-  不得带 userinfo；`[` / `]` 只能作为 IP-literal host 的首尾出现。任一不满足为 `USAGE`，不向该目标发请求。
+- `--jwks <https-url>` 的首个 URL 与每个解析后的重定向目标在发请求之前检查（`checkRequestTarget`，与参照实现 `validateRequestTarget` 同一判定）：
+  host 非空；端口若出现必须是 1–5 位十进制且在 1–65535 内（空端口同样拒绝）；不得带 userinfo；`[` / `]` 只能作为 IP-literal host 的边界，
+  出现在普通 host、路径、查询或片段中即拒绝。任一不满足为 `USAGE`，不发请求。
+- 取锚的信任根按 README 改为系统 CA ∪ Node 内置 CA（`getCACertificates('system')` ∪ `'bundled'`），`ASTER_ANCHOR_CA_FILE` 仍为追加。
 
 ### 包格式 v1：重定向 Location 的 RFC 3986 规则（ADR 0059 P1 T8 评审，aster-cloud/aster-cloud#797）
 
