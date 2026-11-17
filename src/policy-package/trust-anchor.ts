@@ -119,54 +119,91 @@ const JWKS_MAX_BYTES = 1024 * 1024;
 const ANCHOR_FILE_MAX_BYTES = 1024 * 1024;
 const JWKS_MAX_REDIRECTS = 3;
 
-// RFC 3986 的字符类：unreserved / sub-delims / pct-encoded（`new URL()` 会静默修补空格、反斜杠、控制字符与非 ASCII，
-// 所以重定向的 Location 原文必须先按 RFC 3986 校验再解析）
-const PCT = '%[0-9A-Fa-f]{2}';
-const UNRESERVED = "A-Za-z0-9\\-._~";
-const SUB_DELIMS = "!$&'()*+,;=";
-const PCHAR = `(?:[${UNRESERVED}${SUB_DELIMS}:@]|${PCT})`;
-const SEGMENT_NZ_NC = `(?:[${UNRESERVED}${SUB_DELIMS}@]|${PCT})+`;
-const QUERY_OR_FRAGMENT = new RegExp(`^(?:${PCHAR}|[/?])*$`);
-const PATH_ABEMPTY = new RegExp(`^(?:/${PCHAR}*)*$`);
-const PATH_ABSOLUTE = new RegExp(`^/(?:${PCHAR}+(?:/${PCHAR}*)*)?$`);
-const PATH_ROOTLESS = new RegExp(`^${PCHAR}+(?:/${PCHAR}*)*$`);
-const PATH_NOSCHEME = new RegExp(`^${SEGMENT_NZ_NC}(?:/${PCHAR}*)*$`);
-const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*$/;
-const USERINFO = new RegExp(`^(?:[${UNRESERVED}${SUB_DELIMS}:]|${PCT})*$`);
-const REG_NAME = new RegExp(`^(?:[${UNRESERVED}${SUB_DELIMS}]|${PCT})*$`);
-const IP_LITERAL = new RegExp(`^\\[(?:[0-9A-Fa-f:.]+|[vV][0-9A-Fa-f]+\\.[${UNRESERVED}${SUB_DELIMS}:]+)\\]$`);
-const PORT = /^[0-9]*$/;
+/**
+ * 重定向 Location 的原文校验（README「信任锚」，与参照实现 `resolveReference` 同一判定）：非空，且每个字符都是 RFC 3986 允许的
+ * unreserved / reserved 字符或合法的 `%XX`；原始空格、反斜杠、控制字符、未编码的非 ASCII 一律不合法——不得像 WHATWG URL 那样悄悄修正。
+ * 有 scheme 时 scheme 须符合 `ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`。
+ */
+const URI_REFERENCE_CHARS = /^(?:[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=]|%[0-9A-Fa-f]{2})+$/;
 /** RFC 3986 附录 B 的分解正则。 */
-const URI_PARTS = /^(?:([^:/?#]+):)?(?:\/\/([^/?#]*))?([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/;
+const RFC3986_PARTS = /^(?:([^:/?#]+):)?(?:\/\/([^/?#]*))?([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/;
+const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*$/;
 
-/** authority = [ userinfo "@" ] host [ ":" port ]，host 为 IP-literal 或 reg-name（IPv4 也满足 reg-name）。 */
-function isAuthority(a: string): boolean {
-  const at = a.lastIndexOf('@');
-  if (at >= 0 && !USERINFO.test(a.slice(0, at))) return false;
-  const hostPort = a.slice(at + 1);
-  const m = /^(\[[^\]]*\]|[^:]*)(?::(.*))?$/.exec(hostPort);
-  if (!m) return false;
-  const host = m[1]!;
-  const hostOk = host.startsWith('[') ? IP_LITERAL.test(host) : REG_NAME.test(host);
-  return hostOk && (m[2] === undefined || PORT.test(m[2]));
+interface UriParts {
+  readonly scheme: string | undefined;
+  readonly authority: string | undefined;
+  readonly path: string;
+  readonly query: string | undefined;
+  readonly fragment: string | undefined;
+}
+
+function splitReference(s: string): UriParts {
+  const m = RFC3986_PARTS.exec(s)!;
+  return { scheme: m[1], authority: m[2], path: m[3] ?? '', query: m[4], fragment: m[5] };
+}
+
+/** Location 原文是否为可接受的 URI-reference。 */
+export function isUriReference(ref: string): boolean {
+  if (ref === '' || !URI_REFERENCE_CHARS.test(ref)) return false;
+  const scheme = splitReference(ref).scheme;
+  return scheme === undefined || SCHEME.test(scheme);
+}
+
+/** RFC 3986 §5.2.4 remove_dot_segments。 */
+function removeDotSegments(path: string): string {
+  let input = path;
+  let output = '';
+  const popLast = (): void => {
+    output = output.slice(0, Math.max(0, output.lastIndexOf('/')));
+  };
+  while (input.length > 0) {
+    if (input.startsWith('../')) input = input.slice(3);
+    else if (input.startsWith('./')) input = input.slice(2);
+    else if (input.startsWith('/./')) input = input.slice(2);
+    else if (input === '/.') input = '/';
+    else if (input.startsWith('/../')) {
+      input = input.slice(3);
+      popLast();
+    } else if (input === '/..') {
+      input = '/';
+      popLast();
+    } else if (input === '.' || input === '..') input = '';
+    else {
+      const next = input.indexOf('/', input.startsWith('/') ? 1 : 0);
+      output += next < 0 ? input : input.slice(0, next);
+      input = next < 0 ? '' : input.slice(next);
+    }
+  }
+  return output;
+}
+
+/** §5.2.2 的目标路径（reference 无 scheme、无 authority 时）。 */
+function mergedPath(base: UriParts, ref: UriParts): string {
+  if (ref.path.startsWith('/')) return removeDotSegments(ref.path);
+  // §5.2.3 merge
+  const merged = base.authority !== undefined && base.path === '' ? `/${ref.path}` : `${base.path.slice(0, base.path.lastIndexOf('/') + 1)}${ref.path}`;
+  return removeDotSegments(merged);
 }
 
 /**
- * 原文是否为 RFC 3986 §4.1 的 URI-reference（URI 或 relative-ref），且非空。空格、反斜杠、控制字符、未编码的非 ASCII
- * 都不合法。用于重定向 Location：先校验原文，再按 §5.2 相对当前请求 URL 解析。
+ * 按 RFC 3986 §5.2.2 把 Location 相对当前请求 URL 解析（§5.3 重组，scheme 统一小写）。原文不合法为 USAGE。
+ * 不用 `new URL(ref, base)`：WHATWG 会修补非法字符，并对与 base 同 scheme 的 `https:x` 之类按相对引用处理，与 RFC 3986 不同。
  */
-export function isUriReference(ref: string): boolean {
-  if (ref === '') return false;
-  const m = URI_PARTS.exec(ref);
-  if (!m) return false;
-  const [, scheme, authority, path = '', query, fragment] = m;
-  if (scheme !== undefined && !SCHEME.test(scheme)) return false;
-  if (query !== undefined && !QUERY_OR_FRAGMENT.test(query)) return false;
-  if (fragment !== undefined && !QUERY_OR_FRAGMENT.test(fragment)) return false;
-  if (authority !== undefined) return isAuthority(authority) && PATH_ABEMPTY.test(path);
-  if (path === '' || PATH_ABSOLUTE.test(path)) return true;
-  // 无 authority 的非空相对路径：有 scheme 时为 path-rootless，否则首段不得含 ':'（path-noscheme）
-  return scheme !== undefined ? PATH_ROOTLESS.test(path) : PATH_NOSCHEME.test(path);
+export function resolveReference(baseUrl: string, reference: string): string {
+  if (!isUriReference(reference)) return usage(`Location 不是合法的 URI-reference：${JSON.stringify(reference)}`);
+  const r = splitReference(reference);
+  const b = splitReference(baseUrl);
+  let t: UriParts;
+  if (r.scheme !== undefined) t = { ...r, path: removeDotSegments(r.path) };
+  else if (r.authority !== undefined) t = { ...r, scheme: b.scheme, path: removeDotSegments(r.path) };
+  else if (r.path === '') t = { scheme: b.scheme, authority: b.authority, path: b.path, query: r.query ?? b.query, fragment: r.fragment };
+  else t = { scheme: b.scheme, authority: b.authority, path: mergedPath(b, r), query: r.query, fragment: r.fragment };
+  let out = `${t.scheme!.toLowerCase()}:`;
+  if (t.authority !== undefined) out += `//${t.authority}`;
+  out += t.path;
+  if (t.query !== undefined) out += `?${t.query}`;
+  if (t.fragment !== undefined) out += `#${t.fragment}`;
+  return out;
 }
 
 /** 被当作重定向跟随的状态码；其他 3xx 一律 USAGE。 */
@@ -227,7 +264,7 @@ function getOnce(url: string, agent: https.Agent, deadline: number): Promise<Fet
 
 /**
  * 取回 https 信任锚（README「信任锚」）：只接受字面量小写 `https://`；直连，不读任何代理环境变量；全部跳合计 10 s；
- * 只有 301/302/303/307/308 按重定向手动跟随：Location 原文先按 RFC 3986 校验（不合法为 USAGE），相对引用按 §5.2 相对当前请求 URL 解析，
+ * 只有 301/302/303/307/308 按重定向手动跟随：Location 原文先按 RFC 3986 校验（不合法为 USAGE），再按 §5.2 相对当前请求 URL 解析（{@link resolveReference}），
  * scheme 不区分大小写；至多 3 次且每一跳都必须是 https；
  * 其他 3xx 与非 2xx 失败；请求 `Accept-Encoding: identity`，响应带非 identity 的 `Content-Encoding` 失败；响应体 ≤ 1 MiB。
  * 任何失败都是 USAGE。
@@ -239,8 +276,8 @@ export async function fetchJwks(url: string, env: NodeJS.ProcessEnv = process.en
   try {
     let current = url;
     for (let hop = 0; ; hop++) {
-      // 首跳已要求字面量小写 https://；重定向目标的 scheme 不区分大小写（解析后已规范为小写）
-      if (new URL(current).protocol !== 'https:') return usage(`重定向到非 https 地址：${current}`);
+      // 首跳已要求字面量小写 https://；重定向目标的 scheme 不区分大小写，resolveReference 已统一为小写
+      if (!current.startsWith('https://')) return usage(`重定向到非 https 地址：${current}`);
       let res: FetchedResponse;
       try {
         res = await getOnce(current, agent, deadline);
@@ -250,8 +287,7 @@ export async function fetchJwks(url: string, env: NodeJS.ProcessEnv = process.en
       if (REDIRECT_STATUSES.has(res.status)) {
         if (res.location === undefined) return usage(`--jwks ${current} 返回 ${res.status} 但没有 Location`);
         if (hop + 1 > JWKS_MAX_REDIRECTS) return usage(`--jwks 重定向超过 ${JWKS_MAX_REDIRECTS} 次`);
-        if (!isUriReference(res.location)) return usage(`--jwks ${current} 的 Location 不是合法的 URI-reference：${JSON.stringify(res.location)}`);
-        current = new URL(res.location, current).toString();
+        current = resolveReference(current, res.location);
         continue;
       }
       if (res.status < 200 || res.status > 299) return usage(`--jwks ${current} 返回 HTTP ${res.status}`);
