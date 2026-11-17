@@ -11,6 +11,7 @@ import { parseDocumentText } from '../../../src/lsp/parse-document.js';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { HI_IN } from '../../../src/config/lexicons/hi-IN.js';
 import { SemanticTokenKind } from '../../../src/config/token-kind.js';
 import type { Lexicon } from '../../../src/config/lexicons/types.js';
 import { docOf, documentsOf, getOrParseWith } from './resolution-fixture.js';
@@ -92,6 +93,21 @@ const LANGS: readonly Lang[] = [
     kwExprs: ['  返回 作为 ', '  返回 产出 ', '  令 y 定义为 作为 '],
     kwParamType: '规则 h 给定 作为 作为 ',
   },
+  {
+    name: 'hi-IN', lexicon: HI_IN,
+    head: ['मॉड्यूल m.', '', 'उपयोग foo.bar रूप में L.', '', 'Type Score रूप में पूर्णांक.', '', 'परिभाषित Driver रखता है name रूप में पाठ.', ''],
+    field: 'परिभाषित Owner रखता है d रूप में ',
+    param: 'नियम f दिया गया x रूप में ',
+    ret: 'नियम f दिया गया x रूप में पूर्णांक, उत्पन्न ',
+    expr: '  लौटाएं ',
+    importAs: 'उपयोग foo.baz रूप में ',
+    shared: ['परिभाषित ग्राहक रखता है ग्राहक रूप में पूर्णांक.', 'Type ग्राहक रूप में पूर्णांक.'],
+    localizedText: 'पाठ',
+    // as 在 hi-IN 是两词（रूप में），不能作形参名；用与 produce（उत्पन्न）同形的形参
+    kwHeader: 'नियम g दिया गया उत्पन्न रूप में पूर्णांक, उत्पन्न पूर्णांक:',
+    kwExprs: ['  लौटाएं उत्पन्न ', '  मानें y हो उत्पन्न '],
+    kwParamType: 'नियम h दिया गया उत्पन्न रूप में ',
+  },
 ];
 
 /** 本地化内置类型的规范拼写，加上不本地化的治理返回类型 Verdict */
@@ -136,10 +152,14 @@ for (const lang of LANGS) {
       assert.ok(!labels.includes('Driver') && !labels.includes('Score') && !labels.includes('L'), `不应给声明类型：${labels}`);
       const typeKinds: (number | undefined)[] = [CompletionItemKind.Class, CompletionItemKind.TypeParameter, CompletionItemKind.Module];
       assert.ok(items.every((i) => !typeKinds.includes(i.kind)), '表达式位置不应有 Class / TypeParameter / Module 项');
-      // 类型关键词（内置类型、Verdict、类型构造词）只属类型位置，任何 kind 都不应出现在表达式补全里
-      const typeWords = [...builtins(lang.lexicon), ...constructors(lang.lexicon), 'list of', 'map', lang.localizedText];
+      // 类型关键词（内置类型、类型构造词）只属类型位置，任何 kind 都不应出现在表达式补全里
+      const typeWords = [...builtins(lang.lexicon).filter((w) => w !== 'Verdict'), ...constructors(lang.lexicon), 'list of', 'map', lang.localizedText];
       const leaked = labels.filter((l) => typeWords.includes(l));
       assert.deepEqual(leaked, [], `表达式位置不应给类型关键词：${leaked}`);
+      // Verdict 在表达式里是 Verdict.allow() 等构造器的命名空间：以 Value 给出一次（不是 Class）
+      const verdict = items.filter((i) => i.label === 'Verdict');
+      assert.deepEqual(verdict.map((i) => i.kind), [CompletionItemKind.Value], `Verdict：${JSON.stringify(verdict)}`);
+      assert.match(verdict[0]!.detail ?? '', /Verdict\.allow/);
       assert.ok(labels.includes(lang.lexicon.keywords[SemanticTokenKind.RETURN]!), '应回到关键词补全');
     });
 
@@ -350,6 +370,25 @@ describe('isTypePosition 本地化类型参数位置', () => {
     assert.equal(at(ZH_CN, '模块 m。\n\n定义 A 包含 x 作为 整数，y 作为 '), true);
     assert.equal(at(ZH_CN, '模块 m。\n\n规则 f 给定 x 作为 整数，产出 '), true);
     assert.equal(at(ZH_CN, '模块 m。\n\n规则 f（x 作为 整数，y 作为 '), true, '括号式函数头');
+  });
+
+  it('★hi-IN：शायद / विकल्प / परिणाम का 之后、परिणाम का … और 之后是类型位置', () => {
+    const head = 'मॉड्यूल m.\n\nपरिभाषित A रखता है x रूप में ';
+    assert.equal(at(HI_IN, head + 'शायद '), true);
+    assert.equal(at(HI_IN, head + 'विकल्प '), true);
+    assert.equal(at(HI_IN, head + 'परिणाम का '), true);
+    assert.equal(at(HI_IN, head + 'परिणाम का पूर्णांक और '), true);
+    assert.equal(at(HI_IN, head + 'परिणाम '), false, '只写了多词关键字的前半');
+    assert.equal(at(HI_IN, 'मॉड्यूल m.\n\nनियम f दिया गया x रूप में पूर्णांक और '), false, '形参之间的 और 不是类型参数位置');
+  });
+
+  it('★hi-IN：表达式里的逗号、सहित 之后不是类型位置，声明里仍是', () => {
+    const hi = 'मॉड्यूल m.\n\nनियम f दिया गया x रूप में पूर्णांक, y रूप में पूर्णांक, उत्पन्न पूर्णांक:\n';
+    assert.equal(at(HI_IN, hi + '  लौटाएं g सहित x, y रूप में '), false);
+    assert.equal(at(HI_IN, hi + '  लौटाएं g सहित x, उत्पन्न '), false);
+    assert.equal(at(HI_IN, hi + '  मानें z हो g सहित x, y रूप में '), false);
+    assert.equal(at(HI_IN, 'मॉड्यूल m.\n\nपरिभाषित A रखता है x रूप में पूर्णांक, y रूप में '), true);
+    assert.equal(at(HI_IN, 'मॉड्यूल m.\n\nनियम f दिया गया x रूप में पूर्णांक, उत्पन्न '), true);
   });
 
   it('en-US 对照：option of / result of … and', () => {

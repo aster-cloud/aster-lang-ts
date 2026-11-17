@@ -11,6 +11,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { LSPClient } from '../../../scripts/lsp-client-helper.js';
+import { RESOLVER_VERSION } from '../../../src/version.js';
 
 /* ★必须在独立空目录里启动：未传 rootUri 时服务端把 cwd 当工作区，扫描其中的 .aster 文件并
  *   读回 cwd/.asteri 的持久化索引。在仓库根启动会把语料里的同名符号算进引用（CI 实测 7 != 2）。
@@ -50,7 +51,7 @@ describe('LSP zh + inmemory 文档（真实服务端进程）', () => {
     const preview = (await client.request('aster/canonicalPreview', { textDocument: { uri: URI } })) as { text: string; mappings: unknown[]; resolverVersion: number };
     assert.equal(preview.text, ZH_DOC);
     assert.deepEqual(preview.mappings, []);
-    assert.equal(preview.resolverVersion, 1);
+    assert.equal(preview.resolverVersion, RESOLVER_VERSION);
     assert.equal(await client.request('aster/canonicalPreview', { textDocument: { uri: 'inmemory://policy/missing.aster' } }), null);
 
     const symbols = (await client.request('textDocument/documentSymbol', { textDocument: { uri: URI } })) as Array<{ name: string }>;

@@ -32,6 +32,7 @@ import { localizedField, memberCompletionResult } from './member-completion.js';
 import type { MemberCompletionOptions } from './member-completion.js';
 import { isTypePosition, typeCompletions, typeOnlyKeywords } from './type-completion.js';
 import { vocabularyTermCompletions } from './vocabulary-completion.js';
+import { VERDICT_ARITY, VERDICT_TYPE_NAME } from '../typecheck/verdict_signatures.js';
 
 /*
  * 包入口 `./lsp/completion` 的公开补全 API：成员补全及其所需的文档解析一并从此导出，
@@ -161,7 +162,7 @@ function fieldCompletionsAt(
 
 /**
  * 光标在类型位置时给类型候选（本文档声明、内置类型与词汇类型，按折叠名去重）；
- * 其它位置 types 为 null，values 给词汇函数与枚举成员。
+ * 其它位置 types 为 null，values 给 Verdict 命名空间（Value）与词汇函数、枚举成员。
  */
 function termCompletionsAt(
   documents: { get(uri: string): TextDocument | undefined },
@@ -176,13 +177,25 @@ function termCompletionsAt(
   const entry = getOrParse(doc);
   const lex = lexicon ?? EN_US;
   if (!isTypePosition(entry.tokens, params.position, lex)) {
-    return { types: null, values: vocabularyTermCompletions(entry.vocabulary, 'value') };
+    return { types: null, values: [verdictValueCompletion(), ...vocabularyTermCompletions(entry.vocabulary, 'value', { lexicon: lex })] };
   }
   const items = typeCompletions(entry.ast, lex);
-  // 类型位置按折叠后的规范名去重（ADR 0051 §6.3）：文档/别名/内置项胜出，规范名冲突的词汇项被丢弃
-  const seen = new Set(items.map((i) => foldKey(i.label)));
-  const extra = vocabularyTermCompletions(entry.vocabulary, 'type', seen).filter((i) => !seen.has(foldKey(i.label)));
-  return { types: [...items, ...extra], values: [] };
+  // 类型位置按折叠名去重（ADR 0051 §6.3）：文档/别名/内置项胜出，写法或规范名与之相同的词汇项让位
+  const takenLabels = new Set(items.map((i) => foldKey(i.label)));
+  return { types: [...items, ...vocabularyTermCompletions(entry.vocabulary, 'type', { takenLabels, lexicon: lex })], values: [] };
+}
+
+/**
+ * 表达式位置的 `Verdict`（ADR 0039）：治理规则的返回表达式 `Verdict.allow()` / `Verdict.deny(…)` 以它为前缀。
+ * 在这里它是构造器的命名空间（值），不是类型：kind 为 Value，与类型位置的 Verdict（Class）区分。
+ */
+function verdictValueCompletion(): CompletionItem {
+  return {
+    label: VERDICT_TYPE_NAME,
+    kind: CompletionItemKind.Value,
+    detail: [...VERDICT_ARITY.keys()].join(' / '),
+    data: VERDICT_TYPE_NAME,
+  };
 }
 
 const CONTROL_ARG = /@control\(\s*"([^"]*)$/;

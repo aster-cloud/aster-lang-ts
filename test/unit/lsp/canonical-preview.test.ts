@@ -21,6 +21,7 @@ import { compile } from '../../../src/browser.js';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { HI_IN } from '../../../src/config/lexicons/hi-IN.js';
 import type { Lexicon } from '../../../src/config/lexicons/types.js';
 import { RESOLVER_VERSION } from '../../../src/version.js';
 
@@ -113,6 +114,30 @@ describe('canonicalPreview：标识符替换与偏移', () => {
     assert.equal(preview(DE_DOC, DE_DE, DE_VOCAB).resolverVersion, RESOLVER_VERSION);
     assert.equal(preview(DE_DOC, DE_DE).resolverVersion, RESOLVER_VERSION);
   });
+
+  it('★hi-IN：天城文写法的类型与字段换成规范名，偏移按 UTF-16，与带词汇编译源码的 Core IR 相同', () => {
+    const text = [
+      'मॉड्यूल m.',
+      '',
+      'परिभाषित ग्राहक रखता है आयु रूप में पूर्णांक.',
+      '',
+      'नियम देखें दिया गया c रूप में ग्राहक, उत्पन्न पूर्णांक:',
+      '  लौटाएं c.आयु जोड़ c.आयु.',
+      '',
+    ].join('\n');
+    const v = vocab('hi-IN', {
+      structs: [{ canonical: 'Customer', localized: 'ग्राहक', kind: 'struct' }],
+      fields: [{ canonical: 'age', localized: 'आयु', kind: 'field', parent: 'Customer' }],
+    } as Partial<DomainVocabulary>);
+    const p = assertFaithful(text, HI_IN, v);
+    assert.equal(p.text, text.replace(/ग्राहक/g, 'Customer').replace(/आयु/g, 'age'));
+    assert.deepEqual(p.mappings[0]!.source, rangeIn(text, 'ग्राहक'));
+    assert.deepEqual(p.mappings[0]!.preview, rangeIn(p.text, 'Customer'));
+    const ages = p.mappings.filter((m) => m.canonical === 'age');
+    assert.equal(ages.length, 3, JSON.stringify(p.mappings));
+    assert.deepEqual(ages[2]!.source, rangeIn(text, 'आयु', 2));
+    assert.equal(p.text.slice(...ages[2]!.preview), 'age');
+  });
 });
 
 const LITERAL_CASES = [
@@ -128,25 +153,20 @@ const LITERAL_CASES = [
     doc: (word: string) => `模块 m。\n\n规则 greet，产出 文本：\n  返回 ${word}。\n`,
     quote: ['「', '」'],
   },
+  {
+    name: 'hi-IN',
+    lexicon: HI_IN,
+    doc: (word: string) => `मॉड्यूल m.\n\nनियम greet, उत्पन्न पाठ:\n  लौटाएं ${word}.\n`,
+    quote: ['"', '"'],
+  },
 ] as const;
-
-/** Core IR 中全部字符串字面量的值。 */
-function stringLiterals(node: unknown, out: string[] = []): string[] {
-  if (Array.isArray(node)) node.forEach((n) => stringLiterals(n, out));
-  else if (node && typeof node === 'object') {
-    const o = node as Record<string, unknown>;
-    if (o.kind === 'String' && typeof o.value === 'string') out.push(o.value);
-    Object.values(o).forEach((v) => stringLiterals(v, out));
-  }
-  return out;
-}
 
 for (const c of LITERAL_CASES) {
   describe(`canonicalPreview：字面量宏 ${c.name}`, () => {
-    it(`★展开为 ${c.quote[0]}…${c.quote[1]}，role === 'LITERAL'`, () => {
+    it(`★展开为 ${c.quote[0]}…${c.quote[1]}，role === 'LITERAL'；与带词汇编译源码的 Core IR 相同`, () => {
       const text = c.doc('greeting');
       const v = vocab(c.lexicon.id, { literals: [{ canonical: 'Hallo', localized: 'greeting', kind: 'literal' }] } as Partial<DomainVocabulary>);
-      const p = preview(text, c.lexicon, v);
+      const p = assertFaithful(text, c.lexicon, v);
       assert.equal(p.text, c.doc(`${c.quote[0]}Hallo${c.quote[1]}`));
       assert.equal(p.mappings.length, 1);
       const m = p.mappings[0]!;
@@ -156,15 +176,24 @@ for (const c of LITERAL_CASES) {
       assert.equal(p.text.slice(...m.preview), `${c.quote[0]}Hallo${c.quote[1]}`);
     });
 
-    it('★宏值含 " \\ 换行 」 时预览经 compile 成功，Core IR 中该字面量值等于宏值', () => {
-      const value = 'a"b\\c\nd」e\'f\tg\u0001h';
-      const text = c.doc('greeting');
+    it('★无需转义的宏值（空格、é、代理对、天城文、非当前 lexicon 的引号）：预览与带词汇编译源码的 Core IR 相同', () => {
+      const value = 'Grüße é 😀 नमस्ते' + ['「', '」'].filter((q) => !(c.quote as readonly string[]).includes(q)).join('');
       const v = vocab(c.lexicon.id, { literals: [{ canonical: value, localized: 'greeting', kind: 'literal' }] } as Partial<DomainVocabulary>);
-      const p = preview(text, c.lexicon, v);
-      const r = compile(p.text, { lexicon: c.lexicon });
-      assert.ok(r.success, `预览编译失败：${p.text}\n${JSON.stringify(r.parseErrors ?? r)}`);
-      assert.deepEqual(stringLiterals(r.core), [value]);
+      const p = assertFaithful(c.doc('greeting'), c.lexicon, v);
+      assert.equal(p.text, c.doc(`${c.quote[0]}${value}${c.quote[1]}`));
     });
+
+    // 编译器的 expandLiteralMacros 把宏值原样拼进引号（不转义，aster-lang-ts#345），
+    // 需要转义的值（反斜杠、当前 lexicon 的引号、" 与 '、控制字符）在两条路径上含义不同，预览无从忠实，一律不给（失败闭锁）
+    const needsEscape = new Set(['C:\\new', 'a\\b', 'a"b', 'a\'b', 'a\nb', 'a\tb', 'a\u0001b', `a${c.quote[0]}b`, `a${c.quote[1]}b`]);
+    for (const value of needsEscape) {
+      it(`★宏值需要转义（${JSON.stringify(value)}）时预览为 null`, () => {
+        const text = c.doc('greeting');
+        const v = vocab(c.lexicon.id, { literals: [{ canonical: value, localized: 'greeting', kind: 'literal' }] } as Partial<DomainVocabulary>);
+        const doc = parseDocumentWith(text, c.lexicon, buildVocabularyScopes(v));
+        assert.equal(buildCanonicalPreview(text, doc, c.lexicon), null);
+      });
+    }
   });
 }
 
@@ -199,6 +228,32 @@ describe('registerCanonicalPreviewHandler', () => {
 
   it('文档不存在返回 null', () => {
     assert.equal(handlerFor(undefined).call(), null);
+  });
+
+  it('★同一解析快照与 lexicon 复用上次结果；快照或 lexicon 变化时重算', () => {
+    let handler: ((p: unknown) => CanonicalPreview | null) | undefined;
+    const connection = { onRequest: (_m: string, fn: typeof handler) => { handler = fn; } };
+    const uri = 'file:///canonical-preview-cache.aster';
+    let version = 1;
+    let lexicon: Lexicon = DE_DE;
+    const documents = { get: () => TextDocument.create(uri, 'aster', version, DE_DOC) };
+    const scopes = buildVocabularyScopes(DE_VOCAB);
+    const snapshots = new Map<number, ReturnType<typeof parseDocumentWith> & { text: string }>();
+    const getOrParse = (doc: TextDocument) => {
+      if (!snapshots.has(doc.version)) snapshots.set(doc.version, { ...parseDocumentWith(doc.getText(), DE_DE, scopes), text: doc.getText() });
+      return snapshots.get(doc.version)!;
+    };
+    registerCanonicalPreviewHandler(connection as never, documents, getOrParse, () => lexicon);
+    const call = () => handler!({ textDocument: { uri } });
+    const first = call();
+    assert.ok(first);
+    assert.equal(call(), first, '同一快照应复用同一结果');
+    version = 2;
+    const second = call();
+    assert.notEqual(second, first, '新版本快照应重算');
+    assert.deepEqual(second, first);
+    lexicon = { ...DE_DE } as Lexicon;
+    assert.notEqual(call(), second, 'lexicon 变化应重算');
   });
 });
 

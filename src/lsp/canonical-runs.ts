@@ -25,6 +25,7 @@
  * 偏移一律是 UTF-16 code unit。
  */
 import { foldKey } from '../config/lexicons/identifiers/casefold.js';
+import { identifierTokenRegex } from '../frontend/canonicalizer.js';
 
 /** 原文中的 UTF-16 区间 [start, end) */
 export type OffsetRange = readonly [number, number];
@@ -42,8 +43,6 @@ export interface RunTarget {
  */
 export const DEFAULT_PROBE_BUDGET = 8_000_000;
 
-/** 与 canonicalizer 的 identifierTokenRegex 同一切分口径（字面量宏、转写都按它切词） */
-const IDENT_RUN = /[\p{L}_][\p{L}\p{M}\p{Nd}_]*/gu;
 
 interface Run {
   readonly at: number;
@@ -60,7 +59,8 @@ function piecesOf(line: string): Pieces {
   const runs: Run[] = [];
   const seps: string[] = [];
   let cursor = 0;
-  for (const m of line.matchAll(IDENT_RUN)) {
+  // 与 canonicalize 同一切词口径（字面量宏、转写都按它切词），共用同一正则以免两侧漂移
+  for (const m of line.matchAll(identifierTokenRegex())) {
     seps.push(line.slice(cursor, m.index));
     runs.push({ at: m.index, text: m[0] });
     cursor = m.index + m[0].length;

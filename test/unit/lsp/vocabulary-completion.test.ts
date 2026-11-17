@@ -10,6 +10,8 @@ import { vocabularyTermCompletions } from '../../../src/lsp/vocabulary-completio
 import { buildVocabularyScopes } from '../../../src/config/lexicons/identifiers/scopes.js';
 import { IdentifierKind } from '../../../src/config/lexicons/identifiers/types.js';
 import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
+import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { HI_IN } from '../../../src/config/lexicons/hi-IN.js';
 import type { Lexicon } from '../../../src/config/lexicons/types.js';
 import { docOf, documentsOf, getOrParseWith } from './resolution-fixture.js';
 import type { Doc } from './resolution-fixture.js';
@@ -27,14 +29,22 @@ const VOCAB = buildVocabularyScopes({
   enumValues: [{ canonical: 'High', localized: 'Hoch', kind: IdentifierKind.ENUM_VALUE, parent: 'Level' }],
 });
 
-function completeAt(doc: Doc, line: number, character: number, lexicon: Lexicon): Item[] {
+const HI_VOCAB = buildVocabularyScopes({
+  id: 'vc-hi', name: 't', locale: 'hi-IN', version: '1',
+  structs: [{ canonical: 'Customer', localized: 'ग्राहक', kind: IdentifierKind.STRUCT }],
+  fields: [{ canonical: 'age', localized: 'आयु', kind: IdentifierKind.FIELD, parent: 'Customer' }],
+  functions: [{ canonical: 'double', localized: 'दोगुना', kind: IdentifierKind.FUNCTION }],
+  enumValues: [{ canonical: 'High', localized: 'उच्च', kind: IdentifierKind.ENUM_VALUE, parent: 'Level' }],
+});
+
+function completeAt(doc: Doc, line: number, character: number, lexicon: Lexicon, scopes = VOCAB): Item[] {
   let handler: ((params: unknown) => { items: Item[] }) | undefined;
   const connection = {
     onCompletion: (fn: (params: unknown) => { items: Item[] }) => { handler = fn; },
     onCompletionResolve() {},
     onRequest() {},
   };
-  registerCompletionHandlers(connection as never, documentsOf(doc), getOrParseWith(lexicon, VOCAB) as never, () => lexicon);
+  registerCompletionHandlers(connection as never, documentsOf(doc), getOrParseWith(lexicon, scopes) as never, () => lexicon);
   return handler!({ textDocument: { uri: doc.uri }, position: { line, character } }).items;
 }
 
@@ -56,6 +66,25 @@ describe('vocabularyTermCompletions', () => {
     assert.equal(member?.kind, CompletionItemKind.EnumMember);
     assert.match(member?.detail ?? '', /^High · /);
     assert.ok(!items.some((i) => i.label === 'Fahrer'), '类型不进 value 角色');
+  });
+
+  it('detail 的角色名按 lexicon 本地化（与名称解析悬停同一套 UI 文本），缺省为英文', () => {
+    const detail = (label: string, lexicon?: Lexicon) =>
+      vocabularyTermCompletions(VOCAB, label === 'Fahrer' ? 'type' : 'value', lexicon ? { lexicon } : {}).find((i) => i.label === label)?.detail;
+    assert.equal(detail('prüfen'), 'check · function');
+    assert.equal(detail('Hoch'), 'High · enum member');
+    assert.equal(detail('Fahrer'), 'Driver · type');
+    assert.equal(detail('prüfen', ZH_CN), 'check · 函数');
+    assert.equal(detail('Hoch', ZH_CN), 'High · 枚举成员');
+    assert.equal(detail('Fahrer', ZH_CN), 'Driver · 类型');
+  });
+
+  it('type 角色：写法或规范名与 takenLabels 相同的词汇项让位', () => {
+    const labels = (taken: string[]) =>
+      vocabularyTermCompletions(VOCAB, 'type', { takenLabels: new Set(taken) }).map((i) => i.label).sort();
+    assert.deepEqual(labels(['driver']), ['Gemeinsam'], '规范名 Driver 已被占用');
+    assert.deepEqual(labels(['fahrer']), ['Gemeinsam'], '写法 Fahrer 已被占用');
+    assert.deepEqual(labels([]), ['Fahrer', 'Gemeinsam']);
   });
 
   it('type 角色只给类型', () => {
@@ -84,5 +113,27 @@ describe('补全接线', () => {
     // 规范名不冲突的词汇类型保留
     assert.equal(items.filter((i) => i.label === 'Gemeinsam').length, 1);
     assert.ok(!items.some((i) => i.label === 'prüfen'), '类型位置不给函数');
+  });
+});
+
+describe('补全接线 hi-IN', () => {
+  const HI_HEAD = ['मॉड्यूल m.', '', 'परिभाषित Driver रखता है name रूप में पाठ.', ''];
+
+  it('表达式位置出现天城文函数名与枚举成员，不出现类型项', () => {
+    const doc = docOf([...HI_HEAD, 'नियम f दिया गया x रूप में पूर्णांक, उत्पन्न पूर्णांक:', '  लौटाएं ']);
+    const items = completeAt(doc, doc.lines.length - 1, doc.lines[doc.lines.length - 1]!.length, HI_IN, HI_VOCAB);
+    assert.match(items.find((i) => i.label === 'दोगुना')?.detail ?? '', /^double · /);
+    assert.equal(items.find((i) => i.label === 'उच्च')?.kind, CompletionItemKind.EnumMember);
+    assert.ok(!items.some((i) => i.label === 'ग्राहक'), '表达式位置不给词汇类型');
+  });
+
+  it('类型位置并入天城文词汇类型，不给函数', () => {
+    const doc = docOf([...HI_HEAD, 'परिभाषित Owner रखता है d रूप में ']);
+    const items = completeAt(doc, doc.lines.length - 1, doc.lines[doc.lines.length - 1]!.length, HI_IN, HI_VOCAB);
+    const t = items.find((i) => i.label === 'ग्राहक');
+    assert.equal(t?.kind, CompletionItemKind.Class);
+    assert.match(t?.detail ?? '', /^Customer · /);
+    assert.ok(items.some((i) => i.label === 'पूर्णांक'), '本地化内置类型');
+    assert.ok(!items.some((i) => i.label === 'दोगुना'), '类型位置不给函数');
   });
 });

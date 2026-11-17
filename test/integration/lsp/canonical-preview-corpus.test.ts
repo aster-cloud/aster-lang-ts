@@ -1,9 +1,9 @@
 /**
- * `aster/canonicalPreview` 忠实性验收（ADR 0058 §8.2）：对 vocab-de 语料与 jingyesi、sherlock 示例，
+ * `aster/canonicalPreview` 忠实性验收（ADR 0058 §8.2）：对 vocab-de / vocab-zh / vocab-hi 语料与 jingyesi、sherlock 示例，
  * 「不带词汇编译预览文本」与「带词汇编译源码」的 Core IR（去掉 origin）深等。
  * 每个样本单独一条用例，不一致者逐个失败，不设豁免。
  *
- * vocab-de 取自 aster-lang-test（scripts/corpus-loader.ts 的 loadCorpus）；
+ * vocab-* 取自 aster-lang-test（scripts/corpus-loader.ts 的 loadCorpus）；
  * jingyesi、sherlock 是本仓库 examples/ 下的方言示例，lexicon 与词汇按各自 .mjs 原样复刻。
  */
 import { describe, it, before } from 'node:test';
@@ -19,6 +19,7 @@ import { SemanticTokenKind as K } from '../../../src/config/token-kind.js';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { HI_IN } from '../../../src/config/lexicons/hi-IN.js';
 import type { Lexicon } from '../../../src/config/lexicons/types.js';
 import { loadCorpus } from '../../../scripts/corpus-loader.js';
 
@@ -29,7 +30,10 @@ interface Case {
   readonly vocabulary: DomainVocabulary;
 }
 
-const LEXICONS: Readonly<Record<string, Lexicon>> = { 'en-US': EN_US, 'de-DE': DE_DE, 'zh-CN': ZH_CN };
+const LEXICONS: Readonly<Record<string, Lexicon>> = { 'en-US': EN_US, 'de-DE': DE_DE, 'zh-CN': ZH_CN, 'hi-IN': HI_IN };
+
+/** 各语言语料目录与最少样本数（防止语料缺失或检出过旧时静默通过） */
+const VOCAB_DIRS: Readonly<Record<string, number>> = { 'vocab-de': 16, 'vocab-zh': 8, 'vocab-hi': 3 };
 
 /** 递归去掉 origin（位置信息不参与比较：预览改变了行内长度）。 */
 function stripOrigin(node: unknown): unknown {
@@ -70,10 +74,10 @@ const EXAMPLES: readonly Case[] = [
   { name: 'examples/sherlock', source: readFileSync(resolve('examples/sherlock/sherlock.aster'), 'utf8'), lexicon: SHERLOCK_LEXICON, vocabulary: emptyVocabulary('sherlock', 'sherlock') },
 ];
 
-async function vocabDeCases(): Promise<Case[]> {
+async function vocabCases(dir: string): Promise<Case[]> {
   const { listSamples } = await loadCorpus();
   return listSamples()
-    .filter((s) => s.path.startsWith('tier1-parity/vocab-de/'))
+    .filter((s) => s.path.startsWith(`tier1-parity/${dir}/`))
     .map((s) => {
       const vocabPath = s.absPath.replace(/\.aster$/, '.vocab.json');
       assert.ok(existsSync(vocabPath), `${s.path} 缺少 .vocab.json`);
@@ -95,22 +99,25 @@ function assertParity(c: Case): void {
 }
 
 describe('canonicalPreview 语料忠实性', () => {
-  let vocabDe: Case[] = [];
+  const vocab = new Map<string, Case[]>();
   before(async () => {
-    vocabDe = await vocabDeCases();
-  });
-
-  it('vocab-de 语料存在（防止语料缺失时静默通过）', () => {
-    assert.ok(vocabDe.length >= 16, `vocab-de 样本异常偏少（${vocabDe.length}）`);
+    for (const dir of Object.keys(VOCAB_DIRS)) vocab.set(dir, await vocabCases(dir));
   });
 
   for (const c of EXAMPLES) {
     it(c.name, () => assertParity(c));
   }
 
-  it('vocab-de 每个样本', async (t) => {
-    for (const c of vocabDe) {
-      await t.test(c.name, () => assertParity(c));
-    }
-  });
+  for (const [dir, min] of Object.entries(VOCAB_DIRS)) {
+    it(`${dir} 语料存在（防止语料缺失时静默通过）`, () => {
+      const n = vocab.get(dir)?.length ?? 0;
+      assert.ok(n >= min, `${dir} 样本异常偏少（${n} < ${min}）`);
+    });
+
+    it(`${dir} 每个样本`, async (t) => {
+      for (const c of vocab.get(dir) ?? []) {
+        await t.test(c.name, () => assertParity(c));
+      }
+    });
+  }
 });

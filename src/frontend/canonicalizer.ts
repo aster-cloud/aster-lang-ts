@@ -103,7 +103,7 @@ function getKeywordWordSet(lexicon: Lexicon): ReadonlySet<string> {
  *
  * 注：正则带 `/g` 有 lastIndex 状态，故用工厂每次返回全新实例，避免跨调用串扰。
  */
-function identifierTokenRegex(): RegExp {
+export function identifierTokenRegex(): RegExp {
   return /[\p{L}_][\p{L}\p{M}\p{Nd}_]*/gu;
 }
 

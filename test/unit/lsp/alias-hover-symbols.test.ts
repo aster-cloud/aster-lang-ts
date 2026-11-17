@@ -10,6 +10,7 @@ import { registerDocumentSymbolHandler } from '../../../src/lsp/navigation/docum
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { HI_IN } from '../../../src/config/lexicons/hi-IN.js';
 import type { Lexicon } from '../../../src/config/lexicons/types.js';
 import { docOf, documentsOf, getOrParseWith, posOf } from './resolution-fixture.js';
 import type { Doc } from './resolution-fixture.js';
@@ -33,6 +34,7 @@ const CASES = [
   { name: 'en-US', lexicon: EN_US, lines: ['Module m.', '', 'Use foo.bar as L.', '', 'Type Score as Int.', '', 'Define D has s as Score.', ''], target: 'Int' },
   { name: 'de-DE', lexicon: DE_DE, lines: ['Modul m.', '', 'verwende foo.bar als L.', '', 'Type Score als Ganzzahl.', '', 'Definiere D hat s als Score.', ''], target: 'Int' },
   { name: 'zh-CN', lexicon: ZH_CN, lines: ['模块 m。', '', '引用 foo.bar 作为 L。', '', 'Type Score 作为 整数。', '', '定义 D 包含 s 作为 Score。', ''], target: 'Int' },
+  { name: 'hi-IN', lexicon: HI_IN, lines: ['मॉड्यूल m.', '', 'उपयोग foo.bar रूप में L.', '', 'Type Score रूप में पूर्णांक.', '', 'परिभाषित D रखता है s रूप में Score.', ''], target: 'Int' },
 ];
 
 for (const c of CASES) {

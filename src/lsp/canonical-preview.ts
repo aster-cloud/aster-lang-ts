@@ -9,6 +9,7 @@
  * 原文里同形的词（`Return a a.` 里被删的冠词 `a`）不能凭文字相同认作编译器用的那个词。
  * ★失败闭锁：任何一处该替换的位置证明不了（含探测预算耗尽）、或两处替换区间冲突，就不给预览（返回 null，
  *   与「文档不存在」同一契约）。只替换一部分的文本不带词汇编译后含义不同，比没有预览更糟。
+ *   宏值需要转义时同样不给预览（编译器不转义宏值，见 needsEscape）。
  *
  * 偏移一律是 UTF-16 code unit（ADR §7.8），与 Monaco / LSP 默认的 positionEncoding 一致。
  */
@@ -166,7 +167,10 @@ function canonicalTarget(site: ResolutionSite, idents: readonly IdentToken[], to
   return undefined;
 }
 
-/** 字面量宏的替换：编译器在规范化文本上展开的每一处，证明其原文位置后换成字符串字面量。任何一处证明不了返回 null。 */
+/**
+ * 字面量宏的替换：编译器在规范化文本上展开的每一处，证明其原文位置后换成字符串字面量。
+ * 任何一处证明不了、或宏值需要转义（见 needsEscape），返回 null。
+ */
 function literalReplacements(text: string, doc: ResolvableDocument, lexicon: Lexicon, prove: Prove): Replacement[] | null {
   const literals = doc.vocabulary?.literals;
   if (!literals || literals.size === 0) return [];
@@ -190,11 +194,22 @@ function literalReplacements(text: string, doc: ResolvableDocument, lexicon: Lex
   const out: Replacement[] = [];
   for (const [i, r] of runs.entries()) {
     const at = found[i];
-    if (!at) return null;
-    const literal = quotes.open + escapeStringLiteral(r.value, quotes.close) + quotes.close;
-    out.push({ start: at[0], end: at[1], text: literal, canonical: r.value, role: 'LITERAL' });
+    if (!at || needsEscape(r.value, quotes)) return null;
+    out.push({ start: at[0], end: at[1], text: quotes.open + r.value + quotes.close, canonical: r.value, role: 'LITERAL' });
   }
   return out;
+}
+
+/**
+ * 宏值写进字面量是否需要转义：反斜杠、当前 lexicon 的开 / 闭引号、`"` 与 `'`、控制字符
+ * （即 escapeStringLiteral 会改写的字符，外加开引号）。
+ * ★编译器的 expandLiteralMacros 把宏值原样拼进引号、不转义（aster-lang-ts#345）：`C:\new` 展开后
+ *   被 lexer 读成「C: 换行 ew」。预览若写转义形式，不带词汇编译出的值与带词汇编译源码的值不同；
+ *   若照抄原值，又会让评审者看到同样含糊的写法。两条路径对这类值给不出一致的规范形式，故整份预览失败闭锁。
+ *   编译器两侧（TS 与 Java）改为转义后，这里改回输出 escapeStringLiteral 的结果。
+ */
+function needsEscape(value: string, quotes: { readonly open: string; readonly close: string }): boolean {
+  return escapeStringLiteral(value, quotes.close) !== value || value.includes(quotes.open) || value.includes(quotes.close);
 }
 
 /**
@@ -227,19 +242,30 @@ function defaultLexicon(): Lexicon {
   return LexiconRegistry.getDefault();
 }
 
+/**
+ * 注册 `aster/canonicalPreview`。预览按解析快照缓存：getOrParse 对同一文档版本返回同一对象，
+ * 快照与 lexicon 都未变时直接复用上次结果（预览窗格随光标频繁请求，而一次预览要多轮 canonicalize 探测）。
+ * 以快照为 WeakMap 键，文档换版本或关闭后旧快照被回收，缓存随之释放。
+ */
 export function registerCanonicalPreviewHandler(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined },
   getOrParse: (doc: TextDocument) => ResolvableDocument & { text: string },
   getLexiconForDoc?: (uri: string) => Lexicon | undefined
 ): void {
+  const cache = new WeakMap<object, { readonly lexicon: Lexicon | undefined; readonly preview: CanonicalPreview | null }>();
   connection.onRequest(
     CANONICAL_PREVIEW_METHOD,
     (params: { textDocument: { uri: string } }): CanonicalPreview | null => {
       const doc = documents.get(params.textDocument.uri);
       if (!doc) return null;
       const entry = getOrParse(doc);
-      return buildCanonicalPreview(entry.text, entry, getLexiconForDoc?.(doc.uri));
+      const lexicon = getLexiconForDoc?.(doc.uri);
+      const hit = cache.get(entry);
+      if (hit && hit.lexicon === lexicon) return hit.preview;
+      const preview = buildCanonicalPreview(entry.text, entry, lexicon);
+      cache.set(entry, { lexicon, preview });
+      return preview;
     }
   );
 }
