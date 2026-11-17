@@ -209,7 +209,8 @@ export function resolveReference(baseUrl: string, reference: string): string {
 /**
  * 请求目标在发出请求之前的检查（README「信任锚」，与参照实现 `validateRequestTarget` 同一判定）：首个 `--jwks` URL 与每个解析后的
  * 重定向目标都要满足——host 非空；端口可省略，给出时必须是 1–5 位十进制且在 1–65535 内（空端口 `h:` 同样拒绝）；不得含 userinfo
- * （`u:p@`、`u@`、空的 `@`）；`[` `]` 只能作为 IP-literal host 的边界，出现在普通 host、路径、查询或片段中即拒绝。任一不满足为 USAGE。
+ * （`u:p@`、`u@`、空的 `@`）；`[` `]` 只能作为 IP-literal host 的边界，出现在普通 host、路径、查询或片段中即拒绝；非方括号 host 中不得含 `:`。
+ * 任一不满足为 USAGE。
  */
 export function checkRequestTarget(target: string): void {
   const bad = (why: string): never => usage(`请求目标不合法（${why}）：${target}`);
@@ -234,6 +235,8 @@ export function checkRequestTarget(target: string): void {
       port = authority.slice(colon + 1);
     }
     if (/[[\]]/.test(host)) bad('[ ] 只能用于 IP-literal host');
+    // 非方括号 host 中不得再有 `:`（`h:1:2` 之类：去掉末尾端口后 host 仍含冒号）
+    if (host.includes(':')) bad('非 IP-literal host 中含 :');
   }
   if (host === '') bad('host 为空');
   if (port !== undefined && (!/^[0-9]{1,5}$/.test(port) || Number(port) < 1 || Number(port) > 65535)) bad('端口不是 1–65535 的十进制');
@@ -309,6 +312,9 @@ function getOnce(url: string, agent: https.Agent, deadline: number): Promise<Fet
  */
 export async function fetchJwks(url: string, env: NodeJS.ProcessEnv = process.env): Promise<Uint8Array> {
   if (!url.startsWith('https://')) usage(`--jwks 的 URL 必须以小写 https:// 开头：${url}`);
+  // 首个 URL 与重定向 Location 同一字符级 URI-reference 校验（无裸空格、反斜杠、控制字符、非 ASCII、非法 %XX），再做请求目标检查；
+  // 任一不满足在发出任何请求之前即 USAGE
+  if (!isUriReference(url)) usage(`--jwks 的 URL 含 RFC 3986 不允许的字符：${JSON.stringify(url)}`);
   checkRequestTarget(url);
   const deadline = Date.now() + JWKS_FETCH_TIMEOUT_MS;
   const agent = new https.Agent({ ca: anchorCaCertificates(env) });
