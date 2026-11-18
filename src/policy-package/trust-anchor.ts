@@ -2,7 +2,7 @@
  * 信任锚（README「信任锚」，ADR 0059 §6.2、修订 2 R8）。
  *
  * 读取与校验属于 usage 阶段：锚文件不可读或不合法、`--jwks` 与 `--pubkey` 同时给出，一律 `USAGE`（在读包之前）。
- *   - 不给锚：内置 `trust/export-jwks.json`（P1 为 `{"keys":[]}`，任何签名包都是 `PKG_UNTRUSTED_KID`）；
+ *   - 不给锚：内置 `trust/export-jwks.json`（生产导出公钥 `export-2026-11a`，ADR 0059 P2 T25；测试密钥不内置，签名用测试 kid 的包为 `PKG_UNTRUSTED_KID`）；
  *   - `--jwks <file|url>`：JWKS，按签名文件的 kid 查找；参数形如 `scheme://` 即为 URL，只有字面量小写 `https://` 联网（见 {@link fetchJwks}）；
  *   - `--pubkey <file>`：按首个非空白字符区分原始公钥（不看 kid）与单个 JWK（带 kid 时必须相符）。
  * 锚文件按严格 JSON 读（无 BOM、无重复键），与 manifest 同一读取器。

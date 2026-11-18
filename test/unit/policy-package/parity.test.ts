@@ -1,10 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { canonicalJson } from '../../../src/core/canonical-json.js';
-import { ERROR_CODES } from '../../../src/policy-package/errors.js';
+import { ERROR_CODES, PackageError } from '../../../src/policy-package/errors.js';
+import { readPackage } from '../../../src/policy-package/read-package.js';
+import { verifySignature } from '../../../src/policy-package/signature.js';
 import { anchorKids, builtinTrustAnchor } from '../../../src/policy-package/trust-anchor.js';
 import { PACKAGE_V1, readFixtureJson } from '../../helpers/package-v1.js';
 
@@ -45,4 +48,33 @@ test('内置信任锚：只含生产导出密钥 export-2026-11a，规范 JSON�
     assert.deepEqual([k['kty'], k['crv'], k['alg'], k['use']], ['OKP', 'Ed25519', 'EdDSA', 'sig']);
   }
   assert.deepEqual(anchorKids(builtinTrustAnchor()), ['export-2026-11a']);
+  // conformance 测试密钥（keys/README.md）的公钥不得出现在内置锚中
+  assert.ok(jwks.keys.every((k) => k['x'] !== '8dfz-daPQgc3ZDU3qhgH23T0RCgeJU6POxG70ZlJ9HA'));
+});
+
+/** 把 a-decimal 复制到临时目录并改写签名文件的 kid，再用内置锚（不给 --jwks / --pubkey）验签。 */
+function verifyWithBuiltinAnchor(kid: string): string | null {
+  const dir = mkdtempSync(join(tmpdir(), 'builtin-anchor-'));
+  try {
+    const pkgDir = join(dir, 'a-decimal');
+    cpSync(join(PACKAGE_V1!, 'packages', 'a-decimal'), pkgDir, { recursive: true });
+    const sigPath = join(pkgDir, 'manifest.sig.json');
+    const sig = JSON.parse(readFileSync(sigPath, 'utf8')) as Record<string, string>;
+    writeFileSync(sigPath, canonicalJson({ ...sig, kid }));
+    try {
+      verifySignature(readPackage(pkgDir), builtinTrustAnchor(), { allowUnsigned: false });
+      return null;
+    } catch (e) {
+      if (e instanceof PackageError) return e.code;
+      throw e;
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('不给锚选项时按内置锚验签：生产 kid 走到签名比对，测试 kid 不受信', { skip }, () => {
+  // 签名不是生产私钥签的，所以是 PKG_SIGNATURE 而不是 PKG_UNTRUSTED_KID：证明内置锚确实按 kid 取到了生产公钥
+  assert.equal(verifyWithBuiltinAnchor('export-2026-11a'), 'PKG_SIGNATURE');
+  assert.equal(verifyWithBuiltinAnchor('test-2026-11'), 'PKG_UNTRUSTED_KID');
 });
