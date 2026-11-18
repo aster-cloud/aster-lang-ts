@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 3.3.0
+
+> **次版本号的理由**：包的公开声明只增不删、无签名收窄——在 `v3.2.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts`：
+> 没有删除的声明文件；9 个已有文件有改动，全部是新增或等价改写：`ErrorCode` 新增 E730–E735、E737–E739，`ErrorCategory` 增加
+> `'export'`（同 `'governance'` 的先例，只加不减），`evaluate` 的 `options` 由内联 `{ maxSteps? }` 改为同形且多一个可选字段的
+> `EvaluateOptions`，`EvalResult` 新增可选 `errorKind` / `steps`，新增 `ResourceExhaustedError`（继承 `InterpreterError`）、
+> `BUILTIN_ARITY`、`identifierTokenRegex`、`literalMacroRuns`、AST `Field.annotations?`，`read-core-ir` 的三个导出改为从
+> `read-core-ir-base` 再导出（名字与类型不变）；另有 38 个新声明文件，`exports` 新增子路径 `./layout`、`./runner`、`./package-check`，
+> 已有子路径不变。但 ts#334 与 ts#348 的语法裁决（`X of A` 分隔符后的裸小写名字报 E055、行尾 / 标点前 / 空白行里的非 ASCII
+> 空白报 E050）让部分既有源码出现新的 error 级诊断，不是补丁级变化，按 ADR 0046 §11.7 第 11 条（1.6.0、3.1.0、3.2.0 先例）
+> 取 minor。ts#348 让 zh-CN / hi-IN 标点前空格之后的 `origin.*.col` 与 core 对齐，不改 IR 形状，也不进投影哈希。
 
 ### 包格式 v1：内置信任锚改为生产导出公钥（ADR 0059 P2 T25，§6.2「先发布锚，再签名」）
 
