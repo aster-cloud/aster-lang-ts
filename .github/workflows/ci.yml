@@ -64,6 +64,14 @@ jobs:
           repository: aster-cloud/aster-lang-locales
           path: aster-lang-locales
           token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
+      # 导出 builtin 白名单与 truffle 同形白名单的同步测试（ADR 0059 P2 T22，test/unit/policy-package/export-builtins.test.ts）
+      # 直读兄弟仓 src/main/resources/aster/truffle/export-builtins.json，缺失即失败。
+      - name: Checkout aster-lang-truffle
+        uses: aster-cloud/aster-lang-platform/.github/actions/checkout-sibling@main
+        with:
+          repository: aster-cloud/aster-lang-truffle
+          path: aster-lang-truffle
+          token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
       - uses: actions/setup-python@v6
         with: { python-version: '3.12' }
       - name: Release-plan drift gate

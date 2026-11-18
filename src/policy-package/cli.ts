@@ -14,7 +14,6 @@ import { anchorKids, builtinTrustAnchor, loadTrustAnchor, type TrustAnchor } fro
 import { parseArgs, type ParsedArgs } from './argv.js';
 import { cliVersion, ENGINE, toolchainId } from './cli-version.js';
 import { ERROR_CODES, PackageError, type ErrorCode, type Stage } from './errors.js';
-import type { EvaluatePackageResult } from './evaluate-package.js';
 import { findFunc, parseInput, validateInputTree, type IrView } from './input.js';
 import { verifyIntegrity, payload } from './integrity.js';
 import { defaultEntry, SUPPORTED_CORE_IR_VERSIONS, SUPPORTED_FORMAT_VERSIONS } from './manifest.js';
@@ -34,6 +33,10 @@ import { verifySignature } from './signature.js';
 import { isJsonObject, parseStrictJson, type JsonValue } from './strict-json.js';
 import { valueJson, type ValueTree } from './value-json.js';
 import type { EvalJob, WorkerMessage } from './worker-eval.js';
+import { probeMatches, type EvalOutcome } from './probe-match.js';
+
+// 探针比较与 Workers 内的 checkProbes 共用（probe-match.ts），这里原样再导出（既有 import 路径不变）。
+export { probeMatches, type EvalOutcome } from './probe-match.js';
 
 /** 子命令的执行结果。 */
 export interface CommandResult {
@@ -131,7 +134,6 @@ function factsWarning(ctx: Ctx, pkg: LoadedPackage): void {
 // 求值（Worker + 超时）
 // ---------------------------------------------------------------------------
 
-export type EvalOutcome = EvaluatePackageResult | { readonly ok: false; readonly code: 'TIMEOUT' | 'RESOURCE_EXHAUSTED' | 'EVAL_ERROR'; readonly message: string };
 
 /** 在 Worker 中求值；Worker 发出 `started` 后开始计时，到点 `terminate()` 并报 TIMEOUT。 */
 export function evaluateInWorker(
@@ -230,20 +232,6 @@ function checkNameOf(e: PackageError): string {
   const byStage: Partial<Record<Stage, string>> = { manifest: 'schema', signature: 'signature', integrity: 'integrity', ir: 'ir' };
   if (e.stage === 'read') return e.code === 'PKG_INVALID_MANIFEST' ? 'schema' : 'integrity';
   return byStage[e.stage] ?? 'integrity';
-}
-
-/** probes 结果是否与期望相符（期望无损读取后按值规范 JSON 写出比较）。 */
-export function probeMatches(expected: JsonValue, r: EvalOutcome): boolean {
-  if (!isJsonObject(expected)) return false;
-  if (expected['ok'] === true) {
-    if (!('value' in expected) || !r.ok) return false;
-    try {
-      return valueJson(expected['value'] as ValueTree) === r.valueJson;
-    } catch {
-      return false;
-    }
-  }
-  return expected['ok'] === false && expected['code'] === 'EVAL_ERROR' && !r.ok && r.code === 'EVAL_ERROR';
 }
 
 /** 逐条跑 probes；任一不符（含入口 / 输入不合法、超时）即 PROBE_MISMATCH。 */

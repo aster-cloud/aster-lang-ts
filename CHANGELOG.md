@@ -9,6 +9,25 @@
   平台签名的包直接验签通过；`aster version` 的 `trustAnchorKids` 由 `[]` 变为 `["export-2026-11a"]`。
 - 测试密钥（kid 以 `test-` 开头）仍只能经 `--jwks` / `--pubkey` 注入，测试断言内置锚中不得出现。
 
+### `./package-check` 子路径与导出 builtin 白名单（ADR 0059 P2 T22 / T23，修订 3 P2-R5 / P2-R7 / P2-R13）
+
+- **新子路径 `@aster-cloud/aster-lang-ts/package-check`**（Workers 可用：依赖闭包不引用 Node 内置模块，运行时不生成代码）：
+  - `TS_VERSION`：本包版本（构建时由 `scripts/stamp-ts-version.mjs` 写入 dist；从源码直接运行时为占位值 `0.0.0-unstamped`）；
+  - `compileSourcePositionFreeSha256(source, { locale, aliasSetJson, allowStructural, vocabularyJson? })`：与 CLI 对 B 包的本地编译同一路径，
+    返回修订 1 A2 的投影哈希；编译失败抛 `CompileFailure`；
+  - `checkProbes(coreJson, probesJson, { maxSteps, maxCallDepth, deadlineMs })`：与 `verify --probes` 同一读入、输入转换、求值与比较规则，
+    返回 `{ count, agreed, firstMismatch }`；超步数、调用深度超限、JS 栈溢出、输入 / 入口不合法、超过 `deadlineMs` 都计为不一致；
+    Core IR 用预编译的 schema 校验函数严格读入（`readCoreIrPrecompiled`，与 `readCoreIr` 结果相同），读入失败抛 `CoreIrFormatError`；
+  - `EXPORT_BUILTINS`：ts 引擎的导出 builtin 白名单。
+- **新文件 `src/policy-package/export-builtins.json`**（P1 T10 的 ts 一半，与 truffle `aster/truffle/export-builtins.json` 同形）：
+  `BUILTIN_ARITY` 键 ∪ `BUILTIN_OPS` ∪ `NAMED_BUILTIN_OPS` 中值非 null 的键（排除 `await`），`aliases` = `CALL_TARGET_BUILTIN_ALIASES`；
+  由 `scripts/generate-export-builtins.ts` 生成，测试锁定与 truffle 白名单的差集（只有 `PII.unwrap`、`Text.redact`、`await` 是 JVM 独有）。
+- **行为变化**：解释器超过 `maxSteps` 时改抛 `ResourceExhaustedError`，`evaluate` 的结果多出 `errorKind: 'resource'`（message 不变）。
+  包格式 CLI 的步数不设限，不受影响；浏览器 / cloud 调用方的 `success` 与 `error` 不变。
+- 内部重构（公开导出不变）：`read-core-ir.ts` 拆出不依赖 ajv 的 `read-core-ir-base.ts`；`obtain-ir.ts` 的源码编译与投影哈希移到
+  `compile-source.ts`（原路径再导出）；`probeMatches` 移到 `probe-match.ts`（`cli.ts` 再导出）；`evaluatePackage` 与 `checkProbes` 共用 `evaluateIr`。
+- `scripts/generate-core-ir-types.ts` 另生成 `src/core/core-ir-v2.validator.generated.ts`（ajv standalone，约 350 KB，只被 `./package-check` 引用）。
+
 ### 策略包导出码 E730–E735、E737–E739（ADR 0059 修订 3 P2-R5 / P2-R6，与 aster-lang-core 同车次）
 
 - `shared/error_codes.json` 新增 9 个 `EXPORT_*` 码（新类别 `export`，恒为 error，E736 保留不启用）：E730 IO 能力、E731 workflow / Async / Await、

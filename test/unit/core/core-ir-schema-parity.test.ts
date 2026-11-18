@@ -6,8 +6,10 @@ import {
   CORE_IR_SCHEMA_MODULE_PATH,
   CORE_IR_SCHEMA_PATH,
   CORE_IR_TYPES_PATH,
+  CORE_IR_VALIDATOR_MODULE_PATH,
   renderCoreIrSchemaModule,
   renderCoreIrTypes,
+  renderCoreIrValidatorModule,
 } from '../../../scripts/generate-core-ir-types.js';
 import { CORE_IR_V2_SCHEMA } from '../../../src/core/core-ir-v2.schema.generated.js';
 import { locateLocalesCoreIr } from '../../helpers/locales-core-ir.js';
@@ -32,4 +34,11 @@ test('generated schema module is fresh and equals the shared copy', () => {
   assert.equal(readRepo(CORE_IR_SCHEMA_MODULE_PATH), renderCoreIrSchemaModule(sharedSchema()),
     '重新运行 node dist/scripts/generate-core-ir-types.js 并提交生成物');
   assert.deepEqual(CORE_IR_V2_SCHEMA, sharedSchema());
+});
+
+test('generated precompiled validator is fresh (ajv standalone, no runtime code generation)', () => {
+  const text = readRepo(CORE_IR_VALIDATOR_MODULE_PATH);
+  assert.equal(text, renderCoreIrValidatorModule(sharedSchema()),
+    '重新运行 node dist/scripts/generate-core-ir-types.js 并提交生成物（ajv 升级也需要）');
+  assert.doesNotMatch(text, /\bnew Function\b|\beval\(|\brequire\(/);
 });

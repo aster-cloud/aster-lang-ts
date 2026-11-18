@@ -208,7 +208,7 @@ export interface EvalResult {
   /** 执行耗时（毫秒） */
   executionTimeMs?: number;
   /**
-   * 失败类别（失败时）：`'resource'` 表示调用深度超限或 JS 栈溢出（{@link ResourceExhaustedError}），
+   * 失败类别（失败时）：`'resource'` 表示超步数、调用深度超限或 JS 栈溢出（{@link ResourceExhaustedError}），
    * 包格式 CLI 据此报 `RESOURCE_EXHAUSTED` 而不是 `EVAL_ERROR`（ADR 0059 修订 1 A4）。其余失败不带此字段。
    */
   errorKind?: 'resource';
@@ -720,7 +720,7 @@ const NOT_STDLIB = Symbol('not-stdlib');
  * 用户按提示改对参数个数后仍是 `Undefined function`。故本表只覆盖
  * `evalStdlibCall` 真正实现的名字，让不存在的函数如实报「不存在」。
  */
-const BUILTIN_ARITY: Readonly<Record<string, readonly [number, number]>> = {
+export const BUILTIN_ARITY: Readonly<Record<string, readonly [number, number]>> = {
   'Date.addDays': [2, 2],
   'Date.day': [1, 1],
   'Date.daysBetween': [2, 2],
@@ -2064,7 +2064,8 @@ class Interpreter {
   private tick(): void {
     this.steps++;
     if (this.steps > this.maxSteps) {
-      throw new InterpreterError(
+      // 与调用深度超限同属资源耗尽（evaluate 标 errorKind: 'resource'）：Workers 内的探针比对据此把超步数算作不一致（ADR 0059 修订 3 P2-R13）
+      throw new ResourceExhaustedError(
         `Maximum execution steps (${this.maxSteps}) exceeded — possible infinite loop`,
       );
     }

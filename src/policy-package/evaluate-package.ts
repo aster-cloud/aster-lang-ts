@@ -28,11 +28,33 @@ export function evaluatePackage(
   input: { [key: string]: JsonValue },
   beforeEvaluate: () => void = () => {},
 ): EvaluatePackageResult {
-  const ir = JSON.parse(coreJson) as IrView;
+  return evaluateIr(JSON.parse(coreJson) as IrView, entry, input, CLI_EVAL_LIMITS, beforeEvaluate);
+}
+
+/** 解释器步数与调用深度上限。 */
+export interface EvalLimits {
+  readonly maxSteps: number;
+  readonly maxCallDepth: number;
+}
+
+/** CLI 的上限：步数不设限（死循环交给 Worker 超时），调用深度 {@link CLI_MAX_CALL_DEPTH}。 */
+export const CLI_EVAL_LIMITS: EvalLimits = { maxSteps: Number.MAX_SAFE_INTEGER, maxCallDepth: CLI_MAX_CALL_DEPTH };
+
+/**
+ * 在已解析的 IR 上求值（{@link evaluatePackage} 与 Workers 内的 `checkProbes` 共用同一路径，只有上限不同）。
+ * 超步数、调用深度超限与 JS 栈溢出都报 `RESOURCE_EXHAUSTED`。
+ */
+export function evaluateIr(
+  ir: IrView,
+  entry: string,
+  input: { [key: string]: JsonValue },
+  limits: EvalLimits,
+  beforeEvaluate: () => void = () => {},
+): EvaluatePackageResult {
   if (!findFunc(ir, entry)) return { ok: false, code: 'ENTRY_NOT_FOUND', message: `入口 ${entry} 不在 IR 中` };
   const ctx = toGuestContext(input, ir, entry);
   beforeEvaluate();
-  const r = evaluate(ir as unknown as Core.Module, entry, ctx, { maxSteps: Number.MAX_SAFE_INTEGER, maxCallDepth: CLI_MAX_CALL_DEPTH });
+  const r = evaluate(ir as unknown as Core.Module, entry, ctx, { maxSteps: limits.maxSteps, maxCallDepth: limits.maxCallDepth });
   if (!r.success) return { ok: false, code: r.errorKind === 'resource' ? 'RESOURCE_EXHAUSTED' : 'EVAL_ERROR', message: r.error ?? '求值失败' };
   try {
     return { ok: true, valueJson: toValueJson(r.value) };
