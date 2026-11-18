@@ -59,7 +59,7 @@ export function compileSourcePositionFreeSha256(source: string, opts: CompileSou
   return positionFreeSha256(coreJson);
 }
 
-/** {@link checkProbes} 的上限（修订 3 P2-R13：cloud 取 5 000 000 步、调用深度 10 000、合计 20 000 ms）。 */
+/** {@link checkProbes} 的上限与入口集合（修订 3 P2-R13：cloud 取 5 000 000 步、调用深度 10 000、合计 20 000 ms）。 */
 export interface CheckProbesOptions {
   /** 每条探针的解释器步数上限；超出计为不一致。 */
   readonly maxSteps: number;
@@ -68,16 +68,16 @@ export interface CheckProbesOptions {
   /** 全部探针合计的墙钟上限（毫秒）；超出后该条与其余各条计为不一致（TIMEOUT）。 */
   readonly deadlineMs: number;
   /**
-   * 全部探针合计的解释器步数上限（可选，缺省不限）。用尽后其余各条计为不一致（RESOURCE_EXHAUSTED），
-   * 每条的实际上限取 `maxSteps` 与剩余预算的较小者。Workers 里墙钟在同步执行期间不推进（见 {@link checkProbes}），
-   * 这是能在那里真正约束总耗时的上限。
+   * 全部探针合计的解释器步数上限（必填；不设限时显式传 `Number.POSITIVE_INFINITY`）。用尽后其余各条计为不一致
+   * （RESOURCE_EXHAUSTED），每条的实际上限取 `maxSteps` 与剩余预算的较小者。Workers 里墙钟在同步执行期间不推进
+   * （见 {@link checkProbes}），这是能在那里真正约束总耗时的上限，所以不给缺省值，调用方必须按目标 Worker 的 CPU 限额决定。
    */
-  readonly maxTotalSteps?: number;
+  readonly maxTotalSteps: number;
   /**
-   * 可运行的入口（manifest `policy.entries[].function`，可选）。给出时与 CLI `verify --probes` 一样，
-   * 探针的入口必须在其中，否则计为不一致（ENTRY_NOT_FOUND）；缺省时只要求入口在 Core IR 中。
+   * 可运行的入口（必填：manifest `policy.entries[].function`）。与 CLI `verify --probes` 一样，探针的入口必须在其中，
+   * 且 Core IR 中有同名函数，否则计为不一致（ENTRY_NOT_FOUND）。
    */
-  readonly entries?: readonly string[];
+  readonly entries: readonly string[];
   /** 墙钟（毫秒），缺省 `Date.now`；测试注入。 */
   readonly now?: () => number;
 }
@@ -138,8 +138,8 @@ export function checkProbes(coreJson: string, probesJson: string, opts: CheckPro
   const now = opts.now ?? Date.now;
   const start = now();
   const late = (): boolean => now() - start > opts.deadlineMs;
-  const entries = opts.entries === undefined ? undefined : new Set(opts.entries);
-  let budget = opts.maxTotalSteps ?? Number.POSITIVE_INFINITY;
+  const entries = new Set(opts.entries);
+  let budget = opts.maxTotalSteps;
   let agreed = 0;
   let firstMismatch: ProbeMismatch | null = null;
   for (const [index, p] of probes.entries()) {
@@ -159,9 +159,9 @@ export function checkProbes(coreJson: string, probesJson: string, opts: CheckPro
 }
 
 /** 跑一条探针：形状、入口与输入不合法时返回未求值的结果码。 */
-function runProbe(ir: IrView, p: JsonValue, entries: ReadonlySet<string> | undefined, limits: { maxSteps: number; maxCallDepth: number }): ProbeOutcome {
-  // 与 CLI checkEntry 同一判定：入口在可运行入口集合中（给出时），且 IR 中有同名函数
-  if (!isJsonObject(p) || typeof p['entry'] !== 'string' || (entries !== undefined && !entries.has(p['entry'])) || !findFunc(ir, p['entry'])) {
+function runProbe(ir: IrView, p: JsonValue, entries: ReadonlySet<string>, limits: { maxSteps: number; maxCallDepth: number }): ProbeOutcome {
+  // 与 CLI checkEntry 同一判定：入口在可运行入口集合中，且 IR 中有同名函数
+  if (!isJsonObject(p) || typeof p['entry'] !== 'string' || !entries.has(p['entry']) || !findFunc(ir, p['entry'])) {
     return { ok: false, code: 'ENTRY_NOT_FOUND', message: '探针形状不合法或入口不可运行' };
   }
   const entry = p['entry'];

@@ -18,8 +18,8 @@
   - `checkProbes(coreJson, probesJson, { maxSteps, maxCallDepth, deadlineMs })`：与 `verify --probes` 同一读入、输入转换、求值与比较规则，
     返回 `{ count, agreed, firstMismatch }`；超步数、调用深度超限、JS 栈溢出、输入 / 入口不合法、超过 `deadlineMs` 都计为不一致；
     Core IR 用预编译的 schema 校验函数严格读入（`readCoreIrPrecompiled`，与 `readCoreIr` 结果相同），读入失败抛 `CoreIrFormatError`；
-    可选 `maxTotalSteps`（合计步数预算；Workers 同步执行期间时钟不推进，这是那里唯一能约束总耗时的上限）、
-    `entries`（与 CLI 一样限定可运行入口）与 `now`（注入时钟）；
+    必填 `maxTotalSteps`（合计步数预算；Workers 同步执行期间时钟不推进，这是那里唯一能约束总耗时的上限）与
+    `entries`（manifest 的可运行入口，与 CLI 一样校验探针入口），可选 `now`（注入时钟）；
   - `EXPORT_BUILTINS`：ts 引擎的导出 builtin 白名单。
 - **新文件 `src/policy-package/export-builtins.json`**（P1 T10 的 ts 一半，与 truffle `aster/truffle/export-builtins.json` 同形）：
   `BUILTIN_ARITY` 键 ∪ `BUILTIN_OPS` ∪ `NAMED_BUILTIN_OPS` 中值非 null 的键（排除 `await`），`aliases` = `CALL_TARGET_BUILTIN_ALIASES`；

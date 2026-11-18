@@ -51,7 +51,7 @@ test('打包产物在禁止动态生成代码的 Node 中运行，结果与 dist
       const out = {
         version: m.TS_VERSION,
         hash: m.compileSourcePositionFreeSha256(source, { locale: 'en-US', aliasSetJson: 'null', allowStructural: false }),
-        probes: m.checkProbes(coreJson, probes, { maxSteps: 5000000, maxCallDepth: 10000, deadlineMs: 20000 }),
+        probes: m.checkProbes(coreJson, probes, { maxSteps: 5000000, maxCallDepth: 10000, deadlineMs: 20000, maxTotalSteps: 50000000, entries: ['f'] }),
         builtins: m.EXPORT_BUILTINS.names.length,
       };
       let evalBlocked = false;
