@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { canonicalDecimalFromLiteral } from '../../../src/core/canonical-decimal.js';
 import { CoreIrFormatError, readCoreIr } from '../../../src/core/read-core-ir.js';
+import { readCoreIrPrecompiled } from '../../../src/core/read-core-ir-precompiled.js';
 import { serializeCoreIr, validateCoreIrInvariants, type CoreIrProblem } from '../../../src/core/serialize-core-ir.js';
 import { locateLocalesCoreIr } from '../../helpers/locales-core-ir.js';
 
@@ -132,6 +133,32 @@ describe('serializeCoreIr', () => {
     for (const file of expected.filter(e => e.problems.length === 0).map(e => e.file)) {
       const module = JSON.parse(readFileSync(join(fixtureDir, file), 'utf8'));
       assert.deepEqual(validateCoreIrInvariants(module), [], file);
+    }
+  });
+});
+
+/** 读入结果的可比较形态：成功为模块，失败为 {code, problems}。 */
+function outcome(read: (json: string) => unknown, json: string): unknown {
+  try {
+    return { ok: read(json) };
+  } catch (e) {
+    if (e instanceof CoreIrFormatError) return { code: e.code, problems: e.problems };
+    throw e;
+  }
+}
+
+// Workers 版本（预编译 schema 校验函数，ADR 0059 修订 3 P2-R7）与 readCoreIr 对每个夹具的结果完全相同
+describe('readCoreIrPrecompiled 与 readCoreIr 结果一致', () => {
+  test('locales 全部正负例夹具：code 与问题列表（含 schema 问题路径）逐项相同', (t) => {
+    if (fixtureDir === undefined) return t.skip('本地未并列 checkout aster-lang-locales');
+    for (const { file } of expected) {
+      const json: string = readFileSync(join(fixtureDir, file), 'utf8');
+      assert.deepEqual(outcome(readCoreIrPrecompiled, json), outcome(readCoreIr, json), file);
+    }
+  });
+  test('版本预检查与解析错误', () => {
+    for (const json of ['{', '[]', 'null', '{"schemaVersion":"2"}', '{"schemaVersion":2}']) {
+      assert.deepEqual(outcome(readCoreIrPrecompiled, json), outcome(readCoreIr, json), json);
     }
   });
 });

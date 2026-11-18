@@ -30,6 +30,7 @@ const VALID_CATEGORIES = new Set([
   'scope',
   'pii',
   'governance',
+  'export',
   'syntax',
   'semantic',
 ]);

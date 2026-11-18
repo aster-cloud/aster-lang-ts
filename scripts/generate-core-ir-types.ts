@@ -1,9 +1,11 @@
 /**
- * 由 Core IR v2 schema（shared/core-ir.v2.schema.json）生成两个入库文件：
+ * 由 Core IR v2 schema（shared/core-ir.v2.schema.json）生成三个入库文件：
  * - src/core/core-ir-v2.generated.ts：字段契约的 TS 类型；
  * - src/core/core-ir-v2.schema.generated.ts：schema 本身的 TS 常量，供 readCoreIr 校验用
  *   （用 TS 模块而非 JSON 导入，与 controls-registry.data.ts 同理：避免浏览器与 Node ESM 的
- *   JSON 导入差异，也不必把 shared/ 打进 npm 包）。
+ *   JSON 导入差异，也不必把 shared/ 打进 npm 包）；
+ * - src/core/core-ir-v2.validator.generated.ts：同一 schema、同一 ajv 选项预编译的校验函数（ajv standalone），
+ *   运行时不调用 `new Function`，供 Cloudflare Workers 等禁止动态生成代码的环境严格读入（`./package-check`，ADR 0059 修订 3 P2-R7）。
  *
  * 用法：`pnpm run build && node dist/scripts/generate-core-ir-types.js`（改 schema 副本后运行）。
  * 生成物提交入库；test/unit/core/core-ir-schema-parity.test.ts 重新生成并要求逐字节相同。
@@ -17,6 +19,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { Ajv2020 } from 'ajv/dist/2020.js';
+import standaloneCode from 'ajv/dist/standalone/index.js';
 import { compile, type JSONSchema } from 'json-schema-to-typescript';
 
 type SchemaNode = Record<string, unknown>;
@@ -104,17 +108,40 @@ export const CORE_IR_V2_SCHEMA: Readonly<Record<string, unknown>> = ${JSON.strin
 `;
 }
 
+/** readCoreIr 与预编译校验函数共用的 ajv 选项（两者接受 / 拒绝的输入与报告的问题必须相同）。 */
+export const CORE_IR_AJV_OPTIONS = { allErrors: true, strict: true } as const;
+
+/**
+ * 渲染预编译校验函数模块：ajv standalone 的 ESM 输出原样包进 TS 文件。
+ * 输出不得引用 ajv 的运行时子模块（`require(...)`），否则在 ESM / Workers 里无法加载——出现即生成失败。
+ */
+export function renderCoreIrValidatorModule(schema: SchemaNode): string {
+  const ajv = new Ajv2020({ ...CORE_IR_AJV_OPTIONS, code: { source: true, esm: true } });
+  const code = standaloneCode(ajv, ajv.compile(schema));
+  if (/\brequire\(/.test(code)) throw new Error('ajv standalone 输出引用了运行时子模块（require），不能用于 Workers');
+  return `/**
+ * 本文件由 scripts/generate-core-ir-types.ts 从 shared/core-ir.v2.schema.json 生成，请勿手改。
+ * Core IR v2 JSON Schema 的预编译校验函数（ajv standalone，选项与 readCoreIr 相同），运行时不生成代码。
+ */
+/* eslint-disable */
+// @ts-nocheck
+${code}
+`;
+}
+
 /** schema 副本路径与生成物路径（相对仓根）。 */
 export const CORE_IR_SCHEMA_PATH = join('shared', 'core-ir.v2.schema.json');
 export const CORE_IR_TYPES_PATH = join('src', 'core', 'core-ir-v2.generated.ts');
 export const CORE_IR_SCHEMA_MODULE_PATH = join('src', 'core', 'core-ir-v2.schema.generated.ts');
+export const CORE_IR_VALIDATOR_MODULE_PATH = join('src', 'core', 'core-ir-v2.validator.generated.ts');
 
 async function main(): Promise<void> {
   const root = process.cwd();
   const schema = JSON.parse(readFileSync(join(root, CORE_IR_SCHEMA_PATH), 'utf8')) as SchemaNode;
   writeFileSync(join(root, CORE_IR_TYPES_PATH), await renderCoreIrTypes(schema));
   writeFileSync(join(root, CORE_IR_SCHEMA_MODULE_PATH), renderCoreIrSchemaModule(schema));
-  console.log(`已生成 ${CORE_IR_TYPES_PATH}、${CORE_IR_SCHEMA_MODULE_PATH}`);
+  writeFileSync(join(root, CORE_IR_VALIDATOR_MODULE_PATH), renderCoreIrValidatorModule(schema));
+  console.log(`已生成 ${CORE_IR_TYPES_PATH}、${CORE_IR_SCHEMA_MODULE_PATH}、${CORE_IR_VALIDATOR_MODULE_PATH}`);
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -2,7 +2,7 @@
 // 源数据: shared/error_codes.json
 
 
-export type ErrorCategory = 'type' | 'syntax' | 'effect' | 'capability' | 'scope' | 'pii' | 'async' | 'lowering' | 'governance';
+export type ErrorCategory = 'type' | 'syntax' | 'effect' | 'capability' | 'scope' | 'pii' | 'async' | 'lowering' | 'governance' | 'export';
 export type ErrorSeverity = 'error' | 'warning' | 'info';
 
 export const enum ErrorCode {
@@ -121,6 +121,15 @@ export const enum ErrorCode {
   CEDAR_UNTYPED_CONTEXT_KEY = "E722",
   CEDAR_EQUIVALENCE_MISMATCH = "E723",
   CEDAR_SCHEMA_INVALID = "E724",
+  EXPORT_IO_CAPABILITY = "E730",
+  EXPORT_ASYNC_CONSTRUCT = "E731",
+  EXPORT_UNRESOLVED_NAME = "E732",
+  EXPORT_ENTRY_TYPE_UNSUPPORTED = "E733",
+  EXPORT_SIZE_EXCEEDED = "E734",
+  EXPORT_NODE_PROBE_MISMATCH = "E735",
+  EXPORT_ENTRY_SHADOWED_BY_MAIN = "E737",
+  EXPORT_ENTRY_VALUE_FORM_UNDEFINED = "E738",
+  EXPORT_NODE_RECOMPILE_DRIFT = "E739",
   UNRESOLVED_TYPE = "E800",
   UNRESOLVED_FIELD = "E801",
   UNRESOLVED_NAME = "E802",
@@ -258,6 +267,15 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.CEDAR_UNTYPED_CONTEXT_KEY]: "Context key '{key}' in rule '{rule}' is used as both {first} and {second}",
   [ErrorCode.CEDAR_EQUIVALENCE_MISMATCH]: "Cedar export of rule '{rule}' disagrees with Aster on probe {probe}: Aster {aster}, Cedar {cedar}",
   [ErrorCode.CEDAR_SCHEMA_INVALID]: "Generated Cedar for rule '{rule}' failed schema validation: {detail}",
+  [ErrorCode.EXPORT_IO_CAPABILITY]: "Function '{function}' declares IO capability {capability}; exported packages cannot perform IO",
+  [ErrorCode.EXPORT_ASYNC_CONSTRUCT]: "Function '{function}' uses {construct} (workflow / async); exported packages cannot await",
+  [ErrorCode.EXPORT_UNRESOLVED_NAME]: "Name '{name}' in function '{function}' does not resolve to a module function, local binding, type constructor or a pure builtin of the {target} engine",
+  [ErrorCode.EXPORT_ENTRY_TYPE_UNSUPPORTED]: "Entry '{entry}' {position} has type {type}, which has no JSON input/output form",
+  [ErrorCode.EXPORT_SIZE_EXCEEDED]: "Package size {size} bytes exceeds the {limit}-byte limit",
+  [ErrorCode.EXPORT_NODE_PROBE_MISMATCH]: "Node probe {probe} disagrees with the platform: expected {expected}, got {actual}",
+  [ErrorCode.EXPORT_ENTRY_SHADOWED_BY_MAIN]: "Entry '{entry}' is shadowed by function 'main' on the JVM engine",
+  [ErrorCode.EXPORT_ENTRY_VALUE_FORM_UNDEFINED]: "Entry '{entry}' uses {type} at {path}; its value form is not defined yet",
+  [ErrorCode.EXPORT_NODE_RECOMPILE_DRIFT]: "Node recompilation of the policy differs from the platform Core IR (positionFreeSha256 {platform} vs {node})",
   [ErrorCode.UNRESOLVED_TYPE]: "Cannot resolve type '{written}' in {role} position",
   [ErrorCode.UNRESOLVED_FIELD]: "Cannot resolve field '{written}' in {role} position",
   [ErrorCode.UNRESOLVED_NAME]: "Cannot resolve name '{written}' in {role} position",
@@ -1074,6 +1092,69 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     severity: 'error',
     message: "Generated Cedar for rule '{rule}' failed schema validation: {detail}",
     help: "This is an exporter defect; the export was withheld. Please report it.",
+  },
+  [ErrorCode.EXPORT_IO_CAPABILITY]: {
+    code: ErrorCode.EXPORT_IO_CAPABILITY,
+    category: 'export',
+    severity: 'error',
+    message: "Function '{function}' declares IO capability {capability}; exported packages cannot perform IO",
+    help: "Remove the IO capability from the function, or keep this policy on the platform; exported packages run without any IO.",
+  },
+  [ErrorCode.EXPORT_ASYNC_CONSTRUCT]: {
+    code: ErrorCode.EXPORT_ASYNC_CONSTRUCT,
+    category: 'export',
+    severity: 'error',
+    message: "Function '{function}' uses {construct} (workflow / async); exported packages cannot await",
+    help: "Rewrite the logic without workflow, Async or Await, or keep this policy on the platform.",
+  },
+  [ErrorCode.EXPORT_UNRESOLVED_NAME]: {
+    code: ErrorCode.EXPORT_UNRESOLVED_NAME,
+    category: 'export',
+    severity: 'error',
+    message: "Name '{name}' in function '{function}' does not resolve to a module function, local binding, type constructor or a pure builtin of the {target} engine",
+    help: "Use a module function or a pure builtin that the target engine supports, or keep this policy on the platform.",
+  },
+  [ErrorCode.EXPORT_ENTRY_TYPE_UNSUPPORTED]: {
+    code: ErrorCode.EXPORT_ENTRY_TYPE_UNSUPPORTED,
+    category: 'export',
+    severity: 'error',
+    message: "Entry '{entry}' {position} has type {type}, which has no JSON input/output form",
+    help: "Give the entry parameters and a return type that have a JSON form (such as Int, Text, Decimal, Data and List types), or export a different entry.",
+  },
+  [ErrorCode.EXPORT_SIZE_EXCEEDED]: {
+    code: ErrorCode.EXPORT_SIZE_EXCEEDED,
+    category: 'export',
+    severity: 'error',
+    message: "Package size {size} bytes exceeds the {limit}-byte limit",
+    help: "Shorten the policy source, its vocabulary or its alias set so the package fits within the limit.",
+  },
+  [ErrorCode.EXPORT_NODE_PROBE_MISMATCH]: {
+    code: ErrorCode.EXPORT_NODE_PROBE_MISMATCH,
+    category: 'export',
+    severity: 'error',
+    message: "Node probe {probe} disagrees with the platform: expected {expected}, got {actual}",
+    help: "The Node engine and the platform evaluate this policy differently; export a JRE package instead and report the difference.",
+  },
+  [ErrorCode.EXPORT_ENTRY_SHADOWED_BY_MAIN]: {
+    code: ErrorCode.EXPORT_ENTRY_SHADOWED_BY_MAIN,
+    category: 'export',
+    severity: 'error',
+    message: "Entry '{entry}' is shadowed by function 'main' on the JVM engine",
+    help: "Rename the function 'main', or export 'main' as the entry, so the JVM engine runs the intended function.",
+  },
+  [ErrorCode.EXPORT_ENTRY_VALUE_FORM_UNDEFINED]: {
+    code: ErrorCode.EXPORT_ENTRY_VALUE_FORM_UNDEFINED,
+    category: 'export',
+    severity: 'error',
+    message: "Entry '{entry}' uses {type} at {path}; its value form is not defined yet",
+    help: "Remove the DateTime or @pii type from the entry's inputs and output, or keep this policy on the platform until the package format defines its value form.",
+  },
+  [ErrorCode.EXPORT_NODE_RECOMPILE_DRIFT]: {
+    code: ErrorCode.EXPORT_NODE_RECOMPILE_DRIFT,
+    category: 'export',
+    severity: 'error',
+    message: "Node recompilation of the policy differs from the platform Core IR (positionFreeSha256 {platform} vs {node})",
+    help: "The Node compiler and the platform produce different Core IR for this source; export a JRE package instead and report the difference.",
   },
   [ErrorCode.UNRESOLVED_TYPE]: {
     code: ErrorCode.UNRESOLVED_TYPE,
