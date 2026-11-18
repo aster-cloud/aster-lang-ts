@@ -62,8 +62,8 @@ node aster.mjs run ./my-policy.zip --input - < input.json                     # 
 - stdout is always one line of canonical JSON (`{"meta":…,"ok":true,"value":…}` or an error envelope); diagnostics go to
   stderr. Exit codes: 0 ok, 1 `EVAL_ERROR` / `PROBE_MISMATCH`, 2 input or usage errors, 3 integrity and signature
   failures, 4 unsupported package / IR drift / compile errors, 5 `TIMEOUT` / `RESOURCE_EXHAUSTED`.
-- Signatures are verified by default against the built-in trust anchor (empty until export keys are published);
-  pass `--jwks <file|https-url>` or `--pubkey <file>`, or `--allow-unsigned` for unsigned packages.
+- Signatures are verified by default against the built-in trust anchor, which holds the platform's export public key
+  (kid `export-2026-11a`, listed by `aster version` as `trustAnchorKids`); pass `--jwks <file|https-url>` or `--pubkey <file>`, or `--allow-unsigned` for unsigned packages.
 - Evaluation runs in a worker thread with a `--timeout` (default `5s`, at most `300s`). The clock starts right before
   evaluation; worker start-up, reading the Core IR and converting the input are not counted. Those phases have no loops and
   their inputs are bounded by the package and input size limits; a 60 s safety watchdog still stops them if they ever stall,

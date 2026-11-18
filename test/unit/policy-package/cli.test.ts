@@ -51,13 +51,13 @@ test('argv：重复、未知、缺值、开关带值、位置参数个数、run 
   for (const t of ['0s', '1.5s', '01s', '5', '300001ms', '1s\n', '']) usage(['verify', 'p', '--timeout', t]);
 });
 
-test('version：一行规范 JSON，内置锚为空', async () => {
+test('version：一行规范 JSON，trustAnchorKids 列出内置的生产导出密钥', async () => {
   const r = await runCommand(['version'], io);
   assert.equal(r.exitCode, 0);
   const v = JSON.parse(r.stdout) as Record<string, unknown>;
   assert.deepEqual(Object.keys(v), ['cliVersion', 'coreIrVersions', 'engine', 'formatVersions', 'toolchainId', 'trustAnchorKids']);
   assert.equal(v['engine'], 'aster-lang-ts-interpreter');
-  assert.deepEqual(v['trustAnchorKids'], []);
+  assert.deepEqual(v['trustAnchorKids'], ['export-2026-11a']);
   assert.ok(r.stdout.endsWith('}\n'));
 });
 
