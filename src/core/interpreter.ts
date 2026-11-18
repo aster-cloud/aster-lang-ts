@@ -212,6 +212,8 @@ export interface EvalResult {
    * 包格式 CLI 据此报 `RESOURCE_EXHAUSTED` 而不是 `EVAL_ERROR`（ADR 0059 修订 1 A4）。其余失败不带此字段。
    */
   errorKind?: 'resource';
+  /** 本次求值执行的解释器步数（与 maxSteps 同一计数；构造解释器之前就失败时缺省）。 */
+  steps?: number;
 }
 
 /** 求值选项。 */
@@ -240,36 +242,21 @@ export function evaluate(
   options?: EvaluateOptions,
 ): EvalResult {
   const start = performance.now();
+  let interp: Interpreter | undefined;
+  const finish = (r: Omit<EvalResult, 'executionTimeMs' | 'steps'>): EvalResult => ({
+    ...r,
+    executionTimeMs: Math.round((performance.now() - start) * 100) / 100,
+    ...(interp === undefined ? {} : { steps: interp.executedSteps }),
+  });
   try {
-    const interp = new Interpreter(core, options?.maxSteps ?? MAX_STEPS, options?.maxCallDepth ?? MAX_CALL_DEPTH);
+    interp = new Interpreter(core, options?.maxSteps ?? MAX_STEPS, options?.maxCallDepth ?? MAX_CALL_DEPTH);
     const value = interp.callFunction(functionName, context);
-    return {
-      success: true,
-      value,
-      executionTimeMs: Math.round((performance.now() - start) * 100) / 100,
-    };
+    return finish({ success: true, value });
   } catch (err) {
     const resource = asResourceExhausted(err);
-    if (resource) {
-      return {
-        success: false,
-        error: resource.message,
-        errorKind: 'resource',
-        executionTimeMs: Math.round((performance.now() - start) * 100) / 100,
-      };
-    }
-    if (err instanceof InterpreterError) {
-      return {
-        success: false,
-        error: err.message,
-        executionTimeMs: Math.round((performance.now() - start) * 100) / 100,
-      };
-    }
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      executionTimeMs: Math.round((performance.now() - start) * 100) / 100,
-    };
+    if (resource) return finish({ success: false, error: resource.message, errorKind: 'resource' });
+    if (err instanceof InterpreterError) return finish({ success: false, error: err.message });
+    return finish({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
 }
 
@@ -865,6 +852,11 @@ class Interpreter {
   private readonly enumVariants: Map<string, ReadonlySet<string>>;
   /** 执行步数计数器（防无限循环） */
   private steps = 0;
+
+  /** 已执行的步数（{@link evaluate} 写入结果的 `steps`）。 */
+  get executedSteps(): number {
+    return this.steps;
+  }
   /** 本次执行累计物化的集合元素数（见 MAX_ALLOCATION_BUDGET）。 */
   private allocated = 0;
   /** 当前 builtin 已准入扣除的计量数，供结果记账时抵扣。 */

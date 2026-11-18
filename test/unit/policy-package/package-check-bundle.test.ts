@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { builtinModules } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -28,7 +29,9 @@ test('platform=neutral 打包：闭包不引用 Node 内置模块与 worker_thre
     logLevel: 'silent',
   });
   const imports = Object.values(r.metafile.inputs).flatMap((i) => i.imports.map((x) => x.path));
-  assert.deepEqual(imports.filter((p) => /^node:|^(fs|path|crypto|worker_threads|zlib|https|tls|module|os|url)$/.test(p)), []);
+  // 全部 Node 内置模块名（含 fs/promises 这类子路径），带或不带 node: 前缀
+  const builtins = new Set(builtinModules.flatMap((m) => [m, `node:${m}`]));
+  assert.deepEqual(imports.filter((p) => p.startsWith('node:') || builtins.has(p)), []);
   const text = r.outputFiles[0]!.text;
   assert.doesNotMatch(text, /worker_threads|node:fs|node:crypto|\bBuffer\./);
 });

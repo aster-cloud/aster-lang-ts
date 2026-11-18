@@ -113,6 +113,40 @@ test('单条探针形状、入口、输入不合法计为不一致；整体形�
   assert.throws(() => checkProbes('{"schemaVersion":2}', pkgFile('a-decimal', 'tests/probes.json'), CLOUD), CoreIrFormatError);
 });
 
+test('墙钟在探针之间推进时，超过 deadlineMs 的那条与其后各条计为 TIMEOUT', { skip }, () => {
+  const core = pkgFile('a-multi-entry', 'compiled/core.json');
+  const probes = pkgFile('a-multi-entry', 'tests/probes.json');
+  // 每读一次时钟前进 10 ms：start=0，第 1 条前后 10/20，第 2 条前后 30/40 —— deadline 25 在第 2 条开始前越过
+  let t = -10;
+  const r = checkProbes(core, probes, { ...CLOUD, deadlineMs: 25, now: () => (t += 10) });
+  assert.deepEqual(r, { count: 3, agreed: 1, firstMismatch: { index: 1, expected: '{"ok":true,"value":"high"}', actual: '{"code":"TIMEOUT","ok":false}' } });
+  // 求值期间越过 deadline（开始前未超、结束后已超）同样计为 TIMEOUT
+  let u = 0;
+  const during = checkProbes(core, probes, { ...CLOUD, deadlineMs: 5, now: () => (u++ === 0 ? 0 : u === 2 ? 1 : 100) });
+  assert.equal(during.agreed, 0);
+  assert.equal(during.firstMismatch?.actual, '{"code":"TIMEOUT","ok":false}');
+});
+
+test('maxTotalSteps：合计步数预算用尽后其余各条计为 RESOURCE_EXHAUSTED', { skip }, () => {
+  const core = pkgFile('a-timeout', 'compiled/core.json');
+  const probe = { entry: 'spin', expected: { ok: true, value: 4 }, input: { n: 3 } };
+  const probes = JSON.stringify({ probes: [probe, probe, probe] });
+  assert.equal(checkProbes(core, probes, CLOUD).agreed, 3);
+  // 单条 spin(3) 远少于 1000 步；合计预算只够一条多一点
+  const one = checkProbes(core, probes, { ...CLOUD, maxTotalSteps: 1 });
+  assert.deepEqual(one, { count: 3, agreed: 0, firstMismatch: { index: 0, expected: '{"ok":true,"value":4}', actual: '{"code":"RESOURCE_EXHAUSTED","ok":false}' } });
+  const plenty = checkProbes(core, probes, { ...CLOUD, maxTotalSteps: 1_000_000 });
+  assert.equal(plenty.agreed, 3);
+});
+
+test('entries：与 CLI 一样，入口不在可运行入口集合中计为 ENTRY_NOT_FOUND', { skip }, () => {
+  const core = pkgFile('a-multi-entry', 'compiled/core.json');
+  const probes = pkgFile('a-multi-entry', 'tests/probes.json');
+  assert.equal(checkProbes(core, probes, { ...CLOUD, entries: ['score', 'label', 'ratio', 'answer'] }).agreed, 3);
+  const r = checkProbes(core, probes, { ...CLOUD, entries: ['score'] });
+  assert.deepEqual(r, { count: 3, agreed: 1, firstMismatch: { index: 1, expected: '{"ok":true,"value":"high"}', actual: '{"code":"ENTRY_NOT_FOUND","ok":false}' } });
+});
+
 test('CLI 的求值上限不变（步数不设限，调用深度 10 000）', () => {
   assert.deepEqual(CLI_EVAL_LIMITS, { maxSteps: Number.MAX_SAFE_INTEGER, maxCallDepth: 10_000 });
 });

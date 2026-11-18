@@ -63,3 +63,14 @@ test('JS 栈溢出归为 resource（缺省栈的 Worker 中放开深度上限）
   assert.equal(r.success, false);
   assert.equal(r.errorKind, 'resource');
 });
+
+test('evaluate 报告执行步数；超过 maxSteps 标为 resource（message 不变）', () => {
+  const ok = evaluate(core(), 'deep', { n: 5 });
+  assert.equal(ok.success, true);
+  assert.ok(typeof ok.steps === 'number' && ok.steps > 0);
+  const r = evaluate(core(), 'deep', { n: 40 }, { maxSteps: 10 });
+  assert.equal(r.success, false);
+  assert.equal(r.errorKind, 'resource');
+  assert.match(r.error!, /Maximum execution steps \(10\) exceeded/);
+  assert.equal(r.steps, 11);
+});

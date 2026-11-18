@@ -65,8 +65,21 @@ export interface CheckProbesOptions {
   readonly maxSteps: number;
   /** 调用深度上限；超出或 JS 栈溢出计为不一致。 */
   readonly maxCallDepth: number;
-  /** 全部探针合计的墙钟上限（毫秒）；超出后该条与其余各条计为不一致。 */
+  /** 全部探针合计的墙钟上限（毫秒）；超出后该条与其余各条计为不一致（TIMEOUT）。 */
   readonly deadlineMs: number;
+  /**
+   * 全部探针合计的解释器步数上限（可选，缺省不限）。用尽后其余各条计为不一致（RESOURCE_EXHAUSTED），
+   * 每条的实际上限取 `maxSteps` 与剩余预算的较小者。Workers 里墙钟在同步执行期间不推进（见 {@link checkProbes}），
+   * 这是能在那里真正约束总耗时的上限。
+   */
+  readonly maxTotalSteps?: number;
+  /**
+   * 可运行的入口（manifest `policy.entries[].function`，可选）。给出时与 CLI `verify --probes` 一样，
+   * 探针的入口必须在其中，否则计为不一致（ENTRY_NOT_FOUND）；缺省时只要求入口在 Core IR 中。
+   */
+  readonly entries?: readonly string[];
+  /** 墙钟（毫秒），缺省 `Date.now`；测试注入。 */
+  readonly now?: () => number;
 }
 
 /** 第一条不一致的探针：下标从 0 起；`expected` / `actual` 都是值规范 JSON 的结果信封文本。 */
@@ -87,6 +100,7 @@ export interface CheckProbesResult {
 type ProbeOutcome = EvalOutcome | { readonly ok: false; readonly code: 'INPUT_INVALID'; readonly message: string };
 
 const TIMED_OUT: ProbeOutcome = { ok: false, code: 'TIMEOUT', message: '超过 deadlineMs' };
+const BUDGET_SPENT: ProbeOutcome = { ok: false, code: 'RESOURCE_EXHAUSTED', message: '合计步数预算已用尽' };
 
 /** 与 CLI 同一比较规则；输入不合法永远不一致。 */
 const agrees = (expected: JsonValue, r: ProbeOutcome): boolean => (r.ok || r.code !== 'INPUT_INVALID') && probeMatches(expected, r as EvalOutcome);
@@ -113,23 +127,27 @@ function expectedJson(expected: JsonValue): string {
  * 都计为不一致而不抛错。与 CLI 不同，遇到不一致不停止，`agreed` 统计全部探针。
  *
  * 墙钟检查在每条探针前后各做一次：求值是同步的，无法在一条探针中途打断，单条的上限由 `maxSteps` 保证。
- * 注意 Cloudflare Workers 在一次同步执行期间不推进 `Date.now()`，在那里 `deadlineMs` 实际不会触发，真正的界是 `maxSteps`
- * 与平台的 CPU 时间上限。
+ * 注意 Cloudflare Workers 在一次同步执行期间不推进 `Date.now()`，在那里 `deadlineMs` 实际不会触发；要约束总耗时，
+ * 调用方应同时给出 `maxTotalSteps`（确定性的合计预算，与时钟无关）。
  */
 export function checkProbes(coreJson: string, probesJson: string, opts: CheckProbesOptions): CheckProbesResult {
   const ir = readCoreIrPrecompiled(coreJson) as unknown as IrView;
   const doc = parseStrictJson(probesJson, { lossless: true, maxDepth: 64 });
   const probes = isJsonObject(doc) ? doc['probes'] : undefined;
   if (!Array.isArray(probes)) throw new Error('probes 文件必须是 {"probes":[…]} 形状的严格 JSON');
-  const start = Date.now();
-  const late = (): boolean => Date.now() - start > opts.deadlineMs;
-  const limits = { maxSteps: opts.maxSteps, maxCallDepth: opts.maxCallDepth };
+  const now = opts.now ?? Date.now;
+  const start = now();
+  const late = (): boolean => now() - start > opts.deadlineMs;
+  const entries = opts.entries === undefined ? undefined : new Set(opts.entries);
+  let budget = opts.maxTotalSteps ?? Number.POSITIVE_INFINITY;
   let agreed = 0;
   let firstMismatch: ProbeMismatch | null = null;
   for (const [index, p] of probes.entries()) {
     const expected = isJsonObject(p) ? (p['expected'] ?? null) : null;
+    const limits = { maxSteps: Math.min(opts.maxSteps, budget), maxCallDepth: opts.maxCallDepth };
     // 开始前与结束后各查一次墙钟：超时的那条与其后各条都记为 TIMEOUT
-    const result = late() ? TIMED_OUT : runProbe(ir, p, limits);
+    const result = late() ? TIMED_OUT : budget <= 0 ? BUDGET_SPENT : runProbe(ir, p, entries, limits);
+    budget -= 'steps' in result && typeof result.steps === 'number' ? result.steps : 0;
     const final = late() ? TIMED_OUT : result;
     if (agrees(expected, final)) {
       agreed++;
@@ -141,9 +159,10 @@ export function checkProbes(coreJson: string, probesJson: string, opts: CheckPro
 }
 
 /** 跑一条探针：形状、入口与输入不合法时返回未求值的结果码。 */
-function runProbe(ir: IrView, p: JsonValue, limits: { maxSteps: number; maxCallDepth: number }): ProbeOutcome {
-  if (!isJsonObject(p) || typeof p['entry'] !== 'string' || !findFunc(ir, p['entry'])) {
-    return { ok: false, code: 'ENTRY_NOT_FOUND', message: '探针形状不合法或入口不在 IR 中' };
+function runProbe(ir: IrView, p: JsonValue, entries: ReadonlySet<string> | undefined, limits: { maxSteps: number; maxCallDepth: number }): ProbeOutcome {
+  // 与 CLI checkEntry 同一判定：入口在可运行入口集合中（给出时），且 IR 中有同名函数
+  if (!isJsonObject(p) || typeof p['entry'] !== 'string' || (entries !== undefined && !entries.has(p['entry'])) || !findFunc(ir, p['entry'])) {
+    return { ok: false, code: 'ENTRY_NOT_FOUND', message: '探针形状不合法或入口不可运行' };
   }
   const entry = p['entry'];
   let input: { [key: string]: JsonValue };

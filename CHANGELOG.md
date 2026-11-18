@@ -18,12 +18,14 @@
   - `checkProbes(coreJson, probesJson, { maxSteps, maxCallDepth, deadlineMs })`：与 `verify --probes` 同一读入、输入转换、求值与比较规则，
     返回 `{ count, agreed, firstMismatch }`；超步数、调用深度超限、JS 栈溢出、输入 / 入口不合法、超过 `deadlineMs` 都计为不一致；
     Core IR 用预编译的 schema 校验函数严格读入（`readCoreIrPrecompiled`，与 `readCoreIr` 结果相同），读入失败抛 `CoreIrFormatError`；
+    可选 `maxTotalSteps`（合计步数预算；Workers 同步执行期间时钟不推进，这是那里唯一能约束总耗时的上限）、
+    `entries`（与 CLI 一样限定可运行入口）与 `now`（注入时钟）；
   - `EXPORT_BUILTINS`：ts 引擎的导出 builtin 白名单。
 - **新文件 `src/policy-package/export-builtins.json`**（P1 T10 的 ts 一半，与 truffle `aster/truffle/export-builtins.json` 同形）：
   `BUILTIN_ARITY` 键 ∪ `BUILTIN_OPS` ∪ `NAMED_BUILTIN_OPS` 中值非 null 的键（排除 `await`），`aliases` = `CALL_TARGET_BUILTIN_ALIASES`；
   由 `scripts/generate-export-builtins.ts` 生成，测试锁定与 truffle 白名单的差集（只有 `PII.unwrap`、`Text.redact`、`await` 是 JVM 独有）。
 - **行为变化**：解释器超过 `maxSteps` 时改抛 `ResourceExhaustedError`，`evaluate` 的结果多出 `errorKind: 'resource'`（message 不变）。
-  包格式 CLI 的步数不设限，不受影响；浏览器 / cloud 调用方的 `success` 与 `error` 不变。
+  包格式 CLI 的步数不设限，不受影响；浏览器 / cloud 调用方的 `success` 与 `error` 不变。`EvalResult` 另增可选字段 `steps`（本次执行的步数）。
 - 内部重构（公开导出不变）：`read-core-ir.ts` 拆出不依赖 ajv 的 `read-core-ir-base.ts`；`obtain-ir.ts` 的源码编译与投影哈希移到
   `compile-source.ts`（原路径再导出）；`probeMatches` 移到 `probe-match.ts`（`cli.ts` 再导出）；`evaluatePackage` 与 `checkProbes` 共用 `evaluateIr`。
 - `scripts/generate-core-ir-types.ts` 另生成 `src/core/core-ir-v2.validator.generated.ts`（ajv standalone，约 350 KB，只被 `./package-check` 引用）。
