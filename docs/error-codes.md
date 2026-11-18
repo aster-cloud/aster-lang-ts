@@ -2,7 +2,7 @@
 
 本文档列出了 Aster 语言编译器和类型检查器使用的所有错误码。
 
-**总计**: 126 个错误码
+**总计**: 135 个错误码
 
 ## 按类别分类
 
@@ -51,6 +51,22 @@
 | **E208** `EFF_INFER_REDUNDANT_CPU` | 🟡 warning | Function '&#123;func&#125;' declares @cpu but no CPU side effects inferred. | Remove the @cpu declaration if no CPU side effects exist. |
 | **E209** `EFF_INFER_REDUNDANT_CPU_WITH_IO` | 🟡 warning | Function '&#123;func&#125;' declares both @cpu and @io; @cpu is redundant since @io is required. | Keep @io only; remove the redundant @cpu. |
 | **E212** `EFF_INFER_UNKNOWN_BUILTIN` | 🟡 warning | Effect of builtin '&#123;builtin&#125;' called by '&#123;func&#125;' is unknown; it is NOT assumed pure | Declare it via ASTER_EFFECT_CONFIG prefixes, supply an imported effect signature, or use a known stdlib namespace. |
+
+### 策略包导出（ADR 0059） (export)
+
+共 9 个错误码
+
+| 错误码 | 严重性 | 消息模板 | 解决方案 |
+|--------|--------|----------|----------|
+| **E730** `EXPORT_IO_CAPABILITY` | 🔴 error | Function '&#123;function&#125;' declares IO capability &#123;capability&#125;; exported packages cannot perform IO | Remove the IO capability from the function, or keep this policy on the platform; exported packages run without any IO. |
+| **E731** `EXPORT_ASYNC_CONSTRUCT` | 🔴 error | Function '&#123;function&#125;' uses &#123;construct&#125; (workflow / async); exported packages cannot await | Rewrite the logic without workflow, Async or Await, or keep this policy on the platform. |
+| **E732** `EXPORT_UNRESOLVED_NAME` | 🔴 error | Name '&#123;name&#125;' in function '&#123;function&#125;' does not resolve to a module function, local binding, type constructor or a pure builtin of the &#123;target&#125; engine | Use a module function or a pure builtin that the target engine supports, or keep this policy on the platform. |
+| **E733** `EXPORT_ENTRY_TYPE_UNSUPPORTED` | 🔴 error | Entry '&#123;entry&#125;' &#123;position&#125; has type &#123;type&#125;, which has no JSON input/output form | Give the entry parameters and a return type that have a JSON form (such as Int, Text, Decimal, Data and List types), or export a different entry. |
+| **E734** `EXPORT_SIZE_EXCEEDED` | 🔴 error | Package size &#123;size&#125; bytes exceeds the &#123;limit&#125;-byte limit | Shorten the policy source, its vocabulary or its alias set so the package fits within the limit. |
+| **E735** `EXPORT_NODE_PROBE_MISMATCH` | 🔴 error | Node probe &#123;probe&#125; disagrees with the platform: expected &#123;expected&#125;, got &#123;actual&#125; | The Node engine and the platform evaluate this policy differently; export a JRE package instead and report the difference. |
+| **E737** `EXPORT_ENTRY_SHADOWED_BY_MAIN` | 🔴 error | Entry '&#123;entry&#125;' is shadowed by function 'main' on the JVM engine | Rename the function 'main', or export 'main' as the entry, so the JVM engine runs the intended function. |
+| **E738** `EXPORT_ENTRY_VALUE_FORM_UNDEFINED` | 🔴 error | Entry '&#123;entry&#125;' uses &#123;type&#125; at &#123;path&#125;; its value form is not defined yet | Remove the DateTime or @pii type from the entry's inputs and output, or keep this policy on the platform until the package format defines its value form. |
+| **E739** `EXPORT_NODE_RECOMPILE_DRIFT` | 🔴 error | Node recompilation of the policy differs from the platform Core IR (positionFreeSha256 &#123;platform&#125; vs &#123;node&#125;) | The Node compiler and the platform produce different Core IR for this source; export a JRE package instead and report the difference. |
 
 ### governance (governance)
 
@@ -219,7 +235,7 @@
 - **E400-E499**: PII 隐私相关错误
 - **E500-E599**: 异步编程错误
 - **E600-E699**: 降级（AST → Core IR）错误，lowering 阶段的 AST 不变量守卫与内部异常
-- **E700-E799**: 治理（ADR 0039）与 Cedar 导出错误
+- **E700-E799**: 治理（ADR 0039）、Cedar 导出与策略包导出（ADR 0059，E730–E739）错误
 - **E800-E899**: 名称解析（ADR 0051）错误
 - **W0xx**: 警告级别错误码（使用 W 前缀）
 
