@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### 包格式 v1：内置信任锚改为生产导出公钥（ADR 0059 P2 T25，§6.2「先发布锚，再签名」）
+
+- `src/policy-package/trust/export-jwks.json` 由空 `{"keys":[]}` 改为平台导出密钥 `export-2026-11a`（Ed25519）的公钥，
+  与 aster-lang-truffle `cli` 的内置锚逐字节相同（规范 JSON，SHA-256 `7e24a913…10a4f7`）。不带 `--jwks` / `--pubkey` 时，
+  平台签名的包直接验签通过；`aster version` 的 `trustAnchorKids` 由 `[]` 变为 `["export-2026-11a"]`。
+- 测试密钥（kid 以 `test-` 开头）仍只能经 `--jwks` / `--pubkey` 注入，测试断言内置锚中不得出现。
+
 ### 词法空白只认 ASCII，与 aster-lang-core 对齐（aster-cloud/aster-lang-ts#348）
 
 - **破坏性（此前接受的源码改为报错）**：规范化阶段「去行尾空白」「去标点前空白」改用 Java `\s` 的 ASCII 集合 `[ \t\n\x0B\f\r]`，

@@ -358,7 +358,7 @@ export async function loadTrustAnchor(opts: TrustAnchorOptions): Promise<TrustAn
   return builtinTrustAnchor();
 }
 
-/** 内置锚（随 CLI 发布；导出密钥在 P2 创建前为空）。 */
+/** 内置锚（随 CLI 发布：生产导出密钥的公钥，ADR 0059 P2 T25；测试密钥只经 --jwks / --pubkey 注入）。 */
 export function builtinTrustAnchor(): TrustAnchor {
   return parseJwks(Buffer.from(JSON.stringify(builtinJwks), 'utf8'), '内置 export-jwks.json');
 }

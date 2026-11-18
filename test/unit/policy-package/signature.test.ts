@@ -81,5 +81,6 @@ test('信任锚：--jwks 与 --pubkey 同时给出、文件不存在、非 https
   assert.equal(await code({ jwks: '/no/such/file.json' }), 'USAGE');
   assert.equal(await code({ jwks: 'http://example.invalid/jwks.json' }), 'USAGE');
   const builtin = await loadTrustAnchor({});
-  assert.ok(builtin.kind === 'jwks' && builtin.keys.size === 0);
+  // 不给锚选项时用内置锚：只含生产导出密钥（T25），没有测试密钥
+  assert.ok(builtin.kind === 'jwks' && builtin.keys.size === 1 && builtin.keys.has('export-2026-11a'));
 });
