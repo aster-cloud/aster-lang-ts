@@ -68,7 +68,7 @@ export interface CheckProbesOptions {
   /** 全部探针合计的墙钟上限（毫秒）；超出后该条与其余各条计为不一致（TIMEOUT）。 */
   readonly deadlineMs: number;
   /**
-   * 全部探针合计的解释器步数上限（必填；不设限时显式传 `Number.POSITIVE_INFINITY`）。用尽后其余各条计为不一致
+   * 全部探针合计的解释器步数上限（必填，正的安全整数；不接受 Infinity / NaN）。用尽后其余各条计为不一致
    * （RESOURCE_EXHAUSTED），每条的实际上限取 `maxSteps` 与剩余预算的较小者。Workers 里墙钟在同步执行期间不推进
    * （见 {@link checkProbes}），这是能在那里真正约束总耗时的上限，所以不给缺省值，调用方必须按目标 Worker 的 CPU 限额决定。
    */
@@ -131,6 +131,7 @@ function expectedJson(expected: JsonValue): string {
  * 调用方应同时给出 `maxTotalSteps`（确定性的合计预算，与时钟无关）。
  */
 export function checkProbes(coreJson: string, probesJson: string, opts: CheckProbesOptions): CheckProbesResult {
+  checkLimits(opts);
   const ir = readCoreIrPrecompiled(coreJson) as unknown as IrView;
   const doc = parseStrictJson(probesJson, { lossless: true, maxDepth: 64 });
   const probes = isJsonObject(doc) ? doc['probes'] : undefined;
@@ -139,7 +140,7 @@ export function checkProbes(coreJson: string, probesJson: string, opts: CheckPro
   const start = now();
   const late = (): boolean => now() - start > opts.deadlineMs;
   const entries = new Set(opts.entries);
-  let budget = opts.maxTotalSteps;
+  let budget: number = opts.maxTotalSteps;
   let agreed = 0;
   let firstMismatch: ProbeMismatch | null = null;
   for (const [index, p] of probes.entries()) {
@@ -156,6 +157,15 @@ export function checkProbes(coreJson: string, probesJson: string, opts: CheckPro
     }
   }
   return { count: probes.length, agreed, firstMismatch };
+}
+
+/** 上限必须是有限值：步数与深度为正的安全整数，墙钟为有限数。不合法抛 RangeError（调用方缺陷，不是探针不一致）。 */
+function checkLimits(opts: CheckProbesOptions): void {
+  for (const key of ['maxSteps', 'maxCallDepth', 'maxTotalSteps'] as const) {
+    const v = opts[key];
+    if (!Number.isSafeInteger(v) || v <= 0) throw new RangeError(`checkProbes: ${key} 必须是正的安全整数，收到 ${String(v)}`);
+  }
+  if (!Number.isFinite(opts.deadlineMs)) throw new RangeError(`checkProbes: deadlineMs 必须是有限数，收到 ${String(opts.deadlineMs)}`);
 }
 
 /** 跑一条探针：形状、入口与输入不合法时返回未求值的结果码。 */

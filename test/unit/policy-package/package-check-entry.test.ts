@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runCommand } from '../../../src/policy-package/cli.js';
 import { CLI_EVAL_LIMITS } from '../../../src/policy-package/evaluate-package.js';
 import {
   checkProbes,
@@ -20,7 +21,7 @@ const pkgFile = (pkg: string, p: string): string => readFileSync(join(PACKAGE_V1
 const manifest = (pkg: string): { source: { locale: string; allowStructural: boolean }; coreIr: { positionFreeSha256: string } } =>
   JSON.parse(pkgFile(pkg, 'manifest.json'));
 /** 修订 3 P2-R13 的 cloud 取值。 */
-const CLOUD_LIMITS = { maxSteps: 5_000_000, maxCallDepth: 10_000, deadlineMs: 20_000, maxTotalSteps: Number.POSITIVE_INFINITY } as const;
+const CLOUD_LIMITS = { maxSteps: 5_000_000, maxCallDepth: 10_000, deadlineMs: 20_000, maxTotalSteps: 1_000_000_000 } as const;
 /** 黄金包 manifest 的可运行入口。 */
 const entriesOf = (pkg: string): string[] =>
   (JSON.parse(pkgFile(pkg, 'manifest.json')) as { policy: { entries: { function: string }[] } }).policy.entries.map((e) => e.function);
@@ -151,6 +152,32 @@ test('entries：与 CLI 一样，入口不在可运行入口集合中计为 ENTR
   const r = checkProbes(core, probes, cloud('a-multi-entry', { entries: ['score'] }));
   assert.deepEqual(r, { count: 3, agreed: 1, firstMismatch: { index: 1, expected: '{"ok":true,"value":"high"}', actual: '{"code":"ENTRY_NOT_FOUND","ok":false}' } });
 });
+
+test('上限必须是有限的正整数：Infinity / NaN / 0 / 小数抛 RangeError', { skip }, () => {
+  const core = pkgFile('a-decimal', 'compiled/core.json');
+  const probes = pkgFile('a-decimal', 'tests/probes.json');
+  for (const bad of [{ maxTotalSteps: Number.POSITIVE_INFINITY }, { maxTotalSteps: Number.NaN }, { maxTotalSteps: 0 }, { maxSteps: 1.5 }, { maxCallDepth: -1 }, { deadlineMs: Number.POSITIVE_INFINITY }]) {
+    assert.throws(() => checkProbes(core, probes, cloud('a-decimal', bad)), RangeError, JSON.stringify(bad));
+  }
+});
+
+test('超步数与期望 EVAL_ERROR 的探针判为不一致（资源耗尽不冒充求值错误）', { skip }, () => {
+  const core = pkgFile('a-timeout', 'compiled/core.json');
+  const probes = JSON.stringify({ probes: [{ entry: 'spin', expected: { code: 'EVAL_ERROR', ok: false }, input: { n: 41 } }] });
+  const r = checkProbes(core, probes, cloud('a-timeout', { maxSteps: 1000 }));
+  assert.deepEqual(r.firstMismatch, { index: 0, expected: '{"code":"EVAL_ERROR","ok":false}', actual: '{"code":"RESOURCE_EXHAUSTED","ok":false}' });
+});
+
+// 与 CLI `verify --probes` 对照：同一批黄金包上，CLI 通过 ⇔ checkProbes 全部一致（入口非法、输入非法、期望错误、超时 / 超步数、正常）
+const NO_STDIN = { stdin: async (): Promise<Uint8Array> => new Uint8Array(0) };
+for (const pkg of ['a-decimal', 'a-inputs', 'a-multi-entry', 'a-bad-probe', 'a-probe-bad-entry', 'a-probe-bad-input', 'a-probe-bad-expectation', 'a-probe-timeout']) {
+  test(`与 CLI verify --probes 判定相同：${pkg}`, { skip }, async () => {
+    const dir = join(PACKAGE_V1!, 'packages');
+    const cli = await runCommand(['verify', join(dir, pkg), '--probes', '--timeout', '1s', '--jwks', join(PACKAGE_V1!, 'keys', 'test-jwks.json')], NO_STDIN);
+    const r = checkProbes(pkgFile(pkg, 'compiled/core.json'), pkgFile(pkg, 'tests/probes.json'), cloud(pkg));
+    assert.equal(r.agreed === r.count, cli.exitCode === 0, `${pkg}: CLI 退出码 ${cli.exitCode}，checkProbes ${r.agreed}/${r.count}`);
+  });
+}
 
 test('CLI 的求值上限不变（步数不设限，调用深度 10 000）', () => {
   assert.deepEqual(CLI_EVAL_LIMITS, { maxSteps: Number.MAX_SAFE_INTEGER, maxCallDepth: 10_000 });
