@@ -144,6 +144,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "Feld '{written}' an Position {role} ist mehrdeutig zwischen: {candidates}",
         "E806": "Muster '{written}' an Position {role} ist mehrdeutig zwischen: {candidates}",
         "E807": "Doppelte Deklaration von '{written}' an Position {role}",
+        "E808": "Der Name '{name}' ist der Einzelwort-Alias '{alias}' von {kind} oder eine seiner englischen Schreibweisen",
         "W800": "Deklaration '{written}' an Position {role} verdeckt einen Vokabulareintrag",
         "W801": "'{written}' an Position {role} wurde ohne bekannten Empfängertyp aufgelöst",
         "E900": "Annotation @{annotation} wiederholt das Argument {name}"
@@ -284,6 +285,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "Fügen Sie dem Empfänger (Parameter oder Let) eine Typannotation hinzu, damit das Feld anhand seines deklarierten Typs aufgelöst wird, oder benennen Sie eines der kollidierenden Felder um.",
         "E806": "Schreiben Sie einen qualifizierten Namen (z. B. Stufe.Hoch) oder fügen Sie eine Typannotation hinzu.",
         "E807": "Benennen Sie eine der Deklarationen um oder entfernen Sie das Duplikat.",
+        "E808": "Benennen Sie den Namen um oder ersetzen Sie den Alias durch eine Mehrwortphrase.",
         "W800": "Benennen Sie die Deklaration um, falls die Verdeckung unbeabsichtigt ist; die Deklaration hat Vorrang vor dem Vokabulareintrag.",
         "W801": "Fügen Sie dem Empfänger eine Typannotation hinzu, damit der Name anhand seines Typs geprüft werden kann.",
         "E900": "Geben Sie jedes benannte Argument einer Annotation höchstens einmal an."
@@ -426,6 +428,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "{role} स्थान पर फ़ील्ड '{written}' अस्पष्ट है, विकल्प: {candidates}",
         "E806": "{role} स्थान पर पैटर्न '{written}' अस्पष्ट है, विकल्प: {candidates}",
         "E807": "{role} स्थान पर '{written}' की दोहरी घोषणा",
+        "E808": "नाम '{name}' {kind} का एकल-शब्द उपनाम '{alias}' या उसकी कोई अंग्रेज़ी वर्तनी है",
         "W800": "{role} स्थान पर घोषणा '{written}' एक शब्दावली प्रविष्टि को ढक देती है",
         "W801": "{role} स्थान पर '{written}' ज्ञात रिसीवर टाइप के बिना हल हुआ",
         "E900": "एनोटेशन @{annotation} में तर्क {name} दोबारा दिया गया है"
@@ -566,6 +569,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "रिसीवर (पैरामीटर या Let) पर टाइप एनोटेशन जोड़ें ताकि फ़ील्ड उसके घोषित टाइप से हल हो, या टकराने वाले फ़ील्डों में से एक का नाम बदलें।",
         "E806": "योग्य नाम लिखें (जैसे Stufe.Hoch) या टाइप एनोटेशन जोड़ें।",
         "E807": "घोषणाओं में से एक का नाम बदलें या दोहराव हटाएँ।",
+        "E808": "नाम बदलें, या उपनाम को बहु-शब्द वाक्यांश से बदलें।",
         "W800": "यदि ढकना अनचाहा है तो घोषणा का नाम बदलें; घोषणा को शब्दावली प्रविष्टि पर वरीयता मिलती है।",
         "W801": "रिसीवर पर टाइप एनोटेशन जोड़ें ताकि नाम को उसके टाइप से जाँचा जा सके।",
         "E900": "एनोटेशन के प्रत्येक नामित तर्क को अधिकतम एक बार दें।"
@@ -708,6 +712,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "{role} 位置的字段 '{written}' 存在歧义，候选: {candidates}",
         "E806": "{role} 位置的模式 '{written}' 存在歧义，候选: {candidates}",
         "E807": "在 {role} 位置重复声明 '{written}'",
+        "E808": "名字 '{name}' 是 {kind} 的单词别名 '{alias}' 或其英文拼写，别名在源码中被当作名字使用",
         "W800": "{role} 位置的声明 '{written}' 遮蔽了词汇表条目",
         "W801": "在 {role} 位置解析 '{written}' 时接收者类型未知",
         "E900": "注解 @{annotation} 重复给出了参数 {name}"
@@ -848,6 +853,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "为接收者（参数或 Let）添加类型注解，使字段按其声明类型解析；或重命名冲突的字段。",
         "E806": "请写限定名（如 Stufe.Hoch）或添加类型注解。",
         "E807": "重命名其中一个声明，或删除重复项。",
+        "E808": "给这个名字改名，或把别名改成多词短语。",
         "W800": "若非有意遮蔽请重命名声明；声明优先于词汇表条目。",
         "W801": "为接收者添加类型注解，以便按其类型校验该名称。",
         "E900": "注解的每个具名参数最多只能给出一次。"

@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### 别名校验器 v2 与别名名字守卫 E808（ADR 0060 §5，wontlost-ltd/aster-cloud#830，与 aster-lang-core 同车次）
+
+- **汉字单词别名**：locale 主子标签为 `zh`、每个码点在 U+4E00–U+9FFF 或 U+3400–U+4DBF、长 2–8 个码点的单词别名放行
+  （`isHanSingleToken`）；拉丁、假名、谚文、扩展 B 等单词别名仍报「必须是多词短语，或 zh 下 2–8 个汉字的单词」。
+  `ValidateAliasSetOptions` 新增 `locale`（缺省视为非 zh），`compileSource` 传入编译 locale。
+- **`FUNC_PRODUCE` 入结构词档**：需 `allowStructural`，与 `FUNC_TO` 同类。
+- **收紧**：别名不得等于有效词汇中的字面量宏触发词（含其同义写法），此前不检查。
+- **别名名字守卫（E808 `ALIAS_IDENTIFIER_COLLISION`，新码）**：aliasSet 含汉字单词别名时，`compileSource` 在解析后、
+  名称解析前检查 AST 名字，任一名字折叠后等于该别名或被别名化 kind 的英文拼写即失败；解析恰在汉字单词别名 token 处
+  失败时同样报 E808。`compile()` 新增内部选项 `astGuard`（解析后、名称解析前的 AST 检查钩子）。
+- `USER_ALIAS_VALIDATOR_VERSION` 由 `'1'` 升到 `'2'`。
+- 共享夹具 `shared/alias_validation_v2_parity.json`（与 aster-lang-core 副本 byte-identical）；《静夜思》原诗经 `compileSource`
+  编译、求值得 `静夜思`，Core IR 投影哈希与 core 相同（`jingyesi-policy.test.ts`）。
+
 ## 3.4.0
 
 > **次版本号的理由**：包的公开导出不变——在 `v3.3.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts`：没有新增或删除的
