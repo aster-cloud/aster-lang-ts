@@ -14,7 +14,8 @@
   plain install 的 `node_modules` 从约 49.1 MB 增至 55.8 MB（+6.5 MB、+31 个包，其中 `tar` 约 2.9 MB）。
 - **新门禁** `scripts/verify-package-bins.mjs`（CI package-v1 job）：tarball 装进空目录，不借本仓依赖，跑 `aster --help` /
   `aster version` / `aster verify`（一致性夹具 a-decimal）、`aster-core`、`aster-convert --help`、`aster-lsp --stdio`
-  initialize，以及 `npm i -g` 与 `npx -p <tarball> aster --help`；并断言库 `exports` 的模块图不含 CLI/LSP 依赖。
+  initialize，以及 `npm i -g` 与 `npx -p <tarball> aster --help`；并断言库 `exports` 每个条件分支的模块图不含 CLI/LSP 依赖。
+  保证范围是默认安装：`npm i --omit=optional` 下 `aster` 仍因静态 import 的 `openai` / `@anthropic-ai/sdk`（optionalDependencies）失败，另案跟进。
   `dist/runner/aster.mjs` 与内置信任锚（kid `export-2026-11a`）不变。
 
 ### 字符串字面量内容原样保留、字面量宏值转义后展开（aster-cloud/aster-lang-ts#347、#345，与 aster-lang-core 同车次）
