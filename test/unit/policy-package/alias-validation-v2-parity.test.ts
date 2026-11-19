@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { USER_ALIAS_VALIDATOR_VERSION, validateAliasSet, type AliasSet } from '../../../src/policy-package/alias-validate.js';
-import { attributeParseFailure, checkAliasIdentifiers, forbiddenKeys, MAX_ATTRIBUTION_PROBES } from '../../../src/policy-package/alias-identifier-guard.js';
+import { attributeParseFailure, checkAliasIdentifiers, forbiddenKeys } from '../../../src/policy-package/alias-identifier-guard.js';
 import { CompileFailure, compileSource, lexiconForLocale } from '../../../src/policy-package/compile-source.js';
 import { buildVocabularyScopes } from '../../../src/config/lexicons/identifiers/scopes.js';
 import type { DomainVocabulary } from '../../../src/config/lexicons/identifiers/types.js';
@@ -201,14 +201,11 @@ describe('别名名字守卫单元', () => {
     );
   });
 
-  it('归因探测次数有上限，超出时保留原解析错误', () => {
+  it('错误行的每处别名出现都会探测（不按个数截断）', () => {
     const source = '模块 测试。\n\n规则 甲，产出 整数：\n  低头 低头 低头 低头 低头 低头。\n';
     let calls = 0;
-    const result = attributeParseFailure(source, 4, { RETURN: ['低头'] }, 'zh-CN', () => {
-      calls++;
-      return false;
-    });
-    assert.equal(result, null);
-    assert.equal(calls, MAX_ATTRIBUTION_PROBES);
+    const result = attributeParseFailure(source, 4, { RETURN: ['低头'] }, 'zh-CN', () => ++calls === 6);
+    assert.equal(calls, 6);
+    assert.deepEqual(result?.span?.start, { line: 4, col: 18 });
   });
 });

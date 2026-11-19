@@ -79,6 +79,9 @@ export function parseVocabularyJson(bytes: Uint8Array): DomainVocabulary {
   return tree as unknown as DomainVocabulary;
 }
 
+/** 解析失败归因的全部探测共享的时限（毫秒），与 core `ParseBudget.DEFAULT_BUDGET` 相同。 */
+const ATTRIBUTION_PROBE_BUDGET_MS = 2000;
+
 /** 只做语法分析（规范化 + 词法 + 解析，不做名称解析）：无 error 级诊断且不抛错即通过。 */
 function parsesSyntactically(source: string, lexicon: Lexicon, scopes: VocabularyScopes | undefined): boolean {
   try {
@@ -123,8 +126,10 @@ export function compileSource(source: string, opts: CompileSourceOptions): strin
   }
   if (!result.success && result.parseErrors && result.parseErrors.length > 0) {
     const lexicon = overlayAliases(base, opts.aliasSet);
+    // 全部探测共享一个时限（与 core 共享的语法分析预算同值）；用尽后不再探测，保留原解析错误
+    const deadline = Date.now() + ATTRIBUTION_PROBE_BUDGET_MS;
     const attributed = attributeParseFailure(source, result.parseErrors[0]?.span?.start.line, opts.aliasSet, opts.locale, (probe) =>
-      parsesSyntactically(probe, lexicon, scopes),
+      Date.now() <= deadline && parsesSyntactically(probe, lexicon, scopes),
     );
     if (attributed) throw new CompileFailure([JSON.stringify(attributed)]);
   }
