@@ -128,9 +128,10 @@ export function compileSource(source: string, opts: CompileSourceOptions): strin
     const lexicon = overlayAliases(base, opts.aliasSet);
     // 全部探测共享一个时限（与 core 共享的语法分析预算同值）；用尽后不再探测，保留原解析错误
     const deadline = Date.now() + ATTRIBUTION_PROBE_BUDGET_MS;
-    const attributed = attributeParseFailure(source, result.parseErrors[0]?.span?.start.line, opts.aliasSet, opts.locale, (probe) =>
-      Date.now() <= deadline && parsesSyntactically(probe, lexicon, scopes),
-    );
+    const attributed = attributeParseFailure(source, result.parseErrors[0]?.span?.start.line, opts.aliasSet, opts.locale, {
+      exhausted: () => Date.now() > deadline,
+      parses: (probe) => parsesSyntactically(probe, lexicon, scopes),
+    });
     if (attributed) throw new CompileFailure([JSON.stringify(attributed)]);
   }
   if (!result.success || result.coreJson === undefined) {

@@ -204,8 +204,22 @@ describe('别名名字守卫单元', () => {
   it('错误行的每处别名出现都会探测（不按个数截断）', () => {
     const source = '模块 测试。\n\n规则 甲，产出 整数：\n  低头 低头 低头 低头 低头 低头。\n';
     let calls = 0;
-    const result = attributeParseFailure(source, 4, { RETURN: ['低头'] }, 'zh-CN', () => ++calls === 6);
+    const result = attributeParseFailure(source, 4, { RETURN: ['低头'] }, 'zh-CN', { exhausted: () => false, parses: () => ++calls === 6 });
     assert.equal(calls, 6);
     assert.deepEqual(result?.span?.start, { line: 4, col: 18 });
+  });
+
+  it('时限用尽后不再构造、也不再解析后面的候选', () => {
+    const source = '模块 测试。\n\n规则 甲，产出 整数：\n  低头 低头 低头 低头 低头 低头。\n';
+    let calls = 0;
+    const result = attributeParseFailure(source, 4, { RETURN: ['低头'] }, 'zh-CN', {
+      exhausted: () => calls >= 2,
+      parses: () => {
+        calls++;
+        return false;
+      },
+    });
+    assert.equal(result, null);
+    assert.equal(calls, 2);
   });
 });

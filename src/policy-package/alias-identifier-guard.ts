@@ -113,27 +113,48 @@ function hanAliasOccurrences(text: string, forbidden: Map<string, Hit>): { start
  * 解析失败归因（与 core `AliasIdentifierGuard.attributeParseFailure` 同一算法）：取第一条解析错误所在的源码行，
  * 按位置逐个尝试该行里汉字单词别名的整词出现——把这一处换成普通名字 {@link PROBE_PLACEHOLDER} 后若源码能通过语法分析，
  * 说明这里只能是把别名当作名字使用，报 E808；否则返回 null，调用方照常报解析错误。
- * 该行的每处出现都会探测（不按个数截断，以免漏掉真正的冲突）；总耗时由调用方给 `parsesSyntactically` 的共享时限约束。
+ * 该行的每处出现都会探测（不按个数截断，以免漏掉真正的冲突）；总耗时由调用方的共享时限约束，每次构造候选之前先问
+ * `prober.exhausted()`，用尽即停止。
  *
  * 两引擎在名字位置接受关键词的范围不同（core 有软关键字，ts 在参数、字段声明等位置不接受），解析失败时守卫跑不到；
  * 这一步让两侧对同一源码报同一码。`parsesSyntactically` 只做语法分析（不做名称解析）。
  */
+/** 归因探测：共享时限是否用尽、候选源码能否通过语法分析（不做名称解析）。与 core `AliasIdentifierGuard.Prober` 对应。 */
+export interface AttributionProber {
+  exhausted(): boolean;
+  parses(source: string): boolean;
+}
+
+/** 第 `line` 行（1 起）在源码中的起始下标；行号越界返回 -1。 */
+function lineStart(source: string, line: number): number {
+  if (line < 1) return -1;
+  let start = 0;
+  for (let i = 1; i < line; i++) {
+    const nl = source.indexOf('\n', start);
+    if (nl < 0) return -1;
+    start = nl + 1;
+  }
+  return start;
+}
+
 export function attributeParseFailure(
   source: string,
   firstErrorLine: number | undefined,
   aliasSet: AliasSet | null | undefined,
   locale: string,
-  parsesSyntactically: (probe: string) => boolean,
+  prober: AttributionProber,
 ): TypecheckDiagnostic | null {
   const forbidden = forbiddenKeys(aliasSet, locale);
   if (forbidden.size === 0 || firstErrorLine === undefined) return null;
-  const lines = source.split('\n');
-  const text = lines[firstErrorLine - 1];
-  if (text === undefined) return null;
+  const start = lineStart(source, firstErrorLine);
+  if (start < 0) return null;
+  const end = source.indexOf('\n', start);
+  const text = source.slice(start, end < 0 ? source.length : end);
   for (const o of hanAliasOccurrences(text, forbidden)) {
-    const probeLines = [...lines];
-    probeLines[firstErrorLine - 1] = text.slice(0, o.start) + PROBE_PLACEHOLDER + text.slice(o.start + o.alias.length);
-    if (parsesSyntactically(probeLines.join('\n'))) {
+    // 先问时限：用尽后不再构造候选源码
+    if (prober.exhausted()) return null;
+    const at = start + o.start;
+    if (prober.parses(source.slice(0, at) + PROBE_PLACEHOLDER + source.slice(at + o.alias.length))) {
       const at = { line: firstErrorLine, col: o.start + 1 };
       return collisionDiagnostic(o.alias, o.hit, { start: at, end: { line: firstErrorLine, col: o.start + 1 + o.alias.length } });
     }
