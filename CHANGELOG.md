@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### `aster` / `aster-lsp` 在 plain install 后可直接运行（CLI/LSP 依赖改回 `dependencies`）
+
+- **修复**：3.3.0 及更早把 `cac`、`ora`、`p-limit`、`tar`、`vscode-languageserver`、`vscode-languageserver-textdocument`、
+  `vscode-languageserver-types` 声明为 optional `peerDependencies`（P0-R19），npm / pnpm 都不安装 optional peer。于是
+  `npm i @aster-cloud/aster-lang-ts && npx aster --help`、`npm i -g` 之后的 `aster`、`npx -p @aster-cloud/aster-lang-ts aster …`
+  启动即 `ERR_MODULE_NOT_FOUND: Cannot find package 'cac'`，`aster-lsp` 缺 `vscode-languageserver`（ADR 0059 导出包与文档依赖的
+  Node CLI 不可用；单文件 `dist/runner/aster.mjs` 不受影响）。这 7 个包现为常规 `dependencies`。
+- **库消费者不受影响**：除 `./lsp` 系列外，所有 `exports` 入口（`.`、`./browser`、`./core`、`./cli`、`./package-check` 等）的
+  模块图都不含这些包，打包器（wrangler/esbuild 等）按 import 图取模块，Workers bundle 体积不变；变化只在安装体积——
+  plain install 的 `node_modules` 从约 49.1 MB 增至 55.8 MB（+6.5 MB、+31 个包，其中 `tar` 约 2.9 MB）。
+- **新门禁** `scripts/verify-package-bins.mjs`（CI package-v1 job）：tarball 装进空目录，不借本仓依赖，跑 `aster --help` /
+  `aster version` / `aster verify`（一致性夹具 a-decimal）、`aster-core`、`aster-convert --help`、`aster-lsp --stdio`
+  initialize，以及 `npm i -g` 与 `npx -p <tarball> aster --help`；并断言库 `exports` 的模块图不含 CLI/LSP 依赖。
+  `dist/runner/aster.mjs` 与内置信任锚（kid `export-2026-11a`）不变。
+
 ### 字符串字面量内容原样保留、字面量宏值转义后展开（aster-cloud/aster-lang-ts#347、#345，与 aster-lang-core 同车次）
 
 - **引号归一只改写定界符（#347）**：此前规范化整段替换 `“ ” ‘ ’`，字符串字面量里的弯引号也被改写。现在：
