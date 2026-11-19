@@ -53,7 +53,8 @@ export function parseDocumentWith(
   lexicon: Lexicon | undefined,
   vocabulary: VocabularyScopes | undefined,
 ): ParsedDocument {
-  const options = lexicon && vocabulary ? { lexicon, vocabulary } : lexicon;
+  // lexicon 为 undefined（en-US）时同样带上词汇：canonicalize 对 undefined 取内置英文，与 compile-pipeline 一致（#365）
+  const options = vocabulary ? { lexicon, vocabulary } : lexicon;
   const can = canonicalize(text, options);
   // ★token 位置改为原文坐标后再解析：AST span 由 token 派生，于是高亮/跳转/hover/重命名/
   //   诊断的位置都对应原文（canonicalize 删冠词等会改变行内长度，见 source-positions.ts）。

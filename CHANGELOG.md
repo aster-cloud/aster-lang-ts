@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### en-US 文档应用租户领域词汇（aster-cloud/aster-lang-ts#365）
+
+- **修复**：LSP 中 en-US 以 lexicon `undefined` 表示（「无 lexicon 即内置英文」），`buildCanonicalizeOptions` 却把
+  `undefined` 当作缺参数直接返回，(tenant, domain, en-US) 的词汇从未被查询。于是 en-US 文档的 `aster/canonicalPreview`
+  返回 `mappings: []`，词汇术语补全、经词汇的成员补全、悬停 `written → canonical` 与按词汇的名称解析诊断全部缺失；其它
+  locale 正常。现在 lexicon 为 `undefined` 时按 `en-US` 查词汇，canonicalize 以 `{ lexicon: undefined, vocabulary }`
+  调用（与 `compile()` 的 compile-pipeline 同形）。
+- **不变**：传给 lex / parse 的 lexicon 仍为 `undefined`；没有租户上下文、或租户在该领域没有 en-US 词汇时，en-US 文档的
+  规范化文本、token、AST 与诊断与此前逐字节相同。`compile()` / CLI / browser 入口不经此路径，不受影响。
+
 ### `aster` / `aster-lsp` 在 plain install 后可直接运行（CLI/LSP 依赖改回 `dependencies`）
 
 - **修复**：3.3.0 及更早把 `cac`、`ora`、`p-limit`、`tar`、`vscode-languageserver`、`vscode-languageserver-textdocument`、
