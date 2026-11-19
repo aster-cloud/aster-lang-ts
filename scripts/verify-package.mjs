@@ -11,6 +11,9 @@
  *   4. 在仓外的临时目录解开 tarball，逐个 `import()` 无副作用的 exports 入口，确认模块图能加载。
  *      `./cli`、`./core`、`./lsp/server` 是可执行入口（导入即运行），只检查文件存在与第 3 条。
  *
+ * 第 4 条借用本仓 node_modules，看不到「依赖没被 npm 装上」；bin 在空目录 plain install 后能否运行由
+ * scripts/verify-package-bins.mjs 负责（CI package-v1 job）。
+ *
  * 退出码：0 通过；1 不通过（打印全部问题）。
  */
 import { execFileSync } from 'node:child_process';
