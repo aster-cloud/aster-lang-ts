@@ -9,9 +9,9 @@
  * （规范拼写 + 官方别名）加上这些汉字别名本身，均取折叠键；解析后、名称解析前，AST 里任一名字
  * （点号分隔的名字逐段）折叠后属于 K 即失败。
  *
- * 另：ts 解析器在参数、Let、字段声明、规则名、枚举成员、构造字段等位置不接受翻译后的关键词 token，
- * 解析直接失败；若失败点恰是一个汉字单词别名 token（{@link attributeParseFailure}），同样报 E808——
- * 那里只能是把别名当作名字使用，core 在这些位置解析成功并由守卫报 E808，两侧因此同码。
+ * 另：两引擎在部分名字位置不接受翻译后的关键词，解析直接失败、守卫跑不到（ts：参数、Let、字段声明、规则名、
+ * 枚举成员、构造字段；core：Data / 枚举名、枚举成员，以及 MODULE_DECL / FUNC_PRODUCE / 运算符的别名在任何名字位置）。
+ * {@link attributeParseFailure} 用「把这一处换成普通名字后能否通过语法分析」判定别名是否被当作名字，两侧同一算法、同报 E808。
  */
 import { ErrorCode, formatErrorMessage } from '../diagnostics/error_codes.js';
 import { foldKey } from '../config/lexicons/identifiers/casefold.js';
@@ -25,7 +25,6 @@ import type {
   Pattern,
   Span,
   Statement,
-  Token,
   Type,
   TypecheckDiagnostic,
 } from '../types.js';
@@ -87,32 +86,58 @@ export function checkAliasIdentifiers(ast: Module, aliasSet: AliasSet | null | u
   return new Collector(forbidden).module(ast);
 }
 
+/** 归因探测用的占位名：普通汉字名字，不是任何关键词或别名（U+4E96 两个）。 */
+export const PROBE_PLACEHOLDER = '\u4e96\u4e96';
+
+/** zh 词法的标识符字符（汉字基本区 / 扩展 A、ASCII 字母数字、`_`），用于整词边界判定。 */
+function isIdentChar(ch: string | undefined): boolean {
+  if (ch === undefined) return false;
+  const cp = ch.codePointAt(0)!;
+  return (cp >= 0x4e00 && cp <= 0x9fff) || (cp >= 0x3400 && cp <= 0x4dbf) || /^[A-Za-z0-9_]$/.test(ch);
+}
+
+/** 一行里汉字单词别名的整词出现位置（UTF-16 下标），按位置排序。 */
+function hanAliasOccurrences(text: string, forbidden: Map<string, Hit>): { start: number; alias: string; hit: Hit }[] {
+  const out: { start: number; alias: string; hit: Hit }[] = [];
+  for (const [key, hit] of forbidden) {
+    // 只取汉字别名本身的键（英文拼写的键也指向同一 Hit，跳过）
+    if (key !== foldKey(hit.alias)) continue;
+    for (let i = text.indexOf(hit.alias); i >= 0; i = text.indexOf(hit.alias, i + 1)) {
+      if (!isIdentChar(text[i - 1]) && !isIdentChar(text[i + hit.alias.length])) out.push({ start: i, alias: hit.alias, hit });
+    }
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+
 /**
- * 解析失败归因：任一解析错误的起点恰是一个由汉字单词别名翻译而来的 token（源码在该处写的就是这个别名），
- * 把这些错误改报为 E808。不满足时返回空，调用方照常报解析错误。
+ * 解析失败归因（与 core `AliasIdentifierGuard.attributeParseFailure` 同一算法）：取第一条解析错误所在的源码行，
+ * 按位置逐个尝试该行里汉字单词别名的整词出现——把这一处换成普通名字 {@link PROBE_PLACEHOLDER} 后若源码能通过语法分析，
+ * 说明这里只能是把别名当作名字使用，报 E808；否则返回 null，调用方照常报解析错误。
+ *
+ * 两引擎在名字位置接受关键词的范围不同（core 有软关键字，ts 在参数、字段声明等位置不接受），解析失败时守卫跑不到；
+ * 这一步让两侧对同一源码报同一码。`parsesSyntactically` 只做语法分析（不做名称解析）。
  */
 export function attributeParseFailure(
   source: string,
-  tokens: readonly Token[] | undefined,
-  errorStarts: readonly (Span['start'] | undefined)[],
+  firstErrorLine: number | undefined,
   aliasSet: AliasSet | null | undefined,
   locale: string,
-): TypecheckDiagnostic[] {
+  parsesSyntactically: (probe: string) => boolean,
+): TypecheckDiagnostic | null {
   const forbidden = forbiddenKeys(aliasSet, locale);
-  if (forbidden.size === 0 || !tokens) return [];
+  if (forbidden.size === 0 || firstErrorLine === undefined) return null;
   const lines = source.split('\n');
-  const out: TypecheckDiagnostic[] = [];
-  for (const start of errorStarts) {
-    if (!start) continue;
-    const tok = tokens.find((t) => t.translated && t.start.line === start.line && t.start.col === start.col);
-    if (!tok || tok.end.line !== tok.start.line) continue;
-    const written = (lines[tok.start.line - 1] ?? '').slice(tok.start.col - 1, tok.end.col - 1);
-    const hit = forbidden.get(foldKey(written));
-    if (hit && isHanSingleToken(normalizeAlias(written), locale)) {
-      out.push(collisionDiagnostic(written, hit, { start: tok.start, end: tok.end }));
+  const text = lines[firstErrorLine - 1];
+  if (text === undefined) return null;
+  for (const o of hanAliasOccurrences(text, forbidden)) {
+    const probeLines = [...lines];
+    probeLines[firstErrorLine - 1] = text.slice(0, o.start) + PROBE_PLACEHOLDER + text.slice(o.start + o.alias.length);
+    if (parsesSyntactically(probeLines.join('\n'))) {
+      const at = { line: firstErrorLine, col: o.start + 1 };
+      return collisionDiagnostic(o.alias, o.hit, { start: at, end: { line: firstErrorLine, col: o.start + 1 + o.alias.length } });
     }
   }
-  return out;
+  return null;
 }
 
 /** AST 遍历：与 core `AliasIdentifierGuard.Collector` 逐项对应。 */

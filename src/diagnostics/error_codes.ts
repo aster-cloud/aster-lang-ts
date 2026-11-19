@@ -285,7 +285,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.AMBIGUOUS_FIELD]: "Field '{written}' in {role} position is ambiguous between: {candidates}",
   [ErrorCode.AMBIGUOUS_PATTERN]: "Pattern '{written}' in {role} position is ambiguous between: {candidates}",
   [ErrorCode.DUPLICATE_DECLARATION]: "Duplicate declaration of '{written}' in {role} position",
-  [ErrorCode.ALIAS_IDENTIFIER_COLLISION]: "Name '{name}' is the single-token alias '{alias}' of {kind} or one of its English spellings",
+  [ErrorCode.ALIAS_IDENTIFIER_COLLISION]: "Alias '{alias}' ({kind}) is used as a name in the source: '{name}'",
   [ErrorCode.PARSE_DUPLICATE_ANNOTATION_ARG]: "Annotation @{annotation} repeats the argument {name}",
   [ErrorCode.SHADOWED_VOCABULARY]: "Declaration '{written}' in {role} position shadows a vocabulary entry",
   [ErrorCode.RESOLVED_WITHOUT_TYPE]: "Resolved '{written}' in {role} position without a known receiver type",
@@ -1218,7 +1218,7 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     code: ErrorCode.ALIAS_IDENTIFIER_COLLISION,
     category: 'scope',
     severity: 'error',
-    message: "Name '{name}' is the single-token alias '{alias}' of {kind} or one of its English spellings",
+    message: "Alias '{alias}' ({kind}) is used as a name in the source: '{name}'",
     help: "Rename the name, or replace the alias with a multi-word phrase.",
   },
   [ErrorCode.PARSE_DUPLICATE_ANNOTATION_ARG]: {

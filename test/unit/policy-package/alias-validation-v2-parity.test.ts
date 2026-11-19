@@ -16,7 +16,7 @@ import { buildVocabularyScopes } from '../../../src/config/lexicons/identifiers/
 import type { DomainVocabulary } from '../../../src/config/lexicons/identifiers/types.js';
 
 /** 与 core AliasValidationV2Fixture.SHA256 相同；改夹具须两仓同改并同步两侧常量。 */
-const FIXTURE_SHA256 = '3ea7904191950858bd43ab16a95a8303fe89aa6d03f08fe2db01d2ea0d07fa1d';
+const FIXTURE_SHA256 = '721ab90b1f847ce7e3806d32360db1157d6a1ac5368ef5d15f99e402464765c4';
 
 interface ValidatorCase {
   readonly id: string;
@@ -35,8 +35,7 @@ interface GuardCase {
   readonly aliasSet: AliasSet | null;
   readonly vocabulary: DomainVocabulary | null;
   readonly source: string;
-  readonly expect: 'ok' | 'alias_identifier_collision' | 'rejected';
-  readonly note?: string;
+  readonly expect: 'ok' | 'alias_identifier_collision' | 'parse_error';
 }
 
 const REPO_ROOT = process.cwd();
@@ -151,7 +150,10 @@ describe('ADR 0060 别名校验器 v2 parity（ts 侧）', () => {
         else if (c.expect === 'alias_identifier_collision') {
           assert.ok(failure, '期望 E808，实际编译通过');
           assert.deepEqual(failureCodes(failure), ['E808'], failure.diagnostics.join('\n'));
-        } else assert.ok(failure, `期望编译失败（${c.note ?? ''}），实际编译通过`);
+        } else {
+          assert.ok(failure, '期望解析错误，实际编译通过');
+          assert.ok(!failureCodes(failure).includes('E808'), failure.diagnostics.join('\n'));
+        }
       });
     }
   });
@@ -168,7 +170,7 @@ describe('别名名字守卫单元', () => {
     assert.equal(forbiddenKeys(null, 'zh-CN').size, 0);
   });
 
-  it('解析失败恰在汉字单词别名 token 处时报 E808，诊断带名字、别名与 kind', () => {
+  it('解析失败、而把该处别名换成普通名字即可解析时报 E808，诊断带名字、别名与 kind', () => {
     const source = '模块 测试。\n\n规则 甲 给定 低头 作为 整数，产出 整数：\n  返回 1。\n';
     assert.throws(
       () => compileSource(source, { locale: 'zh-CN', aliasSet: { RETURN: ['低头'] }, allowStructural: true }),

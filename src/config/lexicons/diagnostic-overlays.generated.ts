@@ -144,7 +144,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "Feld '{written}' an Position {role} ist mehrdeutig zwischen: {candidates}",
         "E806": "Muster '{written}' an Position {role} ist mehrdeutig zwischen: {candidates}",
         "E807": "Doppelte Deklaration von '{written}' an Position {role}",
-        "E808": "Der Name '{name}' ist der Einzelwort-Alias '{alias}' von {kind} oder eine seiner englischen Schreibweisen",
+        "E808": "Der Alias '{alias}' ({kind}) wird im Quelltext als Name verwendet: '{name}'",
         "W800": "Deklaration '{written}' an Position {role} verdeckt einen Vokabulareintrag",
         "W801": "'{written}' an Position {role} wurde ohne bekannten Empfängertyp aufgelöst",
         "E900": "Annotation @{annotation} wiederholt das Argument {name}"
@@ -428,7 +428,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "{role} स्थान पर फ़ील्ड '{written}' अस्पष्ट है, विकल्प: {candidates}",
         "E806": "{role} स्थान पर पैटर्न '{written}' अस्पष्ट है, विकल्प: {candidates}",
         "E807": "{role} स्थान पर '{written}' की दोहरी घोषणा",
-        "E808": "नाम '{name}' {kind} का एकल-शब्द उपनाम '{alias}' या उसकी कोई अंग्रेज़ी वर्तनी है",
+        "E808": "उपनाम '{alias}' ({kind}) को स्रोत में नाम के रूप में उपयोग किया गया है: '{name}'",
         "W800": "{role} स्थान पर घोषणा '{written}' एक शब्दावली प्रविष्टि को ढक देती है",
         "W801": "{role} स्थान पर '{written}' ज्ञात रिसीवर टाइप के बिना हल हुआ",
         "E900": "एनोटेशन @{annotation} में तर्क {name} दोबारा दिया गया है"
@@ -712,7 +712,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "{role} 位置的字段 '{written}' 存在歧义，候选: {candidates}",
         "E806": "{role} 位置的模式 '{written}' 存在歧义，候选: {candidates}",
         "E807": "在 {role} 位置重复声明 '{written}'",
-        "E808": "名字 '{name}' 是 {kind} 的单词别名 '{alias}' 或其英文拼写，别名在源码中被当作名字使用",
+        "E808": "别名 '{alias}'（{kind}）在源码中被当作名字使用：'{name}'",
         "W800": "{role} 位置的声明 '{written}' 遮蔽了词汇表条目",
         "W801": "在 {role} 位置解析 '{written}' 时接收者类型未知",
         "E900": "注解 @{annotation} 重复给出了参数 {name}"

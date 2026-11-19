@@ -10,8 +10,8 @@
 - **`FUNC_PRODUCE` 入结构词档**：需 `allowStructural`，与 `FUNC_TO` 同类。
 - **收紧**：别名不得等于有效词汇中的字面量宏触发词（含其同义写法），此前不检查。
 - **别名名字守卫（E808 `ALIAS_IDENTIFIER_COLLISION`，新码）**：aliasSet 含汉字单词别名时，`compileSource` 在解析后、
-  名称解析前检查 AST 名字，任一名字折叠后等于该别名或被别名化 kind 的英文拼写即失败；解析恰在汉字单词别名 token 处
-  失败时同样报 E808。`compile()` 新增内部选项 `astGuard`（解析后、名称解析前的 AST 检查钩子）。
+  名称解析前检查 AST 名字，任一名字折叠后等于该别名或被别名化 kind 的英文拼写即失败；解析失败时，若把第一条错误所在行
+  的某处汉字单词别名换成普通名字即可通过语法分析，同样报 E808（与 core 同一算法）。`compile()` 新增内部选项 `astGuard`（解析后、名称解析前的 AST 检查钩子）。
 - `USER_ALIAS_VALIDATOR_VERSION` 由 `'1'` 升到 `'2'`。
 - 共享夹具 `shared/alias_validation_v2_parity.json`（与 aster-lang-core 副本 byte-identical）；《静夜思》原诗经 `compileSource`
   编译、求值得 `静夜思`，Core IR 投影哈希与 core 相同（`jingyesi-policy.test.ts`）。

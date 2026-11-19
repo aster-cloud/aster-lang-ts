@@ -5,7 +5,8 @@
 import { compile } from '../browser.js';
 import { canonicalJson } from '../core/canonical-json.js';
 import { initializeAllBundledLexicons, LexiconRegistry } from '../config/lexicons/index.js';
-import { buildVocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
+import { buildVocabularyScopes, type VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
+import { hasErrors, parseSource } from '../compile-pipeline.js';
 import type { DomainVocabulary } from '../config/lexicons/identifiers/types.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { overlayAliases, SEMANTIC_KIND_NAMES, validateAliasSet, type AliasSet } from './alias-validate.js';
@@ -78,17 +79,26 @@ export function parseVocabularyJson(bytes: Uint8Array): DomainVocabulary {
   return tree as unknown as DomainVocabulary;
 }
 
+/** 只做语法分析（规范化 + 词法 + 解析，不做名称解析）：无 error 级诊断且不抛错即通过。 */
+function parsesSyntactically(source: string, lexicon: Lexicon, scopes: VocabularyScopes | undefined): boolean {
+  try {
+    return !hasErrors(parseSource(source, lexicon, scopes).diagnostics);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 源码 → 规范 Core IR 字节（aliasSet 先校验再叠加）。失败抛 {@link CompileFailure}。
  *
- * 带汉字单词别名时，解析后、名称解析前跑别名名字守卫（ADR 0060 §5.3 第 2 条，E808）；解析恰在一个汉字单词别名
- * token 处失败时也报 E808（见 alias-identifier-guard.ts）。与 core `InProcessCnlParser.parseWithUserAliases` 同序。
+ * 带汉字单词别名时，解析后、名称解析前跑别名名字守卫（ADR 0060 §5.3 第 2 条，E808）；解析失败而把第一条错误所在行的
+ * 某个汉字单词别名换成普通名字后能通过语法分析时也报 E808（见 alias-identifier-guard.ts）。与 core `InProcessCnlParser.parseWithUserAliases` 同序。
  */
 export function compileSource(source: string, opts: CompileSourceOptions): string {
   // 空白源码（只含 ASCII 空白）不交给编译器：源码形态与包形态同一判定（README「compile」）
   if (isBlankSource(source)) throw new CompileFailure(['源码为空或只含 ASCII 空白']);
   const base = lexiconForLocale(opts.locale);
-  let scopes;
+  let scopes: VocabularyScopes | undefined;
   try {
     scopes = opts.vocabulary ? buildVocabularyScopes(opts.vocabulary) : undefined;
   } catch (e) {
@@ -107,15 +117,16 @@ export function compileSource(source: string, opts: CompileSourceOptions): strin
       lexicon: overlayAliases(base, opts.aliasSet),
       ...(opts.vocabulary ? { vocabulary: opts.vocabulary } : {}),
       astGuard: (ast) => checkAliasIdentifiers(ast, opts.aliasSet, opts.locale),
-      includeIntermediates: true,
     });
   } catch (e) {
     throw new CompileFailure([`编译器异常：${(e as Error).message}`]);
   }
   if (!result.success && result.parseErrors && result.parseErrors.length > 0) {
-    const starts = result.parseErrors.map((d) => d.span?.start);
-    const attributed = attributeParseFailure(source, result.tokens, starts, opts.aliasSet, opts.locale);
-    if (attributed.length > 0) throw new CompileFailure(attributed.map((d) => JSON.stringify(d)));
+    const lexicon = overlayAliases(base, opts.aliasSet);
+    const attributed = attributeParseFailure(source, result.parseErrors[0]?.span?.start.line, opts.aliasSet, opts.locale, (probe) =>
+      parsesSyntactically(probe, lexicon, scopes),
+    );
+    if (attributed) throw new CompileFailure([JSON.stringify(attributed)]);
   }
   if (!result.success || result.coreJson === undefined) {
     const diags = [

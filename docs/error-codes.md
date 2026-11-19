@@ -141,7 +141,7 @@
 | **E805** `AMBIGUOUS_FIELD` | 🔴 error | Field '&#123;written&#125;' in &#123;role&#125; position is ambiguous between: &#123;candidates&#125; | Add a type annotation to the receiver (parameter or Let) so the field resolves against its declared type, or rename one of the conflicting fields. |
 | **E806** `AMBIGUOUS_PATTERN` | 🔴 error | Pattern '&#123;written&#125;' in &#123;role&#125; position is ambiguous between: &#123;candidates&#125; | Write a qualified name (e.g. Stufe.Hoch) or add a type annotation. |
 | **E807** `DUPLICATE_DECLARATION` | 🔴 error | Duplicate declaration of '&#123;written&#125;' in &#123;role&#125; position | Rename one of the declarations or remove the duplicate. |
-| **E808** `ALIAS_IDENTIFIER_COLLISION` | 🔴 error | Name '&#123;name&#125;' is the single-token alias '&#123;alias&#125;' of &#123;kind&#125; or one of its English spellings | Rename the name, or replace the alias with a multi-word phrase. |
+| **E808** `ALIAS_IDENTIFIER_COLLISION` | 🔴 error | Alias '&#123;alias&#125;' (&#123;kind&#125;) is used as a name in the source: '&#123;name&#125;' | Rename the name, or replace the alias with a multi-word phrase. |
 | **W800** `SHADOWED_VOCABULARY` | 🟡 warning | Declaration '&#123;written&#125;' in &#123;role&#125; position shadows a vocabulary entry | Rename the declaration if the shadowing is unintended; the declaration wins over the vocabulary entry. |
 | **W801** `RESOLVED_WITHOUT_TYPE` | 🟡 warning | Resolved '&#123;written&#125;' in &#123;role&#125; position without a known receiver type | Add a type annotation to the receiver so the name can be checked against its type. |
 
