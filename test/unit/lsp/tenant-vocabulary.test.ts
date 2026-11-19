@@ -89,7 +89,7 @@ describe('租户领域词汇参与解析', () => {
   it('★缺任一项即回退裸 lexicon（半套参数查不到租户那一份）', () => {
     assert.equal(buildCanonicalizeOptions(ZH_CN, undefined, DOMAIN), ZH_CN, '缺 tenantId 应回退');
     assert.equal(buildCanonicalizeOptions(ZH_CN, TENANT, undefined), ZH_CN, '缺 domain 应回退');
-    assert.equal(buildCanonicalizeOptions(undefined, TENANT, DOMAIN), undefined, '无 lexicon 时保持 undefined');
+    assert.equal(buildCanonicalizeOptions(undefined, TENANT, DOMAIN), undefined, '无 lexicon（en-US）且租户无 en-US 词汇时保持 undefined');
   });
 });
 

@@ -10,25 +10,32 @@
 import type { Lexicon } from '../config/lexicons/types.js';
 import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
 import { vocabularyRegistry, initBuiltinVocabularies } from '../config/lexicons/identifiers/registry.js';
+import { EN_US } from '../config/lexicons/en-US.js';
 
-/** 带租户词汇的 canonicalize options（CanonicalizerOptions 的子集）。 */
+/**
+ * 带租户词汇的 canonicalize options（CanonicalizerOptions 的子集）。
+ * lexicon 为 undefined 表示内置英文（与 compile-pipeline 的 `{ lexicon, vocabulary }` 同形）。
+ */
 export interface TenantCanonicalizeOptions {
-  readonly lexicon: Lexicon;
+  readonly lexicon: Lexicon | undefined;
   readonly vocabulary: VocabularyScopes;
 }
 
 /**
- * 有完整租户上下文且注册中心查得到词汇时返回 options 对象，否则退回裸 lexicon。
+ * 有完整租户上下文且注册中心查得到词汇时返回 options 对象，否则原样退回 lexicon。
  *
- * ★三者缺任一即回退：半套参数查不到租户那一份词汇，回退是显式且可断言的。
+ * ★tenantId / domain 缺任一即回退：半套参数查不到租户那一份词汇，回退是显式且可断言的。
+ * ★lexicon 为 undefined（LSP 中 en-US 的表示）不是「缺参数」：按 en-US 查词汇（issue #365）。
+ *   返回的 options 仍携带原 lexicon（undefined），canonicalize / lex / parse 的英文路径与无词汇时一致，
+ *   只多出词汇作用域。
  */
 export function buildCanonicalizeOptions(
   lexicon: Lexicon | undefined,
   tenantId: string | undefined,
   domain: string | undefined,
 ): Lexicon | TenantCanonicalizeOptions | undefined {
-  if (!lexicon || !tenantId || !domain) return lexicon;
+  if (!tenantId || !domain) return lexicon;
   initBuiltinVocabularies();
-  const vocabulary = vocabularyRegistry.getWithCustom(tenantId, domain, lexicon.id);
+  const vocabulary = vocabularyRegistry.getWithCustom(tenantId, domain, (lexicon ?? EN_US).id);
   return vocabulary ? { lexicon, vocabulary } : lexicon;
 }
