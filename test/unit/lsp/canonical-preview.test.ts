@@ -181,42 +181,42 @@ for (const c of LITERAL_CASES) {
       assert.equal(p.text.slice(...m.preview), `${c.quote[0]}Hallo${c.quote[1]}`);
     });
 
-    it('★无需转义的宏值（空格、é、代理对、天城文、非当前 lexicon 的引号）：预览与带词汇编译源码的 Core IR 相同', () => {
-      const value = 'Grüße é 😀 नमस्ते' + ['「', '」'].filter((q) => !(c.quote as readonly string[]).includes(q)).join('');
+    it('★无需转义的宏值（空格、é、代理对、天城文）：预览与带词汇编译源码的 Core IR 相同', () => {
+      const value = 'Grüße é 😀 नमस्ते';
       const v = vocab(c.lexicon.id, { literals: [{ canonical: value, localized: 'greeting', kind: 'literal' }] } as Partial<DomainVocabulary>);
       const p = assertFaithful(c.doc('greeting'), c.lexicon, v);
       assert.equal(p.text, c.doc(`${c.quote[0]}${value}${c.quote[1]}`));
     });
 
-    // 编译器先规范化、后展开宏，宏值原样拼进引号（不转义，aster-lang-ts#345）；预览文本则要再经一次规范化。
-    // 字面量读不回原值（反斜杠转义、当前 lexicon 的结束引号、" 在 ASCII 引号里），或规范化会改写它
-    // （弯引号 “ ” ‘ ’ 改成 ASCII 引号、制表符），或含换行等控制字符：预览无从忠实，一律不给（失败闭锁）
-    const unfaithful = ['C:\\new', 'a\\b', 'a"b', 'a\nb', 'a\tb', 'a\u0001b', `a${c.quote[1]}b`, '“curly”', 'a“b'];
-    for (const value of unfaithful) {
-      it(`★宏值无法原样往返（${JSON.stringify(value)}）时预览为 null`, () => {
-        const text = c.doc('greeting');
-        const v = vocab(c.lexicon.id, { literals: [{ canonical: value, localized: 'greeting', kind: 'literal' }] } as Partial<DomainVocabulary>);
-        const doc = parseDocumentWith(text, c.lexicon, buildVocabularyScopes(v));
-        assert.equal(buildCanonicalPreview(text, doc, c.lexicon), null);
-      });
-    }
-
-    // 能原样往返的值照常预览，且与带词汇编译源码的 Core IR 相同（撇号很常见，如 driver's licence）
-    // zh 的开引号「不结束字符串，`「a「b」` 读回 a「b
-    const roundTrips = ["don't", "it's 'ok'", ...(c.quote[0] === c.quote[1] ? [] : [`a${c.quote[0]}b`])];
-    for (const value of roundTrips) {
-      it(`★宏值能原样往返（${JSON.stringify(value)}）：预览与带词汇编译源码的 Core IR 相同`, () => {
+    // 编译器展开宏时按词法器转义 \ 与 "（aster-lang-ts#345），字符串内容不受引号归一影响（aster-lang-ts#347）：
+    // 这些值写成字面量后读回的正是宏值，预览照常给出，且与带词汇编译源码的 Core IR 相同。
+    // ASCII 引号的词法表里 a"b 即「宏值含结束引号」。
+    const escaped: ReadonlyArray<readonly [string, string]> = [
+      ['C:\\new', 'C:\\\\new'],
+      ['a\\b', 'a\\\\b'],
+      ['a"b', 'a\\"b'],
+      ['“curly”', '“curly”'],
+      ['a“b', 'a“b'],
+      ["don't", "don't"],
+      ["it's 'ok'", "it's 'ok'"],
+      ['‘single’', '‘single’'],
+    ];
+    for (const [value, written] of escaped) {
+      it(`★宏值 ${JSON.stringify(value)} 写成 ${c.quote[0]}${written}${c.quote[1]}：预览与带词汇编译源码的 Core IR 相同`, () => {
         const p = assertFaithful(c.doc('greeting'), c.lexicon, literal(c.lexicon.id, 'greeting', value));
-        assert.equal(p.text, c.doc(`${c.quote[0]}${value}${c.quote[1]}`));
+        assert.equal(p.text, c.doc(`${c.quote[0]}${written}${c.quote[1]}`));
       });
     }
 
-    it('★宏值 ‘single’：要么预览为 null，要么与带词汇编译源码的 Core IR 相同（不得静默改成 ASCII 引号）', () => {
-      const text = c.doc('greeting');
-      const v = literal(c.lexicon.id, 'greeting', '‘single’');
-      const p = buildCanonicalPreview(text, parseDocumentWith(text, c.lexicon, buildVocabularyScopes(v)), c.lexicon);
-      if (p) assert.equal(assertFaithful(text, c.lexicon, v).text, c.doc(`${c.quote[0]}‘single’${c.quote[1]}`));
-    });
+    // 写不成字面量的宏值（空、控制字符、「」『』«» 与当前 lexicon 的非 ASCII 引号）：编译器拒绝展开、大声抛错，
+    // 与 Java Canonicalizer.expandToken 一致；预览所依赖的文档解析同样失败。
+    const rejected = ['a\nb', 'a\tb', 'a\u0001b', '「x」', 'a『b', 'a«b', `a${c.quote[0] === '"' ? '」' : c.quote[1]}b`];
+    for (const value of rejected) {
+      it(`★宏值 ${JSON.stringify(value)} 写不成字面量：解析抛错（失败闭锁）`, () => {
+        const v = vocab(c.lexicon.id, { literals: [{ canonical: value, localized: 'greeting', kind: 'literal' }] } as Partial<DomainVocabulary>);
+        assert.throws(() => parseDocumentWith(c.doc('greeting'), c.lexicon, buildVocabularyScopes(v)), /Unsafe literal-macro content/);
+      });
+    }
   });
 }
 
