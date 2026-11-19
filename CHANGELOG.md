@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 3.5.0
+
+> **次版本号的理由**：公开声明只增不删——在 `v3.4.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts`：新增声明文件
+> `policy-package/alias-identifier-guard.d.ts`，无删除；经 `exports` 入口可达的改动只有 `./browser` 的 `CompileOptions`
+> 新增可选字段 `astGuard`（解析后、名称解析前的 AST 检查钩子）。`diagnostics/error_codes.d.ts` 的 `ErrorCode` 新增
+> `ALIAS_IDENTIFIER_COLLISION = "E808"`；`policy-package/alias-validate.d.ts` 新增 `isZhLocale`、`isHanSingleToken`、
+> `MIN_HAN_SINGLE_TOKEN` / `MAX_HAN_SINGLE_TOKEN` 与 `ValidateAliasSetOptions.locale`，`USER_ALIAS_VALIDATOR_VERSION` 由 `'1'`
+> 变为 `'2'`（这两个模块不经任何 `exports` 子路径导出）。`exports` 子路径不变。更关键的是行为：E808 是新的 error 级诊断，
+> 等于字面量宏触发词的别名此前通过校验、现在失败，属于既有输入新拒绝，按 ADR 0046 §11.7 第 11 条（1.6.0、3.1.0–3.4.0 先例）取 minor。
 
 ### 别名校验器 v2 与别名名字守卫 E808（ADR 0060 §5，wontlost-ltd/aster-cloud#830，与 aster-lang-core 同车次）
 
