@@ -5,10 +5,12 @@
 import { compile } from '../browser.js';
 import { canonicalJson } from '../core/canonical-json.js';
 import { initializeAllBundledLexicons, LexiconRegistry } from '../config/lexicons/index.js';
-import { buildVocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
+import { buildVocabularyScopes, type VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
+import { hasErrors, parseSource } from '../compile-pipeline.js';
 import type { DomainVocabulary } from '../config/lexicons/identifiers/types.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { overlayAliases, SEMANTIC_KIND_NAMES, validateAliasSet, type AliasSet } from './alias-validate.js';
+import { attributeParseFailure, checkAliasIdentifiers } from './alias-identifier-guard.js';
 import { sha256HexSync } from './sha256.js';
 import { decodeUtf8Strict, isJsonObject, parseStrictJson, type JsonValue } from './strict-json.js';
 
@@ -77,24 +79,60 @@ export function parseVocabularyJson(bytes: Uint8Array): DomainVocabulary {
   return tree as unknown as DomainVocabulary;
 }
 
-/** 源码 → 规范 Core IR 字节（aliasSet 先校验再叠加）。失败抛 {@link CompileFailure}。 */
+/** 解析失败归因的全部探测共享的时限（毫秒），与 core `ParseBudget.DEFAULT_BUDGET` 相同。 */
+const ATTRIBUTION_PROBE_BUDGET_MS = 2000;
+
+/** 只做语法分析（规范化 + 词法 + 解析，不做名称解析）：无 error 级诊断且不抛错即通过。 */
+function parsesSyntactically(source: string, lexicon: Lexicon, scopes: VocabularyScopes | undefined): boolean {
+  try {
+    return !hasErrors(parseSource(source, lexicon, scopes).diagnostics);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 源码 → 规范 Core IR 字节（aliasSet 先校验再叠加）。失败抛 {@link CompileFailure}。
+ *
+ * 带汉字单词别名时，解析后、名称解析前跑别名名字守卫（ADR 0060 §5.3 第 2 条，E808）；解析失败而把第一条错误所在行的
+ * 某个汉字单词别名换成普通名字后能通过语法分析时也报 E808（见 alias-identifier-guard.ts）。与 core `InProcessCnlParser.parseWithUserAliases` 同序。
+ */
 export function compileSource(source: string, opts: CompileSourceOptions): string {
   // 空白源码（只含 ASCII 空白）不交给编译器：源码形态与包形态同一判定（README「compile」）
   if (isBlankSource(source)) throw new CompileFailure(['源码为空或只含 ASCII 空白']);
   const base = lexiconForLocale(opts.locale);
-  let scopes;
+  let scopes: VocabularyScopes | undefined;
   try {
     scopes = opts.vocabulary ? buildVocabularyScopes(opts.vocabulary) : undefined;
   } catch (e) {
     throw new CompileFailure([`词汇不合法：${(e as Error).message}`]);
   }
-  const aliasErrors = validateAliasSet(opts.aliasSet, { base, allowStructural: opts.allowStructural ?? false, vocabulary: scopes });
+  const aliasErrors = validateAliasSet(opts.aliasSet, {
+    base,
+    allowStructural: opts.allowStructural ?? false,
+    vocabulary: scopes,
+    locale: opts.locale,
+  });
   if (aliasErrors.length > 0) throw new CompileFailure(['用户自定义别名校验失败', ...aliasErrors]);
   let result;
   try {
-    result = compile(source, { lexicon: overlayAliases(base, opts.aliasSet), ...(opts.vocabulary ? { vocabulary: opts.vocabulary } : {}) });
+    result = compile(source, {
+      lexicon: overlayAliases(base, opts.aliasSet),
+      ...(opts.vocabulary ? { vocabulary: opts.vocabulary } : {}),
+      astGuard: (ast) => checkAliasIdentifiers(ast, opts.aliasSet, opts.locale),
+    });
   } catch (e) {
     throw new CompileFailure([`编译器异常：${(e as Error).message}`]);
+  }
+  if (!result.success && result.parseErrors && result.parseErrors.length > 0) {
+    const lexicon = overlayAliases(base, opts.aliasSet);
+    // 全部探测共享一个时限（与 core 共享的语法分析预算同值）；用尽后不再探测，保留原解析错误
+    const deadline = Date.now() + ATTRIBUTION_PROBE_BUDGET_MS;
+    const attributed = attributeParseFailure(source, result.parseErrors[0]?.span?.start.line, opts.aliasSet, opts.locale, {
+      exhausted: () => Date.now() > deadline,
+      parses: (probe) => parsesSyntactically(probe, lexicon, scopes),
+    });
+    if (attributed) throw new CompileFailure([JSON.stringify(attributed)]);
   }
   if (!result.success || result.coreJson === undefined) {
     const diags = [
