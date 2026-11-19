@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 3.4.0
+
+> **次版本号的理由**：包的公开导出不变——在 `v3.3.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts`：没有新增或删除的
+> 声明文件；只有 2 个文件有改动，且都不经任何 `exports` 入口可达：`frontend/canonicalizer.d.ts` 新增 `literalMacroLiteral`
+> （包入口只再导出 `canonicalize` 与 `CanonicalizerOptions`），`lsp/canonicalize-options.d.ts` 的 `TenantCanonicalizeOptions.lexicon`
+> 由 `Lexicon` 放宽为 `Lexicon | undefined`（`./lsp` 系列入口不导出该模块）。`exports` 子路径不变。但 #347 的引号裁决让既有源码
+> 出现新的 error 级诊断（`"abc”` 此前当作闭合的字符串，现在报未闭合字符串；在 3.3.0 上可编译），写不成字面量的宏值由原样拼接
+> 改为抛错，含 `‘ ’` 的字符串字面量的 Core IR 值也随之变化，不是补丁级变化，按 ADR 0046 §11.7 第 11 条（1.6.0、3.1.0、3.2.0、
+> 3.3.0 先例）取 minor。CLI / LSP 依赖改回 `dependencies` 只影响安装内容，库入口的模块图不变。
 
 ### en-US 文档应用租户领域词汇（aster-cloud/aster-lang-ts#365）
 
