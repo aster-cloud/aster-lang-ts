@@ -72,6 +72,25 @@ describe('字面量宏 IdentifierKind.LITERAL', () => {
     }
   });
 
+  // 冻结词汇与直接构造的作用域不经 validateVocabulary，反斜杠与 ASCII 双引号可能到达展开。
+  // 展开时按词法器转义（aster-lang-ts#345）：此前原样拼进引号，C:\new 编译成 C: + 换行 + ew。
+  // 与 aster-lang-core LiteralMacroTest.backslashAndDoubleQuoteAreEscapedOnExpansion 对应。
+  it('展开时转义反斜杠与 ASCII 双引号（en-US 与 zh-CN）', () => {
+    const value = 'C:\\new "x"';
+    const en = buildVocabularyScopes(vocab([{ localized: 'pfad', canonical: value, kind: IdentifierKind.LITERAL }], { locale: 'en-US' }));
+    assert.equal(canonicalize('Return pfad.', { lexicon: EN_US, vocabulary: en }), 'Return "C:\\\\new \\"x\\"".');
+    const zh = buildVocabularyScopes(vocab([{ localized: '路径', canonical: value, kind: IdentifierKind.LITERAL }]));
+    assert.equal(canonicalize('返回 路径。', { lexicon: ZH_CN, vocabulary: zh }), '返回 「C:\\\\new \\"x\\"」.');
+  });
+
+  // 与 aster-lang-core LiteralMacroTest.unescapableLiteralContentStillThrows 对应
+  it('写不成字面量的内容（空、控制字符、「」『』«»）拒绝展开、大声抛错', () => {
+    for (const bad of ['a\nb', 'a\tb', '「x」', 'a『b', 'a«b']) {
+      const scopes = buildVocabularyScopes(vocab([{ localized: 'pfad', canonical: bad, kind: IdentifierKind.LITERAL }], { locale: 'en-US' }));
+      assert.throws(() => canonicalize('Return pfad.', { lexicon: EN_US, vocabulary: scopes }), /Unsafe literal-macro content/, JSON.stringify(bad));
+    }
+  });
+
   it('字面量宏触发词与普通标识符冲突 → error（防"字符串 vs 标识符"歧义）', () => {
     // 同一个词「月」既是字面量宏触发词、又是 struct localized → 展开成字符串还是标识符不可预测。
     const v = vocab(

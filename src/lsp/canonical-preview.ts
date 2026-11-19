@@ -15,7 +15,7 @@
  */
 import type { Connection } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { canonicalize, literalMacroRuns } from '../frontend/canonicalizer.js';
+import { canonicalize, literalMacroLiteral, literalMacroRuns } from '../frontend/canonicalizer.js';
 import type { CanonicalizerOptions } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
 import { nfc } from '../config/lexicons/identifiers/casefold.js';
@@ -193,18 +193,27 @@ function literalReplacements(text: string, doc: ResolvableDocument, lexicon: Lex
   const out: Replacement[] = [];
   for (const [i, r] of runs.entries()) {
     const at = found[i];
-    const lit = quotes.open + r.value + quotes.close;
-    if (!at || !roundTrips(lit, r.value, lexicon)) return null;
+    const lit = literalOf(r.value, quotes);
+    if (!at || lit === null || !roundTrips(lit, r.value, lexicon)) return null;
     out.push({ start: at[0], end: at[1], text: lit, canonical: r.value, role: 'LITERAL' });
   }
   return out;
 }
 
+/** 编译器展开宏时写出的字面量（literalMacroLiteral）；宏值无法写成字面量时编译器同样失败，预览给 null。 */
+function literalOf(value: string, quotes: { open: string; close: string }): string | null {
+  try {
+    return literalMacroLiteral(value, quotes);
+  } catch {
+    return null;
+  }
+}
+
 /**
- * 字面量 `lit`（开引号 + 宏值 + 闭引号）能否原样往返：不带词汇规范化不改写它，且 lex 后恰为一个字符串 token、值即宏值。
- * ★编译器先规范化、后展开宏，宏值原样拼进引号（不转义，aster-lang-ts#345）；预览文本却要再经一次规范化与 lex。
- *   规范化会改写字符串内部（弯引号 “ ” ‘ ’ 改成 ASCII 引号、制表符改成空格），lexer 会解释反斜杠转义、
- *   在结束引号处截断；凡此种种，两条路径得到的值不同，预览无从忠实，整份预览失败闭锁。
+ * 字面量 `lit`（编译器展开宏值写出的字面量）能否原样往返：不带词汇规范化不改写它，且 lex 后恰为一个字符串 token、值即宏值。
+ * ★编译器先规范化、后展开宏；预览文本却要再经一次规范化与 lex，所以逐处核对。宏值里的 `\` `"` 已按词法器转义
+ *   （aster-lang-ts#345），字符串内容不受引号归一影响（aster-lang-ts#347），正常宏值都能往返；
+ *   制表符（规范化整段改成空格）等仍会让两条路径的值不同，整份预览失败闭锁。
  *   换行等控制字符另行拒绝：单个字面量的往返证明不了整份文档按行规范化（缩进、续行）不受影响，
  *   且原样写进预览评审者也看不见。
  */

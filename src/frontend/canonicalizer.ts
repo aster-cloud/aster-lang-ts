@@ -449,20 +449,8 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
     .map(line => (LINE_COMMENT_RE.test(line) ? '' : line))
     .join('\n');
 
-  // Normalize smart quotes to target quotes
-  // 英语：智能引号 → 直引号
-  // 中文：各种引号 → 直角引号（根据 lexicon 配置）
-  if (quotes.open === '"' && quotes.close === '"') {
-    // 英语：标准化为直引号
-    s = s.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
-  } else {
-    // 中文或其他语言：标准化为配置的引号
-    // 智能引号明确映射
-    s = s.replace(/\u201C/g, quotes.open);   // 左双引号 " → 开引号
-    s = s.replace(/\u201D/g, quotes.close);  // 右双引号 " → 闭引号
-    // 直引号需要成对处理：奇数位置为开，偶数位置为闭
-    s = normalizeAlternatingQuotes(s, '"', quotes.open, quotes.close);
-  }
+  // 引号归一：只改写充当字符串定界符的弯引号，字符串字面量的内容原样保留（见 normalizeQuoteDelimiters）
+  s = normalizeQuoteDelimiters(s, quotes);
 
   // customRules（如德文二合字母 oe→ö/ue→ü/ae→ä）按【词】应用并仅在转写后
   // 落在关键词上时才采纳，避免误伤含这些二合字母的用户标识符
@@ -706,39 +694,51 @@ function fullWidthToHalfWidth(
     .join('');
 }
 
-/**
- * 交替规范化直引号。
- *
- * 对于无法区分开闭的直引号，按出现顺序交替替换：
- * 奇数位置（1st, 3rd, ...）→ 开引号
- * 偶数位置（2nd, 4th, ...）→ 闭引号
- *
- * @param str - 输入字符串
- * @param sourceQuote - 要替换的源引号字符
- * @param openQuote - 目标开引号
- * @param closeQuote - 目标闭引号
- * @returns 替换后的字符串
- */
-function normalizeAlternatingQuotes(
-  str: string,
-  sourceQuote: string,
-  openQuote: string,
-  closeQuote: string,
-): string {
-  let isOpen = true; // 下一个应该是开引号
-  let result = '';
+/** 一个字符串开引号可被哪些字符闭合（normalizeQuoteDelimiters 的分段规则）。 */
+function quoteClosers(opener: string, quotes: { open: string; close: string }): string {
+  if (opener === '“') return '”"“';
+  return opener === '"' ? '"' : quotes.close;
+}
 
-  for (let i = 0; i < str.length; i++) {
-    const ch = str[i];
-    if (ch === sourceQuote && !isEscaped(str, i)) {
-      result += isOpen ? openQuote : closeQuote;
-      isOpen = !isOpen;
+/**
+ * 引号归一：弯引号只在充当字符串**定界符**时改写，字符串字面量的**内容**原样保留（aster-lang-ts#347）。
+ *
+ * 此前整段替换 `“ ” ‘ ’`，字符串里的 `‘x’` 被静默改成 `'x'`，`"说“好”"` 里的弯引号变成 ASCII 引号把字符串截断。
+ * 与 Java Canonicalizer.normalizeQuoteDelimiters 采用同一分段规则：
+ * - 字符串之外，未转义的词法表开引号、ASCII `"`、左弯引号 `“` 开启字符串；
+ * - `"…"` 只由 `"` 闭合，词法表引号对只由其闭引号闭合，内容（含弯引号）不动；
+ * - `“…”` 由 `”` `"` `“` 任一闭合：此前三者都被改写成闭引号，凡原先能闭合的写法仍闭合；
+ *   定界符换成目标引号，内容不动；
+ * - 字符串之外的其余弯引号照旧改写（英语等：`”` → `"`、`‘ ’` → `'`；其他词法表：`”` → 闭引号）。
+ *
+ * 目标引号：词法表引号为 ASCII `"` 时是 `"`；否则（zh-CN 的 `「」`）`"…"` 与 `“…”` 都换成词法表引号对，
+ * 让后续按词法表引号分段的各步把它们当字符串保护。
+ */
+function normalizeQuoteDelimiters(text: string, quotes: { open: string; close: string }): string {
+  const ascii = quotes.open === '"' && quotes.close === '"';
+  let out = '';
+  let opener: string | null = null;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (opener !== null) {
+      if (quoteClosers(opener, quotes).includes(ch) && !isEscaped(text, i)) {
+        out += opener === quotes.open ? ch : quotes.close;
+        opener = null;
+      } else {
+        out += ch;
+      }
+    } else if ((ch === quotes.open || ch === '"' || ch === '“') && !isEscaped(text, i)) {
+      opener = ch;
+      out += ch === quotes.open ? ch : quotes.open;
+    } else if (ch === '”') {
+      out += quotes.close;
+    } else if (ascii && (ch === '‘' || ch === '’')) {
+      out += "'";
     } else {
-      result += ch;
+      out += ch;
     }
   }
-
-  return result;
+  return out;
 }
 
 type Segment = { text: string; inString: boolean };
@@ -878,7 +878,35 @@ export function literalMacroRuns(
 }
 
 /**
- * 把字面量宏触发词展开为字符串字面量（命中见 literalMacroRuns）。
+ * 宏值能否写成当前词法表的字符串字面量：非空、无控制字符、不含无从转义的引号字符
+ * （「」『』«» 与非 ASCII 的词法表引号；词法器只认 `\"` `\\` 等转义，`\」` 不是合法转义）。
+ * 与 Java Canonicalizer.isSafeLiteralContent 同口径。
+ */
+function isExpandableLiteralContent(value: string, quotes: { open: string; close: string }): boolean {
+  if (value.length === 0) return false;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001F\u007F「」『』«»]/.test(value)) return false;
+  return [quotes.open, quotes.close].every(q => q === '"' || !value.includes(q));
+}
+
+/**
+ * 字面量宏值写成字符串字面量：词法表引号包裹，`\` 与 `"` 转义（aster-lang-ts#345）。
+ *
+ * 此前宏值原样拼进引号，词法器再按转义解释：值 `C:\new` 编译成 `C:` + 换行 + `ew`，含 `"` 的值把字符串提前闭合。
+ * 转义后词法器读回的正是宏值本身。编译器展开与 LSP 规范预览共用本函数，两者写出的字面量逐字相同。
+ * 与 Java Canonicalizer.expandToken 逐字符一致。
+ *
+ * @throws Error 宏值无法写成字面量（见 isExpandableLiteralContent），与 Java 侧同样失败闭锁
+ */
+export function literalMacroLiteral(value: string, quotes: { open: string; close: string }): string {
+  if (!isExpandableLiteralContent(value, quotes)) {
+    throw new Error('Unsafe literal-macro content: empty, or contains control characters or quote characters that cannot be escaped');
+  }
+  return quotes.open + value.replace(/["\\]/g, '\\$&') + quotes.close;
+}
+
+/**
+ * 把字面量宏触发词展开为字符串字面量（命中见 literalMacroRuns，写法见 literalMacroLiteral）。
  * 展开结果用当前 lexicon 的引号包裹，后续 segmentString 会把它当作字符串保护。
  */
 function expandLiteralMacros(
@@ -889,7 +917,7 @@ function expandLiteralMacros(
   let out = '';
   let cursor = 0;
   for (const run of literalMacroRuns(source, literals, quotes)) {
-    out += `${source.slice(cursor, run.offset)}${quotes.open}${run.value}${quotes.close}`;
+    out += source.slice(cursor, run.offset) + literalMacroLiteral(run.value, quotes);
     cursor = run.offset + run.text.length;
   }
   return out + source.slice(cursor);
