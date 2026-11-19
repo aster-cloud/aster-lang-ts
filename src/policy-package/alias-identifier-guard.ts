@@ -89,6 +89,12 @@ export function checkAliasIdentifiers(ast: Module, aliasSet: AliasSet | null | u
 /** 归因探测用的占位名：普通汉字名字，不是任何关键词或别名（U+4E96 两个）。 */
 export const PROBE_PLACEHOLDER = '\u4e96\u4e96';
 
+/**
+ * 每次解析失败最多尝试的探测次数（与 core `MAX_ATTRIBUTION_PROBES` 相同）。每次探测是一次完整的语法分析；
+ * 上限让失败路径的总开销至多为常数倍，超出时保留原解析错误。
+ */
+export const MAX_ATTRIBUTION_PROBES = 4;
+
 /** zh 词法的标识符字符（汉字基本区 / 扩展 A、ASCII 字母数字、`_`），用于整词边界判定。 */
 function isIdentChar(ch: string | undefined): boolean {
   if (ch === undefined) return false;
@@ -112,7 +118,7 @@ function hanAliasOccurrences(text: string, forbidden: Map<string, Hit>): { start
 /**
  * 解析失败归因（与 core `AliasIdentifierGuard.attributeParseFailure` 同一算法）：取第一条解析错误所在的源码行，
  * 按位置逐个尝试该行里汉字单词别名的整词出现——把这一处换成普通名字 {@link PROBE_PLACEHOLDER} 后若源码能通过语法分析，
- * 说明这里只能是把别名当作名字使用，报 E808；否则返回 null，调用方照常报解析错误。
+ * 说明这里只能是把别名当作名字使用，报 E808；否则返回 null，调用方照常报解析错误。至多探测 {@link MAX_ATTRIBUTION_PROBES} 处。
  *
  * 两引擎在名字位置接受关键词的范围不同（core 有软关键字，ts 在参数、字段声明等位置不接受），解析失败时守卫跑不到；
  * 这一步让两侧对同一源码报同一码。`parsesSyntactically` 只做语法分析（不做名称解析）。
@@ -129,7 +135,7 @@ export function attributeParseFailure(
   const lines = source.split('\n');
   const text = lines[firstErrorLine - 1];
   if (text === undefined) return null;
-  for (const o of hanAliasOccurrences(text, forbidden)) {
+  for (const o of hanAliasOccurrences(text, forbidden).slice(0, MAX_ATTRIBUTION_PROBES)) {
     const probeLines = [...lines];
     probeLines[firstErrorLine - 1] = text.slice(0, o.start) + PROBE_PLACEHOLDER + text.slice(o.start + o.alias.length);
     if (parsesSyntactically(probeLines.join('\n'))) {
