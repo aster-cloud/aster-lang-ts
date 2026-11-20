@@ -218,7 +218,7 @@ function generateLexiconFile(lex: ExportedLexicon, tokenKinds: string[]): string
  * 内置词法中由本引擎执行的变换器（须已在 src/frontend/transformers.ts 注册）。
  * english-possessive / set-to / result-is 虽有实现，但从未对内置词法启用，启用它们是另一项行为变更。
  */
-const TS_ENABLED_TRANSFORMERS: ReadonlySet<string> = new Set(['chinese-function-syntax']);
+const TS_ENABLED_TRANSFORMERS: ReadonlySet<string> = new Set(['chinese-function-syntax', 'chinese-result-is']);
 
 /** 安全引号：使用单引号，转义内部单引号和反斜杠 */
 function quote(s: string): string {

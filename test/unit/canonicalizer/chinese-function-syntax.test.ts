@@ -55,9 +55,28 @@ describe('chinese-function-syntax 变换器（与 Java 逐字一致）', () => {
   });
 
   it('★Java 生成的随机夹具逐条字节一致（含 NEL、U+2028/2029、NBSP、BOM、CRLF）', () => {
-    assert.ok(PARITY.length >= 400);
+    assert.ok(PARITY.length >= 600);
+    // 夹具须含足够多真正发生重排的用例（后 200 条由 Java 只挑重排了的随机输入）
+    assert.ok(PARITY.filter(([input, expected]) => input !== expected).length >= 200);
     const diffs = PARITY.filter(([input, expected]) => rewrite(input) !== expected);
     assert.deepEqual(diffs, []);
+  });
+
+  it('函数头里的其他 Unicode 空白与换行不当空白：原样留下（aster-lang-locales#147）', () => {
+    for (const input of [
+      '规则\u2003f（x 作为 整数），产出 整数：',
+      '规则\u00A0f（x 作为 整数），产出 整数：',
+      '规则\u000Bf（x 作为 整数），产出 整数：',
+      '规则 f\u00A0（x 作为 整数），产出 整数：',
+      '规则\nf（x 作为 整数），产出 整数：',
+      '规则 f\n（x 作为 整数），产出 整数：',
+    ]) {
+      assert.equal(rewrite(input), input, JSON.stringify(input));
+    }
+    // 右括号之后的 Unicode 空白与换行留在输出里，只重排到行尾
+    assert.equal(rewrite('规则 f（x 作为 整数）\u2003，产出 整数：'), 'Rule f given x 作为 整数 \u2003，产出 整数：');
+    assert.equal(rewrite('规则 f（x 作为 整数）\n，产出 整数：'), 'Rule f given x 作为 整数 \n，产出 整数：');
+    assert.equal(rewrite('规则\tf\t（x 作为 整数）\t，产出 整数：'), 'Rule f given x 作为 整数 ，产出 整数：');
   });
 
   it('字符串字面量内的函数头（含自成一行的多行字符串）不改写', () => {
@@ -68,7 +87,7 @@ describe('chinese-function-syntax 变换器（与 Java 逐字一致）', () => {
   });
 
   it('★大量空白行或未闭合函数头时耗时线性（防正则二次回溯）', () => {
-    // 旧的 Java 模式在这两类输入上分别约 54 秒与 10 秒；5 秒上限留足并行负载余量。
+    // 不截断时这两类输入随长度平方增长；5 秒上限留足并行负载余量。
     const blank = ' \n'.repeat(64_000);
     const unclosed = '规则 a(\n'.repeat(16_000);
     const start = Date.now();

@@ -126,30 +126,31 @@ const resultIs: SyntaxTransformer = {
 /**
  * 中文函数头变换器：`规则 名（参数）：` → `Rule 名 given 参数 ：`。
  *
- * 逐字移植 aster-lang-locales `ChineseFunctionSyntaxTransformer`：字符集按 Java 语义逐项写出
- * （WS 为 Unicode White_Space，LT 为 Java 行终止符），参数 trim 同 Java `String.trim()`，
- * 截断规则相同，因此任意输入的输出与 Java 字节相同（见 chinese-function-syntax-parity 夹具）。
- * 输出英文 `Rule`/`given` 与 Java 同形；本引擎 zh-CN 词法同样识别这两个英文关键字。
+ * 逐字移植 aster-lang-locales `ChineseFunctionSyntaxTransformer`：字符集与 Java 逐项相同（SP 为函数头的空白，
+ * LT 为 Java 行终止符），参数 trim 同 Java `String.trim()`，截断规则相同，因此任意输入的输出与 Java 字节相同
+ * （见 chinese-function-syntax-parity 夹具）。输出英文 `Rule`/`given` 与 Java 同形；本引擎 zh-CN 词法同样识别这两个英文关键字。
  * 参数须写成 `名 作为 类型`，`名: 类型` 会被重排但语法不接受。
+ *
+ * 函数头各处的空白（缩进、关键词与名字之间、名字与括号之间、右括号之后）只认 ASCII 空格、tab 与 U+3000，不跨行
+ * （aster-lang-ts#348 规则，aster-lang-locales#147）：其他 Unicode 空白原样留下由词法报 E050，换行留给语法报错。
+ * 参数组 `[^)）]*?` 可含换行与任意字符。
  *
  * 运行于全角转半角之前，故括号两种宽度都要认；行尾 `：` 与参数间的 `，` 原样留给后续步骤。
  * 不设 stringSafe：与 Java 侧一样经 segmenter 只改写字符串之外的片段。
  */
-const WS = '\\t\\n\\u000B\\u000C\\r \\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000';
+const SP = ' \\t\\u3000';
 const LT = '\\n\\r\\u0085\\u2028\\u2029';
-const HWS = '\\t\\u000B\\u000C \\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000';
 const RULE_FUNC_RE = new RegExp(
-  `(?<![^${LT}])([${HWS}]*)(?:规则|Rule)[${WS}]+([\\p{L}][\\p{L}0-9_]*)[${WS}]*` +
-    `[(（]([^)）]*?)[)）][${WS}]*([^${LT}]*)`,
+  `(?<![^${LT}])([${SP}]*)(?:规则|Rule)[${SP}]+([\\p{L}][\\p{L}0-9_]*)[${SP}]*` +
+    `[(（]([^)）]*?)[)）][${SP}]*([^${LT}]*)`,
   'gu',
 );
-const WS_CHAR = new RegExp(`[${WS}]`, 'u');
 const LT_CHAR = new RegExp(`[${LT}]`, 'u');
 
 /**
- * 截断点：最后一个右括号之后跳过空白，再到下一个行终止符（或片段末尾）；无右括号时为 0。
+ * 截断点：最后一个右括号之后到下一个行终止符（或片段末尾）；无右括号时为 0。
  *
- * 每个匹配都必须含右括号，且以右括号后的空白与该行剩余部分收尾，所以截断点之后不可能有匹配，
+ * 每个匹配都必须含右括号，且以右括号后同一行的剩余部分收尾，所以截断点之后不可能有匹配，
  * 之前的匹配也不会越过截断点。不截断时，最后一个右括号之后每个 `规则 名(` 行首都会让惰性
  * 参数组扫到片段末尾再失败，耗时随源码长度平方增长。
  */
@@ -157,7 +158,6 @@ function matchableEnd(s: string): number {
   let i = Math.max(s.lastIndexOf(')'), s.lastIndexOf('）'));
   if (i < 0) return 0;
   i++;
-  while (i < s.length && WS_CHAR.test(s[i]!)) i++;
   while (i < s.length && !LT_CHAR.test(s[i]!)) i++;
   return i;
 }
@@ -182,6 +182,29 @@ const chineseFunctionSyntax: SyntaxTransformer = {
   transform: rewriteRuleFunc,
 };
 
+/**
+ * zh-CN `结果为 X` → `Return X`（翻译后变换器，aster-lang-ts#357 第 4 行、#362 第 4 项）。
+ *
+ * Java 侧的效果来自两步：关键词翻译把独立的 `结果为`（RESULT_IS）译成 `the result is`，再由 core `result-is`
+ * 改写成 `Return`——行首（`^([ \t]*)The result is\s+`）与逗号之后（Match 分支 `当 X，结果为 Y`，`(,\s*)the result is\s+`）
+ * 两处；locales 的 `chinese-result-is` 只是行首兜底。本引擎按 token 翻译关键词，翻译后变换器运行时源码里仍是 `结果为`
+ * （全角空格与 `，` 已换成半角），所以这里直接按同样两处改写，产出与 Java 相同的 token。
+ *
+ * 空白只认 ASCII 空格、tab 与 U+3000（aster-lang-ts#348 规则），不跨行：`结果为` 后跟其他 Unicode 空白、VT、FF 或换行
+ * 时不改写，由词法 / 语法报错。core `result-is` 的 `\s` 还收 VT、FF 与换行，那是 core 侧待对齐的差异。
+ */
+const CHINESE_RESULT_IS_LINE_START_RE = /^([ \t\u3000]*)结果为[ \t\u3000]+/gmu;
+const CHINESE_RESULT_IS_INLINE_RE = /(,[ \t\u3000]*)结果为[ \t\u3000]+/gu;
+
+const chineseResultIs: SyntaxTransformer = {
+  name: 'chinese-result-is',
+  stringSafe: true,
+  transform(source: string, quotes = { open: '"', close: '"' }): string {
+    const s = replaceOutsideStrings(source, CHINESE_RESULT_IS_LINE_START_RE, match => `${match[1]}Return `, quotes);
+    return replaceOutsideStrings(s, CHINESE_RESULT_IS_INLINE_RE, match => `${match[1]}Return `, quotes);
+  },
+};
+
 // ============================================================
 // 变换器注册表
 // ============================================================
@@ -191,6 +214,7 @@ registry.set('english-possessive', englishPossessive);
 registry.set('set-to', setTo);
 registry.set('result-is', resultIs);
 registry.set('chinese-function-syntax', chineseFunctionSyntax);
+registry.set('chinese-result-is', chineseResultIs);
 
 /**
  * 根据名称获取变换器。
