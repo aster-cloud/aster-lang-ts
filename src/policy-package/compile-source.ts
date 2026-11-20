@@ -3,6 +3,7 @@
  * 重编译比对（`./package-check`，修订 3 P2-R5 / P2-R7）共用本模块，所以这里不得依赖 Node 内置模块（`node:*`、`Buffer`）。
  */
 import { compile } from '../browser.js';
+import { canonicalize } from '../frontend/canonicalizer.js';
 import { canonicalJson } from '../core/canonical-json.js';
 import { initializeAllBundledLexicons, LexiconRegistry } from '../config/lexicons/index.js';
 import { buildVocabularyScopes, type VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
@@ -24,6 +25,23 @@ export class CompileFailure extends Error {
 
 /** 只含 ASCII 空白（空格、\t、\n、\r）或为空的源码；U+00A0、U+3000 等其他 Unicode 空白不算。 */
 export const isBlankSource = (text: string): boolean => /^[ \t\n\r]*$/.test(text);
+
+/** 空源码的拒绝消息（规范化前后两处判定共用）。 */
+export const EMPTY_SOURCE_MESSAGE = '源码为空或只含 ASCII 空白';
+
+/**
+ * 规范化之后是否为空源码（与 core `InProcessCnlParser` 规范化后的二次判定同一规则，core#288）：
+ * zh-CN 的 U+3000 由规范化转成半角空格，只含它的源码此时才是词法上的空源码，否则会编译成空模块；
+ * en 等 locale 不转，U+3000 留给词法报 E050。开头的一个 BOM 由两引擎的词法器跳过，不算 token（core 对
+ * 「BOM + 空白」同样不带码拒绝）。规范化抛错时交给编译器照常报错。
+ */
+function isBlankAfterCanonicalize(source: string, lexicon: Lexicon, scopes: VocabularyScopes | undefined): boolean {
+  try {
+    return isBlankSource(canonicalize(source.replace(/^\uFEFF/, ''), { lexicon, vocabulary: scopes }));
+  } catch {
+    return false;
+  }
+}
 
 export interface CompileSourceOptions {
   readonly locale: string;
@@ -99,7 +117,7 @@ function parsesSyntactically(source: string, lexicon: Lexicon, scopes: Vocabular
  */
 export function compileSource(source: string, opts: CompileSourceOptions): string {
   // 空白源码（只含 ASCII 空白）不交给编译器：源码形态与包形态同一判定（README「compile」）
-  if (isBlankSource(source)) throw new CompileFailure(['源码为空或只含 ASCII 空白']);
+  if (isBlankSource(source)) throw new CompileFailure([EMPTY_SOURCE_MESSAGE]);
   const base = lexiconForLocale(opts.locale);
   let scopes: VocabularyScopes | undefined;
   try {
@@ -114,10 +132,12 @@ export function compileSource(source: string, opts: CompileSourceOptions): strin
     locale: opts.locale,
   });
   if (aliasErrors.length > 0) throw new CompileFailure(['用户自定义别名校验失败', ...aliasErrors]);
+  const lexicon = overlayAliases(base, opts.aliasSet);
+  if (isBlankAfterCanonicalize(source, lexicon, scopes)) throw new CompileFailure([EMPTY_SOURCE_MESSAGE]);
   let result;
   try {
     result = compile(source, {
-      lexicon: overlayAliases(base, opts.aliasSet),
+      lexicon,
       ...(opts.vocabulary ? { vocabulary: opts.vocabulary } : {}),
       astGuard: (ast) => checkAliasIdentifiers(ast, opts.aliasSet, opts.locale),
     });
@@ -125,7 +145,6 @@ export function compileSource(source: string, opts: CompileSourceOptions): strin
     throw new CompileFailure([`编译器异常：${(e as Error).message}`]);
   }
   if (!result.success && result.parseErrors && result.parseErrors.length > 0) {
-    const lexicon = overlayAliases(base, opts.aliasSet);
     // 全部探测共享一个时限（与 core 共享的语法分析预算同值）；用尽后不再探测，保留原解析错误
     const deadline = Date.now() + ATTRIBUTION_PROBE_BUDGET_MS;
     const attributed = attributeParseFailure(source, result.parseErrors[0]?.span?.start.line, opts.aliasSet, opts.locale, {

@@ -136,6 +136,7 @@ export const ZH_CN: Lexicon = {
       },
     ],
     preTranslationTransformers: ['chinese-function-syntax'],
+    postTranslationTransformers: ['chinese-result-is'],
   },
 
   messages: {
