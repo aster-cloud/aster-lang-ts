@@ -52,6 +52,8 @@ export { probeMatches, type EvalOutcome } from './probe-match.js';
 /** 子命令的执行结果。 */
 export interface CommandResult {
   readonly stdout: string;
+  /** 给出时为 stdout 的原样字节（show 打印包内文件，不经解码 / 重编码）；写出方优先用它，stdout 只是其文本视图 */
+  readonly stdoutBytes?: Uint8Array;
   readonly exitCode: number;
   readonly stderr: string[];
 }
@@ -286,8 +288,13 @@ async function cmdRunDisplay(ctx: Ctx, args: ParsedArgs): Promise<CommandResult>
 // show
 // ---------------------------------------------------------------------------
 
-// 保留开头的 BOM（ignoreBOM）：show 输出文件的原样字节 + \n，不得吃掉 U+FEFF
-const utf8Text = (bytes: Uint8Array): string => new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes);
+/** show 的成功输出：包内文件的原样字节 + \n（stdoutBytes），stdout 为保留 BOM 的文本视图。 */
+function fileOut(ctx: Ctx, bytes: Uint8Array): CommandResult {
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return { stdout: new TextDecoder('utf-8', { ignoreBOM: true }).decode(out), stdoutBytes: out, exitCode: 0, stderr: ctx.stderr };
+}
 
 /**
  * `show <pkg> [--canonical | --from-display <file>]`（修订 4 D6）：usage → read → manifest → signature → integrity →
@@ -306,7 +313,7 @@ async function cmdShow(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
     if (layout === null) {
       if (edited !== undefined) throw new PackageError('PKG_DISPLAY_INVALID', 'display', '包没有显示排版，没有可对照的排版');
       ctx.stderr.push('aster: 本包无显示排版，打印的是规范源码 policy/policy.aster');
-      return resultOf(ctx, `${utf8Text(pkg.files.get('policy/policy.aster')!)}\n`, 0);
+      return fileOut(ctx, pkg.files.get('policy/policy.aster')!);
     }
     ctx.stderr.push(...structureNotes(pkg, layout));
     if (!meta.signed) ctx.stderr.push('aster: 包未签名（--allow-unsigned），显示排版未经签名核验');
@@ -315,9 +322,9 @@ async function cmdShow(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
       ctx.stderr.push(`aster: 由显示文本还原出的规范源码（不在包签名覆盖之内；与包${derived.matchesPackage ? '' : '不'}同一 IR）`);
       return resultOf(ctx, `${derived.canonical}\n`, 0);
     }
-    if (args.flags.has('canonical')) return resultOf(ctx, `${utf8Text(pkg.files.get('policy/policy.aster')!)}\n`, 0);
+    if (args.flags.has('canonical')) return fileOut(ctx, pkg.files.get('policy/policy.aster')!);
     ctx.stderr.push('aster: 显示文本 policy/display/display.aster 只供阅读，不是编译输入；编译的是 policy/policy.aster（aster show --canonical）');
-    return resultOf(ctx, `${utf8Text(pkg.files.get('policy/display/display.aster')!)}\n`, 0);
+    return fileOut(ctx, pkg.files.get('policy/display/display.aster')!);
   } catch (e) {
     if (e instanceof PackageError) {
       // show 不取 IR：失败信封的 meta 恒为 entry / coreIrSha256 null、irRecompiled false

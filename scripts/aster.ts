@@ -165,13 +165,13 @@ async function runMaybeWatch(file: string, watch: boolean, runner: () => Promise
 }
 
 /**
- * 包格式 v1 子命令（compile / run / verify / inspect / version，ADR 0059 §4.1）：绕过 cac，交给严格语法的 runCommand，
+ * 包格式 v1 子命令（compile / run / verify / inspect / show / version，ADR 0059 §4.1、修订 4）：绕过 cac，交给严格语法的 runCommand，
  * 与单文件 `dist/runner/aster.mjs` 走同一入口；stdout 恒为一行规范 JSON，诊断只写 stderr。
  */
 async function runPackageCommand(argv: string[]): Promise<void> {
   const r = await runCommand(argv, { stdin: () => readAll(process.stdin) });
   for (const l of r.stderr) process.stderr.write(`${l}\n`);
-  process.stdout.write(r.stdout);
+  process.stdout.write(r.stdoutBytes ?? r.stdout);
   process.exitCode = r.exitCode;
 }
 
@@ -188,6 +188,7 @@ async function main(): Promise<void> {
   cli.command('verify <package>', '校验策略包（--recompile、--probes、--timeout、--jwks、--pubkey、--allow-unsigned）');
   cli.command('inspect <package>', '打印策略包的入口、输入输出 schema 与治理信息');
   cli.command('compile <path>', '包或 .aster 源文件 → 规范 Core IR（--out、--locale、--alias-set、--vocabulary、--allow-structural）');
+  cli.command('show <package>', '打印策略包的显示排版（--canonical 打印规范源码；--from-display <file> 打印由改过的显示文本还原的规范源码）');
   cli.command('version', '打印 CLI 版本、支持的包格式与 Core IR 版本、内置信任锚');
 
   cli

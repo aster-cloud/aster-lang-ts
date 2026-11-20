@@ -81,3 +81,10 @@ test('1.0 黄金包：inspect 与 verify 的 stdout 与夹具逐字节相同（�
     assert.ok(!r.stdout.includes('"display"'));
   }
 });
+
+test('show：stdoutBytes 为包内文件的原样字节 + \\n（不经解码 / 重编码）', { skip }, async () => {
+  const dir = join(pkgDir(), 'b-jingyesi');
+  const r = await runCommand(['show', dir, '--canonical', ...jwks()], ioWith(''));
+  const want = Buffer.concat([readFileSync(join(dir, 'policy/policy.aster')), Buffer.from('\n')]);
+  assert.ok(r.stdoutBytes !== undefined && Buffer.from(r.stdoutBytes).equals(want));
+});
