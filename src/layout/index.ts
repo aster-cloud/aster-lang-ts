@@ -10,6 +10,7 @@ export type {
   LayoutErrorDetail,
   LayoutLimitName,
   LayoutRange,
+  LayoutRule,
   LayoutSpan,
   LayoutValidation,
   PolicyLayout,
@@ -17,3 +18,20 @@ export type {
 export { parseLayout, serializeLayout, toCanonical, toDisplay } from './format.js';
 export { validatePolicyLayout, verifyContentParity } from './validate.js';
 export { canonicalToDisplay, displayToCanonical } from './mapping.js';
+export {
+  ASCII_OPERATORS,
+  checkDerivedLayout,
+  checkLayoutLimits,
+  checkPackageLayout,
+  containsWholeWord,
+  irNameStrings,
+  layoutRuleOf,
+  operatorSequence,
+  operatorTable,
+  padStructuralSpans,
+  parseLayoutStrict,
+  structuralNameHits,
+} from './package-rules.js';
+export type { CheckPackageLayoutOptions, LayoutRuleContext } from './package-rules.js';
+export { reconstructFromDisplay } from './reconstruct.js';
+export type { Reconstruction } from './reconstruct.js';

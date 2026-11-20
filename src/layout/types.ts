@@ -32,12 +32,18 @@ export type LayoutErrorCode =
   | 'layout_too_large'
   | 'layout_roundtrip_mismatch'
   | 'layout_structural_hides_value'
-  | 'layout_content_parity';
+  | 'layout_content_parity'
+  | 'layout_display_mismatch'
+  | 'layout_structural_hides_operator';
+
+/** 包格式 1.1 的排版规则号（ADR 0059 修订 4 §4）；只由 `./layout` 的包规则函数填入。 */
+export type LayoutRule = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6' | 'L7' | 'L8' | 'L9';
 
 /** 失败的附加定位：`offset` 为 canonical 源码中的 UTF-16 偏移；`limit` 为超出的上限名。 */
 export interface LayoutErrorDetail {
   offset?: number;
   limit?: LayoutLimitName;
+  rule?: LayoutRule;
 }
 
 /** parseLayout / serializeLayout 拒绝时抛出；validatePolicyLayout 把它转成 `LayoutValidation`。 */
@@ -45,6 +51,8 @@ export class LayoutError extends Error {
   readonly code: LayoutErrorCode;
   readonly offset?: number;
   readonly limit?: LayoutLimitName;
+  /** 包规则（L1–L9）失败时的规则号；保存校验 validatePolicyLayout 不填 */
+  readonly rule?: LayoutRule;
 
   constructor(code: LayoutErrorCode, message: string, detail: LayoutErrorDetail = {}) {
     super(message);
@@ -52,6 +60,7 @@ export class LayoutError extends Error {
     this.code = code;
     if (detail.offset !== undefined) this.offset = detail.offset;
     if (detail.limit !== undefined) this.limit = detail.limit;
+    if (detail.rule !== undefined) this.rule = detail.rule;
   }
 }
 

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { canonicalJson } from '../../../src/core/canonical-json.js';
 import { ERROR_CODES, PackageError } from '../../../src/policy-package/errors.js';
+import { SUPPORTED_FORMAT_VERSIONS } from '../../../src/policy-package/manifest.js';
 import { readPackage } from '../../../src/policy-package/read-package.js';
 import { verifySignature } from '../../../src/policy-package/signature.js';
 import { anchorKids, builtinTrustAnchor } from '../../../src/policy-package/trust-anchor.js';
@@ -14,7 +15,7 @@ import { PACKAGE_V1, readFixtureJson } from '../../helpers/package-v1.js';
 // 包格式 v1 的 schema 副本与错误码表必须与 aster-lang-test 真相源逐字节 / 逐条一致（ADR 0059 P1 T2）。
 const skip = PACKAGE_V1 === undefined ? '本地未检出 aster-lang-test' : false;
 
-for (const name of ['manifest-1.0.schema.json', 'sig-1.0.schema.json']) {
+for (const name of ['manifest-1.0.schema.json', 'manifest-1.1.schema.json', 'sig-1.0.schema.json']) {
   test(`schema 副本与真相源逐字节相同：${name}`, { skip }, () => {
     const ours = readFileSync(join(process.cwd(), 'src/policy-package/schema', name));
     const theirs = readFileSync(join(PACKAGE_V1!, 'schema', name));
@@ -22,11 +23,14 @@ for (const name of ['manifest-1.0.schema.json', 'sig-1.0.schema.json']) {
   });
 }
 
-test('错误码表与 exit-codes.json 逐条一致', { skip }, () => {
-  const truth = readFixtureJson<{ codes: Record<string, { exit: number; message: string }> }>('exit-codes.json');
+test('错误码表与 exit-codes.json 逐条一致（codes ∪ 本 CLI 支持的格式版本的 codesSince）', { skip }, () => {
+  type Table = Record<string, { exit: number; message: string }>;
+  const truth = readFixtureJson<{ codes: Table; codesSince?: Record<string, Table> }>('exit-codes.json');
+  const expected: Table = { ...truth.codes };
+  for (const v of SUPPORTED_FORMAT_VERSIONS) Object.assign(expected, truth.codesSince?.[v] ?? {});
   assert.deepEqual(
     Object.fromEntries(Object.entries(ERROR_CODES).map(([k, v]) => [k, { exit: v.exit, message: v.message }])),
-    truth.codes,
+    expected,
   );
 });
 

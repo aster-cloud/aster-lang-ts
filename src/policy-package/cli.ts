@@ -1,5 +1,6 @@
 /**
- * 包格式 v1 的 `aster` 子命令：`compile`、`run`、`verify`、`inspect`、`version`（ADR 0059 §4.1，P1 T4）。
+ * 包格式 v1 的 `aster` 子命令：`compile`、`run`、`verify`、`inspect`、`show`、`version`（ADR 0059 §4.1，P1 T4；
+ * 包格式 1.1 的显示排版见 ADR 0059 修订 4 与 `display.ts`）。
  *
  * 行为以 aster-lang-test `conformance/package-v1/README.md` 为准：检查顺序、`meta` 的取值时机、`verify` 的检查项与
  * 「第一项失败即停止」、固定 message、stdout 恒为一行值规范 JSON + `\n`、诊断只写 stderr。
@@ -34,6 +35,16 @@ import { isJsonObject, parseStrictJson, type JsonValue } from './strict-json.js'
 import { valueJson, type ValueTree } from './value-json.js';
 import type { EvalJob, WorkerMessage } from './worker-eval.js';
 import { probeMatches, type EvalOutcome } from './probe-match.js';
+import { sha256HexSync } from './sha256.js';
+import {
+  checkDisplayIr,
+  checkPackageDisplay,
+  deriveProgram,
+  displayMember,
+  readEditedDisplay,
+  structureNotes,
+  type EditedDisplay,
+} from './display.js';
 
 // 探针比较与 Workers 内的 checkProbes 共用（probe-match.ts），这里原样再导出（既有 import 路径不变）。
 export { probeMatches, type EvalOutcome } from './probe-match.js';
@@ -64,12 +75,23 @@ interface Meta {
   entry: string | null;
   coreIrSha256: string | null;
   irRecompiled: boolean;
+  /** 只在 run --display 且派生程序通过 L8/L9 之后出现（修订 4 D8） */
+  display?: { canonicalSha256: string; matchesPackage: boolean };
 }
 
 const newMeta = (): Meta => ({ signed: false, entry: null, coreIrSha256: null, irRecompiled: false });
 
 function metaTree(m: Meta): ValueTree {
-  return { cliVersion: cliVersion(), coreIrSha256: m.coreIrSha256, engine: ENGINE, entry: m.entry, irRecompiled: m.irRecompiled, signed: m.signed };
+  const tree: Record<string, ValueTree> = {
+    cliVersion: cliVersion(),
+    coreIrSha256: m.coreIrSha256,
+    engine: ENGINE,
+    entry: m.entry,
+    irRecompiled: m.irRecompiled,
+    signed: m.signed,
+  };
+  if (m.display) tree['display'] = { canonicalSha256: m.display.canonicalSha256, matchesPackage: m.display.matchesPackage };
+  return tree;
 }
 
 const line = (tree: ValueTree): string => `${valueJson(tree)}\n`;
@@ -202,6 +224,7 @@ function checkEntry(pkg: LoadedPackage, ir: IrView, entry: string): void {
 }
 
 async function cmdRun(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
+  if (args.values.has('display')) return cmdRunDisplay(ctx, args);
   const meta = newMeta();
   try {
     const anchor = await anchorOf(args);
@@ -223,13 +246,100 @@ async function cmdRun(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
   }
 }
 
+/**
+ * `run --display <file>`（修订 4 D7–D8）：usage（读文件）→ read → manifest → signature → integrity → display（包排版 L1–L7）
+ * → reconstruct → derived → compile → display-ir（L8 / L9）→ entry（派生模块）→ input（派生 IR）→ eval。
+ * coreIrSha256 恒为 null；派生程序通过 L8 / L9 之后 meta 才带 entry、irRecompiled 与 display。包自身不重编译。
+ */
+async function cmdRunDisplay(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
+  const meta = newMeta();
+  try {
+    const edited = readEditedDisplay(args.values.get('display')!, '--display');
+    const anchor = await anchorOf(args);
+    const allowUnsigned = args.flags.has('allow-unsigned');
+    const pkg = loadTrusted(args.path!, anchor, allowUnsigned, meta);
+    factsWarning(ctx, pkg);
+    const layout = checkPackageDisplay(pkg);
+    if (layout === null) throw new PackageError('PKG_DISPLAY_INVALID', 'display', '包没有显示排版，没有可对照的排版');
+    const derived = deriveProgram(pkg, layout, edited, ctx.stderr);
+    const entry = args.values.get('entry') ?? defaultEntry(pkg.manifest);
+    Object.assign(meta, {
+      entry,
+      irRecompiled: true,
+      display: { canonicalSha256: sha256HexSync(derived.canonical), matchesPackage: derived.matchesPackage },
+    });
+    ctx.stderr.push('aster: 正在运行由显示文本派生的程序，不在包签名覆盖之内；派生的规范源码：', derived.canonical);
+    if (!meta.signed) ctx.stderr.push('aster: 包未签名（--allow-unsigned），显示排版未经签名核验');
+    const ir = JSON.parse(derived.coreJson) as IrView;
+    if (!findFunc(ir, entry)) throw new PackageError('ENTRY_NOT_FOUND', 'entry', `入口 ${entry} 不在派生模块中`);
+    const input = parseInput(await readInputBytes(ctx, args.values.get('input')!), ir, entry);
+    const r = await evaluateInWorker({ coreJson: derived.coreJson, entry, input }, args.timeoutMs, ctx.io.workerUrl ?? defaultWorkerUrl());
+    if (!r.ok) return failed(ctx, new PackageError(r.code, r.code === 'ENTRY_NOT_FOUND' ? 'entry' : 'eval', r.message), meta);
+    return resultOf(ctx, `{"meta":${valueJson(metaTree(meta))},"ok":true,"value":${r.valueJson}}\n`, 0);
+  } catch (e) {
+    if (e instanceof PackageError) return failed(ctx, e, meta);
+    throw e;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// show
+// ---------------------------------------------------------------------------
+
+const utf8Text = (bytes: Uint8Array): string => new TextDecoder('utf-8').decode(bytes);
+
+/**
+ * `show <pkg> [--canonical | --from-display <file>]`（修订 4 D6）：usage → read → manifest → signature → integrity →
+ *（有 display 时）display（L1–L7）。stdout 不是 JSON：有排版为 display.aster + \n，无排版或 --canonical 为
+ * policy/policy.aster + \n，--from-display 为还原出的规范源码 + \n（经 L1–L9，不求值）。失败输出 run 同形的错误信封，
+ * meta 不取 IR。结构映射、字面量宏、未签名与无排版的说明只写 stderr。
+ */
+async function cmdShow(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
+  const meta = newMeta();
+  try {
+    const from = args.values.get('from-display');
+    const edited: EditedDisplay | undefined = from === undefined ? undefined : readEditedDisplay(from, '--from-display');
+    const pkg = loadTrusted(args.path!, await anchorOf(args), args.flags.has('allow-unsigned'), meta);
+    factsWarning(ctx, pkg);
+    const layout = checkPackageDisplay(pkg);
+    if (layout === null) {
+      if (edited !== undefined) throw new PackageError('PKG_DISPLAY_INVALID', 'display', '包没有显示排版，没有可对照的排版');
+      ctx.stderr.push('aster: 本包无显示排版，打印的是规范源码 policy/policy.aster');
+      return resultOf(ctx, `${utf8Text(pkg.files.get('policy/policy.aster')!)}\n`, 0);
+    }
+    ctx.stderr.push(...structureNotes(pkg, layout));
+    if (!meta.signed) ctx.stderr.push('aster: 包未签名（--allow-unsigned），显示排版未经签名核验');
+    if (edited !== undefined) {
+      const derived = deriveProgram(pkg, layout, edited, ctx.stderr);
+      ctx.stderr.push(`aster: 由显示文本还原出的规范源码（不在包签名覆盖之内；与包${derived.matchesPackage ? '' : '不'}同一 IR）`);
+      return resultOf(ctx, `${derived.canonical}\n`, 0);
+    }
+    if (args.flags.has('canonical')) return resultOf(ctx, `${utf8Text(pkg.files.get('policy/policy.aster')!)}\n`, 0);
+    ctx.stderr.push('aster: 显示文本 policy/display/display.aster 只供阅读，不是编译输入；编译的是 policy/policy.aster（aster show --canonical）');
+    return resultOf(ctx, `${utf8Text(pkg.files.get('policy/display/display.aster')!)}\n`, 0);
+  } catch (e) {
+    if (e instanceof PackageError) {
+      // show 不取 IR：失败信封的 meta 恒为 entry / coreIrSha256 null、irRecompiled false
+      return failed(ctx, e, { signed: meta.signed, entry: null, coreIrSha256: null, irRecompiled: false });
+    }
+    throw e;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // verify
 // ---------------------------------------------------------------------------
 
 /** 阶段 → verify 中报告失败的检查项。 */
 function checkNameOf(e: PackageError): string {
-  const byStage: Partial<Record<Stage, string>> = { manifest: 'schema', signature: 'signature', integrity: 'integrity', ir: 'ir' };
+  const byStage: Partial<Record<Stage, string>> = {
+    manifest: 'schema',
+    signature: 'signature',
+    integrity: 'integrity',
+    ir: 'ir',
+    display: 'display',
+    'display-ir': 'display-ir',
+  };
   if (e.stage === 'read') return e.code === 'PKG_INVALID_MANIFEST' ? 'schema' : 'integrity';
   return byStage[e.stage] ?? 'integrity';
 }
@@ -287,12 +397,19 @@ async function cmdVerify(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
       coreJson = readCompiledIr(pkg);
       checks.push({ name: 'ir', ok: true });
     }
+    // 1.1 且有 display：display（L1–L7，不编译）；--recompile 时另有 display-ir（L8–L9）紧接 recompile
+    const layout = displayMember(pkg) ? checkPackageDisplay(pkg) : null;
+    if (layout) checks.push({ name: 'display', ok: true });
     if (args.flags.has('recompile')) {
       current = 'recompile';
       const local = recompileAndCompare(pkg);
       checks.push({ name: 'recompile', ok: true });
       meta.irRecompiled = true;
       coreJson = isA ? coreJson : local;
+      if (layout) {
+        checkDisplayIr(pkg, layout, local);
+        checks.push({ name: 'display-ir', ok: true });
+      }
     }
     if (args.flags.has('probes')) {
       current = 'probes';
@@ -304,7 +421,7 @@ async function cmdVerify(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
   } catch (e) {
     if (!(e instanceof PackageError)) throw e;
     ctx.diag(e);
-    const name = current === 'recompile' || current === 'probes' ? current : checkNameOf(e);
+    const name = (current === 'recompile' || current === 'probes') && e.stage !== 'display-ir' ? current : checkNameOf(e);
     checks.push({ code: e.code, name, ok: false });
     return out(false, e.exitCode);
   }
@@ -331,7 +448,9 @@ async function cmdInspect(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
     const m = pkg.manifest;
     const schemas = { input: schemaFile(pkg, 'schema/input.json'), output: schemaFile(pkg, 'schema/output.json') };
     Object.assign(meta, { entry: defaultEntry(m), coreIrSha256: m.coreIr.sha256 });
-    const inspect = { effects: m.effects, governance: m.governance, policy: m.policy, runtime: m.runtime, schemas, tests: m.tests };
+    const inspect: Record<string, unknown> = { effects: m.effects, governance: m.governance, policy: m.policy, runtime: m.runtime, schemas, tests: m.tests };
+    // 1.1：manifest 的 display 原样带出（修订 4 D6）；不做排版检查
+    if (m.display) inspect['display'] = m.display;
     return resultOf(ctx, line({ inspect: inspect as unknown as ValueTree, meta: metaTree(meta), ok: true }), 0);
   } catch (e) {
     if (e instanceof PackageError) return failed(ctx, e, meta);
@@ -499,10 +618,12 @@ export async function runCommand(argv: readonly string[], io: CommandIo): Promis
       return cmdInspect(ctx, args);
     case 'compile':
       return cmdCompile(ctx, args);
+    case 'show':
+      return cmdShow(ctx, args);
     case 'version':
       return cmdVersion(ctx);
   }
 }
 
 /** 包格式子命令名（`scripts/aster.ts` 据此把这些命令绕过 cac 直接交给 {@link runCommand}）。 */
-export const PACKAGE_COMMANDS: ReadonlySet<string> = new Set(['compile', 'run', 'verify', 'inspect', 'version']);
+export const PACKAGE_COMMANDS: ReadonlySet<string> = new Set(['compile', 'run', 'verify', 'inspect', 'show', 'version']);
