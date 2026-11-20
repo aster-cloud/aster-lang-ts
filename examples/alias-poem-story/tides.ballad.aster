@@ -18,6 +18,5 @@ Verse swell of count:
 
 Verse seasong of phase:
   sing moon(phase)
-  then "
-"
+  then "\n"
   then swell(phase plus 1).

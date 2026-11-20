@@ -86,16 +86,17 @@ describe('别名与同名参数并存时 hover 看光标处的实际绑定', () 
   });
 });
 
+// 类型名以大写开头（ADR 0056 修订 A4 §1.2）：别名写作 Score，与函数 score 折叠同名
 describe('别名与同名顶层函数并存时，函数声明与调用显示函数', () => {
   const doc = docOf([
     'Module m.',
     '',
-    'Type score as Int.',
+    'Type Score as Int.',
     '',
-    'Rule score given x as Int, produce score:',
+    'Rule score given x as Int, produce Score:',
     '  Return x.',
     '',
-    'Rule g given y as score, produce Int:',
+    'Rule g given y as Score, produce Int:',
     '  Return score(y).',
     '',
   ]);
@@ -111,8 +112,8 @@ describe('别名与同名顶层函数并存时，函数声明与调用显示函�
   });
 
   it('类型位置（返回类型、参数类型）与别名声明仍显示别名', async () => {
-    assert.equal(await hoverAt(doc, posOf(doc, 4, 'score', 1, 1), EN_US), 'type score as Int');
-    assert.equal(await hoverAt(doc, posOf(doc, 7, 'score', 1), EN_US), 'type score as Int');
-    assert.equal(await hoverAt(doc, posOf(doc, 2, 'score', 1), EN_US), 'type score as Int');
+    assert.equal(await hoverAt(doc, posOf(doc, 4, 'Score', 1), EN_US), 'type Score as Int');
+    assert.equal(await hoverAt(doc, posOf(doc, 7, 'Score', 1), EN_US), 'type Score as Int');
+    assert.equal(await hoverAt(doc, posOf(doc, 2, 'Score', 1), EN_US), 'type Score as Int');
   });
 });

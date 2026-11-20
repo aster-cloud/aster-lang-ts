@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### 解析分歧裁决：裸小写类型名、歧义分隔符、字符串换行、规则头换行（aster-cloud/aster-lang-ts#338、#357，ADR 0056 修订 A4）
+
+- **收紧**：类型位置上的裸小写拉丁名字（`given x as text`、`produce foo`、`maybe int`）报 E055 `Expected type name`，报在名字上（#338 第 2 项）。
+  类型名以大写开头；`list of` / `option of` / `result of` / `map … to …` / `maybe …` 的引导词与本地化关键词还原的记号不受影响。
+  ADR 0051 的大小写折叠照旧适用于大写写法（`DRIVER` → `Driver`）。
+- **收紧**：`X of A` 之后的分隔符（`,` / `and`）后是小写 `map`（第 4 项）或小写名字 + `of`（第 3 项，内建 list / option / result 除外）时报 E055，
+  与 A3 的裸小写名字同码同文案；大写 `Map … to …` 照旧是类型参数。
+- **收紧**：字符串字面量里的原始换行即未闭合，报 E051（报在开引号上，#357 第 1 行），与 core 一致；多行文本写转义 `\n`。
+  `examples/alias-poem-story/tides.ballad.aster` 的换行字符串改写为 `"\n"`。
+- **诊断码**：规则头逗号之后换行（`given x as Int,` 换行后写 `produce …`）报 E062（此前 E055），与 core 同码同位置（#357 第 3 行）。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 11 例（与 core 逐字节相同）。
+
 ### zh-CN 字符串内容可含 `」`（aster-cloud/aster-lang-ts#362 第 3 项）
 
 - **修复**：zh-CN 下 `“…”` 与 `"…"` 定界的字符串在规范化时换成词法表引号 `「…」`，内容里的 `」` 于是提前闭合字符串，

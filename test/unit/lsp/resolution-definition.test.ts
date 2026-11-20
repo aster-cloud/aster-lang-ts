@@ -2,7 +2,7 @@
  * 基于名称解析结果（Origin）的跳转到定义（#248，ADR 0051 §5「LSP」）。
  *
  * 光标处写法经 R1/R2 映射到规范名，再到同一规范名（及父名）的声明位置：
- * 折叠命中（driver → Driver）、词汇本地化写法、点分路径中的字段段都能跳到源码声明；
+ * 折叠命中（DRIVER → Driver）、词汇本地化写法、点分路径中的字段段都能跳到源码声明；
  * 只有词汇条目、没有源码声明的名字返回 null。走真实的 registerDefinitionHandler 接线。
  */
 import { describe, it } from 'node:test';
@@ -34,9 +34,9 @@ function definitionAt(doc: Doc, pos: { line: number; character: number }, lexico
 const startOf = (loc: Location | null) => (loc ? [loc.range.start.line, loc.range.start.character] : null);
 
 describe('基于名称解析的跳转到定义', () => {
-  it('★类型位置的折叠写法 driver → Define Driver（旧实现按原文精确匹配，返回 null）', () => {
-    const doc = docOf(['Module m.', '', 'Define Driver has age as Int.', '', 'Rule f given x as driver, produce Int:', '  Return 1.', '']);
-    const loc = definitionAt(doc, posOf(doc, 4, 'driver', 1), EN_US, EMPTY_VOCAB);
+  it('★类型位置的折叠写法 DRIVER → Define Driver（小写类型名按 ADR 0056 修订 A4 §1.2 报 E055）（旧实现按原文精确匹配，返回 null）', () => {
+    const doc = docOf(['Module m.', '', 'Define Driver has age as Int.', '', 'Rule f given x as DRIVER, produce Int:', '  Return 1.', '']);
+    const loc = definitionAt(doc, posOf(doc, 4, 'DRIVER', 1), EN_US, EMPTY_VOCAB);
     assert.deepEqual(startOf(loc), [2, 0], 'Data 无 nameSpan，与原逻辑一样跳到声明起点');
   });
 
@@ -79,9 +79,9 @@ describe('基于名称解析的跳转到定义', () => {
   });
 
   it('语法不完整时：已解析部分的类型位置仍可跳转（R1 结果），不抛异常', () => {
-    const doc = docOf(['Module m.', '', 'Define Driver has age as Int.', '', 'Rule f given x as driver, produce Int:', '  Return 1.', '',
+    const doc = docOf(['Module m.', '', 'Define Driver has age as Int.', '', 'Rule f given x as DRIVER, produce Int:', '  Return 1.', '',
       'Rule g given y as Int, produce Int:', '  Return y plus', '']);
-    assert.deepEqual(startOf(definitionAt(doc, posOf(doc, 4, 'driver', 1), EN_US, EMPTY_VOCAB)), [2, 0]);
+    assert.deepEqual(startOf(definitionAt(doc, posOf(doc, 4, 'DRIVER', 1), EN_US, EMPTY_VOCAB)), [2, 0]);
   });
 
   it('局部名（参数）仍由原有逻辑处理', () => {
