@@ -2,8 +2,9 @@
  * manifest 阶段（README「检查顺序」manifest 行、「manifest 语义规则」，ADR 0059 修订 2 R3 / R6 / R10）。
  *
  * 顺序固定：① 大小 ≤ 1 MiB ② 严格 JSON ③ 数字都是安全整数且**文件字节**逐字节等于其规范 JSON
- * ④ `format` / `formatVersion` 语法 ⑤ 主版本 = 1、次版本 ≤ 0 ⑥ schema ⑦ 语义规则 ⑧ `coreIr.version` = 2。
- * 格式版本先于 schema（修订 2 R3）：带新字段的 1.1 manifest 报 `PKG_UNSUPPORTED_FORMAT` 而不是 `PKG_INVALID_MANIFEST`。
+ * ④ `format` / `formatVersion` 语法 ⑤ 主版本 = 1、次版本 ≤ 1 ⑥ 按该次版本自己的 schema ⑦ 语义规则 ⑧ `coreIr.version` = 2。
+ * 格式版本先于 schema（修订 2 R3）：带新字段的 1.2 manifest 报 `PKG_UNSUPPORTED_FORMAT` 而不是 `PKG_INVALID_MANIFEST`。
+ * 1.1（ADR 0059 修订 4 D2）= 1.0 + 可选顶层成员 `display`；1.0 包里出现 `display` 仍被 1.0 schema 拒绝。
  */
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import { canonicalJson } from '../core/canonical-json.js';
@@ -11,11 +12,16 @@ import { fail } from './errors.js';
 import { compareUtf8, MAX_MANIFEST_BYTES } from './paths.js';
 import { isJsonObject, parseStrictJson, type JsonValue } from './strict-json.js';
 import manifestSchema from './schema/manifest-1.0.schema.json' with { type: 'json' };
+import manifestSchema11 from './schema/manifest-1.1.schema.json' with { type: 'json' };
 import sigSchema from './schema/sig-1.0.schema.json' with { type: 'json' };
 
 /** 本 CLI 支持的格式标识与版本。 */
 export const PACKAGE_FORMAT = 'aster-policy-package';
-export const SUPPORTED_FORMAT_VERSIONS = ['1.0'] as const;
+export const SUPPORTED_FORMAT_VERSIONS = ['1.0', '1.1'] as const;
+/** 支持的最高次版本（主版本恒为 1）。 */
+const MAX_MINOR = 1;
+/** 显示排版的两个固定路径（修订 4 D1）。 */
+const DISPLAY_FILES = ['policy/display/display.aster', 'policy/display/layout.json'] as const;
 export const SUPPORTED_CORE_IR_VERSIONS = [2] as const;
 
 const FORMAT_VERSION = /^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})(?![\s\S])/;
@@ -47,13 +53,20 @@ export interface Manifest {
   readonly runtime: Record<string, JsonValue>;
   readonly tests: { readonly probes: number; readonly probesSha256: string } & Record<string, JsonValue>;
   readonly files: readonly ManifestFile[];
+  /** 1.1：显示排版（存在 ⇒ files[] 含两个显示文件） */
+  readonly display?: { readonly layoutVersion: number };
 }
 
 let manifestValidator: ValidateFunction | undefined;
+let manifestValidator11: ValidateFunction | undefined;
 let sigValidator: ValidateFunction | undefined;
 
 /** manifest schema 校验器（ajv 2020 `strict:true`），首次使用时编译。 */
-export function validateManifestSchema(tree: unknown): boolean {
+export function validateManifestSchema(tree: unknown, minor = 0): boolean {
+  if (minor === 1) {
+    manifestValidator11 ??= new Ajv2020({ strict: true }).compile(manifestSchema11);
+    return manifestValidator11(tree);
+  }
   manifestValidator ??= new Ajv2020({ strict: true }).compile(manifestSchema);
   return manifestValidator(tree);
 }
@@ -104,6 +117,8 @@ function checkSemantics(m: Manifest): void {
     if (x.function !== x.function.normalize('NFC')) bad(`函数名不是 NFC：${x.function}`);
   }
   if (m.policy.moduleName !== m.policy.moduleName.normalize('NFC')) bad('模块名不是 NFC');
+  // 1.1：display 存在 ⇒ files[] 同时含两个显示文件（display 不存在时它们只是普通载荷）
+  if (m.display !== undefined && !DISPLAY_FILES.every((p) => paths.includes(p))) bad('display 存在但 files[] 缺显示排版文件');
 }
 
 /** manifest 阶段全部检查；通过返回 manifest。 */
@@ -114,9 +129,11 @@ export function checkManifest(bytes: Uint8Array): Manifest {
   const fvRaw = tree['formatVersion'];
   const fv = typeof fvRaw === 'string' ? FORMAT_VERSION.exec(fvRaw) : null;
   if (!fv) return fail('manifest', 'PKG_INVALID_MANIFEST', 'formatVersion 语法不合法');
-  if (Number(fv[1]) !== 1 || Number(fv[2]) > 0) fail('manifest', 'PKG_UNSUPPORTED_FORMAT', `formatVersion ${String(fvRaw)}`);
-  if (!validateManifestSchema(tree)) {
-    fail('manifest', 'PKG_INVALID_MANIFEST', `schema：${JSON.stringify(manifestValidator?.errors ?? []).slice(0, 500)}`);
+  const minor = Number(fv[2]);
+  if (Number(fv[1]) !== 1 || minor > MAX_MINOR) fail('manifest', 'PKG_UNSUPPORTED_FORMAT', `formatVersion ${String(fvRaw)}`);
+  if (!validateManifestSchema(tree, minor)) {
+    const errors = (minor === 1 ? manifestValidator11 : manifestValidator)?.errors ?? [];
+    fail('manifest', 'PKG_INVALID_MANIFEST', `schema：${JSON.stringify(errors).slice(0, 500)}`);
   }
   const m = tree as unknown as Manifest;
   checkSemantics(m);

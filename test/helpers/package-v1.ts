@@ -22,6 +22,8 @@ export interface ConformanceCase {
   readonly code: string | null;
   readonly base?: string;
   readonly engines?: readonly string[];
+  /** 只适用于支持该包格式版本的 CLI（ADR 0059 修订 4，计划裁决 PR1） */
+  readonly requiresFormat?: string;
 }
 
 /** 读取夹具目录下的 JSON 文件。 */

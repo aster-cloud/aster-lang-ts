@@ -26,7 +26,7 @@ export const MAX_HAN_SINGLE_TOKEN = 8;
 /** aliasSet：语义 token 种类名 → 别名短语。 */
 export type AliasSet = Readonly<Record<string, readonly string[]>>;
 
-const OPERATOR_KINDS: ReadonlySet<string> = new Set([
+export const OPERATOR_KINDS: ReadonlySet<string> = new Set([
   SemanticTokenKind.PLUS,
   SemanticTokenKind.MINUS_WORD,
   SemanticTokenKind.TIMES,

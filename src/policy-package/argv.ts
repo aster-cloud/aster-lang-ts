@@ -2,7 +2,7 @@
  * 包格式 CLI 的命令行语法（README「命令行」，ADR 0059 修订 2 R8）。
  *
  * 两个 CLI 的参数解析库（cac / picocli）缺省行为不同，因此这里手写同一套严格语法：
- *   - 子命令 `compile`、`run`、`verify`、`inspect`、`version`；未知子命令为 USAGE；
+ *   - 子命令 `compile`、`run`、`verify`、`inspect`、`show`、`version`；未知子命令为 USAGE；
  *   - 带值选项写成 `--opt value` 或 `--opt=value`；开关不接受 `=`；选项与位置参数先后任意；
  *   - 同一选项出现两次、未知选项、缺值、位置参数个数不对都是 USAGE；
  *   - `--opt value` 形式中，若下一个 token 本身是该子命令认识的选项（`--x` 或 `--x=…`）或 `--`，视为缺值（与 picocli 缺省相同）；
@@ -12,7 +12,7 @@
  */
 import { fail } from './errors.js';
 
-export type Command = 'compile' | 'run' | 'verify' | 'inspect' | 'version';
+export type Command = 'compile' | 'run' | 'verify' | 'inspect' | 'show' | 'version';
 
 interface CommandSpec {
   readonly values: readonly string[];
@@ -21,7 +21,7 @@ interface CommandSpec {
 }
 
 const SPECS: Readonly<Record<Command, CommandSpec>> = {
-  run: { values: ['entry', 'input', 'timeout', 'jwks', 'pubkey'], flags: ['allow-unsigned'], positionals: 1 },
+  run: { values: ['entry', 'input', 'timeout', 'display', 'jwks', 'pubkey'], flags: ['allow-unsigned'], positionals: 1 },
   verify: { values: ['timeout', 'jwks', 'pubkey'], flags: ['allow-unsigned', 'recompile', 'probes'], positionals: 1 },
   inspect: { values: ['jwks', 'pubkey'], flags: ['allow-unsigned'], positionals: 1 },
   compile: {
@@ -30,6 +30,8 @@ const SPECS: Readonly<Record<Command, CommandSpec>> = {
     positionals: 1,
   },
   version: { values: [], flags: [], positionals: 0 },
+  // 包格式 1.1（ADR 0059 修订 4 D6）：打印显示文本；--canonical 与 --from-display 互斥
+  show: { values: ['from-display', 'jwks', 'pubkey'], flags: ['allow-unsigned', 'canonical'], positionals: 1 },
 };
 
 /** 已解析的命令行。 */
@@ -106,6 +108,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   }
   if (positionals.length !== spec.positionals) usage(`${command} 需要 ${spec.positionals} 个位置参数，实际 ${positionals.length} 个`);
   if (command === 'run' && !values.has('input')) usage('run 必须给出 --input（- 表示 stdin）');
+  if (command === 'show' && flags.has('canonical') && values.has('from-display')) usage('--canonical 与 --from-display 不能同时给出');
   const timeout = values.get('timeout');
   return { command, path: positionals[0], values, flags, timeoutMs: timeout === undefined ? DEFAULT_TIMEOUT_MS : parseTimeout(timeout) };
 }

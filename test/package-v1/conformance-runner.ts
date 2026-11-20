@@ -7,12 +7,15 @@ import { availableParallelism, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { PACKAGE_V1, readCases, type ConformanceCase } from '../helpers/package-v1.js';
+import { SUPPORTED_FORMAT_VERSIONS } from '../../src/policy-package/manifest.js';
 
 /**
  * 包格式 v1 一致性用例的子进程运行器（ADR 0059 P1 T4 / T5）：遍历 aster-lang-test `conformance/package-v1/` 的
  * 全部 `packages/*.cases.json`、`tamper/cases.json`、`inputs-invalid/cases.json`、`compile/cases.json` 与 `tamper/test-time.json`，
  * 以 cases.json 所在目录为 cwd 运行 CLI，stdout 经真相源的 `normalize-stdout.mjs` 归一后逐字节比较，再比较退出码。
  * `compile` 的成功用例按 `expectedPositionFreeSha256` 比较投影哈希（两侧 IR 只差 origin 列，修订 1 A2）。
+ * 包格式 1.1（ADR 0059 修订 4）的 `display/packages/*.cases.json` 与 `display/tamper/cases.json` 同样运行，
+ * 带 `requiresFormat` 的行只在本 CLI 的 formatVersions 含该版本时运行（`show` 成功时 stdout 不是 JSON，按字节比较）。
  */
 
 interface RunResult {
@@ -165,7 +168,16 @@ export function defineConformanceSuite(label: string, cli: readonly string[]): v
     ...readdirSync(join(root, 'packages')).filter((f) => f.endsWith('.cases.json')).map((f) => `packages/${f}`),
     'tamper/cases.json',
     'inputs-invalid/cases.json',
+    // 包格式 1.1：兄弟仓尚未合入 T1 时目录不存在，此时没有 1.1 用例
+    ...(existsSync(join(root, 'display'))
+      ? [
+          ...readdirSync(join(root, 'display/packages')).filter((f) => f.endsWith('.cases.json')).map((f) => `display/packages/${f}`),
+          'display/tamper/cases.json',
+        ]
+      : []),
   ];
+  const supportsFormat = (c: ConformanceCase): boolean =>
+    c.requiresFormat === undefined || (SUPPORTED_FORMAT_VERSIONS as readonly string[]).includes(c.requiresFormat);
   const timeoutCases: { rel: string; cwd: string; c: ConformanceCase }[] = [];
   test(`${label}：包格式 v1 一致性用例`, { concurrency: Math.max(2, availableParallelism()) }, async (t) => {
     const { normalizeStdout } = (await import(pathToFileURL(join(root, 'normalize-stdout.mjs')).href)) as {
@@ -176,6 +188,7 @@ export function defineConformanceSuite(label: string, cli: readonly string[]): v
       const cwd = dirname(join(root, rel));
       for (const c of readCases(rel)) {
         if (c.engines && !c.engines.includes('node')) continue;
+        if (!supportsFormat(c)) continue;
         total++;
         // TIMEOUT 用例要量墙钟，放到并发用例之后单独串行跑（见下方「超时用例」测试）
         if (c.code === 'TIMEOUT') {
