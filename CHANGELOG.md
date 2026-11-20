@@ -13,6 +13,31 @@
   或右括号之后换行的写法此前被重排成合法函数头，现在报 E050 或语法错误。参数组照旧可跨行。
   `test/fixtures/chinese-function-syntax-parity.json` 用新的 Java 变换器重新生成（原 400 条输入加 200 条只取发生重排的随机输入）。
 
+### W709 识别名字前的 `@pii`（aster-cloud/aster-lang-ts#336）
+
+- **修复**：`given @pii(L1, name) name as Text` 与 `has @pii(L2, name) name as Text` 这种把 `@pii` 写在名字前的写法降级为形参 / 字段的
+  `annotations`，类型仍是 `Text`，W709（`GOV_PII_RETURNED_AS_TEXT`）只看 `PiiType`，于是漏报。现在形参或字段带名为 `pii` 的注解
+  （不区分大小写）同样算 `@pii` 来源，类型未标注的形参也算（注解是作者的显式声明，不是按名字猜测）。Core IR 不变，
+  只会多出 W709 warning。与 aster-lang-core `PiiTextReturnAnalyzer` 同一规则。
+- 共享夹具 `shared/governance_pii_text_return_parity.json` 新增 7 例（前置、前置加类型、无类型形参、大写 `@PII`、记录字段、无类型记录字段、Int 返回不报），
+  与 aster-lang-core 副本 byte-identical。
+
+### 规范化后为空的源码按空源码拒绝（aster-cloud/aster-lang-core#288）
+
+- **收紧**：`compileSource`（`aster compile`、`./package-check` 重编译）在规范化之后再判一次空源码，与 core
+  `InProcessCnlParser` 同一规则。zh-CN 只含 U+3000 的源码此前被规范化成半角空格后编译成空模块（`decls: []`），
+  现在与 core、aster-api 一样报「源码为空或只含 ASCII 空白」；开头的一个 BOM 由两引擎词法器跳过，`BOM + 空白`同样按空源码拒绝。
+  en-US / de-DE / hi-IN 的 U+3000 等 Unicode 空白不规范化，仍报 E050。
+- 新增共享夹具 `shared/blank_source_parity.json`（22 份源码 × 4 个词法表，与 aster-lang-core 副本 byte-identical）。
+
+### `npm i --omit=optional` 后 `aster` 可用（aster-cloud/aster-lang-ts#364）
+
+- **修复**：`openai` 与 `@anthropic-ai/sdk` 是 optionalDependencies，但 `aster` 经 `ai-generate` 静态 import 了两个 provider，
+  `--omit=optional` 安装后任何 `aster` 命令一启动就 `ERR_MODULE_NOT_FOUND: Cannot find package 'openai'`。现在 provider 在
+  `ai-generate` 选中时才动态加载；缺 SDK 时报「未安装可选依赖 openai……请先安装：npm i openai」并以非零退出，其余命令不受影响。
+- `scripts/verify-package-bins.mjs` 新增第 6 步：`npm i --omit=optional <tarball>` 后确认可选依赖确实未装、全部 bin 检查照样通过，
+  `aster ai-generate` 两个 provider 都给出安装提示。
+
 ## 3.5.0
 
 > **次版本号的理由**：公开声明只增不删——在 `v3.4.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts`：新增声明文件

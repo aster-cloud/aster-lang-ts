@@ -7,7 +7,9 @@
  * 单个函数内的前向数据流。抽象值记录：来源 @pii 字段路径集合（以参数名为前缀，如 `applicant.name`）、
  * 已知的声明类型（用于继续选字段）、是否已知为 Text、以及它恰好对应的输入访问路径。
  * - 来源：形参的声明类型（逐层解包 PiiType / Option / Maybe）带 `@pii`，或沿点分访问选到的模块内记录字段带 `@pii`；
- *   从已带来源的值上选字段，来源原样保留（`@pii` 包住整个记录时报参数本身）。
+ *   从已带来源的值上选字段，来源原样保留（`@pii` 包住整个记录时报参数本身）。`@pii` 写在名字前
+ *   （`given @pii(L1, name) name as Text`、`has @pii(L2, name) name as Text`）时降级为形参 / 字段的注解而不是 PiiType，
+ *   同样算来源（aster-lang-ts#336）；注解名与降级一样不区分大小写。
  * - 传播只经过：变量引用、点分字段访问、`+` 与 `Text.concat` 的实参、if 表达式的两个分支、Let / Set 绑定。
  *   Set 覆盖原值；If / Match 各分支在环境副本上遍历，汇合处对未 Return 的分支取并；块内必然 Return 之后的语句
  *   不可达，不再分析。条件与 Match 主语不传播。
@@ -19,7 +21,7 @@
  *   被调函数自己的 `@pii` 形参在被调函数内单独检查。
  * - 不分析集合：List / Map 的元素、记录构造、Ok / Some 等包装都不带来源。
  * - Match 的模式变量、lambda 体与工作流步骤不分析；Scope 与外层共用环境。
- * - 只看声明类型：未标注（`typeInferred`）的形参与字段不视为 PII，也不按名字猜测。
+ * - 只看声明：类型未标注（`typeInferred`）且没有前置 `@pii` 注解的形参与字段不视为 PII，也不按名字猜测。
  */
 import type { Core } from '../types.js';
 
@@ -67,6 +69,11 @@ function isPii(type: Core.Type | null | undefined): boolean {
   let t = type ?? null;
   while (t && (t.kind === 'Option' || t.kind === 'Maybe')) t = t.type;
   return t?.kind === 'PiiType';
+}
+
+/** 前置写法的 `@pii`：形参 / 字段注解里有名为 pii 的注解（不区分大小写，与 core 的 Locale.ROOT 小写同一判定）。 */
+function hasPiiAnnotation(annotations: readonly Core.Annotation[] | undefined): boolean {
+  return (annotations ?? []).some((a) => a?.name?.toLowerCase() === 'pii');
 }
 
 function isText(type: Core.Type | null | undefined): boolean {
@@ -127,7 +134,7 @@ class Analyzer {
 
   seed(p: Core.Parameter): Val {
     const type = p.typeInferred ? null : p.type;
-    return { pii: new Set(isPii(type) ? [p.name] : []), type, text: isText(type), path: p.name };
+    return { pii: new Set(isPii(type) || hasPiiAnnotation(p.annotations) ? [p.name] : []), type, text: isText(type), path: p.name };
   }
 
   // ---- 语句 ----
@@ -236,7 +243,7 @@ class Analyzer {
     const field = this.fieldOf(v.type, seg);
     const type = !field || field.typeInferred ? null : field.type;
     const pii = new Set(v.pii);
-    if (path !== null && isPii(type)) pii.add(path);
+    if (path !== null && (isPii(type) || hasPiiAnnotation(field?.annotations))) pii.add(path);
     return { pii, type, text: isText(type), path };
   }
 
