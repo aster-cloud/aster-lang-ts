@@ -320,7 +320,7 @@ function continuesOfTypeArgs(ctx: ParserContext, error: ParseErrorFn): boolean {
   const next = ctx.peek(1);
   if (startsNamedItem(ctx, 1) || !canStartType(next)) return false;
   const nameAt = skipAnnotationsFrom(ctx, 1);
-  if (nameAt >= 0 && isBareLowercaseName(ctx, nameAt)) {
+  if (nameAt >= 0 && (isBareLowercaseName(ctx, nameAt) || isAmbiguousLowercaseTypeArg(ctx, nameAt))) {
     const nameTok = ctx.peek(nameAt);
     const name = String(nameTok.value);
     error(Issue.expected(tokenName('typeName'),
@@ -349,6 +349,38 @@ function isBareLowercaseName(ctx: ParserContext, offset: number): boolean {
   if (tok.kind !== TokenKind.IDENT || tok.originalValue !== undefined) return false;
   const text = String(tok.value ?? '');
   if (!/^\p{Ll}/u.test(text) || LOWERCASE_TYPE_WORDS.has(text.toLowerCase())) return false;
+  const after = ctx.peek(offset + 1);
+  if (after.kind === TokenKind.LT) return false;
+  return !((after.kind === TokenKind.IDENT || after.kind === TokenKind.TYPE_IDENT) && String(after.value ?? '').toLowerCase() === 'of');
+}
+
+/**
+ * 分隔符之后的小写 `map`（#338 第 4 项）或小写名字 + `of`（第 3 项，内建 list / option / result 除外）：与裸小写名字一样也可能是下一个
+ * 形参 / 字段的名字，两引擎同码报 E055（ADR 0056 修订 A4 §1.3，core AsterParser.rejectBareLowercaseTypeArg）。大写 `Map` 不在此列。
+ */
+function isAmbiguousLowercaseTypeArg(ctx: ParserContext, offset: number): boolean {
+  const tok = ctx.peek(offset);
+  if (tok.kind !== TokenKind.IDENT || tok.originalValue !== undefined) return false;
+  const text = String(tok.value ?? '');
+  if (!/^\p{Ll}/u.test(text)) return false;
+  const lower = text.toLowerCase();
+  if (lower === 'map') return true;
+  const after = ctx.peek(offset + 1);
+  const isOf = (after.kind === TokenKind.IDENT || after.kind === TokenKind.TYPE_IDENT) && String(after.value ?? '').toLowerCase() === 'of';
+  return isOf && !OF_GENERIC_WORDS.has(lower);
+}
+
+/** 内建的小写 `X of` 泛型名：分隔符之后照旧是类型参数。 */
+const OF_GENERIC_WORDS: ReadonlySet<string> = new Set(['list', 'option', 'result']);
+
+/** 类型位置上的裸小写拉丁名字：小写开头、不是本地化关键词还原的记号、不是 `maybe` / `map`、后面不是 `of` / `<`。 */
+function isBareLowercaseTypeAt(ctx: ParserContext, offset: number): boolean {
+  const tok = ctx.peek(offset);
+  if (tok.kind !== TokenKind.IDENT || tok.originalValue !== undefined) return false;
+  const text = String(tok.value ?? '');
+  if (!/^\p{Ll}/u.test(text)) return false;
+  const lower = text.toLowerCase();
+  if (lower === KW.MAYBE || lower === 'map') return false;
   const after = ctx.peek(offset + 1);
   if (after.kind === TokenKind.LT) return false;
   return !((after.kind === TokenKind.IDENT || after.kind === TokenKind.TYPE_IDENT) && String(after.value ?? '').toLowerCase() === 'of');
@@ -446,6 +478,12 @@ function parseTypePrimary(
     const node = Node.Map(keyType, valueType);
     assignSpan(node, spanFromSources(mapTok, keyType, toTok, valueType));
     return node;
+  }
+
+  // 裸小写类型名（`as text`、`as foo`）：类型名以大写开头，两引擎都在名字上报 E055（ADR 0056 修订 A4 §1.2，#338 第 2 项）。
+  // 本地化关键词还原的记号（originalValue）与 `maybe` / `map` 引导词不在此列。
+  if (isBareLowercaseTypeAt(ctx, 0)) {
+    error(Issue.expected(tokenName('typeName'), 'Expected type name'), ctx.peek());
   }
 
   if (ctx.isKeyword(KW.TEXT)) {

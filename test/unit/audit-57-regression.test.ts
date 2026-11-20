@@ -12,7 +12,7 @@ import type { DomainVocabulary, IdentifierMapping } from '../../src/config/lexic
 initializeAllBundledLexicons();
 
 // 审计 #57 回归测试：guest-Map 安全（原型污染 + 插入序）、字符串字面量规范化、
-// metered List builtins（O(n²) DoS）、值相等去重、字面量宏智能引号封禁。
+// metered List builtins（O(n²) DoS）、值相等去重、字面量宏智能引号（R18 起允许）。
 
 function evalOf(body: string): { success: boolean; value: unknown; error?: string } {
   const c = compile(`Module probe.\n${body}\n`);
@@ -101,16 +101,19 @@ describe('#57-2 canonicalize 不改写字符串字面量内的多词关键字', 
   });
 });
 
-// ── 5 [MED] 字面量宏封禁智能引号 ────────────────────────────────────────────
-describe('#57-5 字面量宏封禁智能/弯引号', () => {
+// ── 5 [MED] 字面量宏的智能 / 弯引号 ────────────────────────────────────────────
+// 审计 #57 当时封禁弯引号：规范化器曾把 “ ” 一律归一成 ASCII "，展开非幂等。自 #347 起引号归一只改写充当定界符的
+// 弯引号，展开出的字符串里它们是内容；ADR 0060 修订 1 R18（#362 第 5 项）据此允许。幂等与读回值由
+// shared/literal_value_parity.json 锁定（literal-value-parity.test.ts）。
+describe('#57-5 字面量宏的智能/弯引号（ADR 0060 修订 1 R18 起允许）', () => {
   const vocab = (literals: readonly IdentifierMapping[]): DomainVocabulary => ({
     id: 'sq', name: 'sq', locale: 'en-US', version: '1.0.0',
     structs: [], fields: [], functions: [], enumValues: [], literals,
   });
-  for (const bad of ['say “hi”', 'it’s', '‘x’', 'a”b']) {
-    it(`拒绝含智能引号的字面量宏内容: ${JSON.stringify(bad)}`, () => {
+  for (const ok of ['say “hi”', 'it’s', '‘x’', 'a”b']) {
+    it(`允许含弯引号的字面量宏内容: ${JSON.stringify(ok)}`, () => {
       assert.equal(validateVocabulary(vocab(
-        [{ localized: 'X', canonical: bad, kind: IdentifierKind.LITERAL }])).valid, false);
+        [{ localized: 'X', canonical: ok, kind: IdentifierKind.LITERAL }])).valid, true);
     });
   }
   it('普通内容仍通过', () => {

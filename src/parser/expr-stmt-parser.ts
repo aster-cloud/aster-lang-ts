@@ -2011,6 +2011,11 @@ export function parseParamList(
       }
       if (ctx.at(TokenKind.COMMA)) {
         ctx.next();
+        // 规则头里逗号之后换行（`given x as Int,` 换行后写 `produce …`）：与 core 同码报 E062，报在换行处（#357 第 3 行，ADR 0056 修订 A4 §2）
+        if (ctx.at(TokenKind.NEWLINE)) {
+          error(Issue.unexpectedExpecting(tokenName('newline'), kwParam(KW.PRODUCE),
+            `Unexpected newline; expected '.', ':' or ${kwq(ctx, KW.PRODUCE)}`));
+        }
         // 逗号后是 produce：逗号属于规则头（`given x as Int, produce …`），参数表结束
         if (ctx.isKeyword(KW.PRODUCE)) {
           hasMore = false;
@@ -2067,6 +2072,11 @@ export function parseParamList(
       }
       if (ctx.at(TokenKind.COMMA)) {
         ctx.next();
+        // 与 given 形参表同一规则：逗号之后换行报 E062（#357 第 3 行）
+        if (ctx.at(TokenKind.NEWLINE)) {
+          error(Issue.unexpectedExpecting(tokenName('newline'), kwParam(KW.PRODUCE),
+            `Unexpected newline; expected '.', ':' or ${kwq(ctx, KW.PRODUCE)}`));
+        }
         if (ctx.isKeyword(KW.PRODUCE) || ctx.isKeyword(KW.WITH)) {
           hasMore = false;
         } else {

@@ -11,6 +11,34 @@
 - 带声明注解的类型别名（`@pii … Type X as T`）本引擎仍报 E056、core 接受，与引导词无关，另行跟踪（#380）。
 - LSP 类型补全的别名声明引导词同样取 lexicon 的 TYPE_ALIAS（此前只认英文 `type`）。
 
+### 字面量触发词与关键词同形时关键词优先（aster-cloud/aster-lang-ts#368，ADR 0060 修订 1 R16'）
+
+- **修复**：规范化器只展开在当前有效词法表下不与关键词同形的字面量宏触发词。丢弃折叠键等于下列拼写的触发词：
+  有效词法表（叠加 aliasSet 之后）的规范拼写、官方别名与块结束词，以及 en-US 的同类拼写。此前本引擎先展开字面量宏、
+  词法之后才逐 token 翻译关键词，触发词 `文本` / `返回` 被展开成字符串（E055 / E064），而 core 先译关键词；en-US 下两引擎
+  都把触发词 `Text` 展开成字符串。新增 `literalsVisibleUnder(scopes, lexicon)`（`buildVocabularyScopes` 与
+  `canonicalScopesJson` 不变，envelope 不变），`canonicalize` 与 LSP 规范预览共用。共享夹具
+  `shared/literal_keyword_shadow_parity.json` 与 aster-lang-core 逐字节相同。别名校验器 v2 的「别名 ≠ 字面量触发词」照旧。
+
+### 字面量宏内容允许反斜杠、ASCII 双引号与弯引号（aster-cloud/aster-lang-ts#362 第 5 项）
+
+- **放宽**：`validateVocabulary` 不再拒绝字面量宏内容里的 `\`、`"` 与 `“ ” ‘ ’`（ADR 0060 修订 1 R18）。展开时 `\` 与 `"`
+  已按词法器转义（#345），弯引号只在充当字符串定界符时才被引号归一改写（#347），展开出的字符串里它们是内容。
+  `「」『』«»`、控制字符与空内容照旧拒绝。与 aster-lang-core `IdentifierMapping.isValidLiteralContent` 同一规则，
+  共享夹具 `shared/literal_value_parity.json`（与 core 逐字节相同）锁定校验结论、读回值与再规范化幂等。
+
+### 解析分歧裁决：裸小写类型名、歧义分隔符、字符串换行、规则头换行（aster-cloud/aster-lang-ts#338、#357，ADR 0056 修订 A4）
+
+- **收紧**：类型位置上的裸小写拉丁名字（`given x as text`、`produce foo`、`maybe int`）报 E055 `Expected type name`，报在名字上（#338 第 2 项）。
+  类型名以大写开头；`list of` / `option of` / `result of` / `map … to …` / `maybe …` 的引导词与本地化关键词还原的记号不受影响。
+  ADR 0051 的大小写折叠照旧适用于大写写法（`DRIVER` → `Driver`）。
+- **收紧**：`X of A` 之后的分隔符（`,` / `and`）后是小写 `map`（第 4 项）或小写名字 + `of`（第 3 项，内建 list / option / result 除外）时报 E055，
+  与 A3 的裸小写名字同码同文案；大写 `Map … to …` 照旧是类型参数。
+- **收紧**：字符串字面量里的原始换行即未闭合，报 E051（报在开引号上，#357 第 1 行），与 core 一致；多行文本写转义 `\n`。
+  `examples/alias-poem-story/tides.ballad.aster` 的换行字符串改写为 `"\n"`。
+- **诊断码**：规则头逗号之后换行（`given x as Int,` 换行后写 `produce …`）报 E062（此前 E055），与 core 同码同位置（#357 第 3 行）。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 11 例（与 core 逐字节相同）。
+
 ### zh-CN 字符串内容可含 `」`（aster-cloud/aster-lang-ts#362 第 3 项）
 
 - **修复**：zh-CN 下 `“…”` 与 `"…"` 定界的字符串在规范化时换成词法表引号 `「…」`，内容里的 `」` 于是提前闭合字符串，
