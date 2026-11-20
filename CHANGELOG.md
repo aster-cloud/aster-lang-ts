@@ -1,6 +1,36 @@
 # Changelog
 
-## Unreleased
+## 3.6.0
+
+> **次版本号的理由**：公开声明只增不删——在 `v3.5.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts` 与 `dist/scripts/**/*.d.ts`：
+> 新增声明文件 `layout/package-rules.d.ts`、`layout/reconstruct.d.ts`、`policy-package/display.d.ts`、`ai/providers/load.d.ts`，无删除。
+> 经 `exports` 入口可达的改动：`./layout` 新增导出 `checkPackageLayout`、`checkDerivedLayout`、`checkLayoutLimits`、`parseLayoutStrict`、
+> `reconstructFromDisplay`、`padStructuralSpans`、`structuralNameHits`、`irNameStrings`、`sourceMeasures`、`layoutRuleOf`、`operatorTable`、
+> `operatorSequence`、`containsWholeWord`、`ASCII_OPERATORS` 与类型 `LayoutRule`、`CheckPackageLayoutOptions`、`LayoutRuleContext`、
+> `Reconstruction`，`LayoutErrorCode` 联合新增 `layout_display_mismatch`、`layout_structural_hides_operator`，`LayoutError` 与 `LayoutErrorDetail`
+> 新增可选字段 `rule`（`LayoutValidation` 经 `LayoutErrorDetail` 带出）；`./token-kind`、`./lexicons` 的 `SemanticTokenKind` 新增成员 `TYPE_ALIAS`。不经任何 `exports` 子路径导出的改动：
+> `policy-package/alias-validate.d.ts` 新增 `OPERATOR_KINDS`；`policy-package/manifest.d.ts` 的 `SUPPORTED_FORMAT_VERSIONS` 变为 `["1.0","1.1"]`、
+> `Manifest.display?`、`validateManifestSchema` 新增可选参数 `minor`；`policy-package/errors.d.ts` 新增四个错误码与 `Stage` 成员；`argv.d.ts`
+> 的 `Command` 新增 `show`；`cli.d.ts` 的 `CommandResult.stdoutBytes?`；`compile-source.d.ts` 新增 `EMPTY_SOURCE_MESSAGE`；
+> `identifiers/scopes.d.ts` 新增 `literalsVisibleUnder`（`./lexicons/identifiers` 的再导出清单不含它）。`exports` 子路径不变。
+> 行为上：CLI `version` 的 `formatVersions` 由 `["1.0"]` 变为 `["1.0","1.1"]`，新增子命令 `show` 与 `run --display`；既有源码新报 error 级诊断
+> （裸小写类型名与歧义分隔符 E055、字符串里的原始换行 E051、规范化后为空的源码、zh 函数头旁的非词法空白），本地两边 dist 实测：
+> `Rule f given x as text, produce Int:` 在 3.5.0 编译成功、本版报 E055，含原始换行的字符串在 3.5.0 编译成功、本版报 E051。
+> 按 ADR 0046 §11.7 第 11 条（1.6.0、3.1.0–3.5.0 先例）取 minor。
+>
+> 本版是 aster-lang-test `conformance/package-v1/src/display/pending-ts-release.json` 的 `tsNext`（ADR 0059 修订 4 计划 T5）。
+
+### 包格式 1.1：策略包携带显示排版，`show` 与 `run --display`（ADR 0059 修订 4 T3，#373，与 aster-lang-core 1.0.53 同车次）
+
+- **新增**：`./layout` 的包规则 L1–L7（`checkPackageLayout`、`checkDerivedLayout`、`parseLayoutStrict`、`structuralNameHits`、`padStructuralSpans`、
+  `irNameStrings`）与 D7 唯一解反向映射 `reconstructFromDisplay`；`LayoutError` 带规则号；新错误码 `layout_display_mismatch`、
+  `layout_structural_hides_operator`。`validatePolicyLayout`（保存校验）不变。
+- **新增 CLI**：子命令 `show`（`--canonical`、`--from-display <file>`，成功时 stdout 为包内文件原样字节加 `\n`）、`run --display <file>`
+  （反向映射 → 派生规则 → 编译 → L8 / L9 → 求值，`meta.display` 报告是否与包一致）、`verify` 的 `display` / `display-ir` 检查、`inspect` 带出
+  `display`；manifest 次版本 ≤ 1 并按次版本选 schema；`version.formatVersions` 为 `["1.0","1.1"]`；新错误码 `PKG_DISPLAY_INVALID`、
+  `DISPLAY_UNMAPPABLE`、`DISPLAY_AMBIGUOUS`、`DISPLAY_REJECTED`（与 aster-lang-test `exit-codes.json` 的 `codesSince["1.1"]` 一致）。
+- 1.0 包的 `inspect` / `verify` / `run` 输出逐字节不变；不支持 1.1 的旧 CLI 对 1.1 包报 `PKG_UNSUPPORTED_FORMAT`。
+- `shared/layout-vectors/`：aster-lang-test 四组共享向量的逐字节副本（sha256 钉住，与 aster-lang-core `LayoutVectorsTest` 同值）。
 
 ### 类型别名引导词本地化：zh `类型`、de `Typ`、hi `प्रकार`（aster-cloud/aster-lang-ts#346，ADR 0058 修订 2）
 
