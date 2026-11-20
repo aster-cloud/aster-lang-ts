@@ -2072,6 +2072,11 @@ export function parseParamList(
       }
       if (ctx.at(TokenKind.COMMA)) {
         ctx.next();
+        // 与 given 形参表同一规则：逗号之后换行报 E062（#357 第 3 行）
+        if (ctx.at(TokenKind.NEWLINE)) {
+          error(Issue.unexpectedExpecting(tokenName('newline'), kwParam(KW.PRODUCE),
+            `Unexpected newline; expected '.', ':' or ${kwq(ctx, KW.PRODUCE)}`));
+        }
         if (ctx.isKeyword(KW.PRODUCE) || ctx.isKeyword(KW.WITH)) {
           hasMore = false;
         } else {
