@@ -14,10 +14,10 @@
  *      临时目录再跑，stdout 经真相源 normalize-stdout.mjs 归一后逐字节比较）、aster-core <policy.aster>、
  *      aster-convert --help、aster-lsp --stdio 完成一次 initialize 握手（按 Content-Length 分帧解析 JSON-RPC 响应）；
  *   4. `npm i -g --prefix <tmp>` 后运行 aster --help；
- *   5. `npx -p <tarball> aster --help`。
- *
- * 范围：只保证默认安装（含 optionalDependencies）。`npm i --omit=optional` 下 `aster` 仍会因静态 import 的
- * `openai` / `@anthropic-ai/sdk`（optionalDependencies）失败，另案处理，本脚本不覆盖。
+ *   5. `npx -p <tarball> aster --help`；
+ *   6. `npm i --omit=optional <tarball>`（不装 optionalDependencies `openai` / `@anthropic-ai/sdk`）：确认这两个包确实没装，
+ *      第 3 步的全部 bin 检查照样通过；`aster ai-generate` 两个 provider 都以非零退出码失败，并提示 `npm i <包名>`，
+ *      而不是 ERR_MODULE_NOT_FOUND（aster-lang-ts#364：provider 由 CLI 按需动态加载）。
  *
  * 一致性夹具取兄弟仓 aster-lang-test（本地 ../aster-lang-test，CI ./aster-lang-test）；CI 中缺失即失败，本地缺失只跳过 verify。
  * 需要访问 npm registry 安装依赖。退出码：0 通过；1 不通过（打印全部问题）。
@@ -279,6 +279,31 @@ function checkNpx(tmp, tarball) {
   expectOk('npx -p <tarball> aster --help', r, (s) => s.includes('Usage'));
 }
 
+/** 第 6 步：npm i --omit=optional <tarball>，可选依赖缺席时 bin 照常可用，ai-generate 给出可操作的提示。 */
+export async function checkOmitOptional(tmp, tarball) {
+  const project = path.join(tmp, 'omit-optional');
+  fs.mkdirSync(project);
+  fs.writeFileSync(path.join(project, 'package.json'), '{"name":"bin-smoke-omit-optional","private":true}\n');
+  npm(['install', '--omit=optional', '--no-audit', '--no-fund', '--no-package-lock', tarball], project);
+  console.log('npm i --omit=optional <tarball>：');
+  const optional = Object.keys(pkg.optionalDependencies ?? {});
+  const installed = optional.filter((name) => fs.existsSync(path.join(project, 'node_modules', ...name.split('/'))));
+  if (installed.length > 0) problems.push(`--omit=optional 之后仍装上了可选依赖 ${installed.join('、')}，本步检查失去意义`);
+  const binDir = path.join(project, 'node_modules', '.bin');
+  await checkInstalledBins(project, binDir, 'npm i --omit=optional <tarball>');
+  const aster = binLocator(binDir, 'npm i --omit=optional <tarball>')('aster');
+  if (!aster) return;
+  for (const [provider, packageName] of [['openai', 'openai'], ['anthropic', '@anthropic-ai/sdk']]) {
+    const label = `aster ai-generate --provider ${provider}（--omit=optional）`;
+    const r = run(aster, ['ai-generate', 'deny everything', '--provider', provider], project);
+    const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+    if (r.status === 0) problems.push(`${label} 应失败（缺 ${packageName}），却以 0 退出`);
+    else if (out.includes('ERR_MODULE_NOT_FOUND') || !out.includes(`npm i ${packageName}`)) {
+      problems.push(`${label} 应提示安装 ${packageName}，实际输出：\n      ${firstLines(out)}`);
+    } else console.log(`  ✓ ${label}：提示 npm i ${packageName}`);
+  }
+}
+
 /** 汇报并设置退出码。 */
 export function report() {
   if (problems.length > 0) {
@@ -288,7 +313,7 @@ export function report() {
   } else {
     console.log(
       `[verify-package-bins] ${pkg.name}@${pkg.version}：库入口不含 CLI/LSP 依赖，` +
-        `${Object.keys(pkg.bin).join('、')} 在默认安装（plain install / -g / npx -p）下可运行 ✓`,
+        `${Object.keys(pkg.bin).join('、')} 在默认安装（plain install / -g / npx -p）与 --omit=optional 下可运行 ✓`,
     );
   }
 }
@@ -304,6 +329,7 @@ async function main() {
     await checkLocalInstall(tmp, tarball);
     checkGlobalInstall(tmp, tarball);
     checkNpx(tmp, tarball);
+    await checkOmitOptional(tmp, tarball);
   } catch (e) {
     problems.push(`冒烟中断：${e?.stderr?.toString?.().trim() || e?.message || e}`);
   } finally {
