@@ -712,24 +712,29 @@ function quoteClosers(opener: string, quotes: { open: string; close: string }): 
  * - 字符串之外的其余弯引号照旧改写（英语等：`”` → `"`、`‘ ’` → `'`；其他词法表：`”` → 闭引号）。
  *
  * 目标引号：词法表引号为 ASCII `"` 时是 `"`；否则（zh-CN 的 `「」`）`"…"` 与 `“…”` 都换成词法表引号对，
- * 让后续按词法表引号分段的各步把它们当字符串保护。
+ * 让后续按词法表引号分段的各步把它们当字符串保护。例外：内容里有未转义的词法表闭引号（`"a」b"`、`“a」b”`）时
+ * 换成词法表引号会在 `」` 处提前闭合，于是定界符换成 ASCII `"`（与 Java 同样把 `“` `”` 写成 `"`），内容不动；
+ * {@link segmentString} 也认 ASCII `"` 字符串，后续各步照样保护它（aster-lang-ts#362 第 3 项）。
  */
 function normalizeQuoteDelimiters(text: string, quotes: { open: string; close: string }): string {
   const ascii = quotes.open === '"' && quotes.close === '"';
   let out = '';
   let opener: string | null = null;
+  // 当前字符串换成的闭引号（词法表闭引号，或内容含词法表闭引号时的 ASCII `"`）
+  let close = quotes.close;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
     if (opener !== null) {
       if (quoteClosers(opener, quotes).includes(ch) && !isEscaped(text, i)) {
-        out += opener === quotes.open ? ch : quotes.close;
+        out += opener === quotes.open ? ch : close;
         opener = null;
       } else {
         out += ch;
       }
     } else if ((ch === quotes.open || ch === '"' || ch === '“') && !isEscaped(text, i)) {
       opener = ch;
-      out += ch === quotes.open ? ch : quotes.open;
+      close = ch !== quotes.open && containsUnescapedClose(text, i, quotes) ? '"' : quotes.close;
+      out += ch === quotes.open ? ch : close === '"' ? '"' : quotes.open;
     } else if (ch === '”') {
       out += quotes.close;
     } else if (ascii && (ch === '‘' || ch === '’')) {
@@ -741,22 +746,39 @@ function normalizeQuoteDelimiters(text: string, quotes: { open: string; close: s
   return out;
 }
 
+/**
+ * 从 openAt 处的开引号起，到它的闭引号（或文本末尾）为止，内容里是否有未转义的词法表闭引号。
+ * 只对 `"…"` 与 `“…”` 调用；词法表引号为 ASCII 时恒为 false（闭引号就是 `"`，会先闭合）。
+ */
+function containsUnescapedClose(text: string, openAt: number, quotes: { open: string; close: string }): boolean {
+  if (quotes.close === '"') return false;
+  const closers = quoteClosers(text[openAt]!, quotes);
+  for (let j = openAt + 1; j < text.length; j++) {
+    if (isEscaped(text, j)) continue;
+    if (closers.includes(text[j]!)) return false;
+    if (text[j] === quotes.close) return true;
+  }
+  return false;
+}
+
 type Segment = { text: string; inString: boolean };
 
+/**
+ * 按字符串字面量分段。词法表引号对之外也认 ASCII `"…"`（与 Java Canonicalizer.segmentString 的通用回退一致）：
+ * zh-CN 下内容含 `」` 的字符串由 normalizeQuoteDelimiters 保留为 ASCII 定界符，后续各步须同样把它当字符串保护。
+ */
 function segmentString(text: string, quotes: { open: string; close: string }): Segment[] {
   const segments: Segment[] = [];
   let inString = false;
   let current = '';
-
-  const openQuote = quotes.open;
-  const closeQuote = quotes.close;
+  let closeQuote = quotes.close;
 
   for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
+    const ch = text[i]!;
     current += ch;
 
     if (inString) {
-      // 在字符串内，检查结束引号
+      // 在字符串内，检查与开引号配对的结束引号
       if (ch === closeQuote && !isEscaped(text, i)) {
         segments.push({ text: current, inString: true });
         current = '';
@@ -764,12 +786,13 @@ function segmentString(text: string, quotes: { open: string; close: string }): S
       }
     } else {
       // 在字符串外，检查开始引号
-      if (ch === openQuote && !isEscaped(text, i)) {
+      if ((ch === quotes.open || ch === '"') && !isEscaped(text, i)) {
         const before = current.slice(0, -1);
         if (before) {
           segments.push({ text: before, inString: false });
         }
-        current = openQuote;
+        current = ch;
+        closeQuote = ch === quotes.open ? quotes.close : '"';
         inString = true;
       }
     }

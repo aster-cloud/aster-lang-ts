@@ -65,12 +65,30 @@ describe('引号归一只改写定界符（#347）', () => {
     assert.deepEqual(stringValues('返回 "a「b “c”"。', ZH_CN), ['a「b “c”']);
   });
 
+  it('zh-CN：内容含 」 的 “…” 与 "…" 用 ASCII 定界，」 是内容（#362 第 3 项）', () => {
+    // 换成「」会在内容里的 」 处提前闭合（此前 ts 报 E050 '」'，core 接受）
+    assert.equal(canonicalize('返回 \u201Ca\u300Db\u201D\u3002', ZH_CN), '返回 "a\u300Db".');
+    assert.equal(canonicalize('返回 "a\u300Db"\u3002', ZH_CN), '返回 "a\u300Db".');
+    assert.deepEqual(stringValues('返回 \u201Ca\u300Db\u201D\u3002', ZH_CN), ['a\u300Db']);
+    assert.deepEqual(stringValues('返回 \u201C\u300Ca\u300Db\u201D\u3002', ZH_CN), ['\u300Ca\u300Db']);
+  });
+
+  it('zh-CN：ASCII 定界的字符串内容不受后续规范化影响（全角、中文标点、多空格原样）', () => {
+    assert.deepEqual(stringValues('返回 "a\u300D\u3002\uFF0C\uFF21  b"\u3002', ZH_CN), ['a\u300D\u3002\uFF0C\uFF21  b']);
+  });
+
+  it('zh-CN：内容不含 」 时仍换成「」；已转义的 \\」 照旧是非法转义', () => {
+    assert.equal(canonicalize('返回 "a\u300Cb"\u3002', ZH_CN), '返回 \u300Ca\u300Cb\u300D.');
+    assert.throws(() => lex(canonicalize('返回 "a\\\u300Db"\u3002', ZH_CN), ZH_CN));
+  });
+
   it('幂等：规范化结果再规范化不变', () => {
     for (const [input, lexicon] of [
       ['Return "it’s “hi”".', EN_US],
       ['Return “a ‘b’”.', EN_US],
       ['返回 「他说“好”」。', ZH_CN],
       ['返回 “中文”。', ZH_CN],
+      ['返回 \u201Ca\u300Db\u201D\u3002', ZH_CN],
     ] as const) {
       const once = canonicalize(input, lexicon);
       assert.equal(canonicalize(once, lexicon), once, input);

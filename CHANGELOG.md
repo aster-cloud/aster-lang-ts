@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### zh-CN 字符串内容可含 `」`（aster-cloud/aster-lang-ts#362 第 3 项）
+
+- **修复**：zh-CN 下 `“…”` 与 `"…"` 定界的字符串在规范化时换成词法表引号 `「…」`，内容里的 `」` 于是提前闭合字符串，
+  `返回 “a」b”。`、`返回 "a」b"。` 报 E050 `'」'`，core 接受。现在这类内容含未转义 `」` 的字符串改用 ASCII `"` 定界
+  （`“` `”` 写成 `"`，与 Java `normalizeQuoteDelimiters` 相同），内容不动；规范化各步的字符串分段也认 ASCII `"…"`
+  （与 Java `segmentString` 的通用回退一致），内容里的全角字符、中文标点与空白照样不被改写。内容不含 `」` 的字符串照旧换成 `「」`。
+  只放宽：此前报错的源码现在与 core 得到同一 Core IR。
+
 ### zh-CN 支持 `结果为`，函数头只认词法空白（aster-lang-ts#357 第 4 行、#362 第 4 项，aster-lang-locales#147）
 
 - **新增**：zh-CN 启用翻译后变换器 `chinese-result-is`：行首与逗号之后的 `结果为 X` 改写为 `Return X`（Match 分支
