@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### W709 识别名字前的 `@pii`（aster-cloud/aster-lang-ts#336）
+
+- **修复**：`given @pii(L1, name) name as Text` 与 `has @pii(L2, name) name as Text` 这种把 `@pii` 写在名字前的写法降级为形参 / 字段的
+  `annotations`，类型仍是 `Text`，W709（`GOV_PII_RETURNED_AS_TEXT`）只看 `PiiType`，于是漏报。现在形参或字段带名为 `pii` 的注解
+  （不区分大小写）同样算 `@pii` 来源，类型未标注的形参也算（注解是作者的显式声明，不是按名字猜测）。Core IR 不变，
+  只会多出 W709 warning。与 aster-lang-core `PiiTextReturnAnalyzer` 同一规则。
+- 共享夹具 `shared/governance_pii_text_return_parity.json` 新增 6 例（前置、前置加类型、无类型、大写 `@PII`、记录字段、Int 返回不报），
+  与 aster-lang-core 副本 byte-identical。
+
 ## 3.5.0
 
 > **次版本号的理由**：公开声明只增不删——在 `v3.4.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts`：新增声明文件
