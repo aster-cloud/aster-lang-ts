@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### 类型别名引导词本地化：zh `类型`、de `Typ`、hi `प्रकार`（aster-cloud/aster-lang-ts#346，ADR 0058 修订 2）
+
+- **新增**：lexicon kind `TYPE_ALIAS`（en `Type`、zh `类型`、de `Typ`、hi `प्रकार`）。`decl-parser` 在顶层声明句首认它与英文 `type`
+  （不区分大小写，所有 locale 永久保留）为类型别名引导词。`TYPE_ALIAS` 不进按 token 的关键词翻译：字段、形参等名字位置的同形词
+  （zh 字段 `类型`、de 字段 `typ`）照常是名字，Core IR 不改名。此前非英语文档只能写英文 `Type`，`类型 金额 作为 整数。` 报 E064。
+  与 aster-lang-core 同名分支同一规则；共享夹具 `shared/type_alias_keyword_parity.json`（与 core 逐字节相同，12 例）。
+- 带声明注解的类型别名（`@pii … Type X as T`）本引擎仍报 E056、core 接受，与引导词无关，另行跟踪（#380）。
+- LSP 类型补全的别名声明引导词同样取 lexicon 的 TYPE_ALIAS（此前只认英文 `type`）。
+
 ### 字面量触发词与关键词同形时关键词优先（aster-cloud/aster-lang-ts#368，ADR 0060 修订 1 R16'）
 
 - **修复**：规范化器只展开在当前有效词法表下不与关键词同形的字面量宏触发词。丢弃折叠键等于下列拼写的触发词：

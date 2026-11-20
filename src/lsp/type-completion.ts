@@ -116,11 +116,11 @@ function rolesOf(lexicon: Lexicon): Roles {
       .flatMap((k) => phrasesOf(lexicon, k)),
     funcHead,
     declHead: [...funcHead, ...phrasesOf(lexicon, SemanticTokenKind.TYPE_DEF)],
-    bindingHead: [...phrasesOf(lexicon, SemanticTokenKind.LET), TYPE_ALIAS_HEAD],
+    bindingHead: [...phrasesOf(lexicon, SemanticTokenKind.LET), TYPE_ALIAS_HEAD, ...phrasesOf(lexicon, SemanticTokenKind.TYPE_ALIAS)],
   };
 }
 
-/** 类型别名声明 `Type X as T` 的引导词不随 lexicon 本地化 */
+/** 类型别名声明 `Type X as T` 的英文引导词在所有 locale 永久保留；本地化拼写（zh 类型、de Typ、hi प्रकार）取自 lexicon 的 TYPE_ALIAS（ADR 0058 修订 2） */
 const TYPE_ALIAS_HEAD: readonly string[] = ['type'];
 
 /** before[i] 之前（可跨行）是否紧跟名字引导词；逗号单独判定 */

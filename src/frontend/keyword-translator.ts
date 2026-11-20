@@ -206,6 +206,8 @@ export function buildFullTranslationIndex(
   const wordPartMappings: { src: string; tgt: string }[] = [];
 
   for (const kind of Object.values(SemanticTokenKind)) {
+    // 类型别名引导词不按 token 翻译（ADR 0058 修订 2）：只在顶层声明句首由 decl-parser 认出，名字位置的同形词照常是名字
+    if (kind === SemanticTokenKind.TYPE_ALIAS) continue;
     const sourceKeyword = sourceLexicon.keywords[kind];
     const targetKeyword = targetLexicon.keywords[kind];
 
@@ -250,6 +252,8 @@ export function buildFullTranslationIndex(
   // 高优先级，但不覆盖已存在的规范映射（校验已保证别名不遮蔽规范拼写）。
   if (sourceLexicon.aliases) {
     for (const kind of Object.values(SemanticTokenKind)) {
+      // 类型别名引导词的别名同样只在顶层声明句首认（见阶段 1 的说明）
+      if (kind === SemanticTokenKind.TYPE_ALIAS) continue;
       const aliasList = sourceLexicon.aliases[kind];
       if (!aliasList || aliasList.length === 0) {
         continue;

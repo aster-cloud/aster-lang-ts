@@ -4,6 +4,7 @@
  */
 
 import { KW, TokenKind } from '../frontend/tokens.js';
+import { SemanticTokenKind } from '../config/token-kind.js';
 import { kwq } from './keyword-display.js';
 import { Node } from '../ast/ast.js';
 import type { Annotation, Block, Declaration, Token, Type } from '../types.js';
@@ -461,6 +462,19 @@ function syncToNextDecl(ctx: ParserContext): void {
 }
 
 /**
+ * 类型别名引导词（ADR 0058 修订 2，#346）：英文 `type`（不区分大小写，所有 locale 永久保留），或当前词法表 TYPE_ALIAS 的
+ * 拼写与别名（zh `类型`、de `Typ`、hi `प्रकार`）。TYPE_ALIAS 不按 token 翻译，只由声明分派在顶层句首按原文认出。
+ */
+function isTypeAliasKeywordAt(ctx: ParserContext, i: number): boolean {
+  const v = tokLowerAt(ctx, i);
+  if (v === KW.TYPE) return true;
+  const lexicon = ctx.lexicon;
+  if (!lexicon || v === undefined || v === null) return false;
+  const spellings = [lexicon.keywords[SemanticTokenKind.TYPE_ALIAS], ...(lexicon.aliases?.[SemanticTokenKind.TYPE_ALIAS] ?? [])];
+  return spellings.some((sp) => sp !== undefined && sp !== '' && sp.toLowerCase() === v);
+}
+
+/**
  * 预扫描所有顶层类型声明名（Define / Type alias），先于正式解析填充 ctx.declaredTypes。
  * <p>
  * 与 aster-lang-core 的 AstBuilder 预扫描对齐：Java 在建 AST 前先遍历全部 topLevelDecl
@@ -486,13 +500,14 @@ function prescanDeclaredTypes(ctx: ParserContext): void {
   };
   for (let i = 0; i < tokens.length; i++) {
     const v = tokLowerAt(ctx, i);
-    if (v !== KW.DEFINE && v !== KW.TYPE) continue;
+    const isAlias = isTypeAliasKeywordAt(ctx, i);
+    if (v !== KW.DEFINE && !isAlias) continue;
     if (!isDeclBoundary(i)) continue; // 非顶层声明位置（如字段名 type）跳过
     const nameTok = tokens[i + 1];
     if (!nameTok || (nameTok.kind !== TokenKind.IDENT && nameTok.kind !== TokenKind.TYPE_IDENT)) {
       continue;
     }
-    if (v === KW.TYPE) {
+    if (isAlias) {
       // 类型别名须形如 `type <Name> as ...`；否则 type 是字段名/其它用法，不登记。
       const afterName = tokens[i + 2];
       if (!afterName || (afterName.value as string)?.toLowerCase() !== KW.AS) {
@@ -591,8 +606,8 @@ export function collectTopLevelDecls(
       // declaredTypes（供后续类型引用解析），别名声明（目标类型与 span）记入
       // Module.typeAliasDecls 供格式化器与名称解析使用，但不向 decls 推入声明，
       // 从而两引擎的 Core IR 保持一致（皆无 type-alias 节点）。
-      else if (ctx.isKeyword(KW.TYPE)) {
-        const startTok = ctx.nextWord(); // 消费 'Type'
+      else if (isTypeAliasKeywordAt(ctx, ctx.index)) {
+        const startTok = ctx.nextWord(); // 消费 'Type' / 本地化引导词
         const aliasName = tools.parseTypeIdent();
         tools.expectKeyword(KW.AS, Issue.expectedAfter(kwParam(KW.AS), tokenName('typeAliasName'), `Expected ${kwq(ctx, KW.AS)} after type alias name`));
         const target = parseType(ctx, tools.error);

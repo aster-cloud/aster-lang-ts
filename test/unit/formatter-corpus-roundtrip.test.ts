@@ -62,6 +62,8 @@ const ALLOW_LIST: ReadonlyMap<string, string> = new Map([
   // Core IR v2（ADR 0055 #16）：构造器内嵌套名字与枚举成员同名
   ['corpus/tier1-equivalence/policies/pattern-nested-name-matches-enum-member.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-parity/vocab-zh/enum-variant-v2.aster', CJK_IDENTIFIERS],
+  // ADR 0058 修订 2：zh 类型别名引导词 类型 与字段名 类型（名字位置照常是名字）
+  ['corpus/tier1-parity/types/type-alias-keyword-zh.aster', CJK_IDENTIFIERS],
 ]);
 
 function asterFiles(dir: string, out: string[] = []): string[] {

@@ -17,6 +17,7 @@ export const ZH_CN: Lexicon = {
     [SemanticTokenKind.TYPE_WITH]: '包含',
     [SemanticTokenKind.TYPE_HAS]: '包含',
     [SemanticTokenKind.TYPE_ONE_OF]: '为以下之一',
+    [SemanticTokenKind.TYPE_ALIAS]: '类型',
     [SemanticTokenKind.FUNC_TO]: '规则',
     [SemanticTokenKind.FUNC_GIVEN]: '给定',
     [SemanticTokenKind.FUNC_PRODUCE]: '产出',
