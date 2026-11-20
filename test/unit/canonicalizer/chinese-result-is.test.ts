@@ -27,7 +27,7 @@ describe('chinese-result-is 变换器', () => {
     ['结果为 42', 'Return 42'],
     ['  结果为 x + y', '  Return x + y'],
     ['\t结果为\tx', '\tReturn x'],
-    ['　　结果为　x', '　　Return x'],
+    ['\u3000\u3000结果为\u3000x', '\u3000\u3000Return x'],
     ['    当 1, 结果为 2', '    当 1, Return 2'],
     ['    当 1,结果为 2', '    当 1,Return 2'],
     ['\n\n  结果为 x', '\n\n  Return x'],
@@ -37,7 +37,7 @@ describe('chinese-result-is 变换器', () => {
   }
 
   it('其他 Unicode 空白、VT、FF 与换行不当空白，不改写（aster-lang-locales#147）', () => {
-    for (const input of ['结果为 x', '结果为 x', '结果为\u000Bx', '结果为\fx', '结果为\nx', ' 结果为 x', '当 1, 结果为 2']) {
+    for (const input of ['结果为\u00A0x', '结果为\u2003x', '结果为\u000Bx', '结果为\fx', '结果为\nx', '\u00A0结果为 x', '当 1,\u2003结果为 2']) {
       assert.equal(rewrite(input), input, JSON.stringify(input));
     }
   });
@@ -52,7 +52,7 @@ describe('chinese-result-is 变换器', () => {
 describe('zh-CN 编译管线接受 结果为', () => {
   it('语句：与 返回 的 Core 相同（ASCII 空格、tab、U+3000）', () => {
     const expected = core(`${HEAD}  返回 x。\n`);
-    for (const ws of [' ', '\t', '　']) assert.deepEqual(core(`${HEAD}  结果为${ws}x。\n`), expected, JSON.stringify(ws));
+    for (const ws of [' ', '\t', '\u3000']) assert.deepEqual(core(`${HEAD}  结果为${ws}x。\n`), expected, JSON.stringify(ws));
   });
 
   it('Match 分支：逗号之后与块内都与 返回 相同', () => {
@@ -65,7 +65,7 @@ describe('zh-CN 编译管线接受 结果为', () => {
   });
 
   it('结果为 之后是 NBSP 时报 E050', () => {
-    const result = compile(`${HEAD}  结果为 x。\n`, { lexicon: ZH_CN });
+    const result = compile(`${HEAD}  结果为\u00A0x。\n`, { lexicon: ZH_CN });
     assert.equal(result.success, false);
     assert.equal(result.parseErrors?.[0]?.code, 'E050');
   });
