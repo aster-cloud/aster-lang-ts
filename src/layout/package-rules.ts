@@ -107,15 +107,35 @@ function maxStructuralDisplayChars(spans: readonly LayoutSpan[]): number {
   return max;
 }
 
-/** L2：六项上限，按 ts assertWithinLimits 的顺序，首个超出即失败；source 为规范源码文本。 */
-export function checkLayoutLimits(layout: PolicyLayout, source: string): void {
+/**
+ * 源码的字节数与行数。给字节时直接在 policy/policy.aster 的字节上数（0x0A、0x0D 各算一个换行，CRLF 合计一个，
+ * 末尾换行不另计一行），非法 UTF-8 的源码同样先过 L2；给文本时按 UTF-8 长度与 \r\n|\r|\n 断行（两者对合法 UTF-8 一致）。
+ */
+export function sourceMeasures(source: Uint8Array | string): { bytes: number; lines: number } {
+  if (typeof source === 'string') return { bytes: utf8Length(source), lines: lineCount(source) };
+  if (source.length === 0) return { bytes: 0, lines: 0 };
+  let breaks = 0;
+  for (let i = 0; i < source.length; i++) {
+    if (source[i] === 0x0a) breaks++;
+    else if (source[i] === 0x0d) {
+      breaks++;
+      if (source[i + 1] === 0x0a) i++;
+    }
+  }
+  const last = source[source.length - 1];
+  return { bytes: source.length, lines: last === 0x0a || last === 0x0d ? breaks : breaks + 1 };
+}
+
+/** L2：六项上限，按 ts assertWithinLimits 的顺序，首个超出即失败；source 为规范源码的文本或字节。 */
+export function checkLayoutLimits(layout: PolicyLayout, source: Uint8Array | string): void {
+  const src = sourceMeasures(source);
   const measures: Array<[LayoutLimitName, () => number]> = [
-    ['sourceBytes', () => utf8Length(source)],
-    ['sourceLines', () => lineCount(source)],
-    ['spans', () => storedSpanCount(layout.spans)],
-    ['serializedBytes', () => utf8Length(serializeLayout(layout))],
-    ['displayBytes', () => utf8Length(toDisplay(layout))],
-    ['structuralDisplayChars', () => maxStructuralDisplayChars(layout.spans)],
+    ['sourceBytes', (): number => src.bytes],
+    ['sourceLines', (): number => src.lines],
+    ['spans', (): number => storedSpanCount(layout.spans)],
+    ['serializedBytes', (): number => utf8Length(serializeLayout(layout))],
+    ['displayBytes', (): number => utf8Length(toDisplay(layout))],
+    ['structuralDisplayChars', (): number => maxStructuralDisplayChars(layout.spans)],
   ];
   for (const [name, measure] of measures) {
     const actual = measure();
@@ -253,7 +273,7 @@ export function checkPackageLayout(opts: CheckPackageLayoutOptions): PolicyLayou
       text = null;
     }
   }
-  checkLayoutLimits(layout, text ?? '');
+  checkLayoutLimits(layout, opts.source);
   if (text === null || toCanonical(layout) !== text) throw ruleError('L3', 'toCanonical(layout) differs from policy/policy.aster');
   if (!bytesEqual(encodeUtf8(toDisplay(layout)), opts.displayBytes)) throw ruleError('L4', 'display.aster differs from toDisplay(layout)');
   checkContentParity(layout);

@@ -286,7 +286,8 @@ async function cmdRunDisplay(ctx: Ctx, args: ParsedArgs): Promise<CommandResult>
 // show
 // ---------------------------------------------------------------------------
 
-const utf8Text = (bytes: Uint8Array): string => new TextDecoder('utf-8').decode(bytes);
+// 保留开头的 BOM（ignoreBOM）：show 输出文件的原样字节 + \n，不得吃掉 U+FEFF
+const utf8Text = (bytes: Uint8Array): string => new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes);
 
 /**
  * `show <pkg> [--canonical | --from-display <file>]`（修订 4 D6）：usage → read → manifest → signature → integrity →

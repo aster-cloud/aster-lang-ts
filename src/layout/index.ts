@@ -30,6 +30,7 @@ export {
   operatorTable,
   padStructuralSpans,
   parseLayoutStrict,
+  sourceMeasures,
   structuralNameHits,
 } from './package-rules.js';
 export type { CheckPackageLayoutOptions, LayoutRuleContext } from './package-rules.js';

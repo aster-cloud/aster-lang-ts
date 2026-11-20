@@ -23,8 +23,8 @@ const DIR = join(process.cwd(), 'shared/layout-vectors');
 
 /** 四个副本的 sha256：与 aster-lang-test 真相源及 aster-lang-core 副本相同；真相源变化时同步复制并改这里。 */
 export const LAYOUT_VECTOR_SHA256: Readonly<Record<string, string>> = {
-  'layout.json': '3c29503be345ad26d39173139d7f6bf71743fd334c2c0048822cde18820d5ba7',
-  'display-reconstruct.json': 'b100e823623ccd878253b5eacd06466f7ef87e7315b17c20a3b5103f23d16055',
+  'layout.json': 'cc51f78a44f87d3cf0c03543eeeb9d68015fd922923094c0aad76fe64a8aa79b',
+  'display-reconstruct.json': '0aedb893caeb81923a895fdecf5c9983314a276a6d966e8801c009840d0d04a1',
   'display-padding.json': '294986f9fafc886bf478d3961233603d5ee9c40ac2f6485c88f550ae5763232f',
   'keyword-spellings.json': '467b1075dd67e2e7249d50ae3b47eb5c1f00a2f1827dcf501016e97ef906fd3f',
 };
@@ -36,8 +36,9 @@ export function readVector<T>(name: string): T {
 interface LayoutCase {
   id: string;
   layoutText: string;
-  source: string;
+  source?: string;
   displayText?: string;
+  sourceB64?: string;
   layoutVersion?: number;
   vocabularyLocalized: string[];
   literalKeywords: string[];
@@ -72,7 +73,7 @@ describe('checkPackageLayout：vectors/layout.json', () => {
         const layout = checkPackageLayout({
           layoutBytes: utf8(c.layoutText),
           displayBytes: utf8(display),
-          source: c.source,
+          source: c.sourceB64 !== undefined ? new Uint8Array(Buffer.from(c.sourceB64, 'base64')) : c.source!,
           layoutVersion: c.layoutVersion ?? 1,
           vocabularyLocalized: c.vocabularyLocalized,
           literalKeywords: c.literalKeywords,

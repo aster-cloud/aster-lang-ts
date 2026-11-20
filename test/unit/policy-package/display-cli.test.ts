@@ -16,7 +16,7 @@ import { PACKAGE_V1, readCases } from '../../helpers/package-v1.js';
 const skip = PACKAGE_V1 === undefined ? '本地未检出 aster-lang-test' : false;
 const POEM = '床前明月光，\n疑是地上霜。\n举头望明月，\n低头思故乡。';
 
-const ioWith = (stdin: string) => ({ stdin: async (): Promise<Uint8Array> => new TextEncoder().encode(stdin) });
+const ioWith = (stdin: string): { stdin: () => Promise<Uint8Array> } => ({ stdin: async (): Promise<Uint8Array> => new TextEncoder().encode(stdin) });
 const pkgDir = (): string => join(PACKAGE_V1!, 'display/packages');
 const jwks = (): string[] => ['--jwks', join(PACKAGE_V1!, 'keys/test-jwks.json')];
 
