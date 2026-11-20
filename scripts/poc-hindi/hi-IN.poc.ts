@@ -30,6 +30,7 @@ export const HI_IN_POC: Lexicon = {
     [SemanticTokenKind.TYPE_WITH]: 'सहित',
     [SemanticTokenKind.TYPE_HAS]: 'रखता है',
     [SemanticTokenKind.TYPE_ONE_OF]: 'इनमें से एक',
+    [SemanticTokenKind.TYPE_ALIAS]: 'प्रकार',
     [SemanticTokenKind.FUNC_TO]: 'नियम',
     [SemanticTokenKind.FUNC_GIVEN]: 'दिया गया',
     [SemanticTokenKind.FUNC_PRODUCE]: 'उत्पन्न',

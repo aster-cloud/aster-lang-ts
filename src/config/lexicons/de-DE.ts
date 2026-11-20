@@ -17,6 +17,7 @@ export const DE_DE: Lexicon = {
     [SemanticTokenKind.TYPE_WITH]: 'mit',
     [SemanticTokenKind.TYPE_HAS]: 'hat',
     [SemanticTokenKind.TYPE_ONE_OF]: 'als eines von',
+    [SemanticTokenKind.TYPE_ALIAS]: 'Typ',
     [SemanticTokenKind.FUNC_TO]: 'Regel',
     [SemanticTokenKind.FUNC_GIVEN]: 'gegeben',
     [SemanticTokenKind.FUNC_PRODUCE]: 'liefert',

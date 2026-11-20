@@ -53,6 +53,12 @@ export enum SemanticTokenKind {
   /** 枚举类型 - "as one of" / "为以下之一" */
   TYPE_ONE_OF = 'TYPE_ONE_OF',
 
+  /**
+   * 类型别名引导词 - "Type" / "类型" / "Typ" / "प्रकार"（ADR 0058 修订 2，#346）。只在顶层声明句首当引导词，
+   * 不进按 token 的关键词翻译：名字位置的同形词照常是名字。英文 `Type` 在所有 locale 永久保留。
+   */
+  TYPE_ALIAS = 'TYPE_ALIAS',
+
   // ============================================================
   // 函数定义
   // ============================================================
@@ -362,7 +368,7 @@ export function isSemanticTokenKind(value: string): value is SemanticTokenKind {
  */
 export const SEMANTIC_TOKEN_CATEGORIES: Record<string, SemanticTokenKind[]> = {
   module: [SemanticTokenKind.MODULE_DECL, SemanticTokenKind.IMPORT, SemanticTokenKind.IMPORT_ALIAS, SemanticTokenKind.IMPORT_VERSION],
-  type: [SemanticTokenKind.TYPE_DEF, SemanticTokenKind.TYPE_WITH, SemanticTokenKind.TYPE_HAS, SemanticTokenKind.TYPE_ONE_OF],
+  type: [SemanticTokenKind.TYPE_DEF, SemanticTokenKind.TYPE_WITH, SemanticTokenKind.TYPE_HAS, SemanticTokenKind.TYPE_ONE_OF, SemanticTokenKind.TYPE_ALIAS],
   function: [SemanticTokenKind.FUNC_TO, SemanticTokenKind.FUNC_GIVEN, SemanticTokenKind.FUNC_PRODUCE, SemanticTokenKind.FUNC_PERFORMS, SemanticTokenKind.APPLY],
   control: [
     SemanticTokenKind.IF,

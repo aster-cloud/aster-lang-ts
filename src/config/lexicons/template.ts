@@ -111,6 +111,7 @@ export const TEMPLATE: Lexicon = {
 
     /** 枚举类型 - 英语 "as one of" / 中文 "为以下之一" */
     [SemanticTokenKind.TYPE_ONE_OF]: '', // TODO: 翻译
+    [SemanticTokenKind.TYPE_ALIAS]: '', // TODO: 翻译
 
     // ----------------------------------------------------------
     // 函数定义
