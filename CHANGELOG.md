@@ -8,7 +8,8 @@
   （不区分大小写，所有 locale 永久保留）为类型别名引导词。`TYPE_ALIAS` 不进按 token 的关键词翻译：字段、形参等名字位置的同形词
   （zh 字段 `类型`、de 字段 `typ`）照常是名字，Core IR 不改名。此前非英语文档只能写英文 `Type`，`类型 金额 作为 整数。` 报 E064。
   与 aster-lang-core 同名分支同一规则；共享夹具 `shared/type_alias_keyword_parity.json`（与 core 逐字节相同，12 例）。
-- 带声明注解的类型别名（`@pii … Type X as T`）本引擎仍报 E056、core 接受，与引导词无关，另行跟踪。
+- 带声明注解的类型别名（`@pii … Type X as T`）本引擎仍报 E056、core 接受，与引导词无关，另行跟踪（#380）。
+- LSP 类型补全的别名声明引导词同样取 lexicon 的 TYPE_ALIAS（此前只认英文 `type`）。
 
 ### zh-CN 字符串内容可含 `」`（aster-cloud/aster-lang-ts#362 第 3 项）
 
