@@ -3,7 +3,7 @@
  * 包格式 1.1 的显示排版见 ADR 0059 修订 4 与 `display.ts`）。
  *
  * 行为以 aster-lang-test `conformance/package-v1/README.md` 为准：检查顺序、`meta` 的取值时机、`verify` 的检查项与
- * 「第一项失败即停止」、固定 message、stdout 恒为一行值规范 JSON + `\n`、诊断只写 stderr。
+ * 「第一项失败即停止」、固定 message、stdout 为一行值规范 JSON + `\n`（compile 成功为 IR，show 成功为文件原样字节 + `\n`）、诊断只写 stderr。
  * {@link runCommand} 是纯函数式入口（返回 stdout / stderr / 退出码），`scripts/aster.ts` 与单文件 bundle 都只调它。
  */
 import { accessSync, constants as fsConstants, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';

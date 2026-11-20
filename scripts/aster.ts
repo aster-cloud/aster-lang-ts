@@ -166,7 +166,7 @@ async function runMaybeWatch(file: string, watch: boolean, runner: () => Promise
 
 /**
  * 包格式 v1 子命令（compile / run / verify / inspect / show / version，ADR 0059 §4.1、修订 4）：绕过 cac，交给严格语法的 runCommand，
- * 与单文件 `dist/runner/aster.mjs` 走同一入口；stdout 恒为一行规范 JSON，诊断只写 stderr。
+ * 与单文件 `dist/runner/aster.mjs` 走同一入口；stdout 为一行规范 JSON（show 成功时为文件原样字节，优先写 stdoutBytes），诊断只写 stderr。
  */
 async function runPackageCommand(argv: string[]): Promise<void> {
   const r = await runCommand(argv, { stdin: () => readAll(process.stdin) });
