@@ -25,7 +25,7 @@ import { getMultiWordKeywords } from '../config/lexicons/types.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/index.js';
 import { foldKey } from '../config/lexicons/identifiers/casefold.js';
-import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
+import { literalsVisibleUnder, type VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
 import { applyTransformers } from './transformers.js';
 import { compileGuardedRegex } from '../config/lexicons/regex-guard.js';
 import { createLogger } from '../utils/logger.js';
@@ -419,16 +419,19 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   let lexicon: Lexicon | undefined;
   let literals: ReadonlyMap<string, string> | undefined;
 
+  let vocabulary: VocabularyScopes | undefined;
   if (lexiconOrOptions && 'keywords' in lexiconOrOptions) {
     lexicon = lexiconOrOptions as Lexicon;
   } else if (lexiconOrOptions && typeof lexiconOrOptions === 'object') {
     const opts = lexiconOrOptions as CanonicalizerOptions;
     lexicon = opts.lexicon;
-    literals = opts.vocabulary?.literals;
+    vocabulary = opts.vocabulary;
   }
 
   // 缓存有效的词法表，确保所有配置访问都使用同一来源
   const effectiveLexicon = getEffectiveLexicon(lexicon);
+  // 触发词与关键词同形时关键词优先（ADR 0060 修订 1 R16'）：在本词法表下与关键词同形的触发词不展开
+  if (vocabulary) literals = literalsVisibleUnder(vocabulary, effectiveLexicon);
   const quotes = effectiveLexicon.punctuation.stringQuotes;
   const articleRe = getArticleRegex(lexicon);
   const multiWordKeywords = getMultiWordKeywordList(lexicon);
