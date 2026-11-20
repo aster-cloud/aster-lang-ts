@@ -19,6 +19,7 @@ import { canonicalize, literalMacroLiteral, literalMacroRuns } from '../frontend
 import type { CanonicalizerOptions } from '../frontend/canonicalizer.js';
 import { lex } from '../frontend/lexer.js';
 import { nfc } from '../config/lexicons/identifiers/casefold.js';
+import { literalsVisibleUnder } from '../config/lexicons/identifiers/scopes.js';
 import { LexiconRegistry, initializeDefaultLexicons } from '../config/lexicons/index.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { TokenKind } from '../types.js';
@@ -171,7 +172,8 @@ function canonicalTarget(site: ResolutionSite, idents: readonly IdentToken[], to
  * 任何一处证明不了、或宏值写成字面量后不能原样往返（见 roundTrips），返回 null。
  */
 function literalReplacements(text: string, doc: ResolvableDocument, lexicon: Lexicon, prove: Prove): Replacement[] | null {
-  const literals = doc.vocabulary?.literals;
+  // 与编译器同一组生效的字面量宏：与关键词同形的触发词不展开（ADR 0060 修订 1 R16'）
+  const literals = doc.vocabulary ? literalsVisibleUnder(doc.vocabulary, lexicon) : undefined;
   if (!literals || literals.size === 0) return [];
   const quotes = lexicon.punctuation.stringQuotes;
   const recanonicalize = (s: string): string => canonicalize(s, lexicon);

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### 字面量触发词与关键词同形时关键词优先（aster-cloud/aster-lang-ts#368，ADR 0060 修订 1 R16'）
+
+- **修复**：规范化器只展开在当前有效词法表下不与关键词同形的字面量宏触发词。丢弃折叠键等于下列拼写的触发词：
+  有效词法表（叠加 aliasSet 之后）的规范拼写、官方别名与块结束词，以及 en-US 的同类拼写。此前本引擎先展开字面量宏、
+  词法之后才逐 token 翻译关键词，触发词 `文本` / `返回` 被展开成字符串（E055 / E064），而 core 先译关键词；en-US 下两引擎
+  都把触发词 `Text` 展开成字符串。新增 `literalsVisibleUnder(scopes, lexicon)`（`buildVocabularyScopes` 与
+  `canonicalScopesJson` 不变，envelope 不变），`canonicalize` 与 LSP 规范预览共用。共享夹具
+  `shared/literal_keyword_shadow_parity.json` 与 aster-lang-core 逐字节相同。别名校验器 v2 的「别名 ≠ 字面量触发词」照旧。
+
 ### zh-CN 字符串内容可含 `」`（aster-cloud/aster-lang-ts#362 第 3 项）
 
 - **修复**：zh-CN 下 `“…”` 与 `"…"` 定界的字符串在规范化时换成词法表引号 `「…」`，内容里的 `」` 于是提前闭合字符串，

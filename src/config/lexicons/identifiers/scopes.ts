@@ -7,6 +7,8 @@
 import { compareCodePoints, foldKey, nfc } from './casefold.js';
 import { IdentifierKind } from './types.js';
 import type { DomainVocabulary, IdentifierMapping } from './types.js';
+import { EN_US } from '../en-US.js';
+import type { Lexicon } from '../types.js';
 
 export type Role = 'TYPE' | 'FIELD' | 'MEMBER' | 'FUNCTION';
 
@@ -129,6 +131,37 @@ export function buildVocabularyScopes(vocab: DomainVocabulary): VocabularyScopes
   }
 
   return { schemaVersion: 1, types, fields, enumMembers, functions, literals };
+}
+
+/** 词法表的全部关键词拼写（规范拼写、别名、块结束词）的折叠键。 */
+function addKeywordKeys(keys: Set<string>, lexicon: Lexicon): void {
+  const add = (spelling: string | undefined): void => {
+    if (spelling) keys.add(foldKey(nfc(spelling)));
+  };
+  Object.values(lexicon.keywords).forEach(add);
+  for (const aliases of Object.values(lexicon.aliases ?? {})) aliases?.forEach(add);
+  lexicon.blockDelimiters?.end.forEach(add);
+}
+
+/**
+ * 在词法表 `lexicon` 下生效的字面量宏（ADR 0060 修订 1 R16'，#368）：触发词与关键词同形时关键词优先。
+ * 丢弃折叠键等于下列任一拼写的触发词，其余原样保留：
+ * 1. `lexicon` 每个 kind 的规范拼写、官方别名与块结束词。调用方传入叠加 aliasSet 之后的有效词法表（`overlayAliases`），
+ *    aliasSet 中的别名由此计入；
+ * 2. en-US 词法表的同类拼写：core 先把非英语关键词译成这些拼写再展开字面量宏，本引擎在 zh-CN 等词法表下也把英文
+ *    拼写当关键词读，所以它们在所有 locale 都是关键词。
+ *
+ * 比较整个拼写；多词关键词里的单个词不在其内（触发词只匹配单个标识符 token）。不改变 `scopes.literals` 与
+ * canonicalScopesJson：envelope 记录的是编译输入。与 Java `VocabularyScopes#literalsVisibleUnder` 同一规则。
+ */
+export function literalsVisibleUnder(scopes: VocabularyScopes, lexicon: Lexicon): ReadonlyMap<string, string> {
+  if (scopes.literals.size === 0) return scopes.literals;
+  const keywords = new Set<string>();
+  addKeywordKeys(keywords, lexicon);
+  addKeywordKeys(keywords, EN_US);
+  const visible = new Map<string, string>();
+  for (const [key, content] of scopes.literals) if (!keywords.has(key)) visible.set(key, content);
+  return visible.size === scopes.literals.size ? scopes.literals : visible;
 }
 
 /**
