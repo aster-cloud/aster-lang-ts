@@ -254,18 +254,15 @@ describe('词法分析器换行格式处理', () => {
       assert.equal(bToken!.start.line, 4, 'b 应该在第 4 行（3 个 CR 后）');
     });
 
-    test('应该正确处理字符串中的换行（不递增行号）', () => {
-      // 字符串内的换行应该被保留但不影响词法分析的行号
-      const source = '"line1\nline2"\na';
-      const tokens = significant(lex(source));
-
-      const stringToken = tokens.find(t => t.kind === TokenKind.STRING);
-      const aToken = tokens.find(t => t.value === 'a');
-
-      assert.ok(stringToken);
-      // 字符串内的换行会被词法分析器的 next() 处理
-      // 所以 a 的行号会受到影响
-      assert.equal(aToken!.start.line, 3, 'a 应该在字符串换行后的正确位置');
+    test('字符串里的原始换行即未闭合，报 E051（#357 第 1 行，ADR 0056 修订 A4 §2）', () => {
+      // 与 core STRING_LITERAL 一致：字符串不得跨行，报在开引号上；多行文本写转义 \n
+      assert.throws(() => lex('"line1\nline2"\na'), (e: unknown) => {
+        const d = (e as { diagnostic?: { code?: string; span?: { start: { line: number; col: number } } } }).diagnostic;
+        return d?.code === 'E051' && d.span?.start.line === 1 && d.span.start.col === 1;
+      });
+      const tokens = significant(lex('"line1\\nline2"\na'));
+      assert.equal(tokens.find(t => t.kind === TokenKind.STRING)!.value, 'line1\nline2', '转义 \\n 照常解码为换行');
+      assert.equal(tokens.find(t => t.value === 'a')!.start.line, 2);
     });
 
     test('应该正确处理空输入', () => {

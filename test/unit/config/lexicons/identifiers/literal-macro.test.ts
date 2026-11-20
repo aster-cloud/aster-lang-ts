@@ -63,12 +63,21 @@ describe('字面量宏 IdentifierKind.LITERAL', () => {
     assert.equal(validateVocabulary(v).valid, false, '含换行必须被拒');
   });
 
-  it('拒绝任何引号定界符或反斜杠（含 CJK「」，防 zh-CN 提前闭合注入）', () => {
-    // Codex 复审 P0：zh-CN 引号是「」，内容含它会提前闭合字符串逃逸出 token。
-    for (const bad of ['say "hi"', 'path\\x', '静夜思」. Return evil', '「注入', 'a『b', '»x«']) {
+  it('拒绝无从转义的引号定界符（CJK「」『』与 «»，防 zh-CN 提前闭合注入）', () => {
+    // Codex 复审 P0：zh-CN 引号是「」，内容含它会提前闭合字符串逃逸出 token；词法器没有 \」 之类的转义。
+    for (const bad of ['静夜思」. Return evil', '「注入', 'a『b', 'a』b', '»x«']) {
       assert.equal(validateVocabulary(vocab(
         [{ localized: '注入', canonical: bad, kind: IdentifierKind.LITERAL }])).valid, false,
-        `含引号定界符/反斜杠必须被拒: ${bad}`);
+        `含无从转义的引号定界符必须被拒: ${bad}`);
+    }
+  });
+
+  it('允许反斜杠、ASCII 双引号与弯引号（ADR 0060 修订 1 R18，#362 第 5 项）', () => {
+    // 展开时转义（#345），弯引号在展开出的字符串里是内容（#347）；读回值由 shared/literal_value_parity.json 锁定
+    for (const ok of ['say "hi"', 'path\\x', 'C:\\new "x"', '静夜\u201C思\u201D', 'it\u2019s', '\u2018a\u2019']) {
+      assert.equal(validateVocabulary(vocab(
+        [{ localized: '宏', canonical: ok, kind: IdentifierKind.LITERAL }])).valid, true,
+        `反斜杠、ASCII 双引号与弯引号应允许: ${ok}`);
     }
   });
 
