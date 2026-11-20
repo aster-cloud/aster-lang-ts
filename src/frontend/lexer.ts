@@ -577,6 +577,9 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
       next();
       let val = '';
       while (i < input.length && peek() !== quotes.close) {
+        // 字符串不得跨行（#357 第 1 行，ADR 0056 修订 A4 §2）：原始换行即未闭合，与 core STRING_LITERAL 一致报 E051（报在开引号上）；
+        // 多行文本写转义 \n
+        if (isLineBreak(peek())) Diagnostics.unterminatedString(start).throw();
         if (peek() === '\\') {
           val += readEscape();
         } else {
@@ -595,6 +598,9 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
       next();
       let val = '';
       while (i < input.length && peek() !== '"') {
+        // 字符串不得跨行（#357 第 1 行，ADR 0056 修订 A4 §2）：原始换行即未闭合，与 core STRING_LITERAL 一致报 E051（报在开引号上）；
+        // 多行文本写转义 \n
+        if (isLineBreak(peek())) Diagnostics.unterminatedString(start).throw();
         if (peek() === '\\') {
           val += readEscape();
         } else {
