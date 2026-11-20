@@ -2,8 +2,7 @@ import ora from 'ora';
 import fs from 'node:fs';
 import { AIGenerator } from '../../ai/generator.js';
 import type { GenerateRequest } from '../../ai/generator.js';
-import { OpenAIProvider } from '../../ai/providers/openai.js';
-import { AnthropicProvider } from '../../ai/providers/anthropic.js';
+import { loadOptional, OptionalDependencyMissingError } from '../../ai/providers/load.js';
 import type { LLMProvider } from '../../ai/llm-provider.js';
 import { LLMError } from '../../ai/llm-provider.js';
 import * as logger from '../utils/logger.js';
@@ -44,22 +43,19 @@ export interface AIGenerateOptions {
 }
 
 /**
- * 創建 LLM Provider 實例
+ * 創建 LLM Provider 實例。
+ *
+ * provider 模块（及其 SDK，optionalDependencies）按需动态加载：`aster` 的其余命令在 `npm i --omit=optional` 下照常可用，
+ * 只有选中的 provider 缺 SDK 时报 {@link OptionalDependencyMissingError}（aster-lang-ts#364）。
  */
-function createProvider(providerName: 'openai' | 'anthropic', model?: string): LLMProvider {
+async function createProvider(providerName: 'openai' | 'anthropic', model?: string): Promise<LLMProvider> {
+  const config: { model?: string } = model === undefined ? {} : { model };
   if (providerName === 'openai') {
-    const config: { model?: string } = {};
-    if (model !== undefined) {
-      config.model = model;
-    }
+    const { OpenAIProvider } = await loadOptional('openai', 'openai', () => import('../../ai/providers/openai.js'));
     return new OpenAIProvider(config);
-  } else {
-    const config: { model?: string } = {};
-    if (model !== undefined) {
-      config.model = model;
-    }
-    return new AnthropicProvider(config);
   }
+  const { AnthropicProvider } = await loadOptional('anthropic', '@anthropic-ai/sdk', () => import('../../ai/providers/anthropic.js'));
+  return new AnthropicProvider(config);
 }
 
 /**
@@ -87,11 +83,13 @@ export async function aiGenerateCommand(
     // 2. 創建 LLM Provider
     let provider: LLMProvider;
     try {
-      provider = createProvider(providerName, options.model);
+      provider = await createProvider(providerName, options.model);
       spinner.text = `使用 ${providerName} 生成代碼...`;
     } catch (error) {
       spinner.fail('創建 LLM Provider 失敗');
-      if (error instanceof LLMError) {
+      if (error instanceof OptionalDependencyMissingError) {
+        logger.error(error.message);
+      } else if (error instanceof LLMError) {
         logger.error(error.message);
         if (providerName === 'openai') {
           logger.info('請設置環境變量: export OPENAI_API_KEY=your-api-key');
