@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### 字面量宏内容允许反斜杠、ASCII 双引号与弯引号（aster-cloud/aster-lang-ts#362 第 5 项）
+
+- **放宽**：`validateVocabulary` 不再拒绝字面量宏内容里的 `\`、`"` 与 `“ ” ‘ ’`（ADR 0060 修订 1 R18）。展开时 `\` 与 `"`
+  已按词法器转义（#345），弯引号只在充当字符串定界符时才被引号归一改写（#347），展开出的字符串里它们是内容。
+  `「」『』«»`、控制字符与空内容照旧拒绝。与 aster-lang-core `IdentifierMapping.isValidLiteralContent` 同一规则，
+  共享夹具 `shared/literal_value_parity.json`（与 core 逐字节相同）锁定校验结论、读回值与再规范化幂等。
+
 ### 解析分歧裁决：裸小写类型名、歧义分隔符、字符串换行、规则头换行（aster-cloud/aster-lang-ts#338、#357，ADR 0056 修订 A4）
 
 - **收紧**：类型位置上的裸小写拉丁名字（`given x as text`、`produce foo`、`maybe int`）报 E055 `Expected type name`，报在名字上（#338 第 2 项）。

@@ -31,7 +31,7 @@ export enum IdentifierKind {
    * 从而被 segmentString 正确保护，避免插入 ASCII 引号在标点归一化后不被隔离）。
    *
    * <p>用途：把一个领域术语固定展开成一段标准文案（合规场景常见），例如
-   * `思故乡 → "静夜思"`。内容受严格校验（单行、无控制字符、无裸引号/反斜杠），
+   * `思故乡 → "静夜思"`。内容受严格校验（单行、无控制字符、不含「」『』«»；反斜杠与引号展开时转义），
    * 防止编译期文本注入。仅用于**表达式位置**；用在声明位置会由 parser 报错。
    */
   LITERAL = 'literal',
@@ -214,9 +214,10 @@ function checkCanonical(mapping: IdentifierMapping, context: string, errors: str
     }
     return;
   }
-  // 字面量宏：canonical 是要展开的**字符串内容**（不含引号），严格校验以防编译期注入：
-  // 单行、无控制字符、无任何字符串定界符与反斜杠（内容会被包进 lexicon 引号里，含引号可提前
-  // 闭合字符串、逃逸出 token 注入源码；智能引号会被 canonicalize 归一化，放行则展开非幂等）。
+  // 字面量宏：canonical 是要展开的**字符串内容**（不含引号），校验以防编译期注入：单行、无控制字符、不含无从转义的
+  // 字符串定界符「」『』«»（内容会被包进 lexicon 引号里，含它们会提前闭合字符串、逃逸出 token 注入源码）。
+  // 反斜杠、ASCII 双引号与弯引号允许（ADR 0060 修订 1 R18，#362 第 5 项）：`\` 与 `"` 展开时转义（#345），
+  // 弯引号只在充当字符串定界符时才被引号归一改写（#347），展开出的字符串里它们是内容。与 Java isValidLiteralContent 同一规则。
   const content = mapping.canonical ?? '';
   if (content.length === 0) {
     errors.push(`${context}: 字面量宏内容不得为空`);
@@ -225,8 +226,8 @@ function checkCanonical(mapping: IdentifierMapping, context: string, errors: str
   if (/[\u0000-\u001F\u007F]/.test(content)) {
     errors.push(`${context}: 字面量宏内容含控制字符/换行，禁止（防注入）`);
   }
-  if (/["\\「」『』«»“”‘’]/.test(content)) {
-    errors.push(`${context}: 字面量宏内容不得含引号定界符（" 「 」 『 』 « » “ ” ‘ ’）或反斜杠 "${content}"（防逃逸/注入）`);
+  if (/[「」『』«»]/.test(content)) {
+    errors.push(`${context}: 字面量宏内容不得含无从转义的引号定界符（「 」 『 』 « »）"${content}"（防逃逸/注入）`);
   }
 }
 
