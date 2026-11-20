@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### zh-CN 支持 `结果为`，函数头只认词法空白（aster-lang-ts#357 第 4 行、#362 第 4 项，aster-lang-locales#147）
+
+- **新增**：zh-CN 启用翻译后变换器 `chinese-result-is`：行首与逗号之后的 `结果为 X` 改写为 `Return X`（Match 分支
+  `当 1，结果为 2。` 同样可用），Core 与 `返回 X` 相同。此前 ts 报 E064，core 接受。Java 侧的效果来自关键词翻译加 core
+  `result-is`，本引擎按 token 翻译，故在同样两处直接改写。`结果为` 之后的空白只认 ASCII 空格、tab 与 U+3000，不跨行；
+  VT、FF 或换行（core 的 `\s` 仍接受）在本引擎报错，留待 core 侧对齐。
+- **收紧**：`chinese-function-syntax`（`规则 名（参数）：`）函数头各处的空白只认 ASCII 空格、tab 与 U+3000，不跨行，与
+  aster-lang-locales 的同名变换器同步收紧：`规则<U+2003>f（…）`、`f<NBSP>（`、`）<U+2003>，` 以及在关键词、名字、括号之间
+  或右括号之后换行的写法此前被重排成合法函数头，现在报 E050 或语法错误。参数组照旧可跨行。
+  `test/fixtures/chinese-function-syntax-parity.json` 用新的 Java 变换器重新生成（原 400 条输入加 200 条只取发生重排的随机输入）。
+
 ## 3.5.0
 
 > **次版本号的理由**：公开声明只增不删——在 `v3.4.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts`：新增声明文件
