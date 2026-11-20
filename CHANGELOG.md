@@ -11,6 +11,22 @@
 - 共享夹具 `shared/governance_pii_text_return_parity.json` 新增 7 例（前置、前置加类型、无类型形参、大写 `@PII`、记录字段、无类型记录字段、Int 返回不报），
   与 aster-lang-core 副本 byte-identical。
 
+### 规范化后为空的源码按空源码拒绝（aster-cloud/aster-lang-core#288）
+
+- **收紧**：`compileSource`（`aster compile`、`./package-check` 重编译）在规范化之后再判一次空源码，与 core
+  `InProcessCnlParser` 同一规则。zh-CN 只含 U+3000 的源码此前被规范化成半角空格后编译成空模块（`decls: []`），
+  现在与 core、aster-api 一样报「源码为空或只含 ASCII 空白」；开头的一个 BOM 由两引擎词法器跳过，`BOM + 空白`同样按空源码拒绝。
+  en-US / de-DE / hi-IN 的 U+3000 等 Unicode 空白不规范化，仍报 E050。
+- 新增共享夹具 `shared/blank_source_parity.json`（22 份源码 × 4 个词法表，与 aster-lang-core 副本 byte-identical）。
+
+### `npm i --omit=optional` 后 `aster` 可用（aster-cloud/aster-lang-ts#364）
+
+- **修复**：`openai` 与 `@anthropic-ai/sdk` 是 optionalDependencies，但 `aster` 经 `ai-generate` 静态 import 了两个 provider，
+  `--omit=optional` 安装后任何 `aster` 命令一启动就 `ERR_MODULE_NOT_FOUND: Cannot find package 'openai'`。现在 provider 在
+  `ai-generate` 选中时才动态加载；缺 SDK 时报「未安装可选依赖 openai……请先安装：npm i openai」并以非零退出，其余命令不受影响。
+- `scripts/verify-package-bins.mjs` 新增第 6 步：`npm i --omit=optional <tarball>` 后确认可选依赖确实未装、全部 bin 检查照样通过，
+  `aster ai-generate` 两个 provider 都给出安装提示。
+
 ## 3.5.0
 
 > **次版本号的理由**：公开声明只增不删——在 `v3.4.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts`：新增声明文件
