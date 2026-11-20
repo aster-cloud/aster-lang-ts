@@ -62,17 +62,17 @@ for (const c of CASES) {
 }
 
 test('zh-CN 只含 U+3000 的源码按空源码拒绝，不编译成空模块', () => {
-  for (const source of ['　\n', '　　', '　\n　　\n']) {
+  for (const source of ['\u3000\n', '\u3000\u3000', '\u3000\n\u3000\u3000\n']) {
     assert.deepEqual(failureOf(source, 'zh-CN').diagnostics, [EMPTY_SOURCE_MESSAGE], escape(source));
   }
 });
 
 test('en-US 只含 U+3000 的源码仍报 E050（第 1 行）', () => {
-  assert.deepEqual(codedDiagnostics(failureOf('　\n', 'en-US')).map((d) => [d.code, d.line]), [['E050', 1]]);
+  assert.deepEqual(codedDiagnostics(failureOf('\u3000\n', 'en-US')).map((d) => [d.code, d.line]), [['E050', 1]]);
 });
 
 test('只含注释的源码规范化后为空，按空源码拒绝，不编译成空模块（core 同样不带码拒绝）', () => {
-  for (const [source, locale] of [['# 注释\n', 'zh-CN'], ['// only a comment\n', 'en-US'], ['﻿# c\n\n', 'de-DE']] as const) {
+  for (const [source, locale] of [['# 注释\n', 'zh-CN'], ['// only a comment\n', 'en-US'], ['\uFEFF# c\n\n', 'de-DE']] as const) {
     assert.deepEqual(failureOf(source, locale).diagnostics, [EMPTY_SOURCE_MESSAGE], `${locale} ${escape(source)}`);
   }
 });
