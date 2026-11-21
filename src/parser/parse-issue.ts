@@ -53,8 +53,6 @@ export const Issue = {
     issue(ErrorCode.PARSE_UNEXPECTED_CONSTRUCT, { construct }, message),
   noViable: (token: string, message: string): ParseIssue =>
     issue(ErrorCode.PARSE_NO_VIABLE, { token }, message),
-
-
   indentation: (message: string): ParseIssue =>
     issue(ErrorCode.PARSE_INDENTATION, {}, message),
   misplaced: (construct: string, position: string, message: string): ParseIssue =>
