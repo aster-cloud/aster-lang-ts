@@ -537,11 +537,17 @@ export function collectTopLevelDecls(
   while (!ctx.at(TokenKind.EOF)) {
     ctx.consumeNewlines();
     while (ctx.at(TokenKind.DEDENT)) ctx.next();
-    while (ctx.at(TokenKind.INDENT)) ctx.next();
     ctx.consumeNewlines();
     if (ctx.at(TokenKind.EOF)) break;
 
     try {
+      // 顶层声明不得缩进（aster-lang-ts#380，Wave C 裁决 D1）：与 core 同码报在缩进处——模块头之后的第一条声明缩进时
+      // core 报 E063（无法解析缩进），已有声明之后再缩进时报 E052（缩进过深）。报错后同步到下一条声明照常解析。
+      if (ctx.at(TokenKind.INDENT)) {
+        tools.error(decls.length === 0
+          ? Issue.noViable(tokenName('indent'), 'Cannot parse the syntax near indent')
+          : Issue.indentation('Incorrect indentation: one level too deep or inconsistent. Indent with 2 spaces'));
+      }
       // 解析模块头: Module foo.bar.
       if (ctx.isKeywordSeq(KW.MODULE_IS)) {
         if (ctx.moduleName !== null || decls.length > 0) tools.error(Issue.misplaced(tokenName('moduleHeader'), tokenName('onceAtFileStart'), MODULE_MISPLACED));
@@ -627,8 +633,8 @@ export function collectTopLevelDecls(
       else if (ctx.isKeyword(KW.RULE)) {
         decls.push(parseFuncDecl(ctx, tools.error, tools.expectCommaOr, tools.expectKeyword, tools.expectNewline, tools.parseIdent));
       }
-      // 容忍顶层的空白/缩进/反缩进
-      else if (ctx.at(TokenKind.NEWLINE) || ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.INDENT)) {
+      // 容忍顶层的空行/反缩进（缩进已在上方报错）
+      else if (ctx.at(TokenKind.NEWLINE) || ctx.at(TokenKind.DEDENT)) {
         ctx.next();
       }
       // 其他情况报错
