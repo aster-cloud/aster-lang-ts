@@ -16,6 +16,7 @@ import { parseWithLexicon } from '../../../src/parser.js';
 import { DiagnosticError } from '../../../src/diagnostics/diagnostics.js';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
+import { DE_DE } from '../../../src/config/lexicons/de-DE.js';
 import type { Lexicon } from '../../../src/config/lexicons/types.js';
 
 function firstError(source: string, lexicon: Lexicon = EN_US): { code: string; line: number; col: number; params: unknown } {
@@ -60,6 +61,32 @@ describe('语句中间的换行：与 core 第一条诊断同为 E063', () => {
   it('续行的二元运算不受影响（运算符之后换行同列续写仍可解析）', () => {
     const parsed = parseWithLexicon(lex(canonicalize(`${HEAD}  Let y be x plus\n  1.\n  Return y.\n`, EN_US), EN_US), EN_US);
     assert.equal(parsed.diagnostics.filter((d) => d.severity === 'error').length, 0);
+  });
+});
+
+describe('实参表逗号之后的换行：与 core 同码（core 实测）', () => {
+  const cases: Array<[string, string]> = [
+    ['x).', 'E061'], ['-1).', 'E061'], ['(x)).', 'E061'], ['not x).', 'E061'], ['Foo).', 'E061'],
+    ['.', 'E062'], [':', 'E062'], [', x).', 'E062'], [').', 'E062'], ['"a").', 'E062'],
+  ];
+  for (const [next, code] of cases) {
+    it(`换行后同列写 ${next} → ${code}`, () => {
+      const d = firstError(`${HEAD}  Return f(x,\n  ${next}\n`);
+      assert.deepEqual([d.code, d.line, d.col], [code, 4, 14]);
+    });
+  }
+});
+
+describe('合法的续行不受影响（zh-CN / de-DE）', () => {
+  const ok = (source: string, lexicon: Lexicon): void => {
+    const parsed = parseWithLexicon(lex(canonicalize(source, lexicon), lexicon), lexicon);
+    assert.deepEqual(parsed.diagnostics.filter((d) => d.severity === 'error'), []);
+  };
+  it('zh-CN 运算符之后换行续写', () => {
+    ok('模块 m。\n\n规则 f 给定 x 作为 整数，产出 整数：\n  令 y 定义为 x 加上\n  1。\n  返回 y。\n', ZH_CN);
+  });
+  it('de-DE 运算符之后换行续写', () => {
+    ok('Modul m.\n\nRegel f gegeben x als Ganzzahl, liefert Ganzzahl:\n  sei y gleich x plus\n  1.\n  gib zurueck y.\n', DE_DE);
   });
 });
 

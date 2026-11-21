@@ -1896,11 +1896,7 @@ export function parseArgList(
       ctx.next();
       // 实参表逗号之后换行：与 core 同码（同列续写下一个实参为 E061，否则 E062），报在换行处（D4）
       if (ctx.at(TokenKind.NEWLINE)) {
-        error(headerNewlineIssue(
-          acceptedAfterNewline(ctx, () => !ctx.at(TokenKind.NEWLINE) && !ctx.at(TokenKind.INDENT) && !ctx.at(TokenKind.DEDENT) && !ctx.at(TokenKind.EOF) && !ctx.at(TokenKind.RPAREN)),
-          tokenName('expression'),
-          'an argument',
-        ));
+        error(headerNewlineIssue(acceptedAfterNewline(ctx, () => !ARG_NEWLINE_E062_NEXT.has(ctx.peek().kind)), tokenName('expression'), 'an argument'));
       }
       continue;
     } else break;
@@ -2151,6 +2147,15 @@ export function inferLambdaReturnType(e: Expression): Type {
 }
 
 // ===== 辅助函数 =====
+
+/**
+ * 实参表逗号之后换行时，换行后的哪些记号让 core 报 E062（其余报 E061）：布局记号、文件末与不能起始实参的标点按 ANTLR
+ * 单 token 删除的期望集不可接受；字符串字面量在 core 实测同样报 E062（tier1 之外的形态，只为同码）。
+ */
+const ARG_NEWLINE_E062_NEXT: ReadonlySet<TokenKind> = new Set([
+  TokenKind.NEWLINE, TokenKind.INDENT, TokenKind.DEDENT, TokenKind.EOF,
+  TokenKind.DOT, TokenKind.COLON, TokenKind.COMMA, TokenKind.RPAREN, TokenKind.STRING,
+]);
 
 /** 规则头类型位置（`as` / `produce` 之后）的换行：同列续写类型为 E061，否则 E062（与 core 同码，#357 第 3 行）。 */
 export function typeNewlineIssue(ctx: ParserContext): ParseIssue {
