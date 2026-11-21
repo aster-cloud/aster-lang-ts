@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### en-US / de-DE 启用 `result-is` 与 `english-possessive`；`the result is` 之后的分隔空白不跨行（aster-lang-core#298，Wave C 裁决 D2）
+
+- **修复**：Java 清单对 en-US、de-DE 启用 `english-possessive`（翻译前）与 `result-is`（翻译后），本引擎此前没有启用，
+  `The result is x.`、`When 1, the result is 2.`、de `Ergebnis ist x.`、`Return p's v.` 在编辑器与 CLI 报 E064 / E050，生产接受。
+  `generate-lexicons` 的 `TS_ENABLED_TRANSFORMERS` 加入两者，用 Java `exportLexicons` 重新生成 en-US、de-DE、zh-CN 的词法表
+  （zh-CN 同样补上 Java 清单里的 `english-possessive` 与 `result-is`）。
+- `result-is` 按词法表的 RESULT_IS 拼写（en `the result is`、de `Ergebnis ist`、zh `结果为`）与英文规范拼写，在行首与逗号之后两处
+  改写成 `Return`，大小写不敏感（只做 ASCII 折叠，同 Java `CASE_INSENSITIVE`）；分隔空白只认空格与 tab（zh-CN 另认 U+3000），
+  VT、FF、换行与其他 Unicode 空白不改写，由词法 / 语法报错。`SyntaxTransformer.transform` 与 `applyTransformers` 新增可选参数 `lexicon`。
+- `canonicalize` 把翻译后变换器移到多词关键词打标记之前：RESULT_IS 本身是多词关键词，打上标记后变换器匹配不到，启用了也静默无效。
+- 共享夹具 `shared/result_is_parity.json`（与 aster-lang-core 逐字节相同，43 例）。
+
 ## 3.6.0
 
 > **次版本号的理由**：公开声明只增不删——在 `v3.5.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts` 与 `dist/scripts/**/*.d.ts`：

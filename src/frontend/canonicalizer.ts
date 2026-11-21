@@ -464,7 +464,7 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
 
   // 翻译前变换器（如英语所有格 driver's age → driver.age）
   if (effectiveLexicon.canonicalization.preTranslationTransformers?.length) {
-    s = applyTransformers(s, effectiveLexicon.canonicalization.preTranslationTransformers, quotes);
+    s = applyTransformers(s, effectiveLexicon.canonicalization.preTranslationTransformers, quotes, effectiveLexicon);
   }
 
   // 全角转半角（如果配置启用）。传入引号对以保护字符串字面量——
@@ -512,6 +512,13 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   // 1. Replace multi-word keywords with unique markers
   // 2. Remove articles
   // 3. Restore multi-word keywords from markers
+  // 翻译后变换器（如 "The result is X" → "Return X"）。本引擎按 token 翻译关键词，这里源码仍是本地化拼写。
+  // ★必须在多词关键词打标记之前执行：RESULT_IS（`the result is` / `Ergebnis ist`）本身是多词关键词，
+  //   打上标记后变换器再也匹配不到，启用了也静默无效。也必须在冠词移除之前，否则 "The" 先被删掉。
+  if (effectiveLexicon.canonicalization.postTranslationTransformers?.length) {
+    s = applyTransformers(s, effectiveLexicon.canonicalization.postTranslationTransformers, quotes, effectiveLexicon);
+  }
+
   let marked = s;
   const keywordMarkers = new Map<string, string>();
   let markerIndex = 0;
@@ -539,12 +546,6 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
         return text;
       })
       .join('');
-  }
-
-  // Step 1.5: 翻译后变换器（如 "The result is X" → "Return X", "Set X to Y" → "Let X be Y"）
-  // 必须在冠词移除之前执行，否则 "The" 会被先移除导致 result-is 无法匹配
-  if (effectiveLexicon.canonicalization.postTranslationTransformers?.length) {
-    marked = applyTransformers(marked, effectiveLexicon.canonicalization.postTranslationTransformers, quotes);
   }
 
   // Step 2: Remove articles in allowed contexts (lightweight; parser will enforce correctness)
