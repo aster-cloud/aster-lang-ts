@@ -147,7 +147,9 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E808": "Der Alias '{alias}' ({kind}) wird im Quelltext als Name verwendet: '{name}'",
         "W800": "Deklaration '{written}' an Position {role} verdeckt einen Vokabulareintrag",
         "W801": "'{written}' an Position {role} wurde ohne bekannten Empfängertyp aufgelöst",
-        "E900": "Annotation @{annotation} wiederholt das Argument {name}"
+        "W802": "'{keyword}' wird als Schlüsselwort {kind} gelesen: Der Name wird zu '{name}'",
+        "E900": "Annotation @{annotation} wiederholt das Argument {name}",
+        "E901": "{keyword} ist das Schlüsselwort {kind} und kann nicht als Name verwendet werden; benennen Sie ihn um"
       }
     },
     "diagnosticHelp": {
@@ -288,7 +290,9 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E808": "Benennen Sie den Namen um oder ersetzen Sie den Alias durch eine Mehrwortphrase.",
         "W800": "Benennen Sie die Deklaration um, falls die Verdeckung unbeabsichtigt ist; die Deklaration hat Vorrang vor dem Vokabulareintrag.",
         "W801": "Fügen Sie dem Empfänger eine Typannotation hinzu, damit der Name anhand seines Typs geprüft werden kann.",
-        "E900": "Geben Sie jedes benannte Argument einer Annotation höchstens einmal an."
+        "W802": "Benennen Sie ihn um, um einen eigenen Namen zu behalten; zur Laufzeit wird der Name '{name}' verwendet.",
+        "E900": "Geben Sie jedes benannte Argument einer Annotation höchstens einmal an.",
+        "E901": "Wählen Sie einen Namen, der kein Schlüsselwort ist, zum Beispiel indem Sie ein Wort anfügen."
       }
     }
   },
@@ -431,7 +435,9 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E808": "उपनाम '{alias}' ({kind}) को स्रोत में नाम के रूप में उपयोग किया गया है: '{name}'",
         "W800": "{role} स्थान पर घोषणा '{written}' एक शब्दावली प्रविष्टि को ढक देती है",
         "W801": "{role} स्थान पर '{written}' ज्ञात रिसीवर टाइप के बिना हल हुआ",
-        "E900": "एनोटेशन @{annotation} में तर्क {name} दोबारा दिया गया है"
+        "W802": "'{keyword}' को कीवर्ड {kind} के रूप में पढ़ा जाता है: नाम '{name}' हो जाता है",
+        "E900": "एनोटेशन @{annotation} में तर्क {name} दोबारा दिया गया है",
+        "E901": "{keyword} कीवर्ड {kind} है और नाम के रूप में उपयोग नहीं किया जा सकता; इसका नाम बदलें"
       }
     },
     "diagnosticHelp": {
@@ -572,7 +578,9 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E808": "नाम बदलें, या उपनाम को बहु-शब्द वाक्यांश से बदलें।",
         "W800": "यदि ढकना अनचाहा है तो घोषणा का नाम बदलें; घोषणा को शब्दावली प्रविष्टि पर वरीयता मिलती है।",
         "W801": "रिसीवर पर टाइप एनोटेशन जोड़ें ताकि नाम को उसके टाइप से जाँचा जा सके।",
-        "E900": "एनोटेशन के प्रत्येक नामित तर्क को अधिकतम एक बार दें।"
+        "W802": "अपना नाम रखने के लिए इसका नाम बदलें; रनटाइम पर उपयोग होने वाला नाम '{name}' है।",
+        "E900": "एनोटेशन के प्रत्येक नामित तर्क को अधिकतम एक बार दें।",
+        "E901": "ऐसा नाम चुनें जो कीवर्ड न हो, जैसे उसमें एक शब्द जोड़कर।"
       }
     }
   },
@@ -715,7 +723,9 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E808": "别名 '{alias}'（{kind}）在源码中被当作名字使用：'{name}'",
         "W800": "{role} 位置的声明 '{written}' 遮蔽了词汇表条目",
         "W801": "在 {role} 位置解析 '{written}' 时接收者类型未知",
-        "E900": "注解 @{annotation} 重复给出了参数 {name}"
+        "W802": "'{keyword}' 被读作关键词 {kind}：名字变为 '{name}'",
+        "E900": "注解 @{annotation} 重复给出了参数 {name}",
+        "E901": "{keyword} 是关键词 {kind}，不能用作名字，请改名"
       }
     },
     "diagnosticHelp": {
@@ -856,7 +866,9 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E808": "给这个名字改名，或把别名改成多词短语。",
         "W800": "若非有意遮蔽请重命名声明；声明优先于词汇表条目。",
         "W801": "为接收者添加类型注解，以便按其类型校验该名称。",
-        "E900": "注解的每个具名参数最多只能给出一次。"
+        "W802": "如需保留自己的名字请改名；运行时使用的名字是 '{name}'。",
+        "E900": "注解的每个具名参数最多只能给出一次。",
+        "E901": "换一个不是关键词的名字，例如在后面加一个词。"
       }
     }
   },

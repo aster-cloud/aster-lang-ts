@@ -43,14 +43,8 @@ const LOCALIZED = ['de-DE', 'hi-IN', 'zh-CN'] as const;
  */
 const PENDING_TRANSLATION_CATEGORY = 'lowering';
 
-/**
- * ADR 0056 修订 A6 新增的 E901（结构关键词当名字）与 W802（关键词当名字被改名）同样先于语言包译文发布：同一列车里
- * aster-lang-locales（zh / de）与 aster-lang-hi 的同名分支给出译文，语言包发版并重新生成 overlay 之后删除这两个码的豁免。
- */
-const PENDING_TRANSLATION_CODES: ReadonlySet<string> = new Set(['E901', 'W802']);
-
 function translationPending(spec: Spec): boolean {
-  return spec.category === PENDING_TRANSLATION_CATEGORY || PENDING_TRANSLATION_CODES.has(spec.code);
+  return spec.category === PENDING_TRANSLATION_CATEGORY;
 }
 
 function placeholders(text: string): string[] {
@@ -98,17 +92,17 @@ describe('诊断译文 overlay：生成表与注册', () => {
 describe('缺译豁免范围（aster-lang-ts#302）', () => {
   const EXEMPT = TABLE.filter(translationPending).map((s) => s.code).sort();
 
-  it('豁免恰为 category=lowering 的 E600–E606 与 ADR 0056 修订 A6 的 E901 / W802', () => {
-    assert.deepEqual(EXEMPT, ['E600', 'E601', 'E602', 'E603', 'E604', 'E605', 'E606', 'E901', 'W802']);
+  it('豁免恰为 category=lowering 的 E600–E606，不含其它类别', () => {
+    assert.deepEqual(EXEMPT, ['E600', 'E601', 'E602', 'E603', 'E604', 'E605', 'E606']);
     assert.ok(TABLE.filter((s) => !translationPending(s)).every((s) => !EXEMPT.includes(s.code)));
   });
 
-  it('只有豁免码允许缺译；其它码（含 syntax E050–E069、E900）缺译仍报错', () => {
+  it('只有 lowering 码允许缺译；其它类别（含 syntax E050–E069、E900 / E901）缺译仍报错', () => {
     const complete: Record<string, string> = Object.fromEntries(TABLE.map((s) => [s.code, s.message]));
     const withoutLowering = { ...complete };
     for (const code of EXEMPT) delete withoutLowering[code];
     assert.deepEqual(coverageProblems(withoutLowering, (s) => s.message), []);
-    for (const code of ['E001', 'E050', 'E069', 'E101', 'E800', 'E900', 'W800', 'W801']) {
+    for (const code of ['E001', 'E050', 'E069', 'E101', 'E800', 'E900', 'E901', 'W800', 'W801', 'W802']) {
       const missing = { ...complete };
       delete missing[code];
       assert.deepEqual(coverageProblems(missing, (s) => s.message), [`${code}: 缺少译文`]);

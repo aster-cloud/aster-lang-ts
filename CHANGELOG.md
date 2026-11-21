@@ -15,8 +15,8 @@
   判据与 core 逐项相同：名字等于本语言包会翻译的关键词的英文拼写、而它所在的源码行里没有这个英文拼写。`compile()` 的
   `resolutionDiagnostics` 与 LSP 诊断都带上它。实现 `src/frontend/keyword-name-guard.ts`。
 - **K2**：`version` / `type` / `given` / `module` / `be` / `required` / `between` 作字段、成员访问与变量引用，本引擎一直接受；core 同车次放宽。
-- E901 / W802 的 zh / de / hi 译文由 aster-lang-locales / aster-lang-hi 同名分支提供；语言包发版并重新生成 overlay 之前，
-  `diagnostic-overlays.test.ts` 对这两个码豁免缺译（回退英文）。
+- E901 / W802 的 zh / de / hi 译文来自 aster-lang-locales / aster-lang-hi 同名分支，`diagnostic-overlays.generated.ts` 按联编
+  这两个分支的 core `exportLexicons` 重新生成；语言包须与本版同车发布。
 - 共享夹具 `shared/keyword_name_parity.json`（与 aster-lang-core 逐字节相同，58 例，四个语言包；另含各语言包 W802 判据集合），
   `shared/parse_diagnostics_parity.json` 新增 2 例 E901。
 
