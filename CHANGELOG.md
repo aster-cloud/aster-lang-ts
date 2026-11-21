@@ -37,6 +37,12 @@
 - 类型别名前的声明级注解（`@pii(L1, email) Type Email as Text.`）本引擎一直报 E056；core 同车次改为同码拒绝（此前接受且注解静默无效）。
 - 共享夹具 `shared/parse_diagnostics_parity.json` 新增 7 例。
 
+### 任何块头之后都可以先空行再写块（Wave C 裁决 D3，推广 ADR 0056 修订 A4 §2）
+
+- **放宽**：`Match`、`workflow`、`retry` 的块头之后先空行再缩进写块，此前报 E057 / E056。When 分支块、lambda、`step`、`compensate`
+  本引擎已接受，core 同车次放宽，两引擎一致。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 9 个可解析例。
+
 ## 3.6.0
 
 > **次版本号的理由**：公开声明只增不删——在 `v3.5.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts` 与 `dist/scripts/**/*.d.ts`：
