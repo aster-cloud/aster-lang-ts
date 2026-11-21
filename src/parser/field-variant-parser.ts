@@ -12,7 +12,7 @@ import { parseConstraints } from './constraint-parser.js';
 import { parseAnnotations } from './annotation-parser.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
 import { inferFieldType } from './type-inference.js';
-import { Issue, tokenName, type ParseErrorFn } from './parse-issue.js';
+import { Issue, keywordAsNameIssue, tokenName, type ParseErrorFn } from './parse-issue.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 
 /**
@@ -63,7 +63,7 @@ export function parseFieldList(
     let name = tryReadTranslatedIdent(ctx);
     if (name === null) {
       if (!ctx.at(TokenKind.IDENT)) {
-        error(Issue.expected(tokenName('fieldName'), "Expected field name"), nameTok);
+        error(keywordAsNameIssue(ctx, nameTok) ?? Issue.expected(tokenName('fieldName'), "Expected field name"), nameTok);
       }
       name = ctx.next().value as string;
     }

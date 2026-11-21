@@ -159,6 +159,7 @@ import type { VocabularyScopes } from './config/lexicons/identifiers/scopes.js';
 import type { DomainVocabulary } from './config/lexicons/identifiers/types.js';
 import { vocabularyRegistry, initBuiltinVocabularies } from './config/lexicons/identifiers/registry.js';
 import { hasErrors, parseSource, resolveAndLower } from './compile-pipeline.js';
+import { checkKeywordNames } from './frontend/keyword-name-guard.js';
 import { serializeCoreIr } from './core/serialize-core-ir.js';
 
 /**
@@ -337,8 +338,10 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       // 此时只剩 warning（error 已在上面 short-circuit），保留以便调用方展示
       result.parseErrors = parseErrors;
     }
-    if (resolved.diagnostics.length > 0) {
-      result.resolutionDiagnostics = localizeDiagnostics(resolved.diagnostics, lexicon);
+    // 关键词被改名为名字（W802，ADR 0056 修订 A6 K3）：只看解析得到的名字写法，与 core InProcessCnlParser 的 warnings 同一判据
+    const resolutionDiagnostics = [...resolved.diagnostics, ...checkKeywordNames(parsed.ast, lexicon, source)];
+    if (resolutionDiagnostics.length > 0) {
+      result.resolutionDiagnostics = localizeDiagnostics(resolutionDiagnostics, lexicon);
     }
     if (options?.includeIntermediates) {
       result.tokens = tokens;

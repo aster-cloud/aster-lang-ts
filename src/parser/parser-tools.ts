@@ -7,7 +7,7 @@ import { TokenKind } from '../frontend/tokens.js';
 import type { Token } from '../types.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
-import type { ParseErrorFn, ParseIssue } from './parse-issue.js';
+import { keywordAsNameIssue, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 import type { ParserContext } from './context.js';
 import { tryReadTranslatedIdent } from './context.js';
 
@@ -108,8 +108,17 @@ export function createParserTools(ctx: ParserContext): ParserTools {
       // 非英文词法包）。与 aster-lang-core 引擎口径一致。
       const recovered = tryReadTranslatedIdent(ctx);
       if (recovered !== null) return recovered;
-      if (!ctx.at(TokenKind.IDENT))
+      if (!ctx.at(TokenKind.IDENT)) {
+        // 规则名位置的结构关键词报 E901（ADR 0056 修订 A6 K1），其余照旧 E055
+        const keywordIssue = keywordAsNameIssue(ctx, ctx.peek());
+        if (keywordIssue) {
+          Diagnostics.unexpectedToken(keywordIssue.message, ctx.peek().start)
+            .withErrorCode(keywordIssue.code, keywordIssue.params)
+            .withMessage(keywordIssue.message)
+            .throw();
+        }
         Diagnostics.expectedIdentifier(ctx.peek().start).throw();
+      }
       return ctx.next().value as string;
     },
 

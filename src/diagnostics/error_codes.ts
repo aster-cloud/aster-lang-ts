@@ -140,8 +140,10 @@ export const enum ErrorCode {
   DUPLICATE_DECLARATION = "E807",
   ALIAS_IDENTIFIER_COLLISION = "E808",
   PARSE_DUPLICATE_ANNOTATION_ARG = "E900",
+  PARSE_KEYWORD_AS_NAME = "E901",
   SHADOWED_VOCABULARY = "W800",
   RESOLVED_WITHOUT_TYPE = "W801",
+  KEYWORD_RENAMED_AS_NAME = "W802",
 }
 
 export interface ErrorMetadata {
@@ -287,8 +289,10 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.DUPLICATE_DECLARATION]: "Duplicate declaration of '{written}' in {role} position",
   [ErrorCode.ALIAS_IDENTIFIER_COLLISION]: "Alias '{alias}' ({kind}) is used as a name in the source: '{name}'",
   [ErrorCode.PARSE_DUPLICATE_ANNOTATION_ARG]: "Annotation @{annotation} repeats the argument {name}",
+  [ErrorCode.PARSE_KEYWORD_AS_NAME]: "{keyword} is the keyword {kind} and cannot be used as a name; rename it",
   [ErrorCode.SHADOWED_VOCABULARY]: "Declaration '{written}' in {role} position shadows a vocabulary entry",
   [ErrorCode.RESOLVED_WITHOUT_TYPE]: "Resolved '{written}' in {role} position without a known receiver type",
+  [ErrorCode.KEYWORD_RENAMED_AS_NAME]: "'{keyword}' is read as the keyword {kind}: the name becomes '{name}'",
 };
 
 export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
@@ -1228,6 +1232,13 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     message: "Annotation @{annotation} repeats the argument {name}",
     help: "Give each named argument of an annotation at most once.",
   },
+  [ErrorCode.PARSE_KEYWORD_AS_NAME]: {
+    code: ErrorCode.PARSE_KEYWORD_AS_NAME,
+    category: 'syntax',
+    severity: 'error',
+    message: "{keyword} is the keyword {kind} and cannot be used as a name; rename it",
+    help: "Choose a name that is not a keyword, for example by adding a word to it.",
+  },
   [ErrorCode.SHADOWED_VOCABULARY]: {
     code: ErrorCode.SHADOWED_VOCABULARY,
     category: 'scope',
@@ -1241,6 +1252,13 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     severity: 'warning',
     message: "Resolved '{written}' in {role} position without a known receiver type",
     help: "Add a type annotation to the receiver so the name can be checked against its type.",
+  },
+  [ErrorCode.KEYWORD_RENAMED_AS_NAME]: {
+    code: ErrorCode.KEYWORD_RENAMED_AS_NAME,
+    category: 'scope',
+    severity: 'warning',
+    message: "'{keyword}' is read as the keyword {kind}: the name becomes '{name}'",
+    help: "Rename it to keep a name of your own; the name used at run time is '{name}'.",
   },
 };
 

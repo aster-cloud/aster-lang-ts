@@ -11,7 +11,9 @@
 
 import { ErrorCode } from '../diagnostics/error_codes.js';
 import type { ParseDiagnosticParams } from '../diagnostics/diagnostics.js';
-import type { Token } from '../types.js';
+import type { Lexicon } from '../config/lexicons/types.js';
+import { TokenKind, type Token } from '../types.js';
+import { kwq } from './keyword-display.js';
 
 export interface ParseIssue {
   readonly code: ErrorCode;
@@ -68,7 +70,43 @@ export const Issue = {
   /** E900（ADR 0055 #3）：同一注解内参数名重复；解析码段 E050–E069 用满后的续段。 */
   duplicateAnnotationArg: (annotation: string, name: string): ParseIssue =>
     issue(ErrorCode.PARSE_DUPLICATE_ANNOTATION_ARG, { annotation, name }, `Annotation @${annotation} repeats the argument ${name}`),
+  /** E901（ADR 0056 修订 A6 K1）：名字位置上的结构关键词；keyword 为 `kw.*` 槽位，kind 为 SemanticTokenKind 名。 */
+  keywordAsName: (keyword: string, kind: string, message: string): ParseIssue =>
+    issue(ErrorCode.PARSE_KEYWORD_AS_NAME, { keyword, kind }, message),
 } as const;
+
+/**
+ * 结构关键词的英文规范拼写 → 关键词槽位（ADR 0056 修订 A6 K1）。本地化拼写（zh `返回`、de `wenn`、hi `जब`…）经翻译都成为
+ * 这些拼写，因此这张表同时覆盖四个语言包。与 aster-lang-core `AstBuilder.STRUCTURAL_KEYWORD_NAMES` 逐项相同。
+ */
+export const STRUCTURAL_KEYWORD_NAMES: ReadonlyMap<string, { readonly slot: string; readonly kind: string }> = new Map([
+  ['Define', { slot: 'define', kind: 'TYPE_DEF' }],
+  ['If', { slot: 'if', kind: 'IF' }],
+  ['Let', { slot: 'let', kind: 'LET' }],
+  ['Match', { slot: 'match', kind: 'MATCH' }],
+  ['Otherwise', { slot: 'otherwise', kind: 'OTHERWISE' }],
+  ['Return', { slot: 'return', kind: 'RETURN' }],
+  ['Rule', { slot: 'rule', kind: 'FUNC_TO' }],
+  ['When', { slot: 'when', kind: 'WHEN' }],
+]);
+
+/**
+ * E901（ADR 0056 修订 A6 K1，产品裁决 Q5）：名字位置上的结构关键词。两引擎都拒绝并同码报告；此前 ts 报泛化的 E055、
+ * core 经软关键字把它收作名字（zh 形参 `返回` 静默改名为 `Return`）。英文小写写法（`return`、`when`）是普通 IDENT，不受影响。
+ * 不是结构关键词时返回 null，调用方照常报 E055。
+ *
+ * TODO(ADR 0064)：名字转义语法落地后，消息改为建议用转义写法保留原词。
+ */
+export function keywordAsNameIssue(ctx: { readonly lexicon?: Lexicon | undefined }, tok: Token): ParseIssue | null {
+  if ((tok.kind !== TokenKind.TYPE_IDENT && tok.kind !== TokenKind.KEYWORD) || tok.originalValue !== undefined) return null;
+  const keyword = STRUCTURAL_KEYWORD_NAMES.get(String(tok.value));
+  if (!keyword) return null;
+  return Issue.keywordAsName(
+    kwParam(keyword.slot),
+    keyword.kind,
+    `${kwq(ctx, keyword.slot, String(tok.value))} is the keyword ${keyword.kind} and cannot be used as a name; rename it`,
+  );
+}
 
 /** 源码 token 作为字面片段参数（取其文本；无文本时取词法种类）。 */
 export const tokenLit = (tok: Token): string => lit(String(tok.value ?? tok.kind));

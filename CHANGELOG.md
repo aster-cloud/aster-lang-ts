@@ -12,6 +12,22 @@
 > 在 3.6.0 编译成功、本版报 E063；`Type Amount as Unbekannt.` 在 3.6.0 成功、本版报 E800；`The result is x.` 在 3.6.0 报 E064、本版成功。
 > 按 ADR 0046 §11.7 第 11 条（1.6.0、3.1.0–3.6.0 先例）取 minor。
 
+### 关键词当名字：两引擎同码同判（ADR 0056 修订 A6 K1–K3，产品裁决 2026-11-22）
+
+- **K1 新错误码 E901 `PARSE_KEYWORD_AS_NAME`**（参数 `{keyword: kw.*, kind}`）：名字位置（规则名、形参、字段、Let / Set / Start /
+  Wait / 步骤名）上的结构关键词 `Define` / `If` / `Let` / `Match` / `Otherwise` / `Return` / `Rule` / `When`——包括翻译成它们的本地化
+  拼写（zh `返回`、`如果`、`当`；de `wenn`、`bei`、`sei`；hi `जब`、`नियम`）——报 E901，消息建议改名。此前本引擎报泛化的 E055；
+  接受与拒绝的集合不变。core 同车次由「静默改名为 `If` / `Return`」改为同码拒绝。英文小写写法（`return`、`when`）照旧是名字。
+- **K3 新警告 W802 `KEYWORD_RENAMED_AS_NAME`**（参数 `{name, keyword, kind}`）：非英文源码里由本地化关键词翻译来的名字（zh 字段
+  `版本` → `version`，de `erlauben` → `allow`，hi `अनुमति` → `allow`）照旧按英文拼写取名（IR 与运行时输入键不变），新增警告。
+  判据与 core 逐项相同：名字等于本语言包会翻译的关键词的英文拼写、而它所在的源码行里没有这个英文拼写。`compile()` 的
+  `resolutionDiagnostics` 与 LSP 诊断都带上它。实现 `src/frontend/keyword-name-guard.ts`。
+- **K2**：`version` / `type` / `given` / `module` / `be` / `required` / `between` 作字段、成员访问与变量引用，本引擎一直接受；core 同车次放宽。
+- E901 / W802 的 zh / de / hi 译文由 aster-lang-locales / aster-lang-hi 同名分支提供；语言包发版并重新生成 overlay 之前，
+  `diagnostic-overlays.test.ts` 对这两个码豁免缺译（回退英文）。
+- 共享夹具 `shared/keyword_name_parity.json`（与 aster-lang-core 逐字节相同，48 例，四个语言包；另含各语言包 W802 判据集合），
+  `shared/parse_diagnostics_parity.json` 新增 2 例 E901。
+
 ### 声明头与语句中间的换行与 core 同码（aster-lang-ts#357 第 3 行，ADR 0056 修订 A4 §2，Wave C 裁决 D4）
 
 - **诊断码变化**（接受与拒绝的集合不变）：规则头里换行（`Rule` ⏎ `f …`、无逗号的 `… as Int` ⏎ `produce …`、`given` / `as` /

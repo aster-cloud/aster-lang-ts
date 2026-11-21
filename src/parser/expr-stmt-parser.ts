@@ -33,7 +33,7 @@ import {
   spanFromSources,
   spanFromTokens,
 } from './span-utils.js';
-import { Issue, acceptedAfterNewline, headerNewlineIssue, kwParam, lit, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
+import { Issue, acceptedAfterNewline, headerNewlineIssue, keywordAsNameIssue, kwParam, lit, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 const WAIT_FOR_PARTS = kwParts(KW.WAIT_FOR);
 const MAX_ATTEMPTS_PARTS = kwParts(KW.MAX_ATTEMPTS);
@@ -2195,7 +2195,7 @@ function parseIdent(
   const recovered = tryReadTranslatedIdent(ctx);
   if (recovered !== null) return recovered;
   if (!ctx.at(TokenKind.IDENT)) {
-    error(Issue.expected(tokenName('identifier'), 'Expected identifier'));
+    error(keywordAsNameIssue(ctx, ctx.peek()) ?? Issue.expected(tokenName('identifier'), 'Expected identifier'));
   }
   return ctx.next().value as string;
 }
