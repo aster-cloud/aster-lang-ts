@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### 声明头与语句中间的换行与 core 同码（aster-lang-ts#357 第 3 行，ADR 0056 修订 A4 §2，Wave C 裁决 D4）
+
+- **诊断码变化**（接受与拒绝的集合不变）：规则头里换行（`Rule` ⏎ `f …`、无逗号的 `… as Int` ⏎ `produce …`、`given` / `as` /
+  `produce` 之后、形参表逗号之后）与 core 同码报在换行处——换行后同列续写此处可接受的记号报 E061，下一行缩进、空行、文件末或不可
+  接受的记号报 E062。此前分别报 E055 / E056，形参表逗号之后一律报 E062。
+- 语句中间的换行报 E063（`{token: token.newline}`）：`Return` / `Let` / `If` / `Match` 之后直接换行报在关键词处（此前 `Return` ⏎ 报
+  E064 且位置差 6 列），`Let y be` ⏎、`Return g(` ⏎ 报在换行处（此前 E064）；实参表逗号之后换行按上面的 E061 / E062 规则。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 15 例。
+
 ## 3.6.0
 
 > **次版本号的理由**：公开声明只增不删——在 `v3.5.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts` 与 `dist/scripts/**/*.d.ts`：

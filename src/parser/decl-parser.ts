@@ -23,11 +23,11 @@ import {
   PROFILE_MISPLACED,
 } from './import-parser.js';
 import { parseType, parseEffectList, separateEffectsAndCaps } from './type-parser.js';
-import { parseBlock, parseExplicitBlock, parseParamList } from './expr-stmt-parser.js';
+import { parseBlock, parseExplicitBlock, parseParamList, typeNewlineIssue } from './expr-stmt-parser.js';
 import { parseFieldList, parseVariantList } from './field-variant-parser.js';
 import { assignSpan, spanFromSources, lastConsumedToken, lastNonLayoutToken, spanFromTokens } from './span-utils.js';
 import type { Span } from '../types.js';
-import { Issue, kwParam, lit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
+import { Issue, acceptedAfterNewline, headerNewlineIssue, kwParam, lit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 /**
  * R30+ audit P1：原本写满 14 处 {@code (node as any).nameSpan = ...} / variantSpans。
@@ -205,6 +205,15 @@ export function parseFuncDecl(
   const toTok = declStartTok ?? ctx.peek();
   ctx.nextWord(); // 消费 'Rule'
 
+  // `Rule` 之后换行（`Rule` ⏎ `f given …`）：与 core 同码报在换行处（#357 第 3 行，ADR 0056 修订 A4 §2）
+  if (ctx.at(TokenKind.NEWLINE)) {
+    error(headerNewlineIssue(
+      acceptedAfterNewline(ctx, () => ctx.at(TokenKind.IDENT) || ctx.at(TokenKind.TYPE_IDENT)),
+      tokenName('identifier'),
+      'a rule name',
+    ));
+  }
+
   // 记录函数名位置
   const nameTok = ctx.peek();
   const name = parseIdent();
@@ -287,7 +296,8 @@ export function parseFuncDecl(
   const produceTok = ctx.peek();
   let retType: Type;
   let retTypeInferred = false;
-  if (ctx.isKeyword(KW.PRODUCE)) {
+  const sawProduce = ctx.isKeyword(KW.PRODUCE);
+  if (sawProduce) {
     ctx.nextWords(kwParts(KW.PRODUCE));
     if (
       ctx.at(TokenKind.COLON) ||
@@ -300,6 +310,7 @@ export function parseFuncDecl(
       retType = Node.TypeName('Unknown');
       assignSpan(retType, spanFromTokens(produceTok, produceTok));
     } else {
+      if (ctx.at(TokenKind.NEWLINE)) error(typeNewlineIssue(ctx));
       retType = parseType(ctx, error);
     }
   } else {
@@ -364,6 +375,21 @@ export function parseFuncDecl(
     ctx.next();
     body = parseColonBody(); // ADR 0028：缩进块或显式块
   } else {
+    // 规则头没写完就换行（无逗号的 `… as Int` ⏎ `produce …`）：与 core 同码报在换行处（#357 第 3 行，ADR 0056 修订 A4 §2）
+    if (ctx.at(TokenKind.NEWLINE)) {
+      const produceOmitted = retTypeInferred && !sawProduce;
+      error(headerNewlineIssue(
+        acceptedAfterNewline(ctx, () =>
+          ctx.at(TokenKind.DOT) ||
+          ctx.at(TokenKind.COLON) ||
+          ctx.isKeyword(KW.WITH) ||
+          ctx.isKeywordSeq(KW.PERFORMS) ||
+          tokLowerAt(ctx, ctx.index) === 'it' ||
+          (produceOmitted && (ctx.isKeyword(KW.PRODUCE) || ctx.at(TokenKind.COMMA)))),
+        tokenName('dotOrColon'),
+        "'.' or ':'",
+      ));
+    }
     error(Issue.expectedAfter(tokenName('dotOrColon'), tokenName('returnType'), "Expected '.' or ':' after return type"));
   }
 

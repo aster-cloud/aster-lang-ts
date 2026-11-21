@@ -51,6 +51,8 @@ export const Issue = {
     issue(ErrorCode.PARSE_UNEXPECTED_EXPECTING, { token, expected }, message),
   unexpectedConstruct: (construct: string, message: string): ParseIssue =>
     issue(ErrorCode.PARSE_UNEXPECTED_CONSTRUCT, { construct }, message),
+  noViable: (token: string, message: string): ParseIssue =>
+    issue(ErrorCode.PARSE_NO_VIABLE, { token }, message),
   misplaced: (construct: string, position: string, message: string): ParseIssue =>
     issue(ErrorCode.PARSE_MISPLACED, { construct, position }, message),
   emptyBlock: (block: string, item: string, message: string): ParseIssue =>
@@ -68,3 +70,26 @@ export const Issue = {
 
 /** 源码 token 作为字面片段参数（取其文本；无文本时取词法种类）。 */
 export const tokenLit = (tok: Token): string => lit(String(tok.value ?? tok.kind));
+
+/**
+ * 声明头里的换行（aster-lang-ts#357 第 3 行，ADR 0056 修订 A4 §2）：与 core 同码，报在换行处。
+ *
+ * core 的 ANTLR 先试单 token 删除：删掉这个换行后，下一个 token 正是此处可接受的记号（同列续写，如 `Rule` ⏎ `f …`、
+ * 无逗号的 `… as Int` ⏎ `produce …`）时报 E061「多余的换行」；下一行缩进、空行、文件末或此处不可接受的记号时报 E062
+ * 「意外的换行，期望 …」。`nextAccepted` 由调用方按该位置可接受的记号判断。
+ */
+export function headerNewlineIssue(nextAccepted: boolean, expected: string, expectedText: string): ParseIssue {
+  if (nextAccepted) return issue(ErrorCode.PARSE_UNEXPECTED_TOKEN, { token: tokenName('newline') }, 'Unexpected newline');
+  return issue(ErrorCode.PARSE_UNEXPECTED_EXPECTING, { token: tokenName('newline'), expected }, `Unexpected newline; expected ${expectedText}`);
+}
+
+/** 越过当前换行看下一个 token 是否满足 `accepts`，不消费（位置原样恢复）。 */
+export function acceptedAfterNewline(ctx: { index: number; next(): Token }, accepts: () => boolean): boolean {
+  const saved = ctx.index;
+  ctx.next();
+  try {
+    return accepts();
+  } finally {
+    ctx.index = saved;
+  }
+}
