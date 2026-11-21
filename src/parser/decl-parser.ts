@@ -452,7 +452,11 @@ function syncToNextDecl(ctx: ParserContext): void {
     const val = ctx.peek().value;
     if (advanced && val !== null) {
       const lower = typeof val === 'string' ? val.toLowerCase() : '';
-      if (DECL_STOP_KEYWORDS.has(lower)) {
+      // 行首的类型别名引导词（含本地化 类型 / Typ / प्रकार）同样是声明起点，恢复时不吞掉后面的别名；
+      // 只认行首，字段名 type 之类的同形词不算
+      const prevKind = ctx.tokens[ctx.index - 1]?.kind;
+      const atLineStart = prevKind === TokenKind.NEWLINE || prevKind === TokenKind.DEDENT || prevKind === TokenKind.INDENT;
+      if (DECL_STOP_KEYWORDS.has(lower) || (atLineStart && isTypeAliasKeywordAt(ctx, ctx.index))) {
         break;
       }
     }
@@ -537,9 +541,23 @@ export function collectTopLevelDecls(
   while (!ctx.at(TokenKind.EOF)) {
     ctx.consumeNewlines();
     while (ctx.at(TokenKind.DEDENT)) ctx.next();
-    while (ctx.at(TokenKind.INDENT)) ctx.next();
     ctx.consumeNewlines();
     if (ctx.at(TokenKind.EOF)) break;
+
+    // 顶层声明不得缩进（aster-lang-ts#380，Wave C 裁决 D1）：与 core 同码报在缩进处——模块头之后的第一条声明缩进时
+    // core 报 E063（无法解析缩进），已有声明之后再缩进时报 E052（缩进过深）。只越过这个缩进记号、不做同步：
+    // 缩进的那条声明照常解析（其中的错误照常报告），后面的类型别名等也不会被恢复过程吞掉。
+    if (ctx.at(TokenKind.INDENT)) {
+      try {
+        tools.error(decls.length === 0
+          ? Issue.noViable(tokenName('indent'), 'Cannot parse the syntax near indent')
+          : Issue.indentation('Incorrect indentation: one level too deep or inconsistent. Indent with 2 spaces'));
+      } catch (e) {
+        diagnostics.push(toDiagnostic(e));
+      }
+      ctx.next();
+      continue;
+    }
 
     try {
       // 解析模块头: Module foo.bar.
@@ -627,8 +645,8 @@ export function collectTopLevelDecls(
       else if (ctx.isKeyword(KW.RULE)) {
         decls.push(parseFuncDecl(ctx, tools.error, tools.expectCommaOr, tools.expectKeyword, tools.expectNewline, tools.parseIdent));
       }
-      // 容忍顶层的空白/缩进/反缩进
-      else if (ctx.at(TokenKind.NEWLINE) || ctx.at(TokenKind.DEDENT) || ctx.at(TokenKind.INDENT)) {
+      // 容忍顶层的空行/反缩进（缩进已在上方报错）
+      else if (ctx.at(TokenKind.NEWLINE) || ctx.at(TokenKind.DEDENT)) {
         ctx.next();
       }
       // 其他情况报错
