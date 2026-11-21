@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### 声明头与语句中间的换行与 core 同码（aster-lang-ts#357 第 3 行，ADR 0056 修订 A4 §2，Wave C 裁决 D4）
+
+- **诊断码变化**（接受与拒绝的集合不变）：规则头里换行（`Rule` ⏎ `f …`、无逗号的 `… as Int` ⏎ `produce …`、`given` / `as` /
+  `produce` 之后、形参表逗号之后）与 core 同码报在换行处——换行后同列续写此处可接受的记号报 E061，下一行缩进、空行、文件末或不可
+  接受的记号报 E062。此前分别报 E055 / E056，形参表逗号之后一律报 E062。
+- 语句中间的换行报 E063（`{token: token.newline}`）：`Return` / `Let` / `If` / `Match` 之后直接换行报在关键词处（此前 `Return` ⏎ 报
+  E064 且位置差 6 列），`Let y be` ⏎、`Return g(` ⏎ 报在换行处（此前 E064）；实参表逗号之后换行按上面的 E061 / E062 规则。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 15 例。
+
 ### en-US / de-DE 启用 `result-is` 与 `english-possessive`；`the result is` 之后的分隔空白不跨行（aster-lang-core#298，Wave C 裁决 D2）
 
 - **修复**：Java 清单对 en-US、de-DE 启用 `english-possessive`（翻译前）与 `result-is`（翻译后），本引擎此前没有启用，
@@ -13,6 +22,31 @@
   VT、FF、换行与其他 Unicode 空白不改写，由词法 / 语法报错。`SyntaxTransformer.transform` 与 `applyTransformers` 新增可选参数 `lexicon`。
 - `canonicalize` 把翻译后变换器移到多词关键词打标记之前：RESULT_IS 本身是多词关键词，打上标记后变换器匹配不到，启用了也静默无效。
 - 共享夹具 `shared/result_is_parity.json`（与 aster-lang-core 逐字节相同，43 例）。
+
+### 类型别名右侧在 TYPE 位置解析（ADR 0051 修订 1，aster-lang-test#174 第 5 项）
+
+- **收紧**：`Type X as …` 的右侧与字段、形参类型走同一条名称解析路径，递归进复合类型；词汇本地类型名写回规范名（`resolved`），
+  查不到报 E800。此前右侧不解析，`Type Amount as Unbekannt.` 静默接受。别名之间的循环不在此检查（A1 §2.4）。
+- 名称解析结果的 `Module.typeAliasDecls` 带解析后的右侧类型；诊断按源码位置与其他声明穿插（与 core 同序）。
+- 共享夹具 `shared/type_alias_rhs_parity.json`（与 aster-lang-core 逐字节相同，12 例）。
+
+### 缩进的顶层声明与 core 同码拒绝（aster-lang-ts#380，Wave C 裁决 D1）
+
+- **收紧**：顶层声明须从行首写起。此前顶层的缩进被跳过，`  Type Email as Text.` 等缩进的声明编辑器接受、生产拒绝。
+  模块头之后的第一条声明缩进时报 E063（`{token: token.indent}`），已有声明之后再缩进时报 E052，均报在缩进处，与 core 相同。
+- 类型别名前的声明级注解（`@pii(L1, email) Type Email as Text.`）本引擎一直报 E056；core 同车次改为同码拒绝（此前接受且注解静默无效）。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 7 例。
+
+### 任何块头之后都可以先空行再写块（Wave C 裁决 D3，推广 ADR 0056 修订 A4 §2）
+
+- **放宽**：`Match`、`workflow`、`retry` 的块头之后先空行再缩进写块，此前报 E057 / E056。When 分支块、lambda、`step`、`compensate`
+  本引擎已接受，core 同车次放宽，两引擎一致。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 9 个可解析例。
+
+### 测试：格式化往返允许清单加入 U+3000 + CJK 标识符的 zh 样本（aster-lang-test#226 m-2）
+
+- aster-lang-test 的 `ideographic-space-zh`、`let-be-ideographic-space-zh` 改回汉字规则名与变量名，英文 CNL 重写后无法重新词法分析，
+  与其他 CJK 标识符样本同列入 `formatter-corpus-roundtrip` 允许清单。不影响发布内容。
 
 ## 3.6.0
 

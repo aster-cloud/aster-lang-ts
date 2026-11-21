@@ -33,7 +33,7 @@ import {
   spanFromSources,
   spanFromTokens,
 } from './span-utils.js';
-import { Issue, kwParam, lit, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
+import { Issue, acceptedAfterNewline, headerNewlineIssue, kwParam, lit, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 const WAIT_FOR_PARTS = kwParts(KW.WAIT_FOR);
 const MAX_ATTEMPTS_PARTS = kwParts(KW.MAX_ATTEMPTS);
@@ -375,6 +375,14 @@ function parseWhenSugar(
   return assignSpan(Node.If(cond, thenBlock, null), spanFromTokens(whenTok, lastNonLayoutToken(ctx)));
 }
 
+/**
+ * 语句关键词（`Return` / `Let` / `If` / `Match`）之后直接换行：core 的语句备选在关键词处分叉，于是在语句起点报 E063，
+ * 这里同码同位置（aster-lang-ts#357 第 3 行，Wave C 裁决 D4）。关键词之后的其他位置换行见 parsePrimary 末尾（报在换行处）。
+ */
+function rejectNewlineAfterStatementKeyword(ctx: ParserContext, error: ParseErrorFn, keywordTok: Token): void {
+  if (ctx.at(TokenKind.NEWLINE)) error(Issue.noViable(tokenName('newline'), 'Cannot parse the syntax near a line break'), keywordTok);
+}
+
 /** ADR 0046：`Otherwise <outcome>.` → `Return Verdict.*(…)`；须收尾所在块由 blockStatementParser 检查。 */
 function parseOtherwiseSugar(
   ctx: ParserContext,
@@ -398,6 +406,7 @@ export function parseStatement(
   if (ctx.isKeyword(KW.LET)) {
     const letTok = ctx.peek();
     ctx.nextWord();
+    rejectNewlineAfterStatementKeyword(ctx, error, letTok);
     const nameTok = ctx.peek();
     const name = parseIdent(ctx, error);
     expectKeyword(ctx, error, KW.BE, Issue.expectedIn(kwParam(KW.BE), tokenName('binding'), `Use ${kwq(ctx, KW.BE)} in bindings: '${kw(ctx, KW.LET, 'Let')} x ${kw(ctx, KW.BE)} ...'.`));
@@ -435,6 +444,7 @@ export function parseStatement(
   if (ctx.isKeyword(KW.RETURN)) {
     const retTok = ctx.peek();
     ctx.nextWord();
+    rejectNewlineAfterStatementKeyword(ctx, error, retTok);
     const expr = parseExpr(ctx, error);
     // 与 Java returnStmt（RETURN expr DOT）一致：句点必需，换行/块末/文件末都不能代替（#240）
     expectPeriodEnd(ctx, error);
@@ -469,6 +479,7 @@ export function parseStatement(
   if (ctx.isKeyword(KW.IF)) {
     const ifTok = ctx.peek();
     ctx.nextWord();
+    rejectNewlineAfterStatementKeyword(ctx, error, ifTok);
     const cond = parseExpr(ctx, error);
     // ADR 0019 G2a：内联 if（`if cond then return X else return Y`）。在 cond 之后、
     // 块式分隔符之前探测 then——then 前可有换行+缩进（文档里 `if ... \n then ...`）。
@@ -500,6 +511,7 @@ export function parseStatement(
   if (ctx.isKeyword(KW.MATCH)) {
     const mTok = ctx.peek();
     ctx.nextWord();
+    rejectNewlineAfterStatementKeyword(ctx, error, mTok);
     const expr = parseExpr(ctx, error);
     if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), tokenName('matchExpression'), "Expected ':' after match expression"));
     ctx.next();
@@ -586,6 +598,8 @@ function parseWorkflow(
   if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), kwParam(KW.WORKFLOW), `Expected ':' after ${kwq(ctx, KW.WORKFLOW)}`));
   ctx.next();
   expectNewline(ctx, error);
+  // 块头之后可以先空行再缩进（Wave C 裁决 D3，ADR 0056 修订 A4 §2 推广）：与 core 文法 `COLON NEWLINE+ INDENT` 一致
+  ctx.consumeNewlines();
   if (!ctx.at(TokenKind.INDENT)) error(Issue.expectedAfter(tokenName('indent'), tokenName('workflowHeader'), 'Expected indent after workflow header'));
   ctx.next();
   ctx.consumeNewlines();
@@ -676,6 +690,8 @@ function parseRetryPolicy(
   if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), kwParam(KW.RETRY), `Expected ':' after ${kwq(ctx, KW.RETRY)}`));
   ctx.next();
   expectNewline(ctx, error);
+  // 块头之后可以先空行再缩进（Wave C 裁决 D3，ADR 0056 修订 A4 §2 推广）：与 core 文法 `COLON NEWLINE+ INDENT` 一致
+  ctx.consumeNewlines();
   if (!ctx.at(TokenKind.INDENT)) error(Issue.expectedIn(tokenName('indent'), tokenName('retryPolicy'), 'Expected indent for retry policy'));
   ctx.next();
   ctx.consumeNewlines();
@@ -750,6 +766,8 @@ function parseCases(
   ctx.pushCompoundContext(KW.MATCH);
 
   try {
+    // 块头之后可以先空行再缩进（Wave C 裁决 D3，ADR 0056 修订 A4 §2 推广）：与 core 文法 `COLON NEWLINE+ INDENT` 一致
+    ctx.consumeNewlines();
     if (!ctx.at(TokenKind.INDENT)) error(Issue.expectedIn(tokenName('indent'), tokenName('matchCases'), 'Expected indent for cases'));
     ctx.next();
     while (!ctx.at(TokenKind.DEDENT)) {
@@ -1860,6 +1878,8 @@ function parsePrimary(
     return target;
   }
 
+  // 语句中间的换行（`Let y be` ⏎、`Return g(` ⏎）：与 core 同码 E063，报在换行处（#357 第 3 行，Wave C 裁决 D4）
+  if (ctx.at(TokenKind.NEWLINE)) error(Issue.noViable(tokenName('newline'), 'Cannot parse the syntax near a line break'));
   error(Issue.unexpectedConstruct(tokenName('expression'), 'Unexpected expression'));
 }
 
@@ -1880,6 +1900,10 @@ export function parseArgList(
     args.push(parseExpr(ctx, error));
     if (ctx.at(TokenKind.COMMA)) {
       ctx.next();
+      // 实参表逗号之后换行：与 core 同码（同列续写下一个实参为 E061，否则 E062），报在换行处（D4）
+      if (ctx.at(TokenKind.NEWLINE)) {
+        error(headerNewlineIssue(acceptedAfterNewline(ctx, () => !ARG_NEWLINE_E062_NEXT.has(ctx.peek().kind)), tokenName('expression'), 'an argument'));
+      }
       continue;
     } else break;
   }
@@ -1963,6 +1987,14 @@ export function parseParamList(
   // 'with' / 'given' params — type annotation uses 'as' keyword
   if (ctx.isKeyword(KW.WITH) || ctx.isKeyword(KW.GIVEN)) {
     ctx.nextWord();
+    // `given` 之后换行：与 core 同码报在换行处（同列续写形参名为 E061，否则 E062；#357 第 3 行）
+    if (ctx.at(TokenKind.NEWLINE)) {
+      error(headerNewlineIssue(
+        acceptedAfterNewline(ctx, () => ctx.at(TokenKind.IDENT) || ctx.at(TokenKind.AT)),
+        tokenName('identifier'),
+        'a parameter name',
+      ));
+    }
     let hasMore = true;
     while (hasMore) {
       // 形参前置注解（`given @pii(L1, email) y as Text`，aster-lang-ts#328），与 core 文法 `param: annotation* nameIdent …` 一致；
@@ -1976,6 +2008,7 @@ export function parseParamList(
       if (ctx.isKeyword(KW.AS)) {
         colonTok = ctx.peek();
         ctx.nextWord();
+        if (ctx.at(TokenKind.NEWLINE)) error(typeNewlineIssue(ctx));
         type = parseType(ctx, error);
       } else {
         typeInferred = true;
@@ -2011,11 +2044,9 @@ export function parseParamList(
       }
       if (ctx.at(TokenKind.COMMA)) {
         ctx.next();
-        // 规则头里逗号之后换行（`given x as Int,` 换行后写 `produce …`）：与 core 同码报 E062，报在换行处（#357 第 3 行，ADR 0056 修订 A4 §2）
-        if (ctx.at(TokenKind.NEWLINE)) {
-          error(Issue.unexpectedExpecting(tokenName('newline'), kwParam(KW.PRODUCE),
-            `Unexpected newline; expected '.', ':' or ${kwq(ctx, KW.PRODUCE)}`));
-        }
+        // 规则头里逗号之后换行（`given x as Int,` 换行后写 `produce …`）：与 core 同码报在换行处（#357 第 3 行，ADR 0056 修订 A4 §2）；
+        // 同列续写 produce 为 E061，其余为 E062（见 headerNewlineIssue）
+        if (ctx.at(TokenKind.NEWLINE)) error(commaNewlineIssue(ctx));
         // 逗号后是 produce：逗号属于规则头（`given x as Int, produce …`），参数表结束
         if (ctx.isKeyword(KW.PRODUCE)) {
           hasMore = false;
@@ -2072,11 +2103,8 @@ export function parseParamList(
       }
       if (ctx.at(TokenKind.COMMA)) {
         ctx.next();
-        // 与 given 形参表同一规则：逗号之后换行报 E062（#357 第 3 行）
-        if (ctx.at(TokenKind.NEWLINE)) {
-          error(Issue.unexpectedExpecting(tokenName('newline'), kwParam(KW.PRODUCE),
-            `Unexpected newline; expected '.', ':' or ${kwq(ctx, KW.PRODUCE)}`));
-        }
+        // 与 given 形参表同一规则（#357 第 3 行）
+        if (ctx.at(TokenKind.NEWLINE)) error(commaNewlineIssue(ctx));
         if (ctx.isKeyword(KW.PRODUCE) || ctx.isKeyword(KW.WITH)) {
           hasMore = false;
         } else {
@@ -2125,6 +2153,33 @@ export function inferLambdaReturnType(e: Expression): Type {
 }
 
 // ===== 辅助函数 =====
+
+/**
+ * 实参表逗号之后换行时，换行后的哪些记号让 core 报 E062（其余报 E061）：布局记号、文件末与不能起始实参的标点按 ANTLR
+ * 单 token 删除的期望集不可接受；字符串字面量在 core 实测同样报 E062（tier1 之外的形态，只为同码）。
+ */
+const ARG_NEWLINE_E062_NEXT: ReadonlySet<TokenKind> = new Set([
+  TokenKind.NEWLINE, TokenKind.INDENT, TokenKind.DEDENT, TokenKind.EOF,
+  TokenKind.DOT, TokenKind.COLON, TokenKind.COMMA, TokenKind.RPAREN, TokenKind.STRING,
+]);
+
+/** 规则头类型位置（`as` / `produce` 之后）的换行：同列续写类型为 E061，否则 E062（与 core 同码，#357 第 3 行）。 */
+export function typeNewlineIssue(ctx: ParserContext): ParseIssue {
+  return headerNewlineIssue(
+    acceptedAfterNewline(ctx, () => ctx.at(TokenKind.TYPE_IDENT) || ctx.at(TokenKind.IDENT) || ctx.at(TokenKind.LPAREN)),
+    tokenName('type'),
+    'a type',
+  );
+}
+
+/** 规则头形参表逗号之后的换行：同列续写 produce 时 E061，其余 E062（与 core 同码）。 */
+function commaNewlineIssue(ctx: ParserContext): ParseIssue {
+  return headerNewlineIssue(
+    acceptedAfterNewline(ctx, () => ctx.isKeyword(KW.PRODUCE)),
+    kwParam(KW.PRODUCE),
+    `'.', ':' or ${kwq(ctx, KW.PRODUCE)}`,
+  );
+}
 
 /**
  * 解析标识符
