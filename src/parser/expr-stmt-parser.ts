@@ -586,6 +586,8 @@ function parseWorkflow(
   if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), kwParam(KW.WORKFLOW), `Expected ':' after ${kwq(ctx, KW.WORKFLOW)}`));
   ctx.next();
   expectNewline(ctx, error);
+  // 块头之后可以先空行再缩进（Wave C 裁决 D3，ADR 0056 修订 A4 §2 推广）：与 core 文法 `COLON NEWLINE+ INDENT` 一致
+  ctx.consumeNewlines();
   if (!ctx.at(TokenKind.INDENT)) error(Issue.expectedAfter(tokenName('indent'), tokenName('workflowHeader'), 'Expected indent after workflow header'));
   ctx.next();
   ctx.consumeNewlines();
@@ -676,6 +678,8 @@ function parseRetryPolicy(
   if (!ctx.at(TokenKind.COLON)) error(Issue.expectedAfter(lit(':'), kwParam(KW.RETRY), `Expected ':' after ${kwq(ctx, KW.RETRY)}`));
   ctx.next();
   expectNewline(ctx, error);
+  // 块头之后可以先空行再缩进（Wave C 裁决 D3，ADR 0056 修订 A4 §2 推广）：与 core 文法 `COLON NEWLINE+ INDENT` 一致
+  ctx.consumeNewlines();
   if (!ctx.at(TokenKind.INDENT)) error(Issue.expectedIn(tokenName('indent'), tokenName('retryPolicy'), 'Expected indent for retry policy'));
   ctx.next();
   ctx.consumeNewlines();
@@ -750,6 +754,8 @@ function parseCases(
   ctx.pushCompoundContext(KW.MATCH);
 
   try {
+    // 块头之后可以先空行再缩进（Wave C 裁决 D3，ADR 0056 修订 A4 §2 推广）：与 core 文法 `COLON NEWLINE+ INDENT` 一致
+    ctx.consumeNewlines();
     if (!ctx.at(TokenKind.INDENT)) error(Issue.expectedIn(tokenName('indent'), tokenName('matchCases'), 'Expected indent for cases'));
     ctx.next();
     while (!ctx.at(TokenKind.DEDENT)) {
