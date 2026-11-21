@@ -28,6 +28,8 @@ interface KeywordNameCase {
   readonly lexicon: string;
   readonly source: string;
   readonly reject?: readonly [string, number];
+  readonly params?: Readonly<Record<string, string>>;
+  readonly message?: string;
   readonly names?: readonly string[];
   readonly warnings?: readonly (readonly [string, number])[];
 }
@@ -48,22 +50,38 @@ function lexiconOf(id: string): Lexicon {
   return lexicon;
 }
 
-/** 第一条解析错误的 [码, 行]；能解析时返回 null。 */
-function firstParseError(c: KeywordNameCase): [string, number] | null {
+interface FirstError {
+  readonly code: string;
+  readonly line: number;
+  readonly params: unknown;
+  readonly message: string;
+}
+
+/** 第一条解析错误；能解析时返回 null。 */
+function firstError(c: KeywordNameCase): FirstError | null {
   const lexicon = lexiconOf(c.lexicon);
   try {
     const parsed = parseWithLexicon(lex(canonicalize(c.source, lexicon), lexicon), lexicon);
     const first = parsed.diagnostics.find((d) => d.severity === 'error');
-    return first ? [first.code, first.span.start.line] : null;
+    return first ? { code: first.code, line: first.span.start.line, params: first.params, message: first.message } : null;
   } catch (e) {
-    if (e instanceof DiagnosticError) return [e.diagnostic.code, e.diagnostic.span.start.line];
+    if (e instanceof DiagnosticError) {
+      const d = e.diagnostic;
+      return { code: d.code, line: d.span.start.line, params: d.params, message: d.message };
+    }
     throw e;
   }
 }
 
+/** 第一条解析错误的 [码, 行]；能解析时返回 null。 */
+function firstParseError(c: KeywordNameCase): [string, number] | null {
+  const first = firstError(c);
+  return first ? [first.code, first.line] : null;
+}
+
 describe('关键词当名字共享夹具（ts 侧）', () => {
-  it('共享夹具共 48 例，四个语言包都有', () => {
-    assert.equal(DATA.cases.length, 48);
+  it('共享夹具共 58 例，四个语言包都有', () => {
+    assert.equal(DATA.cases.length, 58);
     assert.deepEqual([...new Set(DATA.cases.map((c) => c.lexicon))].sort(), ['de-DE', 'en-US', 'hi-IN', 'zh-CN']);
   });
 
@@ -79,6 +97,8 @@ describe('关键词当名字共享夹具（ts 侧）', () => {
       const lexicon = lexiconOf(c.lexicon);
       if (c.reject) {
         assert.deepEqual(firstParseError(c), c.reject);
+        if (c.params) assert.deepEqual(firstError(c)?.params, c.params);
+        if (c.message) assert.equal(firstError(c)?.message, c.message);
         assert.equal(compile(c.source, { lexicon }).success, false);
         return;
       }

@@ -126,6 +126,14 @@ export function createParserTools(ctx: ParserContext): ParserTools {
       // 先尝试还原"被翻译成关键词的标识符"（非英文词法包，类型名与关键词同形）。
       const recovered = tryReadTranslatedIdent(ctx);
       if (recovered !== null) return recovered;
+      // 只在声明处使用（Define 的类型名、类型别名名）：结构关键词报 E901（ADR 0056 修订 A6 K1），与 core declaredTypeName 一致
+      const keywordIssue = keywordAsNameIssue(ctx, ctx.peek());
+      if (keywordIssue) {
+        Diagnostics.unexpectedToken(keywordIssue.message, ctx.peek().start)
+          .withErrorCode(keywordIssue.code, keywordIssue.params)
+          .withMessage(keywordIssue.message)
+          .throw();
+      }
       // Accept both TYPE_IDENT and IDENT to support languages without capitalization (e.g., Chinese)
       // In English, type names are capitalized (User, Order) -> TYPE_IDENT
       // In Chinese, type names look like regular words (用户, 订单) -> IDENT
