@@ -707,7 +707,36 @@ export function resolveDeclarations(
   const r: Resolver = { scopes: ctx.scopes, table, diags: new DiagnosticBuilder() };
   const names = declareTopLevel(r, module);
   registerImports(table, ctx);
-  const decls = module.decls.map((d) => rewriteDecl(r, names, d));
+  // 别名不在 module.decls 里：按源码位置穿插解析别名右侧，诊断顺序与 core（别名与其他声明同在一个声明表）一致
+  const aliasDecls = module.typeAliasDecls ?? [];
+  const resolvedAliasDecls: AST.TypeAliasDecl[] = [];
+  const resolveAliasesBefore = (at?: Span): void => {
+    while (resolvedAliasDecls.length < aliasDecls.length) {
+      const alias = aliasDecls[resolvedAliasDecls.length]!;
+      if (at && !startsBefore(alias.span, at)) return;
+      resolvedAliasDecls.push(resolveAliasDecl(r, alias));
+    }
+  };
+  const decls = module.decls.map((d) => {
+    resolveAliasesBefore(d.span);
+    return rewriteDecl(r, names, d);
+  });
+  resolveAliasesBefore();
   const aliases = names.aliases.length > 0 ? { resolvedTypeAliases: names.aliases } : {};
-  return { module: { ...module, decls, ...aliases }, diagnostics: r.diags.getDiagnostics() };
+  const aliasTypes = aliasDecls.length > 0 ? { typeAliasDecls: resolvedAliasDecls } : {};
+  return { module: { ...module, decls, ...aliases, ...aliasTypes }, diagnostics: r.diags.getDiagnostics() };
+}
+
+/**
+ * 别名右侧在 TYPE 位置解析（ADR 0051 修订 1，aster-lang-test#174 第 5 项）：与字段、形参类型同一路径，递归进泛型 /
+ * Maybe / Option / Result / List / Map / 函数类型，词汇类型名写回规范名（resolved），查不到报 E800。别名之间的循环不在此检查（A1 §2.4）。
+ */
+function resolveAliasDecl(r: Resolver, alias: AST.TypeAliasDecl): AST.TypeAliasDecl {
+  return { ...alias, type: resolveType(r, rootScope(), alias.type) };
+}
+
+/** 声明 a 是否在 b 之前开始（无 span 时视为不在之前）。 */
+function startsBefore(a: Span | undefined, b: Span | undefined): boolean {
+  if (!a || !b) return false;
+  return a.start.line < b.start.line || (a.start.line === b.start.line && a.start.col < b.start.col);
 }

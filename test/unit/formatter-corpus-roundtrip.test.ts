@@ -58,6 +58,8 @@ const ALLOW_LIST: ReadonlyMap<string, string> = new Map([
   ['corpus/tier1-parity/vocab-zh/block-scope-shadowing.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-parity/vocab-zh/cjk-pattern-binding.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-parity/vocab-zh/governance-input-refs.aster', CJK_IDENTIFIERS],
+  // ADR 0051 修订 1：别名右侧写词汇本地类型名（aster-lang-test#174 第 5 项）
+  ['corpus/tier1-parity/vocab-zh/alias-rhs-vocabulary.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-reject/vocab-e804-zh-member-vs-rule.aster', CJK_IDENTIFIERS],
   // Core IR v2（ADR 0055 #16）：构造器内嵌套名字与枚举成员同名
   ['corpus/tier1-equivalence/policies/pattern-nested-name-matches-enum-member.aster', CJK_IDENTIFIERS],

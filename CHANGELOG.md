@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### 类型别名右侧在 TYPE 位置解析（ADR 0051 修订 1，aster-lang-test#174 第 5 项）
+
+- **收紧**：`Type X as …` 的右侧与字段、形参类型走同一条名称解析路径，递归进复合类型；词汇本地类型名写回规范名（`resolved`），
+  查不到报 E800。此前右侧不解析，`Type Amount as Unbekannt.` 静默接受。别名之间的循环不在此检查（A1 §2.4）。
+- 名称解析结果的 `Module.typeAliasDecls` 带解析后的右侧类型；诊断按源码位置与其他声明穿插（与 core 同序）。
+- 共享夹具 `shared/type_alias_rhs_parity.json`（与 aster-lang-core 逐字节相同，12 例）。
+
 ## 3.6.0
 
 > **次版本号的理由**：公开声明只增不删——在 `v3.5.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts` 与 `dist/scripts/**/*.d.ts`：
