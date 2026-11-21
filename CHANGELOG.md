@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 3.7.0
+
+> **次版本号的理由**：公开声明只增不删——在 `v3.6.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts` 与 `dist/scripts/**/*.d.ts`：
+> 无新增、无删除的声明文件；改动的三份均不经任何 `exports` 子路径导出（`.`、`./lexicons*`、`./typecheck`、`./lsp*`、`./layout`、
+> `./browser`、`./package-check` 等入口都不再导出它们）：`frontend/transformers.d.ts` 的 `SyntaxTransformer.transform` 与
+> `applyTransformers` 新增可选参数 `lexicon`；`parser/expr-stmt-parser.d.ts` 新增 `typeNewlineIssue`；`parser/parse-issue.d.ts`
+> 新增 `Issue.noViable`、`Issue.indentation`、`headerNewlineIssue`、`acceptedAfterNewline`。`package.json` 的 `exports` 不变。
+> 行为上：既有源码新报 error 级诊断（缩进的顶层声明 E063 / E052、类型别名右侧查不到的类型 E800），en-US / de-DE 新接受
+> `The result is …` 与 `'s` 所有格，部分换行诊断改码（接受与拒绝的集合不变）。本地两边 dist 实测：`  Type Email as Text.`（缩进）
+> 在 3.6.0 编译成功、本版报 E063；`Type Amount as Unbekannt.` 在 3.6.0 成功、本版报 E800；`The result is x.` 在 3.6.0 报 E064、本版成功。
+> 按 ADR 0046 §11.7 第 11 条（1.6.0、3.1.0–3.6.0 先例）取 minor。
 
 ### 声明头与语句中间的换行与 core 同码（aster-lang-ts#357 第 3 行，ADR 0056 修订 A4 §2，Wave C 裁决 D4）
 
