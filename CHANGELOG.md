@@ -30,6 +30,13 @@
 - 名称解析结果的 `Module.typeAliasDecls` 带解析后的右侧类型；诊断按源码位置与其他声明穿插（与 core 同序）。
 - 共享夹具 `shared/type_alias_rhs_parity.json`（与 aster-lang-core 逐字节相同，12 例）。
 
+### 缩进的顶层声明与 core 同码拒绝（aster-lang-ts#380，Wave C 裁决 D1）
+
+- **收紧**：顶层声明须从行首写起。此前顶层的缩进被跳过，`  Type Email as Text.` 等缩进的声明编辑器接受、生产拒绝。
+  模块头之后的第一条声明缩进时报 E063（`{token: token.indent}`），已有声明之后再缩进时报 E052，均报在缩进处，与 core 相同。
+- 类型别名前的声明级注解（`@pii(L1, email) Type Email as Text.`）本引擎一直报 E056；core 同车次改为同码拒绝（此前接受且注解静默无效）。
+- 共享夹具 `shared/parse_diagnostics_parity.json` 新增 7 例。
+
 ## 3.6.0
 
 > **次版本号的理由**：公开声明只增不删——在 `v3.5.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts` 与 `dist/scripts/**/*.d.ts`：
