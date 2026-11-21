@@ -9,12 +9,16 @@
  * - postTranslationTransformers: 关键字翻译后（处理规范化形式的语法糖）
  */
 
+import type { Lexicon } from '../config/lexicons/types.js';
+import { SemanticTokenKind } from '../config/token-kind.js';
+
 /** 变换器接口：接收源代码行，返回变换后的行 */
 export interface SyntaxTransformer {
   readonly name: string;
   /** 内置变换器自行按完整源码上下文保护字符串，避免切片改变正则锚点语义。 */
   readonly stringSafe?: boolean;
-  transform(source: string, quotes?: { open: string; close: string }): string;
+  /** lexicon 为当前词法表；需要按词法表拼写匹配的变换器（如 result-is）据此取关键词，缺省按英文。 */
+  transform(source: string, quotes?: { open: string; close: string }, lexicon?: Lexicon): string;
 }
 
 // ============================================================
@@ -102,24 +106,52 @@ const setTo: SyntaxTransformer = {
 };
 
 /**
- * Result-Is 变换器：`The result is expr` → `Return expr`
+ * Result-Is 变换器：`The result is expr` → `Return expr`（en-US `the result is`、de-DE `Ergebnis ist`、zh-CN `结果为`）。
  *
- * 将描述式返回语法转换为规范的 Return 语句。
- * 注意：必须在冠词移除之前执行，否则 "The" 会被先移除。
+ * Java 侧先把本地化的 RESULT_IS 译成 `the result is`，再由 core `ResultIsTransformer` 在两处改写成 `Return`：
+ * 行首（`^([ \t]*)The result is[ \t]+`）与逗号之后（Match 分支 `When X, the result is Y`，`(,[ \t]*)the result is[ \t]+`），
+ * 大小写不敏感。本引擎按 token 翻译关键词，变换器运行时源码里仍是本地化拼写，所以按词法表的 RESULT_IS 拼写与英文规范拼写
+ * 两种写法在同样两处改写，产出与 Java 相同的 token（Java 在任何词法表下也认英文规范拼写）。
+ *
+ * 分隔空白只认 ASCII 空格与 tab（zh-CN 另认 U+3000），不跨行（aster-lang-ts#348 规则、aster-lang-core#298）：
+ * 后跟 VT、FF、换行或其他 Unicode 空白时不改写，由词法 / 语法报错。缩进捕获组同样只认水平空白——`^(\s*)` 在
+ * multiline 下会在每个行首起跑并吃穿所有后续空行，呈二次增长（ReDoS）。
+ *
+ * 大小写不敏感不带 `u` 标志：与 Java `CASE_INSENSITIVE`（无 UNICODE_CASE）一样只做 ASCII 大小写折叠，
+ * `ſ`（U+017F）、`K`（U+212A）之类不会被当成 `s` / `k`。
  */
-/**
- * ★缩进捕获组用 `[ \t]*` 而非 `\s*`，理由同 {@link SET_TO_RE}：
- * multiline 下 `^(\s*)` 会在每个行首起跑并吃穿所有后续空行，呈二次增长。
- * 缩进按定义只含空格与制表符。须与 Java 侧
- * `ResultIsTransformer.RESULT_IS_LINE_START` 逐字一致。
- */
-const RESULT_IS_RE = /^([ \t]*)The result is\s+/gmu;
+const RESULT_IS_CANONICAL = 'the result is';
+const resultIsPatternCache = new Map<string, { lineStart: RegExp; inline: RegExp }>();
+
+function escapeRegex(text: string): string {
+  return text.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
+function resultIsPatterns(lexicon: Lexicon | undefined): { lineStart: RegExp; inline: RegExp } {
+  const localized = lexicon?.keywords[SemanticTokenKind.RESULT_IS] ?? '';
+  const ws = lexicon?.canonicalization.whitespaceMode === 'chinese' ? '[ \\t\\u3000]' : '[ \\t]';
+  const key = `${localized}\u0000${ws}`;
+  const cached = resultIsPatternCache.get(key);
+  if (cached) return cached;
+  const spellings = [...new Set([localized, RESULT_IS_CANONICAL].filter(w => w.trim() !== ''))]
+    .sort((a, b) => b.length - a.length)
+    .map(w => w.trim().split(/\s+/).map(escapeRegex).join(`${ws}+`));
+  const phrase = `(?:${spellings.join('|')})${ws}+`;
+  const patterns = {
+    lineStart: new RegExp(`^(${ws}*)${phrase}`, 'gim'),
+    inline: new RegExp(`(,${ws}*)${phrase}`, 'gi'),
+  };
+  resultIsPatternCache.set(key, patterns);
+  return patterns;
+}
 
 const resultIs: SyntaxTransformer = {
   name: 'result-is',
   stringSafe: true,
-  transform(source: string, quotes = { open: '"', close: '"' }): string {
-    return replaceOutsideStrings(source, RESULT_IS_RE, match => `${match[1]}Return `, quotes);
+  transform(source: string, quotes = { open: '"', close: '"' }, lexicon?: Lexicon): string {
+    const { lineStart, inline } = resultIsPatterns(lexicon);
+    const s = replaceOutsideStrings(source, lineStart, match => `${match[1]}Return `, quotes);
+    return replaceOutsideStrings(s, inline, match => `${match[1]}Return `, quotes);
   },
 };
 
@@ -191,7 +223,7 @@ const chineseFunctionSyntax: SyntaxTransformer = {
  * （全角空格与 `，` 已换成半角），所以这里直接按同样两处改写，产出与 Java 相同的 token。
  *
  * 空白只认 ASCII 空格、tab 与 U+3000（aster-lang-ts#348 规则），不跨行：`结果为` 后跟其他 Unicode 空白、VT、FF 或换行
- * 时不改写，由词法 / 语法报错。core `result-is` 的 `\s` 还收 VT、FF 与换行，那是 core 侧待对齐的差异。
+ * 时不改写，由词法 / 语法报错（core `result-is` 同一规则，aster-lang-core#298）。
  */
 const CHINESE_RESULT_IS_LINE_START_RE = /^([ \t\u3000]*)结果为[ \t\u3000]+/gmu;
 const CHINESE_RESULT_IS_INLINE_RE = /(,[ \t\u3000]*)结果为[ \t\u3000]+/gu;
@@ -237,14 +269,15 @@ export function applyTransformers(
   source: string,
   names: readonly string[],
   quotes: { open: string; close: string } = { open: '"', close: '"' },
+  lexicon?: Lexicon,
 ): string {
   let result = source;
   for (const name of names) {
     const t = registry.get(name);
     if (t) {
       result = t.stringSafe
-        ? t.transform(result, quotes)
-        : transformOutsideStrings(result, quotes, text => t.transform(text, quotes));
+        ? t.transform(result, quotes, lexicon)
+        : transformOutsideStrings(result, quotes, text => t.transform(text, quotes, lexicon));
     }
   }
   return result;

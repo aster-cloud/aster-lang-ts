@@ -216,9 +216,15 @@ function generateLexiconFile(lex: ExportedLexicon, tokenKinds: string[]): string
 
 /**
  * 内置词法中由本引擎执行的变换器（须已在 src/frontend/transformers.ts 注册）。
- * english-possessive / set-to / result-is 虽有实现，但从未对内置词法启用，启用它们是另一项行为变更。
+ * set-to 虽有实现，但 Java 清单从未对内置词法启用；其余 Java 清单项（chinese-punctuation 等）在本引擎没有同名移植，
+ * 生成时过滤掉。
  */
-const TS_ENABLED_TRANSFORMERS: ReadonlySet<string> = new Set(['chinese-function-syntax', 'chinese-result-is']);
+const TS_ENABLED_TRANSFORMERS: ReadonlySet<string> = new Set([
+  'english-possessive',
+  'chinese-function-syntax',
+  'result-is',
+  'chinese-result-is',
+]);
 
 /** 安全引号：使用单引号，转义内部单引号和反斜杠 */
 function quote(s: string): string {
