@@ -66,6 +66,9 @@ const ALLOW_LIST: ReadonlyMap<string, string> = new Map([
   ['corpus/tier1-parity/vocab-zh/enum-variant-v2.aster', CJK_IDENTIFIERS],
   // ADR 0058 修订 2：zh 类型别名引导词 类型 与字段名 类型（名字位置照常是名字）
   ['corpus/tier1-parity/types/type-alias-keyword-zh.aster', CJK_IDENTIFIERS],
+  // U+3000 与 CJK 标识符同在一份源码里（aster-lang-test#226 m-2）
+  ['corpus/tier1-parity/syntax/ideographic-space-zh.aster', CJK_IDENTIFIERS],
+  ['corpus/tier1-parity/syntax/let-be-ideographic-space-zh.aster', CJK_IDENTIFIERS],
 ]);
 
 function asterFiles(dir: string, out: string[] = []): string[] {

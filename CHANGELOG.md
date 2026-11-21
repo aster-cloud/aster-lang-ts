@@ -43,6 +43,11 @@
   本引擎已接受，core 同车次放宽，两引擎一致。
 - 共享夹具 `shared/parse_diagnostics_parity.json` 新增 9 个可解析例。
 
+### 测试：格式化往返允许清单加入 U+3000 + CJK 标识符的 zh 样本（aster-lang-test#226 m-2）
+
+- aster-lang-test 的 `ideographic-space-zh`、`let-be-ideographic-space-zh` 改回汉字规则名与变量名，英文 CNL 重写后无法重新词法分析，
+  与其他 CJK 标识符样本同列入 `formatter-corpus-roundtrip` 允许清单。不影响发布内容。
+
 ## 3.6.0
 
 > **次版本号的理由**：公开声明只增不删——在 `v3.5.0` 与本版各自 `pnpm run build` 对比 `dist/src/**/*.d.ts` 与 `dist/scripts/**/*.d.ts`：
