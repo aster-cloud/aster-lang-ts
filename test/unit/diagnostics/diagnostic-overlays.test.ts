@@ -43,6 +43,10 @@ const LOCALIZED = ['de-DE', 'hi-IN', 'zh-CN'] as const;
  */
 const PENDING_TRANSLATION_CATEGORY = 'lowering';
 
+function translationPending(spec: Spec): boolean {
+  return spec.category === PENDING_TRANSLATION_CATEGORY;
+}
+
 function placeholders(text: string): string[] {
   return [...new Set([...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!))].sort();
 }
@@ -53,7 +57,7 @@ function coverageProblems(texts: Readonly<Partial<Record<string, string>>> | und
   for (const spec of TABLE) {
     const text = texts[spec.code];
     if (!text || text.trim() === '') {
-      if (spec.category === PENDING_TRANSLATION_CATEGORY) continue;
+      if (translationPending(spec)) continue;
       problems.push(`${spec.code}: 缺少译文`);
     } else if (placeholders(text).join() !== placeholders(pick(spec)).join()) {
       problems.push(`${spec.code}: 占位符 ${placeholders(text)} 与英文 ${placeholders(pick(spec))} 不一致`);
@@ -86,19 +90,19 @@ describe('诊断译文 overlay：生成表与注册', () => {
 });
 
 describe('缺译豁免范围（aster-lang-ts#302）', () => {
-  const EXEMPT = TABLE.filter((s) => s.category === PENDING_TRANSLATION_CATEGORY).map((s) => s.code).sort();
+  const EXEMPT = TABLE.filter(translationPending).map((s) => s.code).sort();
 
   it('豁免恰为 category=lowering 的 E600–E606，不含其它类别', () => {
     assert.deepEqual(EXEMPT, ['E600', 'E601', 'E602', 'E603', 'E604', 'E605', 'E606']);
-    assert.ok(TABLE.filter((s) => s.category !== PENDING_TRANSLATION_CATEGORY).every((s) => !EXEMPT.includes(s.code)));
+    assert.ok(TABLE.filter((s) => !translationPending(s)).every((s) => !EXEMPT.includes(s.code)));
   });
 
-  it('只有 lowering 码允许缺译；其它类别（含 syntax E050–E069）缺译仍报错', () => {
+  it('只有 lowering 码允许缺译；其它类别（含 syntax E050–E069、E900 / E901）缺译仍报错', () => {
     const complete: Record<string, string> = Object.fromEntries(TABLE.map((s) => [s.code, s.message]));
     const withoutLowering = { ...complete };
     for (const code of EXEMPT) delete withoutLowering[code];
     assert.deepEqual(coverageProblems(withoutLowering, (s) => s.message), []);
-    for (const code of ['E001', 'E050', 'E069', 'E101', 'E800', 'W800']) {
+    for (const code of ['E001', 'E050', 'E069', 'E101', 'E800', 'E900', 'E901', 'W800', 'W801', 'W802']) {
       const missing = { ...complete };
       delete missing[code];
       assert.deepEqual(coverageProblems(missing, (s) => s.message), [`${code}: 缺少译文`]);

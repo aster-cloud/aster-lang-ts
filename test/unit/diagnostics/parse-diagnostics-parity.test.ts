@@ -71,8 +71,8 @@ describe('ADR 0051 §16 R56/R57 双引擎诊断 parity 夹具（ts 侧）', () =
     const parseCodes = Object.values(ERROR_METADATA)
       .filter((m) => m.category === 'syntax')
       .map((m) => m.code as string);
-    // 解析码段 E050–E069 已用满，续段从 E900 开始（ADR 0055 #3，locales core-ir/README.md「诊断码」）。
-    assert.equal(parseCodes.length, 21);
+    // 解析码段 E050–E069 已用满，续段从 E900 开始（ADR 0055 #3，locales core-ir/README.md「诊断码」）；E901 见 ADR 0056 修订 A6 K1。
+    assert.equal(parseCodes.length, 22);
     assert.deepEqual(parseCodes.filter((code) => !covered.has(code)), []);
     assert.ok(covered.has('E807'));
     assert.ok(CASES.some((c) => c.name.startsWith('R57') && c.codes.length === 0), '缺 R57 非冲突夹具');

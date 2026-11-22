@@ -12,7 +12,7 @@ import { parseConstraints } from './constraint-parser.js';
 import { parseAnnotations } from './annotation-parser.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
 import { inferFieldType } from './type-inference.js';
-import { Issue, tokenName, type ParseErrorFn } from './parse-issue.js';
+import { Issue, keywordAsNameIssue, tokenName, type ParseErrorFn } from './parse-issue.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 
 /**
@@ -63,7 +63,7 @@ export function parseFieldList(
     let name = tryReadTranslatedIdent(ctx);
     if (name === null) {
       if (!ctx.at(TokenKind.IDENT)) {
-        error(Issue.expected(tokenName('fieldName'), "Expected field name"), nameTok);
+        error(keywordAsNameIssue(ctx, nameTok) ?? Issue.expected(tokenName('fieldName'), "Expected field name"), nameTok);
       }
       name = ctx.next().value as string;
     }
@@ -156,6 +156,9 @@ export function parseVariantList(
     if (!ctx.at(TokenKind.TYPE_IDENT) && !ctx.at(TokenKind.IDENT)) {
       error(Issue.expected(tokenName('variantName'), "Expected type identifier for variant name"), vTok);
     }
+    // 结构关键词（If / Return…及译成它们的本地化拼写）作枚举成员报 E901（ADR 0056 修订 A6 K1），先于下面的 E063
+    const keywordIssue = keywordAsNameIssue(ctx, vTok);
+    if (keywordIssue) error(keywordIssue, vTok);
     // 由本地化关键词翻译来的词（如 zh「拒绝」→ deny）在源码中是关键词，不能当变体名：与 Java 文法
     // typeIdent 拒收同一 token 一致，报 E063（参数为该 token 的带引号文本），而不是静默改名（X1 裁决）
     if (vTok.translated) {

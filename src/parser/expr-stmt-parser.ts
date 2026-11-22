@@ -33,7 +33,7 @@ import {
   spanFromSources,
   spanFromTokens,
 } from './span-utils.js';
-import { Issue, acceptedAfterNewline, headerNewlineIssue, kwParam, lit, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
+import { Issue, acceptedAfterNewline, headerNewlineIssue, keywordAsNameIssue, kwParam, lit, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 const WAIT_FOR_PARTS = kwParts(KW.WAIT_FOR);
 const MAX_ATTEMPTS_PARTS = kwParts(KW.MAX_ATTEMPTS);
@@ -1760,6 +1760,9 @@ function parsePrimary(
         // 字段位置不是名字（如 `helper with 10` 这种 with 调用后缀）：与 Java 引擎
         // （AsterParser.g4 malformedConstructField）同口径，报缺 set to，而不是 "Expected identifier"。
         const translated = tryReadTranslatedIdent(ctx);
+        // 构造字段名是结构关键词（`S with Return set to 1`）：报 E901（ADR 0056 修订 A6 K1），与 core constructField 一致
+        const keywordIssue = translated === null && tokLowerAt(ctx, ctx.index + 1) === KW.SET ? keywordAsNameIssue(ctx, nameTok) : null;
+        if (keywordIssue) error(keywordIssue, nameTok);
         if (translated === null && !ctx.at(TokenKind.IDENT)) error(setToMissing);
         const name = translated ?? parseIdent(ctx, error);
         if (!ctx.isKeyword(KW.SET)) error(setToMissing);
@@ -2195,7 +2198,7 @@ function parseIdent(
   const recovered = tryReadTranslatedIdent(ctx);
   if (recovered !== null) return recovered;
   if (!ctx.at(TokenKind.IDENT)) {
-    error(Issue.expected(tokenName('identifier'), 'Expected identifier'));
+    error(keywordAsNameIssue(ctx, ctx.peek()) ?? Issue.expected(tokenName('identifier'), 'Expected identifier'));
   }
   return ctx.next().value as string;
 }
