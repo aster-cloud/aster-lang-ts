@@ -183,6 +183,14 @@ export function registerTokensHandlers(
         const line0 = (t.start.line - 1) | 0;
         const char0 = (t.start.col - 1) | 0;
         const len = Math.max(0, (t.end.col - t.start.col) | 0);
+        if (t.escaped) {
+          // 名字转义（ADR 0064 §6）：两个反引号按标点着色，中间的名字按名字角色着色并带 escaped 修饰符
+          const nameType = t.kind === TokenKind.TYPE_IDENT ? typesIndex['type'] : typesIndex['variable'];
+          push(line0, char0, 1, typesIndex['operator'] ?? 0, 0);
+          push(line0, char0 + 1, Math.max(0, len - 2), nameType ?? 0, 1 << (modsIndex['escaped'] ?? 0));
+          push(line0, char0 + len - 1, 1, typesIndex['operator'] ?? 0, 0);
+          continue;
+        }
         if (t.kind === TokenKind.KEYWORD) push(line0, char0, len, typesIndex['keyword'] ?? 0, 0);
         else if (t.kind === TokenKind.TYPE_IDENT) push(line0, char0, len, typesIndex['type'] ?? 0, 0);
       }
@@ -229,8 +237,9 @@ export function registerTokensHandlers(
  * 语义标记图例
  */
 export const SEM_LEGEND: SemanticTokensLegend = {
-  tokenTypes: ['keyword', 'type', 'function', 'parameter', 'variable', 'enum', 'enumMember', 'property'],
-  tokenModifiers: ['declaration'],
+  // operator 与 escaped 追加在末尾：既有类型与修饰符的下标不变
+  tokenTypes: ['keyword', 'type', 'function', 'parameter', 'variable', 'enum', 'enumMember', 'property', 'operator'],
+  tokenModifiers: ['declaration', 'escaped'],
 };
 
 const TOKEN_TYPE_INDEX: Record<string, number> = Object.fromEntries(

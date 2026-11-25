@@ -281,3 +281,29 @@ describe('格式化器往返（源码 AST 不变，#246）', () => {
     }
   });
 });
+
+describe('格式化器与名字转义（ADR 0064 §6、Q7）', () => {
+  test('作者写的转义全部保留，含冗余转义', () => {
+    const source = 'Module m.\n\nDefine S with `given` as Int, `amount` as Int.\n\nRule f given s as S, produce Int:\n  Return s.`given` plus s.`amount`.\n';
+    const formatted = assertRoundTrip(source);
+    assert.match(formatted, /`given` as Int/);
+    assert.match(formatted, /`amount` as Int/);
+    assert.match(formatted, /s\.`given` plus s\.`amount`/);
+  });
+
+  test('结构关键词同形的类型名保留转义：`If`', () => {
+    const formatted = assertRoundTrip('Module m.\n\nDefine `If` with a as Int.\n');
+    assert.match(formatted, /Define `If` has a as Int\./);
+  });
+
+  test('英文输出里与关键词同形的名字自动加转义：de 字段 with', () => {
+    const source = 'Modul m.\n\nDefiniere Antrag mit with als Ganzzahl.\n\nRegel f gegeben a als Antrag, liefert Ganzzahl:\n  gib zurueck a.with.\n';
+    const formatted = assertRoundTrip(source, DE_DE);
+    assert.match(formatted, /`with` as Int/);
+  });
+
+  test('不需要转义的同形词不加反引号：Define Given with …', () => {
+    const formatted = assertRoundTrip('Module m.\n\nDefine Given with major as Int.\n');
+    assert.doesNotMatch(formatted, /`/);
+  });
+});

@@ -6,6 +6,10 @@ import { buildCst, buildCstLossless } from './cst/cst_builder.js';
 import { printCNLFromCst } from './cst/cst_printer.js';
 import type { Module } from './types.js';
 import { printModule } from './cnl-printer.js';
+import type { Token } from './types.js';
+import { compile } from './browser.js';
+import { positionFreeSha256 } from './policy-package/compile-source.js';
+import { EN_US } from './config/lexicons/en-US.js';
 
 export function formatCNL(
   text: string,
@@ -138,7 +142,7 @@ export function formatCNL(
   const cst = buildCst(text, originalTokens ?? tokens);
   try {
     const ast = parseWithLexicon(tokens, lexicon).ast as Module;
-    formatted = printModule(ast);
+    formatted = printWithEscapes(ast, tokens, text, lexicon);
   } catch {
     // If the source doesn't parse, return it unchanged
     return input;
@@ -154,6 +158,57 @@ export function formatCNL(
   const leading = cst.leading?.text ?? '';
   const bom = leading.startsWith('\uFEFF') ? '\uFEFF' : '';
   return bom + out;
+}
+
+/**
+ * 按名字转义规则打印（ADR 0064 §6、Q7）：作者写过的每个转义都保留（按写法，同一写法的名字一律转义，含义不变）；
+ * 打印结果与原文不是同一程序时（英文输出里名字与英文关键词同形，如 de 字段 `with`），再把与英文关键词、冠词同形的名字
+ * 也写成转义重打一次。不把所有同形词都预先转义：`Define Given with …` 本不需要，旧引擎也读不了反引号。
+ */
+function printWithEscapes(ast: Module, tokens: readonly Token[], source: string, lexicon: Lexicon | undefined): string {
+  const authored = new Set(tokens.filter(t => t.escaped).map(t => String(t.value)));
+  const first = printModule(ast, { escape: seg => authored.has(seg) || CORE_HARD_KEYWORDS.has(seg) });
+  const original = programHash(source, lexicon);
+  if (original === undefined || programHash(first, undefined) === original) return first;
+  const homographs = englishKeywordWords();
+  const retry = printModule(ast, {
+    escape: seg => authored.has(seg) || CORE_HARD_KEYWORDS.has(seg) || homographs.has(seg.toLowerCase()),
+  });
+  return programHash(retry, undefined) === original ? retry : first;
+}
+
+/** 编译得到的 Core IR positionFreeSha256；编译失败为 undefined。lexicon 缺省为 en-US（格式化器的输出语言）。 */
+function programHash(source: string, lexicon: Lexicon | undefined): string | undefined {
+  try {
+    const result = compile(source, lexicon ? { lexicon } : {});
+    return result.success && result.coreJson !== undefined ? positionFreeSha256(result.coreJson) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * aster-lang-core 词法上恒为关键词、在名字位置不当软关键词的拼写（区分大小写，AsterLexer.g4 的硬 token 减去
+ * structKeywordName）。本引擎在名字位置接受其中多数（ADR 0056 修订 A4 §1.1 之前的 F12），core 拒绝；英文输出里写成这些
+ * 拼写的名字一律转义，格式化结果两引擎都能读回同一程序（de 字段 `with`、zh 字段 `and`）。
+ */
+const CORE_HARD_KEYWORDS: ReadonlySet<string> = new Set([
+  'to', 'with', 'and', 'or', 'produce', 'has', 'set', 'Set', 'as', 'one', 'of', 'use', 'Use', 'not', 'for', 'async',
+  'on', 'On', 'function', 'times', 'plus', 'minus', 'modulo', 'true', 'false', 'null',
+]);
+
+let ENGLISH_KEYWORD_WORDS: ReadonlySet<string> | undefined;
+
+/** en-US 关键词（规范拼写与官方别名）的全部单词与英文冠词，小写。 */
+function englishKeywordWords(): ReadonlySet<string> {
+  if (ENGLISH_KEYWORD_WORDS) return ENGLISH_KEYWORD_WORDS;
+  const out = new Set<string>(['a', 'an', 'the']);
+  const phrases = [...Object.values(EN_US.keywords), ...Object.values(EN_US.aliases ?? {}).flat()];
+  for (const phrase of phrases) {
+    for (const word of String(phrase ?? '').toLowerCase().split(/\s+/)) if (word !== '') out.add(word);
+  }
+  ENGLISH_KEYWORD_WORDS = out;
+  return out;
 }
 
 /**

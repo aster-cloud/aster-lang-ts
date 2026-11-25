@@ -16,6 +16,7 @@ import type { Lexicon } from '../config/lexicons/types.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
 import { escapeRegExp } from './navigation/shared.js';
+import { escapeAllOccurrences } from './name-escape.js';
 
 /**
  * 注册 CodeAction 相关的 LSP 处理器
@@ -45,6 +46,26 @@ export function registerCodeActionHandlers(
 
     for (const d of params.context.diagnostics) {
       const code = (d.code as string) || '';
+
+      // 关键词误作名字（E901）、静默改名（W802）与别名作名字（E808）：快速修复「用作名字」，把该词每处都写成转义（ADR 0064 §6）
+      if (code === ErrorCode.PARSE_KEYWORD_AS_NAME || code === ErrorCode.KEYWORD_RENAMED_AS_NAME
+          || code === ErrorCode.ALIAS_IDENTIFIER_COLLISION) {
+        const data = ((d as any).data ?? {}) as Record<string, unknown>;
+        const word = code === ErrorCode.KEYWORD_RENAMED_AS_NAME ? String(data.keyword ?? '')
+          : code === ErrorCode.ALIAS_IDENTIFIER_COLLISION ? String(data.name ?? '')
+            : textInRange(text, d.range);
+        const edits = escapeAllOccurrences(text, word);
+        const title = `Use \`${word}\` as a name`;
+        if (edits.length > 0 && !offered.has(title)) {
+          offered.add(title);
+          actions.push({
+            title,
+            kind: CodeActionKind.QuickFix,
+            edit: { changes: { [params.textDocument.uri]: edits } },
+            diagnostics: [d],
+          });
+        }
+      }
 
       // 缺失 / 多余的 io、cpu 效果声明（LSP 诊断的 code 是码表值 E2xx / E30x）
       const missing = MISSING_EFFECT_CODES.get(code);
@@ -388,6 +409,13 @@ export function registerCodeActionHandlers(
 /**
  * 辅助函数：从诊断消息中提取函数名
  */
+/** 诊断范围内的原文（单行范围；跨行时取首行到行末）。 */
+function textInRange(text: string, range: Range): string {
+  const line = text.split('\n')[range.start.line] ?? '';
+  const end = range.end.line === range.start.line ? range.end.character : line.length;
+  return line.slice(range.start.character, end).trim();
+}
+
 function extractFuncNameFromMessage(msg: string): string {
   const m = msg.match(/Function '([^']+)'/);
   return m?.[1] ?? '';
