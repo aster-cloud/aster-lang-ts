@@ -1,5 +1,5 @@
 /**
- * 策略包（包格式 1.1）的显示排版规则 L1–L9 的字符串部分（ADR 0059 修订 4 §4）。
+ * 策略包（包格式 1.1）的显示排版规则 L1–L10 的字符串部分（ADR 0059 修订 4 §4、修订 5 §2）。
  *
  * 与 aster-lang-test 参照实现 `scripts/lib/package-v1/display.mjs`、aster-lang-core `aster.core.layout` 同一定义，
  * 三处跑同一组共享向量（`shared/layout-vectors/`）。只用字符串运算、`foldKey` 与标识符字符类 `[\p{L}\p{M}\p{Nd}_]`，
@@ -23,6 +23,8 @@ const CODE_OF_RULE: Readonly<Record<LayoutRule, LayoutErrorCode>> = {
   L7: 'layout_structural_hides_operator',
   L8: 'layout_structural_hides_value',
   L9: 'layout_structural_hides_value',
+  L10a: 'layout_escape_delimiter_invalid',
+  L10b: 'layout_hidden_escape_changes_program',
 };
 
 function ruleError(rule: LayoutRule, message: string, limit?: LayoutLimitName): LayoutError {
@@ -257,7 +259,15 @@ export interface CheckPackageLayoutOptions extends LayoutRuleContext {
   readonly source: Uint8Array | string;
   /** manifest 的 `display.layoutVersion` */
   readonly layoutVersion: number;
+  /**
+   * L10b 的编译（ADR 0059 修订 5 §2.3）：缺省时含转义三元组的排版一律以 L10b 拒绝（失败封闭）；`'deferred'` 时只跑 L10a，
+   * 调用方之后自行调用 {@link checkHiddenEscapes}（CLI 的 verify 把 L10b 记在 display-ir）；给出编译函数时此处一并跑 L10b。
+   */
+  readonly l10b?: L10bCompile | 'deferred';
 }
+
+/** L10b 的编译接缝：返回 source 的 positionFreeSha256，编译失败（任何错误级诊断）返回 undefined。 */
+export type L10bCompile = (source: string) => string | undefined;
 
 /** 包排版 L1–L7（不编译）。成功返回解析后的排版，失败抛带规则号的 LayoutError。 */
 export function checkPackageLayout(opts: CheckPackageLayoutOptions): PolicyLayout {
@@ -279,10 +289,18 @@ export function checkPackageLayout(opts: CheckPackageLayoutOptions): PolicyLayou
   checkContentParity(layout);
   checkStructuralValues(layout, opts.vocabularyLocalized, opts.literalKeywords);
   checkOperators(layout, opts.operatorSpellings);
+  const triples = hiddenEscapeTriples(layout);
+  if (triples.length > 0 && opts.l10b !== 'deferred') {
+    if (opts.l10b === undefined) throw ruleError('L10b', 'hidden escape delimiters need the L10b compile check, which this caller does not run');
+    checkHiddenEscapes(layout, opts.l10b);
+  }
   return layout;
 }
 
-/** 派生排版 L′（run --display / show --from-display）：L2、L5、L6、L7。 */
+/**
+ * 派生排版 L′（run --display / show --from-display）：L2、L5、L6、L7 与 L10a（ADR 0059 修订 5 §4.4）。L10b 要编译 L′ 的
+ * 规范源码，由调用方在 L8 / L9 之后调用 {@link checkHiddenEscapes}。
+ */
 export function checkDerivedLayout(
   layout: PolicyLayout,
   vocabularyLocalized: readonly string[],
@@ -293,6 +311,90 @@ export function checkDerivedLayout(
   checkContentParity(layout);
   checkStructuralValues(layout, vocabularyLocalized, literalKeywords);
   checkOperators(layout, operatorSpellings);
+  hiddenEscapeTriples(layout);
+}
+
+// ---------------------------------------------------------------------------
+// L10 隐藏转义符（ADR 0059 修订 5）
+// ---------------------------------------------------------------------------
+
+/** 每个排版至多隐藏的转义对数（L10a 第 5 条）。 */
+export const MAX_HIDDEN_ESCAPES = 4;
+const ESCAPE_CONTENT = /^[\p{L}\p{M}\p{Nd}_]+$/u;
+
+/** 一个转义三元组：开反引号结构 span 的下标、内容 span 的名字、开 / 闭反引号在规范源码中的偏移（UTF-16）。 */
+export interface HiddenEscape {
+  readonly spanIndex: number;
+  readonly name: string;
+  readonly openOffset: number;
+  readonly closeOffset: number;
+}
+
+const isDelimiter = (s: LayoutSpan): boolean => !isContent(s) && canonicalOf(s) === '`' && s.display === '';
+
+/**
+ * L10a（不编译）：任何结构 span 的 display 不含反引号；canonical 含反引号的结构 span 恰为 {"`",""}，且从左到右配成
+ * 「反引号结构 span、内容 span、反引号结构 span」三元组；内容全由 [\p{L}\p{M}\p{Nd}_] 组成；至多 4 个。与 core
+ * `PackageLayoutRules.hiddenEscapeTriples` 同一定义。
+ */
+export function hiddenEscapeTriples(layout: PolicyLayout): HiddenEscape[] {
+  const spans = layout.spans;
+  const out: HiddenEscape[] = [];
+  let at = 0;
+  for (let i = 0; i < spans.length; i++) {
+    const s = spans[i]!;
+    if (!isContent(s)) {
+      if (s.display.includes('`')) throw ruleError('L10a', `structural span ${i} displays a backtick`);
+      if (s.canonical.includes('`')) {
+        if (!isDelimiter(s)) throw ruleError('L10a', `backtick structural span ${i} must be exactly {"\`",""}`);
+        const content = spans[i + 1];
+        const close = spans[i + 2];
+        if (content === undefined || !isContent(content) || close === undefined || isContent(close) || !close.canonical.includes('`')) {
+          throw ruleError('L10a', `backtick structural span ${i} is not part of an escape triple`);
+        }
+        if (close.display.includes('`')) throw ruleError('L10a', `structural span ${i + 2} displays a backtick`);
+        if (!isDelimiter(close)) throw ruleError('L10a', `backtick structural span ${i + 2} must be exactly {"\`",""}`);
+        if (!ESCAPE_CONTENT.test(content.text)) throw ruleError('L10a', `hidden escape content of span ${i + 1} is not a single name`);
+        out.push({ spanIndex: i, name: content.text, openOffset: at, closeOffset: at + 1 + content.text.length });
+        if (out.length > MAX_HIDDEN_ESCAPES) throw ruleError('L10a', `more than ${MAX_HIDDEN_ESCAPES} hidden escapes`);
+        at += 2 + content.text.length;
+        i += 2;
+        continue;
+      }
+    }
+    at += canonicalOf(s).length;
+  }
+  return out;
+}
+
+/** C⁻(S)：从 source 中删去子集 subset（第 k 位为 1 表示第 k 个三元组）里各三元组的两个反引号。 */
+export function stripHiddenEscapes(source: string, triples: readonly HiddenEscape[], subset: number): string {
+  let out = source;
+  for (let k = triples.length - 1; k >= 0; k--) {
+    if ((subset & (1 << k)) === 0) continue;
+    const e = triples[k]!;
+    out = out.slice(0, e.openOffset) + out.slice(e.openOffset + 1, e.closeOffset) + out.slice(e.closeOffset + 1);
+  }
+  return out;
+}
+
+/**
+ * L10b（编译）：对三元组的每个非空子集 S，C⁻(S) 编译失败或与 C 的 positionFreeSha256 相同。没有隐藏转义时不编译。
+ * 抛带 L10b 的 LayoutError：C 本身编译不了，或某个变体编译成另一个程序。
+ */
+export function checkHiddenEscapes(layout: PolicyLayout, compile: L10bCompile): void {
+  const triples = hiddenEscapeTriples(layout);
+  if (triples.length === 0) return;
+  const canonical = toCanonical(layout);
+  const base = compile(canonical);
+  if (base === undefined) throw ruleError('L10b', 'the canonical source does not compile');
+  for (let subset = 1; subset < 1 << triples.length; subset++) {
+    const hash = compile(stripHiddenEscapes(canonical, triples, subset));
+    if (hash !== undefined && hash !== base) {
+      const names = triples.filter((_, k) => (subset & (1 << k)) !== 0).map((t) => t.name);
+      throw ruleError('L10b', `removing the hidden escapes around ${JSON.stringify(names)} compiles to a different program`);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -336,13 +438,20 @@ const isNewline = (c: string | undefined): boolean => c === '\n' || c === '\r';
 /** L9 的 P：在结构 span 起止偏移处插入 U+0020（跳过文首文末、换行之后与行首缩进内），按偏移从大到小插入。 */
 export function padStructuralSpans(layout: PolicyLayout): string {
   const c = toCanonical(layout);
+  // 转义三元组的两个内侧边界（开反引号之后、闭反引号之前）不补空格（ADR 0059 修订 5 §2.2）；形状不合规时不免除
+  let inner = new Set<number>();
+  try {
+    inner = new Set(hiddenEscapeTriples(layout).flatMap((e) => [e.openOffset + 1, e.closeOffset]));
+  } catch {
+    // L10a 未过时照修订 4 补空格
+  }
   const bounds = new Set<number>();
   let at = 0;
   for (const s of layout.spans) {
     const len = canonicalOf(s).length;
     if (!isContent(s)) {
-      bounds.add(at);
-      bounds.add(at + len);
+      if (!inner.has(at)) bounds.add(at);
+      if (!inner.has(at + len)) bounds.add(at + len);
     }
     at += len;
   }

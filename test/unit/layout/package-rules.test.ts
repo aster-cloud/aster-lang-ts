@@ -21,12 +21,13 @@ import { EN_US } from '../../../src/config/lexicons/en-US.js';
 
 const DIR = join(process.cwd(), 'shared/layout-vectors');
 
-/** 四个副本的 sha256：与 aster-lang-test 真相源及 aster-lang-core 副本相同；真相源变化时同步复制并改这里。 */
+/** 五个副本的 sha256：与 aster-lang-test 真相源及 aster-lang-core 副本相同；真相源变化时同步复制并改这里。 */
 export const LAYOUT_VECTOR_SHA256: Readonly<Record<string, string>> = {
   'layout.json': 'cc51f78a44f87d3cf0c03543eeeb9d68015fd922923094c0aad76fe64a8aa79b',
-  'display-reconstruct.json': '0aedb893caeb81923a895fdecf5c9983314a276a6d966e8801c009840d0d04a1',
-  'display-padding.json': '294986f9fafc886bf478d3961233603d5ee9c40ac2f6485c88f550ae5763232f',
+  'display-reconstruct.json': '4e57005c1c69af329001537f2b043d492bcd4a1dc02a1f7ecaeba4c543e32537',
+  'display-padding.json': '9977a80d16d604cbb7de1bafa695799cb48a36c33ec9936aa2a61b7c324ee65d',
   'keyword-spellings.json': '467b1075dd67e2e7249d50ae3b47eb5c1f00a2f1827dcf501016e97ef906fd3f',
+  'display-escape.json': '8e7b1e9afba5a443f74b16e154418fa2e3bb9a142322114165c63b5aac94d5fb',
 };
 
 export function readVector<T>(name: string): T {

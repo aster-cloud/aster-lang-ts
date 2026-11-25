@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### 显示排版隐藏名字转义的反引号：L10（ADR 0059 修订 5）
+
+- `./layout` 新增 `hiddenEscapeTriples`（L10a 形状：结构 span 的 display 不含反引号；反引号结构 span 恰为 `` {"`",""} `` 并配成
+  「反引号、名字、反引号」三元组；内容是单个名字；至多 4 个）、`stripHiddenEscapes`（`C⁻(S)`）与 `checkHiddenEscapes`（L10b：每个非空子集
+  去掉反引号后编译失败或与 C 同一 `positionFreeSha256`），以及类型 `HiddenEscape` / `L10bCompile` / `LayoutCompileContext`；
+  规则号 `L10a` / `L10b`。`padStructuralSpans` 不再在三元组的两个内侧边界补空格。`checkPackageLayout` 跑 L10a，新选项 `l10b`：缺省时
+  含三元组即以 L10b 拒绝（失败封闭），`'deferred'` 由调用方之后跑，给编译函数则此处一并跑；`checkDerivedLayout` 跑 L10a。
+- **`validatePolicyLayout` 新增可选第 5 个参数 `compileContext`**（`{ locale, aliasSet, allowStructural, vocabulary }`）：L10a 总是检查
+  （新码 `layout_escape_delimiter_invalid`），给出 `compileContext` 时检查 L10b（新码 `layout_hidden_escape_changes_program`，只在
+  排版含三元组时编译，至多 16 次）；**不给时含三元组一律以 `layout_hidden_escape_changes_program` 拒绝**。被隐藏的转义名不算
+  「结构 span 藏值」：值 token 的区间取反引号之间的名字。
+- CLI（`policy-package`）：`verify` 的 `display` 跑 L10a、`display-ir`（`--recompile`）跑 L10b；`show` 与 `run --display` 对包排版补跑
+  L10b（`PKG_DISPLAY_INVALID`），派生排版 `L′` 的 L10a / L10b 失败为 `DISPLAY_REJECTED`；`show` 的 stderr 对每个隐藏的转义一行
+  `` hidden escape: "`当`" (name) ``。
+- 共享向量：新增 `shared/layout-vectors/display-escape.json`（21 例），`display-padding.json` 新增 5 例、`display-reconstruct.json` 新增 7 例，
+  与 aster-lang-test / aster-lang-core 逐字节相同（sha256 钉住）。
+
 ### 格式化器、LSP 与名字转义（ADR 0064 §6，Q7）
 
 - **格式化器**（normalize 模式）：作者写的每个转义都保留（按写法，包括冗余转义）；名字写成 aster-lang-core 在名字位置不接受的
