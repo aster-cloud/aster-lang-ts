@@ -39,6 +39,7 @@ import type { LspUiTexts } from '../../config/lexicons/lsp-ui-texts.js';
 import { resolveDocument, siteAt } from '../resolution.js';
 import type { ResolvableDocument, ResolutionSite } from '../resolution.js';
 import type { ResolvedRole } from '../../types.js';
+import { escapedHoverLine } from '../name-escape.js';
 
 /** 悬停所需的文档快照：tokens / AST，以及名称解析用的语法诊断与租户词汇。 */
 type HoverDocument = { text: string; tokens: readonly any[]; ast: any } & Omit<ResolvableDocument, 'ast'>;
@@ -105,7 +106,8 @@ export function registerHoverHandler(
     const ui = getLspUiTexts(getLexiconForDoc?.(params.textDocument.uri));
     const base = baseHover(entry, tokenIndex, params.position, params.textDocument.uri, getLexiconForDoc);
     const line = resolutionLineAt(entry, params.position, tokenNameAtOptimized(tokenIndex, params.position), ui);
-    return withResolutionLine(base, line);
+    // 转义名（ADR 0064 §6）：说明它是名字，不是关键词
+    return withResolutionLine(withResolutionLine(base, line), escapedHoverLine(entry.tokens, params.position));
   });
 }
 

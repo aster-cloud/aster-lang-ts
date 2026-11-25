@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+### 格式化器、LSP 与名字转义（ADR 0064 §6，Q7）
+
+- **格式化器**（normalize 模式）：作者写的每个转义都保留（按写法，包括冗余转义）；名字写成 aster-lang-core 在名字位置不接受的
+  硬关键词拼写（`with`、`and`、`to`…，如 de 字段 `with`）时，英文输出写成 `` `with` ``；打印结果与原文不是同一程序时，再把与
+  英文关键词、冠词同形的名字也写成转义重打一次（以去掉 origin 的 Core IR 判定）。不预先给所有同形词加反引号：
+  `Define Given with …` 不需要，旧引擎也读不了反引号。`printModule` 新增可选参数 `{ escape }`。
+- **LSP**：语义着色把转义拆成两个标点（新类型 `operator`）与名字（按角色着色，新修饰符 `escaped`），图例只在末尾追加，既有下标
+  不变；悬停在转义名上显示「escaped name `` `x` `` (a name, not a keyword)」；E901、W802、E808 上提供快速修复「Use `` `x` `` as
+  a name」，把文档里该词的每个整词出现（字符串、注释与已有转义之外）写成转义；构造字段与 `x.` 成员补全遇到与关键词同形的名字时
+  插入转义写法；`aster/canonicalPreview` 保留反引号，转义名照样经词汇解析（N5）。
+
+### 别名与词汇不得含反引号（ADR 0060 修订 2 X1–X5）
+
+- `validateAliasSet` 拒绝含 U+0060 的别名（新消息「含反引号」，cloud issue code `containsBacktick`），`validateVocabulary` 拒绝任一
+  角色本地名或同义词含反引号；字面量宏的**值**可以含反引号（它在字符串里）。
+- 共享夹具：`alias_validation_v2_parity.json` 新增两例校验与两例 E808 跳过转义名（形参、Let），sha256 两仓同改；
+  `literal_keyword_shadow_parity.json` 新增 X3（`` `思故乡` `` 与触发词并存时是名字）与 X4（触发词 `返回` 照旧丢弃、`` `返回` ``
+  是名字）；`literal_value_parity.json` 新增含反引号的值（合法）与触发词（拒绝）。
+
+### 名字转义：`` `x` `` 把任意词写成名字（ADR 0064，ADR 0060 修订 2 N6）
+
+- **新语法**：一对 ASCII 反引号包住一个标识符词素，同一行内（`` `版本` ``、`` `If` ``、`` `given` ``、限定名 `` `s`.`版本` ``）。
+  转义 token 永远是名字：kind 按首字符为 IDENT / TYPE_IDENT（与不转义时相同），`value` 是去掉反引号的内容，带 `escaped: true`，
+  start / end 覆盖两个反引号。它不是关键词、软关键词、BOOL / NULL / BLOCK_END，也不参与关键词翻译（`translateTokens`）、
+  `tokLowerAt` / `isKeyword` 等关键词判定（新 `kwText` 统一了解析器里直接比较 `.value` 的 19 处）与 E901。反引号此前在字符串与
+  注释之外是 E050，所以这是纯新增：已有源码的含义不变。
+- **规范化不透明**：`segmentString`、变换器的 `transformOutsideStrings` / `replaceOutsideStrings` 与引号归一把转义当作与字符串同等的
+  不透明片段（同一行里从反引号到下一个反引号；未闭合的不成片段），customRules、多词关键词、冠词、字面量宏、空白与标点归一都不碰它。
+  识别规则在 `src/frontend/name-escape.ts`，与 core `Canonicalizer.escapeClose` 相同。
+- **全角反引号 `｀`（U+FF40）不再折叠成 ASCII**：全角转半角跳过它，照旧报 E050（ADR 0064 Q2）。此前两引擎都把 zh 的 `｀版本｀`
+  折叠成反引号。E050 的 help 补「名字转义使用 ASCII 反引号」。
+- **新错误码 E902 `PARSE_INVALID_ESCAPE`**（参数 `{reason, char?}`，词法阶段，位置是开头的反引号）：同一行没有闭合反引号
+  `unterminated`、两个反引号之间为空 `empty`、内容含不能作标识符首字符 / 续字符的字符 `invalid_char`（带 `char`），按此优先级判定。
+- **诊断文案**：E901 的消息与 help、W802 与 E808 的 help 改为建议写成转义；E808 别名名字守卫跳过转义名（`compile` 的 `astGuard`
+  多收一个规范化文本参数），解析失败归因不再把转义里的别名当候选。
+- 共享夹具 `shared/escape_parity.json`（ADR 0064 §10 F1–F7，123 例，与 aster-lang-core 逐字节相同）；
+  `shared/parse_diagnostics_parity.json` 新增 E902 三例与全角反引号一例，`shared/keyword_name_parity.json` 的 E901 消息随之更新。
+  zh / de / hi 译文来自 aster-lang-locales / aster-lang-hi 同名分支，`diagnostic-overlays.generated.ts` 已按联编重新生成。
+
 ### 关键词当名字：两引擎同码同判（ADR 0056 修订 A6 K1–K3，产品裁决 2026-11-22）
 
 - **K1 新错误码 E901 `PARSE_KEYWORD_AS_NAME`**（参数 `{keyword: kw.*, kind}`）：名字位置上的结构关键词 `Define` / `If` / `Let` /

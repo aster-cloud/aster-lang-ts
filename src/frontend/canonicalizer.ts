@@ -20,6 +20,7 @@
  * - 制表符会被自动转换为 2 个空格
  */
 
+import { escapeClose } from './name-escape.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { getMultiWordKeywords } from '../config/lexicons/types.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
@@ -459,7 +460,12 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   // 落在关键词上时才采纳，避免误伤含这些二合字母的用户标识符
   // （fruehereSchaeden 不再被错写成 frühereSchäden）。预编译 RegExp 仍走缓存。
   if (effectiveLexicon.canonicalization.customRules) {
-    s = applyCustomRulesKeywordGated(s, effectiveLexicon);
+    // 名字转义不跑 customRules（ADR 0064 N2）：`fuer` 是名字 fuer，不是关键词 für
+    s = s.includes('`')
+      ? segmentString(s, quotes)
+        .map(segment => (segment.escape ? segment.text : applyCustomRulesKeywordGated(segment.text, effectiveLexicon)))
+        .join('')
+      : applyCustomRulesKeywordGated(s, effectiveLexicon);
   }
 
   // 翻译前变换器（如英语所有格 driver's age → driver.age）
@@ -692,7 +698,8 @@ function fullWidthToHalfWidth(
       segment.inString
         // 字符串字面量是用户数据而非语法，保持原样
         ? segment.text
-        : segment.text.replace(/[\u3000\uFF01-\uFF5E]/g, ch =>
+        // 全角反引号 ｀（U+FF40）不折叠：名字转义只认 ASCII 反引号（ADR 0064 Q2），它照旧由词法器报 E050
+        : segment.text.replace(/[\u3000\uFF01-\uFF3F\uFF41-\uFF5E]/g, ch =>
             ch === '\u3000' ? ' ' : String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)),
     )
     .join('');
@@ -728,6 +735,13 @@ function normalizeQuoteDelimiters(text: string, quotes: { open: string; close: s
   let close = quotes.close;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
+    const escape = opener === null && ch === '`' ? escapeClose(text, i) : -1;
+    if (escape > 0) {
+      // 名字转义原样保留（ADR 0064 N2）：里面的弯引号不是定界符，由词法器报 E902
+      out += text.slice(i, escape + 1);
+      i = escape;
+      continue;
+    }
     if (opener !== null) {
       if (quoteClosers(opener, quotes).includes(ch) && !isEscaped(text, i)) {
         out += opener === quotes.open ? ch : close;
@@ -765,7 +779,12 @@ function containsUnescapedClose(text: string, openAt: number, quotes: { open: st
   return false;
 }
 
-type Segment = { text: string; inString: boolean };
+/**
+ * 源码片段：字符串外的代码，或不透明片段（字符串字面量、名字转义）。名字转义的 inString 也为 true，
+ * 所以各步按 inString 跳过字符串的地方同样跳过转义（ADR 0064 N2）；escape 区分两者。
+ */
+type Segment = { text: string; inString: boolean; escape?: true };
+
 
 /**
  * 按字符串字面量分段。词法表引号对之外也认 ASCII `"…"`（与 Java Canonicalizer.segmentString 的通用回退一致）：
@@ -779,6 +798,15 @@ function segmentString(text: string, quotes: { open: string; close: string }): S
 
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
+    // 名字转义：字符串之外，反引号到同一行的下一个反引号是一个不透明片段
+    const close = inString || ch !== '`' ? -1 : escapeClose(text, i);
+    if (close > 0) {
+      if (current) segments.push({ text: current, inString: false });
+      current = '';
+      segments.push({ text: text.slice(i, close + 1), inString: true, escape: true });
+      i = close;
+      continue;
+    }
     current += ch;
 
     if (inString) {

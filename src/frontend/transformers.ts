@@ -9,6 +9,7 @@
  * - postTranslationTransformers: 关键字翻译后（处理规范化形式的语法糖）
  */
 
+import { escapeClose } from './name-escape.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 
@@ -300,6 +301,14 @@ function transformOutsideStrings(
 
   for (let i = 0; i < source.length; i++) {
     const ch = source[i]!;
+    // 名字转义是不透明片段（ADR 0064 N2）：与字符串一样原样保留
+    const escape = inString || ch !== '`' ? -1 : escapeClose(source, i);
+    if (escape > 0) {
+      output += transform(current) + source.slice(i, escape + 1);
+      current = '';
+      i = escape;
+      continue;
+    }
     current += ch;
 
     if (inString) {
@@ -348,6 +357,13 @@ function replaceOutsideStrings(
 
   for (let i = 0; i < source.length; i++) {
     const ch = source[i]!;
+    // 名字转义与字符串一样是不透明区间（ADR 0064 N2）：与之相交的匹配不改写
+    const escape = inString || ch !== '`' ? -1 : escapeClose(source, i);
+    if (escape > 0) {
+      stringRanges.push([i, escape + 1]);
+      i = escape;
+      continue;
+    }
     if (inString) {
       if (ch === expectedClose && !isEscaped(source, i)) {
         stringRanges.push([start, i + 1]);

@@ -141,6 +141,7 @@ export const enum ErrorCode {
   ALIAS_IDENTIFIER_COLLISION = "E808",
   PARSE_DUPLICATE_ANNOTATION_ARG = "E900",
   PARSE_KEYWORD_AS_NAME = "E901",
+  PARSE_INVALID_ESCAPE = "E902",
   SHADOWED_VOCABULARY = "W800",
   RESOLVED_WITHOUT_TYPE = "W801",
   KEYWORD_RENAMED_AS_NAME = "W802",
@@ -289,7 +290,8 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.DUPLICATE_DECLARATION]: "Duplicate declaration of '{written}' in {role} position",
   [ErrorCode.ALIAS_IDENTIFIER_COLLISION]: "Alias '{alias}' ({kind}) is used as a name in the source: '{name}'",
   [ErrorCode.PARSE_DUPLICATE_ANNOTATION_ARG]: "Annotation @{annotation} repeats the argument {name}",
-  [ErrorCode.PARSE_KEYWORD_AS_NAME]: "{keyword} is the keyword {kind} and cannot be used as a name; rename it",
+  [ErrorCode.PARSE_KEYWORD_AS_NAME]: "{keyword} is the keyword {kind} and cannot be used as a name; write it in backticks to use it as a name",
+  [ErrorCode.PARSE_INVALID_ESCAPE]: "Invalid name escape: {reason}",
   [ErrorCode.SHADOWED_VOCABULARY]: "Declaration '{written}' in {role} position shadows a vocabulary entry",
   [ErrorCode.RESOLVED_WITHOUT_TYPE]: "Resolved '{written}' in {role} position without a known receiver type",
   [ErrorCode.KEYWORD_RENAMED_AS_NAME]: "'{keyword}' is read as the keyword {kind}: the name becomes '{name}'",
@@ -525,7 +527,7 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     category: 'syntax',
     severity: 'error',
     message: "Unrecognized character {char}",
-    help: "Remove the character or replace it with valid Aster syntax.",
+    help: "Remove the character or replace it with valid Aster syntax; a name escape uses the ASCII backtick `.",
   },
   [ErrorCode.PARSE_UNTERMINATED_STRING]: {
     code: ErrorCode.PARSE_UNTERMINATED_STRING,
@@ -1223,7 +1225,7 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     category: 'scope',
     severity: 'error',
     message: "Alias '{alias}' ({kind}) is used as a name in the source: '{name}'",
-    help: "Rename the name, or replace the alias with a multi-word phrase.",
+    help: "Write the name in backticks (`{name}`) to keep it as a name, rename it, or replace the alias with a multi-word phrase.",
   },
   [ErrorCode.PARSE_DUPLICATE_ANNOTATION_ARG]: {
     code: ErrorCode.PARSE_DUPLICATE_ANNOTATION_ARG,
@@ -1236,8 +1238,15 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     code: ErrorCode.PARSE_KEYWORD_AS_NAME,
     category: 'syntax',
     severity: 'error',
-    message: "{keyword} is the keyword {kind} and cannot be used as a name; rename it",
-    help: "Choose a name that is not a keyword, for example by adding a word to it.",
+    message: "{keyword} is the keyword {kind} and cannot be used as a name; write it in backticks to use it as a name",
+    help: "Write the name in backticks, for example `name`, or choose a name that is not a keyword.",
+  },
+  [ErrorCode.PARSE_INVALID_ESCAPE]: {
+    code: ErrorCode.PARSE_INVALID_ESCAPE,
+    category: 'syntax',
+    severity: 'error',
+    message: "Invalid name escape: {reason}",
+    help: "Write one name between two ASCII backticks on the same line, for example `name`.",
   },
   [ErrorCode.SHADOWED_VOCABULARY]: {
     code: ErrorCode.SHADOWED_VOCABULARY,
@@ -1258,7 +1267,7 @@ export const ERROR_METADATA: Record<ErrorCode, ErrorMetadata> = {
     category: 'scope',
     severity: 'warning',
     message: "'{keyword}' is read as the keyword {kind}: the name becomes '{name}'",
-    help: "Rename it to keep a name of your own; the name used at run time is '{name}'.",
+    help: "Write it in backticks (`{keyword}`) to keep it as a name; otherwise the name used at run time is '{name}'.",
   },
 };
 

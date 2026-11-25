@@ -43,6 +43,7 @@ export type { MemberAccess, MemberCompletionOptions, MemberDocument } from './me
 export { parseDocumentText, parseDocumentWith } from './parse-document.js';
 export type { ParsedDocument } from './parse-document.js';
 import type { ResolvableDocument } from './resolution.js';
+import { completionName } from './name-escape.js';
 
 /** 补全所需的文档快照：tokens / AST，以及名称解析用的语法诊断与租户词汇。 */
 type CompletionDocument = { text: string; tokens: readonly any[]; ast: any } & Omit<ResolvableDocument, 'ast'>;
@@ -136,7 +137,9 @@ export function constructFieldCompletions(
   return fields.flatMap((canonical) => {
     const label = localizedField(entry.vocabulary, struct, canonical);
     if (taken.has(foldKey(label)) || taken.has(foldKey(canonical))) return [];
-    return [{ label, kind: CompletionItemKind.Field, ...(label === canonical ? {} : { detail: canonical }) }];
+    // 与关键词同形的字段名插入转义写法（ADR 0064 §6）
+    const insert = completionName(label, lexicon);
+    return [{ label, kind: CompletionItemKind.Field, ...(label === canonical ? {} : { detail: canonical }), ...(insert === label ? {} : { insertText: insert }) }];
   });
 }
 

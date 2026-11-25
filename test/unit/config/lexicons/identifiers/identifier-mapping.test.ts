@@ -74,6 +74,20 @@ describe('标识符映射模块', () => {
     });
   });
 
+  describe('词汇表验证：写法不得含反引号（ADR 0060 修订 2 X2）', () => {
+    it('本地名或同义词含反引号（任一角色）→ error', () => {
+      const result = validateVocabulary({
+        id: 't', name: 'T', locale: 'zh-CN', version: '1',
+        structs: [{ canonical: 'Order', localized: '`订单`', kind: IdentifierKind.STRUCT }],
+        fields: [{ canonical: 'amount', localized: '金额', kind: IdentifierKind.FIELD, parent: 'Order', aliases: ['`数额`'] }],
+        functions: [],
+      });
+      assert.strictEqual(result.valid, false);
+      assert.ok(result.errors.some((e) => e.includes('写法 "`订单`" 含反引号')), result.errors.join('; '));
+      assert.ok(result.errors.some((e) => e.includes('写法 "`数额`" 含反引号')), result.errors.join('; '));
+    });
+  });
+
   describe('词汇表验证：按角色与作用域判定冲突（ADR 0051）', () => {
     const base = { id: 't', name: 'T', locale: 'de-DE', version: '1', structs: [], functions: [] };
     const field = (canonical: string, localized: string, parent?: string): IdentifierMapping => ({

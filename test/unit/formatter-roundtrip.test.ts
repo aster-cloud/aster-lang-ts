@@ -281,3 +281,50 @@ describe('格式化器往返（源码 AST 不变，#246）', () => {
     }
   });
 });
+
+describe('格式化器与名字转义（ADR 0064 §6、Q7）', () => {
+  test('作者写的转义全部保留，含冗余转义', () => {
+    const source = 'Module m.\n\nDefine S with `given` as Int, `amount` as Int.\n\nRule f given s as S, produce Int:\n  Return s.`given` plus s.`amount`.\n';
+    const formatted = assertRoundTrip(source);
+    assert.match(formatted, /`given` as Int/);
+    assert.match(formatted, /`amount` as Int/);
+    assert.match(formatted, /s\.`given` plus s\.`amount`/);
+  });
+
+  test('结构关键词同形的类型名保留转义：`If`', () => {
+    const formatted = assertRoundTrip('Module m.\n\nDefine `If` with a as Int.\n');
+    assert.match(formatted, /Define `If` has a as Int\./);
+  });
+
+  test('英文输出里与关键词同形的名字自动加转义：de 字段 with', () => {
+    const source = 'Modul m.\n\nDefiniere Antrag mit with als Ganzzahl.\n\nRegel f gegeben a als Antrag, liefert Ganzzahl:\n  gib zurueck a.with.\n';
+    const formatted = assertRoundTrip(source, DE_DE);
+    assert.match(formatted, /`with` as Int/);
+  });
+
+  test('不需要转义的同形词不加反引号：Define Given with …', () => {
+    const formatted = assertRoundTrip('Module m.\n\nDefine Given with major as Int.\n');
+    assert.doesNotMatch(formatted, /`/);
+  });
+});
+
+describe('CORE_HARD_KEYWORDS 与 aster-lang-core 词法一致', () => {
+  test('等于 AsterLexer.g4 的单词硬 token 减去 structKeywordName（兄弟仓存在时）', async () => {
+    const { existsSync } = await import('node:fs');
+    const { CORE_HARD_KEYWORDS } = await import('../../src/formatter.js');
+    const coreDir = [join(repoRoot, '..', 'aster-lang-core'), join(repoRoot, 'aster-lang-core')].find(d => existsSync(join(d, 'src/main/antlr/AsterLexer.g4')));
+    if (!coreDir) return;
+    const lexerText = readFileSync(join(coreDir, 'src/main/antlr/AsterLexer.g4'), 'latin1');
+    const parserText = readFileSync(join(coreDir, 'src/main/antlr/AsterParser.g4'), 'utf8');
+    const soft = new Set((/structKeywordName\s*:([\s\S]*?);/.exec(parserText)?.[1] ?? '').match(/\b[A-Z_]+\b/g) ?? []);
+    const words = new Set<string>();
+    for (const m of lexerText.matchAll(/^([A-Z_]+)\s*:\s*([^;\n]+);/gm)) {
+      const [, token, body] = m;
+      if (soft.has(token!)) continue;
+      const alts = body!.split('|').map(s => s.trim());
+      if (!alts.every(a => /^'[A-Za-z]+'$/.test(a))) continue;
+      for (const a of alts) words.add(a.slice(1, -1));
+    }
+    assert.deepEqual([...CORE_HARD_KEYWORDS].sort(), [...words].sort());
+  });
+});

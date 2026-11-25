@@ -183,17 +183,29 @@ export function registerTokensHandlers(
         const line0 = (t.start.line - 1) | 0;
         const char0 = (t.start.col - 1) | 0;
         const len = Math.max(0, (t.end.col - t.start.col) | 0);
+        if (t.escaped) {
+          // 名字转义（ADR 0064 §6）：两个反引号按标点着色，中间的名字按名字角色着色并带 escaped 修饰符
+          const nameType = t.kind === TokenKind.TYPE_IDENT ? typesIndex['type'] : typesIndex['variable'];
+          push(line0, char0, 1, typesIndex['operator'] ?? 0, 0);
+          push(line0, char0 + 1, Math.max(0, len - 2), nameType ?? 0, 1 << (modsIndex['escaped'] ?? 0));
+          push(line0, char0 + len - 1, 1, typesIndex['operator'] ?? 0, 0);
+          continue;
+        }
         if (t.kind === TokenKind.KEYWORD) push(line0, char0, len, typesIndex['keyword'] ?? 0, 0);
         else if (t.kind === TokenKind.TYPE_IDENT) push(line0, char0, len, typesIndex['type'] ?? 0, 0);
       }
 
       // AST-based: function decl spans, data/enum decl spans, let locals
+      // 从转义 token 起的跨度不覆盖开反引号；恰好就是这个转义 token 时也不覆盖闭反引号并带 escaped 修饰符（ADR 0064 §6）
+      const escapedEnd = new Map(toks.filter(t => t?.escaped).map(t => [`${t.start.line}:${t.start.col}`, t.end.col as number]));
       const addSpan = (sp: Span | undefined, type: number, mods = 0): void => {
         if (!sp) return;
         const line0 = sp.start.line - 1;
-        const char0 = sp.start.col - 1;
-        const len = Math.max(0, sp.end.col - sp.start.col);
-        if (len > 0) push(line0, char0, len, type, mods);
+        const tokenEnd = escapedEnd.get(`${sp.start.line}:${sp.start.col}`);
+        const exact = tokenEnd !== undefined && sp.end.line === sp.start.line && sp.end.col === tokenEnd;
+        const char0 = sp.start.col - 1 + (tokenEnd !== undefined ? 1 : 0);
+        const len = Math.max(0, sp.end.col - sp.start.col - (exact ? 2 : tokenEnd !== undefined ? 1 : 0));
+        if (len > 0) push(line0, char0, len, type, exact ? mods | (1 << (modsIndex['escaped'] ?? 0)) : mods);
       };
       for (const d of (ast2.decls as Declaration[])) {
         if (d.kind === 'Func') {
@@ -229,8 +241,9 @@ export function registerTokensHandlers(
  * 语义标记图例
  */
 export const SEM_LEGEND: SemanticTokensLegend = {
-  tokenTypes: ['keyword', 'type', 'function', 'parameter', 'variable', 'enum', 'enumMember', 'property'],
-  tokenModifiers: ['declaration'],
+  // operator 与 escaped 追加在末尾：既有类型与修饰符的下标不变
+  tokenTypes: ['keyword', 'type', 'function', 'parameter', 'variable', 'enum', 'enumMember', 'property', 'operator'],
+  tokenModifiers: ['declaration', 'escaped'],
 };
 
 const TOKEN_TYPE_INDEX: Record<string, number> = Object.fromEntries(

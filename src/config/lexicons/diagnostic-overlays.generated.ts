@@ -149,7 +149,8 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "W801": "'{written}' an Position {role} wurde ohne bekannten Empfängertyp aufgelöst",
         "W802": "'{keyword}' wird als Schlüsselwort {kind} gelesen: Der Name wird zu '{name}'",
         "E900": "Annotation @{annotation} wiederholt das Argument {name}",
-        "E901": "{keyword} ist das Schlüsselwort {kind} und kann nicht als Name verwendet werden; benennen Sie ihn um"
+        "E901": "{keyword} ist das Schlüsselwort {kind} und kann nicht als Name verwendet werden; schreiben Sie ihn in Backticks, um ihn als Namen zu verwenden",
+        "E902": "Ungültiges Namens-Escape: {reason}"
       }
     },
     "diagnosticHelp": {
@@ -187,7 +188,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E030": "Entfernen Sie zyklische Abhängigkeiten oder strukturieren Sie sie um, damit eine topologische Ausführung möglich ist.",
         "E031": "Machen Sie beide Operanden zu Decimal (Suffix m) oder verwenden Sie Int/Long, die exakt zu Decimal erweitert werden.",
         "E032": "Passen Sie den Aufruf so an, dass genau die deklarierte Anzahl an Argumenten übergeben wird.",
-        "E050": "Entfernen Sie das Zeichen oder ersetzen Sie es durch gültige Aster-Syntax.",
+        "E050": "Entfernen Sie das Zeichen oder ersetzen Sie es durch gültige Aster-Syntax; ein Namens-Escape verwendet den ASCII-Backtick `.",
         "E051": "Schließen Sie die Zeichenkette in derselben Zeile mit einem passenden Anführungszeichen ab.",
         "E052": "Rücken Sie jeden verschachtelten Block um genau 2 Leerzeichen ein und kehren Sie auf eine umschließende Ebene zurück.",
         "E053": "Verwenden Sie einen kleineren Wert, ergänzen Sie das Suffix 'L' für Long oder schreiben Sie ein Decimal-Literal.",
@@ -287,12 +288,13 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "Fügen Sie dem Empfänger (Parameter oder Let) eine Typannotation hinzu, damit das Feld anhand seines deklarierten Typs aufgelöst wird, oder benennen Sie eines der kollidierenden Felder um.",
         "E806": "Schreiben Sie einen qualifizierten Namen (z. B. Stufe.Hoch) oder fügen Sie eine Typannotation hinzu.",
         "E807": "Benennen Sie eine der Deklarationen um oder entfernen Sie das Duplikat.",
-        "E808": "Benennen Sie den Namen um oder ersetzen Sie den Alias durch eine Mehrwortphrase.",
+        "E808": "Schreiben Sie den Namen in Backticks (`{name}`), um ihn als Namen zu behalten, benennen Sie ihn um oder ersetzen Sie den Alias durch eine Mehrwortphrase.",
         "W800": "Benennen Sie die Deklaration um, falls die Verdeckung unbeabsichtigt ist; die Deklaration hat Vorrang vor dem Vokabulareintrag.",
         "W801": "Fügen Sie dem Empfänger eine Typannotation hinzu, damit der Name anhand seines Typs geprüft werden kann.",
-        "W802": "Benennen Sie ihn um, um einen eigenen Namen zu behalten; zur Laufzeit wird der Name '{name}' verwendet.",
+        "W802": "Schreiben Sie ihn in Backticks (`{keyword}`), um ihn als Namen zu behalten; sonst wird zur Laufzeit der Name '{name}' verwendet.",
         "E900": "Geben Sie jedes benannte Argument einer Annotation höchstens einmal an.",
-        "E901": "Wählen Sie einen Namen, der kein Schlüsselwort ist, zum Beispiel indem Sie ein Wort anfügen."
+        "E901": "Schreiben Sie den Namen in Backticks, zum Beispiel `name`, oder wählen Sie einen Namen, der kein Schlüsselwort ist.",
+        "E902": "Schreiben Sie einen Namen zwischen zwei ASCII-Backticks in derselben Zeile, zum Beispiel `name`."
       }
     }
   },
@@ -437,7 +439,8 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "W801": "{role} स्थान पर '{written}' ज्ञात रिसीवर टाइप के बिना हल हुआ",
         "W802": "'{keyword}' को कीवर्ड {kind} के रूप में पढ़ा जाता है: नाम '{name}' हो जाता है",
         "E900": "एनोटेशन @{annotation} में तर्क {name} दोबारा दिया गया है",
-        "E901": "{keyword} कीवर्ड {kind} है और नाम के रूप में उपयोग नहीं किया जा सकता; इसका नाम बदलें"
+        "E901": "{keyword} कीवर्ड {kind} है और नाम के रूप में उपयोग नहीं किया जा सकता; इसे नाम के रूप में उपयोग करने के लिए बैकटिक में लिखें",
+        "E902": "अमान्य नाम एस्केप: {reason}"
       }
     },
     "diagnosticHelp": {
@@ -475,7 +478,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E030": "टोपोलॉजिकल निष्पादन के लिए चक्रीय निर्भरताएँ हटाएँ या पुनर्गठित करें।",
         "E031": "दोनों ऑपरेंड Decimal (प्रत्यय m) बनाएँ, या Int/Long उपयोग करें जो सटीक रूप से Decimal में प्रोन्नत होते हैं।",
         "E032": "कॉल में ठीक उतने तर्क दें जितने घोषित हैं।",
-        "E050": "वर्ण हटाएँ या उसे मान्य Aster सिंटैक्स से बदलें।",
+        "E050": "वर्ण हटाएँ या उसे मान्य Aster सिंटैक्स से बदलें; नाम एस्केप ASCII बैकटिक ` का उपयोग करता है।",
         "E051": "उसी पंक्ति में मेल खाते उद्धरण चिह्न से स्ट्रिंग बंद करें।",
         "E052": "हर नेस्टेड ब्लॉक को ठीक 2 स्पेस इंडेंट करें और किसी बाहरी स्तर पर वापस लौटें।",
         "E053": "छोटा मान उपयोग करें, Long के लिए 'L' प्रत्यय जोड़ें, या Decimal लिटरल लिखें।",
@@ -575,12 +578,13 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "रिसीवर (पैरामीटर या Let) पर टाइप एनोटेशन जोड़ें ताकि फ़ील्ड उसके घोषित टाइप से हल हो, या टकराने वाले फ़ील्डों में से एक का नाम बदलें।",
         "E806": "योग्य नाम लिखें (जैसे Stufe.Hoch) या टाइप एनोटेशन जोड़ें।",
         "E807": "घोषणाओं में से एक का नाम बदलें या दोहराव हटाएँ।",
-        "E808": "नाम बदलें, या उपनाम को बहु-शब्द वाक्यांश से बदलें।",
+        "E808": "इसे नाम बनाए रखने के लिए नाम को बैकटिक में लिखें (`{name}`), नाम बदलें, या उपनाम को बहु-शब्द वाक्यांश से बदलें।",
         "W800": "यदि ढकना अनचाहा है तो घोषणा का नाम बदलें; घोषणा को शब्दावली प्रविष्टि पर वरीयता मिलती है।",
         "W801": "रिसीवर पर टाइप एनोटेशन जोड़ें ताकि नाम को उसके टाइप से जाँचा जा सके।",
-        "W802": "अपना नाम रखने के लिए इसका नाम बदलें; रनटाइम पर उपयोग होने वाला नाम '{name}' है।",
+        "W802": "इसे नाम बनाए रखने के लिए बैकटिक में लिखें (`{keyword}`); अन्यथा रनटाइम पर उपयोग होने वाला नाम '{name}' है।",
         "E900": "एनोटेशन के प्रत्येक नामित तर्क को अधिकतम एक बार दें।",
-        "E901": "ऐसा नाम चुनें जो कीवर्ड न हो, जैसे उसमें एक शब्द जोड़कर।"
+        "E901": "नाम को बैकटिक में लिखें, जैसे `नाम`, या ऐसा नाम चुनें जो कीवर्ड न हो।",
+        "E902": "एक ही पंक्ति में दो ASCII बैकटिक के बीच एक नाम लिखें, जैसे `नाम`।"
       }
     }
   },
@@ -725,7 +729,8 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "W801": "在 {role} 位置解析 '{written}' 时接收者类型未知",
         "W802": "'{keyword}' 被读作关键词 {kind}：名字变为 '{name}'",
         "E900": "注解 @{annotation} 重复给出了参数 {name}",
-        "E901": "{keyword} 是关键词 {kind}，不能用作名字，请改名"
+        "E901": "{keyword} 是关键词 {kind}，不能用作名字；写成反引号形式即可用作名字",
+        "E902": "名字转义无效：{reason}"
       }
     },
     "diagnosticHelp": {
@@ -763,7 +768,7 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E030": "移除或重构循环依赖，确保步骤可拓扑排序执行。",
         "E031": "让两个操作数都是 Decimal（后缀 m），或使用可精确提升为 Decimal 的 Int/Long。",
         "E032": "调整调用，传入与声明数量相同的参数。",
-        "E050": "删除该字符，或替换为合法的 Aster 语法。",
+        "E050": "删除该字符或改成合法的 Aster 语法；名字转义使用 ASCII 反引号 `。",
         "E051": "在同一行内用配对的引号闭合字符串。",
         "E052": "每个嵌套块恰好缩进 2 个空格，并回退到某个外层缩进级别。",
         "E053": "改用更小的值、为 Long 加上 'L' 后缀，或改写为 Decimal 字面量。",
@@ -863,12 +868,13 @@ export const DIAGNOSTIC_OVERLAYS: Readonly<Record<string, Pick<OverlayData, 'dia
         "E805": "为接收者（参数或 Let）添加类型注解，使字段按其声明类型解析；或重命名冲突的字段。",
         "E806": "请写限定名（如 Stufe.Hoch）或添加类型注解。",
         "E807": "重命名其中一个声明，或删除重复项。",
-        "E808": "给这个名字改名，或把别名改成多词短语。",
+        "E808": "把名字写在反引号里（`{name}`）以保留为名字，或改名，或把别名改成多词短语。",
         "W800": "若非有意遮蔽请重命名声明；声明优先于词汇表条目。",
         "W801": "为接收者添加类型注解，以便按其类型校验该名称。",
-        "W802": "如需保留自己的名字请改名；运行时使用的名字是 '{name}'。",
+        "W802": "写成反引号形式（`{keyword}`）以保留为名字；否则运行时使用的名字是 '{name}'。",
         "E900": "注解的每个具名参数最多只能给出一次。",
-        "E901": "换一个不是关键词的名字，例如在后面加一个词。"
+        "E901": "把名字写在反引号里，例如 `名字`，或换一个不是关键词的名字。",
+        "E902": "在同一行的两个 ASCII 反引号之间写一个名字，例如 `名字`。"
       }
     }
   },

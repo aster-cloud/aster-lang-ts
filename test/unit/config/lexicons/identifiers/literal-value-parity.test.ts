@@ -39,7 +39,7 @@ const vocabOf = (c: LiteralValueCase): DomainVocabulary => ({
 });
 
 test('共享夹具共 25 例', () => {
-  assert.equal(CASES.length, 25);
+  assert.equal(CASES.length, 27);
 });
 
 for (const c of CASES) {
@@ -61,3 +61,25 @@ for (const c of CASES) {
     assert.equal(canonicalize(canonical, lexicon), canonical, '展开结果再规范化不变');
   });
 }
+
+test('ts 夹具与 aster-lang-core 副本 byte-identical（跨仓同源）', () => {
+  // 与 keyword-name-parity 同口径：CI 中兄弟仓必须存在（fail-closed），本地未并列 checkout 时跳过。
+  const RELATIVE = 'src/test/resources/diagnostics/literal_value_parity.json';
+  const candidates = [resolve(process.cwd(), '..', 'aster-lang-core', RELATIVE), resolve(process.cwd(), 'aster-lang-core', RELATIVE)];
+  const inCi =
+    process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true' || process.env.ASTER_ERROR_CODES_PARITY_REQUIRED === 'true';
+  let javaBytes: Buffer | undefined;
+  for (const candidate of candidates) {
+    try {
+      javaBytes = readFileSync(candidate);
+      break;
+    } catch {
+      // 试下一个候选路径
+    }
+  }
+  if (!javaBytes) {
+    if (inCi) assert.fail(`CI 中必须 checkout aster-lang-core 才能校验 parity 夹具同源：\n${candidates.join('\n')}`);
+    return;
+  }
+  assert.ok(readFileSync(FIXTURE).equals(javaBytes), 'literal_value_parity.json 与 aster-lang-core 副本必须 byte-identical');
+});

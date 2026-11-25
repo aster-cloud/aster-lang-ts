@@ -85,7 +85,8 @@ export const PROFILE_MISPLACED = 'Profile must follow the Module header and appe
 
 /** ADR 0046：模块头之后的下一条声明是否为 Profile（关键词文本须与 Java 一致，精确为 Profile）。 */
 export function atProfileDecl(ctx: ParserContext): boolean {
-  return ctx.at(TokenKind.TYPE_IDENT, 'Profile');
+  // 转义的 `Profile` 是名字，不开启档案声明（ADR 0064 N3）
+  return ctx.at(TokenKind.TYPE_IDENT, 'Profile') && !ctx.peek().escaped;
 }
 
 /**
