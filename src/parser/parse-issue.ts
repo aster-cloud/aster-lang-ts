@@ -39,6 +39,8 @@ export const lit = (text: string): string => `'${text}'`;
 export const Issue = {
   expected: (token: string, message: string): ParseIssue =>
     issue(ErrorCode.PARSE_EXPECTED, { token }, message),
+  expectedBefore: (token: string, before: string, message: string): ParseIssue =>
+    issue(ErrorCode.PARSE_EXPECTED_BEFORE, { token, before }, message),
   expectedAfter: (token: string, after: string, message: string): ParseIssue =>
     issue(ErrorCode.PARSE_EXPECTED_AFTER, { token, after }, message),
   expectedIn: (token: string, context: string, message: string): ParseIssue =>
