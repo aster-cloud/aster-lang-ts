@@ -20,6 +20,7 @@ export enum DiagnosticCode {
   L006_IntLiteralOutOfRange = 'L006',
   L007_LongLiteralOutOfRange = 'L007',
   L008_FloatLiteralNotFinite = 'L008',
+  L009_InvalidEscape = 'L009',
 
   // Lowering errors (L101-L199)：仅作构造入口，诊断实际发共享码 E600–E605（见 Diagnostics）
   L101_UnknownDeclKind = 'L101',
@@ -352,6 +353,19 @@ export const Diagnostics = {
       .withMessage(
         `Float literal ${raw} overflows to Infinity and is not a finite Float. ` +
         `Use a Decimal literal for values beyond the double range.`)
+      .withPosition(pos),
+
+  /**
+   * E902 名字转义格式错误（ADR 0064 N1a）：reason 为 unterminated / empty / invalid_char，invalid_char 另带 char。
+   * 英文消息与 aster-lang-core CnlErrorListener.escapeReason 逐字相同；位置是开头的反引号。
+   */
+  invalidEscape: (reason: 'unterminated' | 'empty' | 'invalid_char', char: string | undefined, pos: Position): DiagnosticBuilder =>
+    DiagnosticBuilder.error(DiagnosticCode.L009_InvalidEscape)
+      .withErrorCode(ErrorCode.PARSE_INVALID_ESCAPE, char === undefined ? { reason } : { reason, char: `'${char}'` })
+      .withMessage(`Invalid name escape: ${
+        reason === 'unterminated' ? 'the closing backtick is missing'
+          : reason === 'empty' ? 'nothing is written between the backticks'
+            : `'${char}' cannot be part of a name`}`)
       .withPosition(pos),
 
   unexpectedCharacter: (char: string, pos: Position): DiagnosticBuilder =>

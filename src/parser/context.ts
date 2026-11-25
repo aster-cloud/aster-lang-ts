@@ -133,6 +133,8 @@ export function kwParts(phrase: string): string[] {
 export function tokLowerAt(ctx: ParserContext, idx: number): string | null {
   const tok = ctx.tokens[idx];
   if (!tok) return null;
+  // 名字转义永远是名字（ADR 0064 N3）：不参与 isKeyword / isKeywordSeq 等任何关键词判定
+  if (tok.escaped) return null;
   if (
     tok.kind !== TokenKind.IDENT &&
     tok.kind !== TokenKind.TYPE_IDENT &&
@@ -140,6 +142,15 @@ export function tokLowerAt(ctx: ParserContext, idx: number): string | null {
   )
     return null;
   return ((tok.value as string) || '').toLowerCase();
+}
+
+/**
+ * 记号作为关键词比较时的小写文本；名字转义（ADR 0064 N3）与非文本记号返回空串，永远不等于任何关键词。
+ * 解析器里按 `.value` 直接比较关键词的地方都经这里，与 {@link tokLowerAt} 同一口径。
+ */
+export function kwText(tok: Token | undefined): string {
+  if (!tok || tok.escaped || typeof tok.value !== 'string') return '';
+  return tok.value.toLowerCase();
 }
 
 /**

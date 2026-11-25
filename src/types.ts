@@ -100,6 +100,11 @@ export interface Token {
   readonly raw?: string;
   /** 本 token 由非英文关键词翻译而来（关键词翻译器设置）；源码写的是关键词，不是用户标识符。 */
   readonly translated?: true;
+  /**
+   * 本 token 来自名字转义 `` `x` ``（ADR 0064 §3.2）：kind 为 IDENT / TYPE_IDENT，value 是去掉反引号的内容，
+   * start / end 覆盖两个反引号。转义 token 永远是名字：关键词翻译、关键词判定与 E901 都排除它（N3）。
+   */
+  readonly escaped?: true;
 }
 
 export enum TokenKind {

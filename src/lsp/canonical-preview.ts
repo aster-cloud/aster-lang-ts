@@ -106,8 +106,10 @@ function siteReplacements(text: string, doc: ResolvableDocument, lexicon: Lexico
       const c = tokens[i]!;
       if ((c.kind !== TokenKind.IDENT && c.kind !== TokenKind.TYPE_IDENT) || c.start.line !== c.end.line) return [];
       const [a, b] = toRange({ start: t.start, end: t.end });
-      const text = (canLines[c.start.line - 1] ?? '').slice(c.start.col - 1, c.end.col - 1);
-      return [{ a, b, exact: t.srcAlign === 'exact', line: c.start.line, col: c.start.col - 1, text }];
+      // 名字转义（ADR 0064）：token 跨度含两个反引号，名字是其间的内容；替换只换内容，预览保留反引号
+      const trim = c.escaped ? 1 : 0;
+      const text = (canLines[c.start.line - 1] ?? '').slice(c.start.col - 1 + trim, c.end.col - 1 - trim);
+      return [{ a: a + trim, b: b - trim, exact: t.srcAlign === 'exact', line: c.start.line, col: c.start.col - 1 + trim, text }];
     });
     located = sites.map((site) => ({ site, target: canonicalTarget(site, idents, toRange) }));
   } catch {

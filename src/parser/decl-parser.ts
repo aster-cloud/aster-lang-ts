@@ -12,7 +12,7 @@ import { parseAnnotations } from './annotation-parser.js';
 import type { Diagnostic } from '../diagnostics/diagnostics.js';
 import { toDiagnostic } from '../diagnostics/diagnostics.js';
 import type { ParserContext } from './context.js';
-import { kwParts, tokLowerAt } from './context.js';
+import { kwParts, tokLowerAt, kwText } from './context.js';
 import type { ParserTools } from './parser-tools.js';
 import {
   atProfileDecl,
@@ -547,7 +547,7 @@ function prescanDeclaredTypes(ctx: ParserContext): void {
     if (isAlias) {
       // 类型别名须形如 `type <Name> as ...`；否则 type 是字段名/其它用法，不登记。
       const afterName = tokens[i + 2];
-      if (!afterName || (afterName.value as string)?.toLowerCase() !== KW.AS) {
+      if (!afterName || kwText(afterName) !== KW.AS) {
         continue;
       }
       // type alias 别名标量，不可构造 → 只进 declaredTypes（类型解析），不进 record 集。

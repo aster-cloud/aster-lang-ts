@@ -139,7 +139,7 @@ export function compileSource(source: string, opts: CompileSourceOptions): strin
     result = compile(source, {
       lexicon,
       ...(opts.vocabulary ? { vocabulary: opts.vocabulary } : {}),
-      astGuard: (ast) => checkAliasIdentifiers(ast, opts.aliasSet, opts.locale),
+      astGuard: (ast, canonical) => checkAliasIdentifiers(ast, opts.aliasSet, opts.locale, canonical),
     });
   } catch (e) {
     throw new CompileFailure([`编译器异常：${(e as Error).message}`]);

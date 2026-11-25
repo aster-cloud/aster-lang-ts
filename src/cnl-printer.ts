@@ -135,21 +135,37 @@ function stripSpans(t: Type): unknown {
   return JSON.parse(JSON.stringify(t, (k, v) => (k === 'span' ? undefined : v)));
 }
 
-export function printModule(m: Module): string {
-  return new CnlPrinter().module(m);
+/** 打印选项。 */
+export interface PrintOptions {
+  /**
+   * 名字的一段（点号分隔）是否写成转义 `` `x` ``（ADR 0064 §6）。格式化器按源码里作者写过的转义与必要的转义给出；
+   * 缺省不转义。
+   */
+  readonly escape?: (segment: string) => boolean;
+}
+
+export function printModule(m: Module, opts?: PrintOptions): string {
+  return new CnlPrinter(opts?.escape).module(m);
 }
 
 class CnlPrinter {
   // 当前语句所在缩进层级：块形 lambda 的函数体须比所在语句深一层
   private level = 0;
 
+  constructor(private readonly escape: (segment: string) => boolean = () => false) {}
+
+  /** 名字（可带点号）按段输出，需要转义的段写成 `` `x` ``。 */
+  private n(name: string): string {
+    return name.split('.').map(seg => (seg !== '' && this.escape(seg) ? `\`${seg}\`` : seg)).join('.');
+  }
+
   module(m: Module): string {
     const head: string[] = [];
-    if (m.name) head.push(`Module ${m.name}.`);
+    if (m.name) head.push(`Module ${this.n(m.name)}.`);
     // ADR 0046：档案声明紧跟模块头
     if (m.name && m.profile !== undefined) head.push(`Profile ${JSON.stringify(m.profile)}.`);
     // 类型别名不在 decls 中；统一前置于其余声明（别名可先用后定义，位置不影响语义）
-    const aliases = (m.typeAliasDecls ?? []).map(a => `Type ${a.name} as ${this.type(a.type)}.`);
+    const aliases = (m.typeAliasDecls ?? []).map(a => `Type ${this.n(a.name)} as ${this.type(a.type)}.`);
     const decls = [...aliases, ...m.decls.map(d => this.decl(d))];
     if (head.length === 0) return decls.join('\n\n');
     return decls.length > 0 ? `${head.join('\n')}\n\n${decls.join('\n\n')}` : head.join('\n');
@@ -159,8 +175,8 @@ class CnlPrinter {
     switch (d.kind) {
       case 'Import': {
         const version = d.version !== undefined ? ` version ${d.version}` : '';
-        const asPart = d.asName ? ` as ${d.asName}` : '';
-        return `Use ${d.name}${version}${asPart}.`;
+        const asPart = d.asName ? ` as ${this.n(d.asName)}` : '';
+        return `Use ${this.n(d.name)}${version}${asPart}.`;
       }
       case 'Data':
         return this.data(d);
@@ -172,11 +188,11 @@ class CnlPrinter {
   }
 
   data(d: Data): string {
-    return `Define ${d.name} has ${this.bindings(d.fields)}.`;
+    return `Define ${this.n(d.name)} has ${this.bindings(d.fields)}.`;
   }
 
   enumDecl(e: Enum): string {
-    return `Define ${e.name} as one of ${e.variants.join(', ')}.`;
+    return `Define ${this.n(e.name)} as one of ${e.variants.map(v => this.n(v)).join(', ')}.`;
   }
 
   /**
@@ -192,7 +208,7 @@ class CnlPrinter {
   binding(b: Binding, beforeBareName = false): string {
     const annotations = (b.annotations ?? []).map(a => this.annotation(a));
     const type = beforeBareName && (b.constraints ?? []).length === 0 ? this.typeBeforeSeparator(b.type) : this.type(b.type);
-    const typed = b.typeInferred ? b.name : `${b.name} as ${type}`;
+    const typed = b.typeInferred ? this.n(b.name) : `${this.n(b.name)} as ${type}`;
     const constraints = (b.constraints ?? []).map(c => this.constraint(c));
     return [...annotations, typed, ...constraints].join(' ');
   }
@@ -219,7 +235,7 @@ class CnlPrinter {
     const params = f.params.length > 0 ? ` given ${this.bindings(f.params)}` : '';
     const ret = f.retTypeInferred ? '' : ` ${this.type(f.retType)}`;
     const effects = this.effectClause(f);
-    const head = `Rule ${f.name}${typeParams}${params}, produce${ret}${effects}`;
+    const head = `Rule ${this.n(f.name)}${typeParams}${params}, produce${ret}${effects}`;
     const annotations = (f.annotations ?? []).map(a => `${this.annotation(a)}\n`).join('');
     if (!f.body) return `${annotations}${head}.`;
     return `${annotations}${head}:\n${this.block(f.body, 1)}`;
@@ -257,15 +273,15 @@ class CnlPrinter {
     switch (s.kind) {
       case 'Let':
         // 块形 lambda 以函数体收尾，不再跟句点
-        return `Let ${s.name} be ${this.expr(s.expr)}${this.endsWithBlock(s.expr) ? '' : '.'}`;
+        return `Let ${this.n(s.name)} be ${this.expr(s.expr)}${this.endsWithBlock(s.expr) ? '' : '.'}`;
       case 'Set':
-        return `Set ${s.name} to ${this.expr(s.expr)}.`;
+        return `Set ${this.n(s.name)} to ${this.expr(s.expr)}.`;
       case 'Return':
         return `Return ${this.expr(s.expr)}.`;
       case 'Start':
-        return `Start ${s.name} as async ${this.expr(s.expr)}.`;
+        return `Start ${this.n(s.name)} as async ${this.expr(s.expr)}.`;
       case 'Wait':
-        return `Wait for ${s.names.join(' and ')}.`;
+        return `Wait for ${s.names.map(x => this.n(x)).join(' and ')}.`;
       case 'If':
         return this.ifStmt(s, lvl);
       case 'Match':
@@ -307,7 +323,7 @@ class CnlPrinter {
     const deps = st.dependencies.length > 0
       ? ` depends on [${st.dependencies.map(d => JSON.stringify(d)).join(', ')}]`
       : '';
-    const body = `${indent(lvl)}step ${st.name}${deps}:\n${this.block(st.body, lvl + 1)}`;
+    const body = `${indent(lvl)}step ${this.n(st.name)}${deps}:\n${this.block(st.body, lvl + 1)}`;
     if (!st.compensate) return body;
     return `${body}\n${indent(lvl)}compensate:\n${this.block(st.compensate, lvl + 1)}`;
   }
@@ -319,11 +335,11 @@ class CnlPrinter {
       case 'PatternInt':
         return String(p.value);
       case 'PatternName':
-        return p.name;
+        return this.n(p.name);
       case 'PatternCtor': {
-        if (p.args && p.args.length > 0) return `${p.typeName}(${p.args.map(a => this.pattern(a)).join(', ')})`;
-        if (p.names && p.names.length > 0) return `${p.typeName}(${p.names.join(', ')})`;
-        return p.typeName;
+        if (p.args && p.args.length > 0) return `${this.n(p.typeName)}(${p.args.map(a => this.pattern(a)).join(', ')})`;
+        if (p.names && p.names.length > 0) return `${this.n(p.typeName)}(${p.names.map(x => this.n(x)).join(', ')})`;
+        return this.n(p.typeName);
       }
       default:
         return String((p as { name?: unknown }).name);
@@ -337,7 +353,7 @@ class CnlPrinter {
   expr(e: Expression): string {
     switch (e.kind) {
       case 'Name':
-        return e.name;
+        return this.n(e.name);
       case 'Bool':
         return e.value ? 'true' : 'false';
       case 'Null':
@@ -366,7 +382,7 @@ class CnlPrinter {
       case 'ListLit':
         return `[${e.elements.map(x => this.expr(x)).join(', ')}]`;
       case 'Construct':
-        return `${e.typeName} with ${e.fields.map(f => this.constructField(f)).join(', ')}`;
+        return `${this.n(e.typeName)} with ${e.fields.map(f => this.constructField(f)).join(', ')}`;
       case 'Call':
         return this.call(e);
       case 'Lambda':
@@ -380,13 +396,13 @@ class CnlPrinter {
   /** 字段值由 parseExpr 读到逗号为止；只有以嵌套构造收尾的值会吞掉后续字段，须加括号 */
   constructField(f: ConstructField): string {
     const text = this.expr(f.expr);
-    return `${f.name} set to ${endsWithConstruct(f.expr) ? `(${text})` : text}`;
+    return `${this.n(f.name)} set to ${endsWithConstruct(f.expr) ? `(${text})` : text}`;
   }
 
   call(e: Expression & { kind: 'Call' }): string {
     const op = operatorOf(e);
     if (op !== undefined) return this.operatorCall(op, e.args);
-    const target = e.target.kind === 'Name' ? e.target.name : `(${this.expr(e.target)})`;
+    const target = e.target.kind === 'Name' ? this.n(e.target.name) : `(${this.expr(e.target)})`;
     return `${target}(${e.args.map(a => this.expr(a)).join(', ')})`;
   }
 
@@ -405,7 +421,7 @@ class CnlPrinter {
   lambda(e: Expression & { kind: 'Lambda' }): string {
     if (isArrowLambda(e)) {
       const ret = e.body.statements[0] as Statement & { kind: 'Return' };
-      const ps = e.params.map((p: Binding) => (p.typeInferred ? p.name : `${p.name} as ${this.type(p.type)}`));
+      const ps = e.params.map((p: Binding) => (p.typeInferred ? this.n(p.name) : `${this.n(p.name)} as ${this.type(p.type)}`));
       return `(${ps.join(', ')}) => ${this.expr(ret.expr)}`;
     }
     const lvl = this.level;
@@ -421,7 +437,7 @@ class CnlPrinter {
     switch (t.kind) {
       case 'TypeName':
       case 'TypeVar':
-        return t.name;
+        return this.n(t.name);
       case 'Maybe':
         // 后缀 `?` 只跟在名字（或另一个 `?`）后面；`(A) -> B?` 的 `?` 归返回类型，可空的函数类型须加括号。
         // 其余内层写前缀 `maybe T`：`@pii(…) T?` 会读成注解包在 Maybe 外面，`list of T?` 会读成 list of (T?)，都改变含义
@@ -438,7 +454,7 @@ class CnlPrinter {
       case 'Map':
         return `map ${this.type(t.key)} to ${this.type(t.val)}`;
       case 'TypeApp':
-        return `${t.base} of ${t.args.map((a, i) => (i < t.args.length - 1 ? this.typeBeforeSeparator(a) : this.type(a))).join(' and ')}`;
+        return `${this.n(t.base)} of ${t.args.map((a, i) => (i < t.args.length - 1 ? this.typeBeforeSeparator(a) : this.type(a))).join(' and ')}`;
       case 'TypePii':
         return `@pii(${t.sensitivity}, ${t.category}) ${this.type(t.baseType)}`;
       default:

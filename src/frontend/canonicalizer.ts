@@ -20,6 +20,7 @@
  * - 制表符会被自动转换为 2 个空格
  */
 
+import { charClassRegex, escapeClose, opaqueRanges } from './name-escape.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { getMultiWordKeywords } from '../config/lexicons/types.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
@@ -459,7 +460,12 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   // 落在关键词上时才采纳，避免误伤含这些二合字母的用户标识符
   // （fruehereSchaeden 不再被错写成 frühereSchäden）。预编译 RegExp 仍走缓存。
   if (effectiveLexicon.canonicalization.customRules) {
-    s = applyCustomRulesKeywordGated(s, effectiveLexicon);
+    // 名字转义不跑 customRules（ADR 0064 N2）：`fuer` 是名字 fuer，不是关键词 für
+    s = s.includes('`')
+      ? segmentString(s, quotes)
+        .map(segment => (segment.escape ? segment.text : applyCustomRulesKeywordGated(segment.text, effectiveLexicon)))
+        .join('')
+      : applyCustomRulesKeywordGated(s, effectiveLexicon);
   }
 
   // 翻译前变换器（如英语所有格 driver's age → driver.age）
@@ -692,7 +698,8 @@ function fullWidthToHalfWidth(
       segment.inString
         // 字符串字面量是用户数据而非语法，保持原样
         ? segment.text
-        : segment.text.replace(/[\u3000\uFF01-\uFF5E]/g, ch =>
+        // 全角反引号 ｀（U+FF40）不折叠：名字转义只认 ASCII 反引号（ADR 0064 Q2），它照旧由词法器报 E050
+        : segment.text.replace(/[\u3000\uFF01-\uFF3F\uFF41-\uFF5E]/g, ch =>
             ch === '\u3000' ? ' ' : String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)),
     )
     .join('');
@@ -722,32 +729,65 @@ function quoteClosers(opener: string, quotes: { open: string; close: string }): 
  */
 function normalizeQuoteDelimiters(text: string, quotes: { open: string; close: string }): string {
   const ascii = quotes.open === '"' && quotes.close === '"';
-  let out = '';
-  let opener: string | null = null;
-  // 当前字符串换成的闭引号（词法表闭引号，或内容含词法表闭引号时的 ASCII `"`）
-  let close = quotes.close;
-  for (let i = 0; i < text.length; i++) {
+  const special = charClassRegex(`${quotes.open.length === 1 ? quotes.open : ''}"“”\`${ascii ? '‘’' : ''}`);
+  // 只在需要改写的位置切片拼接；其余文本（含名字转义与字符串内容）原样搬运
+  const parts: string[] = [];
+  let copied = 0;
+  let pos = 0;
+  while (pos < text.length) {
+    special.lastIndex = pos;
+    const match = special.exec(text);
+    if (match === null) break;
+    const i = match.index;
     const ch = text[i]!;
-    if (opener !== null) {
-      if (quoteClosers(opener, quotes).includes(ch) && !isEscaped(text, i)) {
-        out += opener === quotes.open ? ch : close;
-        opener = null;
-      } else {
-        out += ch;
-      }
-    } else if ((ch === quotes.open || ch === '"' || ch === '“') && !isEscaped(text, i)) {
-      opener = ch;
-      close = ch !== quotes.open && containsUnescapedClose(text, i, quotes) ? '"' : quotes.close;
-      out += ch === quotes.open ? ch : close === '"' ? '"' : quotes.open;
-    } else if (ch === '”') {
-      out += quotes.close;
-    } else if (ascii && (ch === '‘' || ch === '’')) {
-      out += "'";
-    } else {
-      out += ch;
+    // 名字转义原样保留（ADR 0064 N2）：里面的弯引号不是定界符，由词法器报 E902
+    const escape = ch === '`' ? escapeClose(text, i) : -1;
+    pos = escape > 0 ? escape + 1 : i + 1;
+    if ((ch === quotes.open || ch === '"' || ch === '“') && !isEscaped(text, i)) {
+      pos = normalizeQuotedString(text, i, quotes, parts, copied);
+      copied = pos;
+      continue;
+    }
+    const replacement = ch === '”' ? quotes.close : ascii && (ch === '‘' || ch === '’') ? "'" : undefined;
+    if (replacement !== undefined) {
+      parts.push(text.slice(copied, i), replacement);
+      copied = i + 1;
     }
   }
-  return out;
+  parts.push(text.slice(copied));
+  return parts.join('');
+}
+
+/**
+ * 改写 openAt 处开始的一个字符串的两端定界符，把 text[copied..闭引号] 写进 parts，返回闭引号之后的位置
+ * （未闭合时为文本末尾）。字符串内容原样保留。
+ */
+function normalizeQuotedString(
+  text: string,
+  openAt: number,
+  quotes: { open: string; close: string },
+  parts: string[],
+  copied: number,
+): number {
+  const opener = text[openAt]!;
+  // 当前字符串换成的闭引号（词法表闭引号，或内容含词法表闭引号时的 ASCII `"`）
+  const close = opener !== quotes.open && containsUnescapedClose(text, openAt, quotes) ? '"' : quotes.close;
+  parts.push(text.slice(copied, openAt), opener === quotes.open ? opener : close === '"' ? '"' : quotes.open);
+  const closers = charClassRegex(quoteClosers(opener, quotes));
+  for (let from = openAt + 1; ; ) {
+    closers.lastIndex = from;
+    const match = closers.exec(text);
+    if (match === null) {
+      parts.push(text.slice(openAt + 1));
+      return text.length;
+    }
+    const k = match.index;
+    if (!isEscaped(text, k)) {
+      parts.push(text.slice(openAt + 1, k), opener === quotes.open ? text[k]! : close);
+      return k + 1;
+    }
+    from = k + 1;
+  }
 }
 
 /**
@@ -765,47 +805,29 @@ function containsUnescapedClose(text: string, openAt: number, quotes: { open: st
   return false;
 }
 
-type Segment = { text: string; inString: boolean };
+/**
+ * 源码片段：字符串外的代码，或不透明片段（字符串字面量、名字转义）。名字转义的 inString 也为 true，
+ * 所以各步按 inString 跳过字符串的地方同样跳过转义（ADR 0064 N2）；escape 区分两者。
+ */
+type Segment = { text: string; inString: boolean; escape?: true };
+
 
 /**
  * 按字符串字面量分段。词法表引号对之外也认 ASCII `"…"`（与 Java Canonicalizer.segmentString 的通用回退一致）：
  * zh-CN 下内容含 `」` 的字符串由 normalizeQuoteDelimiters 保留为 ASCII 定界符，后续各步须同样把它当字符串保护。
  */
 function segmentString(text: string, quotes: { open: string; close: string }): Segment[] {
+  const pairs = new Map<string, string>([[quotes.open, quotes.close]]);
+  if (!pairs.has('"')) pairs.set('"', '"');
   const segments: Segment[] = [];
-  let inString = false;
-  let current = '';
-  let closeQuote = quotes.close;
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!;
-    current += ch;
-
-    if (inString) {
-      // 在字符串内，检查与开引号配对的结束引号
-      if (ch === closeQuote && !isEscaped(text, i)) {
-        segments.push({ text: current, inString: true });
-        current = '';
-        inString = false;
-      }
-    } else {
-      // 在字符串外，检查开始引号
-      if ((ch === quotes.open || ch === '"') && !isEscaped(text, i)) {
-        const before = current.slice(0, -1);
-        if (before) {
-          segments.push({ text: before, inString: false });
-        }
-        current = ch;
-        closeQuote = ch === quotes.open ? quotes.close : '"';
-        inString = true;
-      }
-    }
+  let pos = 0;
+  for (const range of opaqueRanges(text, pairs)) {
+    if (range.start > pos) segments.push({ text: text.slice(pos, range.start), inString: false });
+    const opaque = text.slice(range.start, range.end);
+    segments.push(range.escape ? { text: opaque, inString: true, escape: true } : { text: opaque, inString: true });
+    pos = range.end;
   }
-
-  if (current) {
-    segments.push({ text: current, inString });
-  }
-
+  if (pos < text.length) segments.push({ text: text.slice(pos), inString: false });
   return segments;
 }
 

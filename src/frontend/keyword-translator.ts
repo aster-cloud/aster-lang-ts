@@ -285,8 +285,9 @@ export function buildFullTranslationIndex(
  * @returns 翻译后的 token（新对象，不修改原 token）
  */
 export function translateToken(token: Token, index: KeywordTranslationIndex): Token {
-  // 只翻译标识符类型的 token（关键词在 lexer 中被识别为 IDENT）
+  // 只翻译标识符类型的 token（关键词在 lexer 中被识别为 IDENT）；名字转义永远是名字，不翻译（ADR 0064 N2）
   if (
+    token.escaped ||
     token.kind !== TokenKind.IDENT &&
     token.kind !== TokenKind.TYPE_IDENT &&
     token.kind !== TokenKind.KEYWORD
@@ -331,6 +332,8 @@ export function translateTokens(
  * 检查 token 是否是可翻译的标识符类型
  */
 function isTranslatableToken(token: Token): boolean {
+  // 名字转义不参与任何关键词翻译，也不能成为多词短语的一部分（ADR 0064 N2）
+  if (token.escaped) return false;
   return (
     token.kind === TokenKind.IDENT ||
     token.kind === TokenKind.TYPE_IDENT ||
@@ -379,6 +382,7 @@ export function translateTokensWithMarkers(
       token.kind === TokenKind.LBRACKET &&
       i + 2 < tokens.length &&
       (tokens[i + 1]!.kind === TokenKind.IDENT || tokens[i + 1]!.kind === TokenKind.TYPE_IDENT) &&
+      !tokens[i + 1]!.escaped &&
       tokens[i + 2]!.kind === TokenKind.RBRACKET
     ) {
       const innerToken = tokens[i + 1]!;

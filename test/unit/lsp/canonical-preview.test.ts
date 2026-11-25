@@ -372,3 +372,11 @@ describe('canonicalPreview：替换落在编译器实际使用的那个词上（
   });
 });
 
+
+describe('词汇规范预览保留名字转义（ADR 0064 §6）', () => {
+  it('转义名照样经词汇解析（N5），预览文本保留反引号', () => {
+    const text = 'Modul m.\n\nDefiniere Fahrer hat `alter` als Ganzzahl.\n';
+    const p = preview(text, DE_DE, DE_VOCAB);
+    assert.ok(p.text.includes('hat `age` als'), p.text);
+  });
+});

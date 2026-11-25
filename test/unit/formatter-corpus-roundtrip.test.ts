@@ -51,6 +51,7 @@ const ALLOW_LIST: ReadonlyMap<string, string> = new Map([
   ['corpus/tier3-fixtures/lexicon-i18n/06-operators__i18n-zh-CN.aster', CJK_IDENTIFIERS],
   ['corpus/tier3-fixtures/lexicon-i18n/user_greeting.aster', CJK_IDENTIFIERS],
   // ADR 0051 语料自带词汇（tier1-parity/vocab-*、tier1-reject/vocab-*）
+  ['corpus/tier1-parity/syntax/escape-zh.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-parity/vocab-zh/same-field-two-structs.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-parity/vocab-zh/synonyms.aster', CJK_IDENTIFIERS],
   ['corpus/tier1-parity/vocab-zh/type-equals-field.aster', CJK_IDENTIFIERS],

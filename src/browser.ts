@@ -255,7 +255,7 @@ export interface CompileOptions {
    * 解析成功之后、名称解析之前对 AST 的检查（ADR 0060 §5.3 别名名字守卫用）。返回非空诊断即编译失败，
    * 诊断放进 `resolutionDiagnostics`（与 E8xx 同处），不产出 core。
    */
-  astGuard?: (ast: AstModule) => readonly TypecheckDiagnostic[];
+  astGuard?: (ast: AstModule, canonical: string) => readonly TypecheckDiagnostic[];
 }
 
 /** 本次编译使用的词汇作用域：显式词汇优先，其次按 domain / tenantId 查注册中心。 */
@@ -312,7 +312,7 @@ export function compile(source: string, options?: CompileOptions): CompileResult
       return result;
     }
 
-    const guarded = options?.astGuard?.(parsed.ast) ?? [];
+    const guarded = options?.astGuard?.(parsed.ast, parsed.canonical) ?? [];
     if (guarded.length > 0) {
       const result: CompileResult = { success: false, resolutionDiagnostics: localizeDiagnostics(guarded, lexicon) };
       if (options?.includeIntermediates) result.tokens = tokens;

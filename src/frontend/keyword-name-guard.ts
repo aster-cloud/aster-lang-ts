@@ -15,7 +15,8 @@
  * Wait / 工作流步骤、构造字段、构造模式的绑定名）与点号名字的非首段（成员访问、限定调用）。不检查类型引用与名字引用的首段：
  * 内置类型（`整数` → `Int`）与运算形式的调用（`不是(x)` → `not(x)`）在这些位置本来就是关键词。
  *
- * TODO(ADR 0064)：名字转义语法落地后，help 改为建议用转义写法保留原词，转义的名字不再命中。
+ * 名字转义（ADR 0064）不需要额外判定：`` `版本` `` 不经翻译，名字就是 `版本`，不等于 W 中任何拼写；`` `version` `` 的英文拼写
+ * 整词出现在本行（反引号不是标识符字符），同样不命中。help 建议的正是转义写法。
  */
 import { ErrorCode, formatErrorMessage, getErrorMetadata } from '../diagnostics/error_codes.js';
 import { EN_US } from '../config/lexicons/en-US.js';

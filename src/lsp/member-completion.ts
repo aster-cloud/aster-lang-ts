@@ -31,6 +31,7 @@ import { parseDocumentWith } from './parse-document.js';
 import type { ParsedDocument } from './parse-document.js';
 import { resolveDocument, resolveForTyping } from './resolution.js';
 import type { DocumentResolution, ResolvableDocument } from './resolution.js';
+import { completionName } from './name-escape.js';
 
 type Coord = { readonly line: number; readonly col: number };
 
@@ -261,7 +262,7 @@ export function memberCompletionResult(
   const direct = inferData(entry, access.receiver);
   const { data, truncated } = direct ? { data: direct, truncated: false } : firstRepair(entry, access, lexicon, options);
   if (!data) return { items: null, incomplete: truncated };
-  return { items: fieldItems(data, entry.vocabulary, access, pos, options.insertReplace === true), incomplete: false };
+  return { items: fieldItems(data, entry.vocabulary, access, pos, options.insertReplace === true, lexicon), incomplete: false };
 }
 
 /**
@@ -304,6 +305,7 @@ function fieldItems(
   access: MemberAccess,
   pos: { line: number; character: number },
   insertReplace: boolean,
+  lexicon: Lexicon | undefined,
 ): CompletionItem[] {
   const start = { line: access.dotEnd.line - 1, character: access.dotEnd.col - 1 };
   const insert: Range = { start, end: pos };
@@ -314,7 +316,8 @@ function fieldItems(
       label,
       kind: CompletionItemKind.Field,
       ...(label === f.name ? {} : { detail: f.name }),
-      textEdit: memberEdit(label, insert, replace, insertReplace),
+      // 与关键词同形的字段名插入转义写法 s.`版本`（ADR 0064 §6）
+      textEdit: memberEdit(completionName(label, lexicon), insert, replace, insertReplace),
     };
   });
 }
