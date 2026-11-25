@@ -196,12 +196,16 @@ export function registerTokensHandlers(
       }
 
       // AST-based: function decl spans, data/enum decl spans, let locals
+      // 从转义 token 起的跨度不覆盖开反引号；恰好就是这个转义 token 时也不覆盖闭反引号并带 escaped 修饰符（ADR 0064 §6）
+      const escapedEnd = new Map(toks.filter(t => t?.escaped).map(t => [`${t.start.line}:${t.start.col}`, t.end.col as number]));
       const addSpan = (sp: Span | undefined, type: number, mods = 0): void => {
         if (!sp) return;
         const line0 = sp.start.line - 1;
-        const char0 = sp.start.col - 1;
-        const len = Math.max(0, sp.end.col - sp.start.col);
-        if (len > 0) push(line0, char0, len, type, mods);
+        const tokenEnd = escapedEnd.get(`${sp.start.line}:${sp.start.col}`);
+        const exact = tokenEnd !== undefined && sp.end.line === sp.start.line && sp.end.col === tokenEnd;
+        const char0 = sp.start.col - 1 + (tokenEnd !== undefined ? 1 : 0);
+        const len = Math.max(0, sp.end.col - sp.start.col - (exact ? 2 : tokenEnd !== undefined ? 1 : 0));
+        if (len > 0) push(line0, char0, len, type, exact ? mods | (1 << (modsIndex['escaped'] ?? 0)) : mods);
       };
       for (const d of (ast2.decls as Declaration[])) {
         if (d.kind === 'Func') {

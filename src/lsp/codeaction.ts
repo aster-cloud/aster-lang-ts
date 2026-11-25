@@ -51,10 +51,12 @@ export function registerCodeActionHandlers(
       if (code === ErrorCode.PARSE_KEYWORD_AS_NAME || code === ErrorCode.KEYWORD_RENAMED_AS_NAME
           || code === ErrorCode.ALIAS_IDENTIFIER_COLLISION) {
         const data = ((d as any).data ?? {}) as Record<string, unknown>;
-        const word = code === ErrorCode.KEYWORD_RENAMED_AS_NAME ? String(data.keyword ?? '')
-          : code === ErrorCode.ALIAS_IDENTIFIER_COLLISION ? String(data.name ?? '')
-            : textInRange(text, d.range);
-        const edits = escapeAllOccurrences(text, word);
+        // 源码里写的那个词：诊断范围内的原文优先（W802 的 keyword、E808 的 name 也是源码写法，作退路）
+        const fallback = code === ErrorCode.KEYWORD_RENAMED_AS_NAME ? String(data.keyword ?? '')
+          : code === ErrorCode.ALIAS_IDENTIFIER_COLLISION ? String(data.name ?? '') : '';
+        const spelled = textInRange(text, d.range);
+        const word = spelled !== '' && (fallback === '' || spelled === fallback) ? spelled : fallback;
+        const edits = escapeAllOccurrences(text, word, lexicon);
         const title = `Use \`${word}\` as a name`;
         if (edits.length > 0 && !offered.has(title)) {
           offered.add(title);

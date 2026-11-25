@@ -74,3 +74,50 @@ describe('名字转义的 LSP 支持（ADR 0064 §6）', () => {
     assert.deepEqual(SEM_LEGEND.tokenModifiers, ['declaration', 'escaped']);
   });
 });
+
+describe('名字转义的 LSP 处理器（ADR 0064 §6）', () => {
+  it('成员补全：与关键词同形的字段插入转义写法', async () => {
+    const { memberCompletions, clearMemberRepairCache } = await import('../../../src/lsp/member-completion.js');
+    const { parseDocumentText } = await import('../../../src/lsp/parse-document.js');
+    clearMemberRepairCache();
+    const text = ['Module demo.p.', '', 'Define S has `version` as Int, amount as Int.', '', 'Rule f given s as S, produce Int:', '  Return s.', ''].join('\n');
+    const items = memberCompletions({ text, ...parseDocumentText(text, EN_US, undefined, undefined) }, { line: 5, character: '  Return s.'.length }, EN_US);
+    const byLabel = new Map((items ?? []).map(i => [i.label, (i.textEdit as { newText: string }).newText]));
+    assert.equal(byLabel.get('version'), '`version`');
+    assert.equal(byLabel.get('amount'), 'amount');
+  });
+
+  it('语义着色：反引号是 operator，名字带 escaped 修饰符，声明跨度不覆盖反引号', async () => {
+    const { registerTokensHandlers } = await import('../../../src/lsp/tokens.js');
+    const { parse } = await import('../../../src/parser.js');
+    const text = 'Module m.\n\nRule f given `type` as Int, produce Int:\n  Return `type`.\n';
+    const tokens = lex(canonicalize(text, EN_US), EN_US);
+    const ast = parse(tokens).ast;
+    let handler: ((p: unknown) => { data: number[] }) | undefined;
+    const connection = {
+      onRequest: () => undefined,
+      onDocumentHighlight: () => undefined,
+      languages: { semanticTokens: { on: (h: (p: unknown) => { data: number[] }) => { handler = h; } }, inlayHint: { on: () => undefined } },
+    };
+    registerTokensHandlers(connection as never, { get: () => ({ uri: 'u', getText: () => text }) as never },
+      () => ({ text, tokens, ast }), () => '', () => '', () => null, () => new Map());
+    assert.ok(handler);
+    const data = handler({ textDocument: { uri: 'u' } }).data;
+    // 解码 5 元组为绝对位置
+    const decoded: { line: number; char: number; len: number; type: string; mods: number }[] = [];
+    let line = 0;
+    let char = 0;
+    for (let i = 0; i < data.length; i += 5) {
+      line += data[i]!;
+      char = data[i]! === 0 && i > 0 ? char + data[i + 1]! : data[i + 1]!;
+      decoded.push({ line, char, len: data[i + 2]!, type: SEM_LEGEND.tokenTypes[data[i + 3]!]!, mods: data[i + 4]! });
+    }
+    const escapedBit = 1 << SEM_LEGEND.tokenModifiers.indexOf('escaped');
+    const onLine3 = decoded.filter(t => t.line === 3);
+    assert.ok(onLine3.some(t => t.char === 9 && t.len === 1 && t.type === 'operator'), JSON.stringify(onLine3));
+    assert.ok(onLine3.some(t => t.char === 10 && t.len === 4 && (t.mods & escapedBit) !== 0), JSON.stringify(onLine3));
+    assert.ok(onLine3.some(t => t.char === 14 && t.len === 1 && t.type === 'operator'), JSON.stringify(onLine3));
+    const param = decoded.filter(t => t.line === 2 && t.type === 'parameter');
+    assert.ok(param.length > 0 && param.every(t => t.char === 14), JSON.stringify(param));
+  });
+});

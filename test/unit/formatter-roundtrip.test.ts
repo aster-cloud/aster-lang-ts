@@ -307,3 +307,24 @@ describe('格式化器与名字转义（ADR 0064 §6、Q7）', () => {
     assert.doesNotMatch(formatted, /`/);
   });
 });
+
+describe('CORE_HARD_KEYWORDS 与 aster-lang-core 词法一致', () => {
+  test('等于 AsterLexer.g4 的单词硬 token 减去 structKeywordName（兄弟仓存在时）', async () => {
+    const { existsSync } = await import('node:fs');
+    const { CORE_HARD_KEYWORDS } = await import('../../src/formatter.js');
+    const coreDir = [join(repoRoot, '..', 'aster-lang-core'), join(repoRoot, 'aster-lang-core')].find(d => existsSync(join(d, 'src/main/antlr/AsterLexer.g4')));
+    if (!coreDir) return;
+    const lexerText = readFileSync(join(coreDir, 'src/main/antlr/AsterLexer.g4'), 'latin1');
+    const parserText = readFileSync(join(coreDir, 'src/main/antlr/AsterParser.g4'), 'utf8');
+    const soft = new Set((/structKeywordName\s*:([\s\S]*?);/.exec(parserText)?.[1] ?? '').match(/\b[A-Z_]+\b/g) ?? []);
+    const words = new Set<string>();
+    for (const m of lexerText.matchAll(/^([A-Z_]+)\s*:\s*([^;\n]+);/gm)) {
+      const [, token, body] = m;
+      if (soft.has(token!)) continue;
+      const alts = body!.split('|').map(s => s.trim());
+      if (!alts.every(a => /^'[A-Za-z]+'$/.test(a))) continue;
+      for (const a of alts) words.add(a.slice(1, -1));
+    }
+    assert.deepEqual([...CORE_HARD_KEYWORDS].sort(), [...words].sort());
+  });
+});

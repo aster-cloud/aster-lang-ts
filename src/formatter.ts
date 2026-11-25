@@ -8,7 +8,6 @@ import type { Module } from './types.js';
 import { printModule } from './cnl-printer.js';
 import type { Token } from './types.js';
 import { compile } from './browser.js';
-import { positionFreeSha256 } from './policy-package/compile-source.js';
 import { EN_US } from './config/lexicons/en-US.js';
 
 export function formatCNL(
@@ -142,7 +141,10 @@ export function formatCNL(
   const cst = buildCst(text, originalTokens ?? tokens);
   try {
     const ast = parseWithLexicon(tokens, lexicon).ast as Module;
-    formatted = printWithEscapes(ast, tokens, text, lexicon);
+    const printed = printWithEscapes(ast, tokens, text, lexicon);
+    // 不能证明格式化前后是同一程序：原样返回，不改写用户源码
+    if (printed === null) return text;
+    formatted = printed;
   } catch {
     // If the source doesn't parse, return it unchanged
     return input;
@@ -161,11 +163,17 @@ export function formatCNL(
 }
 
 /**
- * 按名字转义规则打印（ADR 0064 §6、Q7）：作者写过的每个转义都保留（按写法，同一写法的名字一律转义，含义不变）；
- * 打印结果与原文不是同一程序时（英文输出里名字与英文关键词同形，如 de 字段 `with`），再把与英文关键词、冠词同形的名字
- * 也写成转义重打一次。不把所有同形词都预先转义：`Define Given with …` 本不需要，旧引擎也读不了反引号。
+ * 按名字转义规则打印（ADR 0064 §6、Q7）：作者写过的每个转义都保留；名字写成 core 在名字位置不接受的硬关键词拼写时写成转义；
+ * 打印结果与原文不是同一程序时（英文输出里名字与英文关键词同形），再把与英文关键词、冠词同形的名字也写成转义重打一次。
+ * 不把所有同形词都预先转义：`Define Given with …` 本不需要，旧引擎也读不了反引号。
+ *
+ * 作者的转义按写法保留：AST 的名字节点大多没有只覆盖名字的跨度（声明、形参、字段的跨度从关键词或类型起），按位置找回
+ * 转义不可靠；对一个本来就读作名字的词，转义与否 IR 相同（N4），同一写法一律转义不改变程序，下面的哈希比较也会核对。
+ *
+ * 原文能编译、而两次打印都不能证明是同一程序时，失败封闭，返回 null（调用方原样返回源码）；原文本身编译不了（编辑中的文档）
+ * 时没有可比的程序，返回第一次的打印（与此前的格式化器相同）。
  */
-function printWithEscapes(ast: Module, tokens: readonly Token[], source: string, lexicon: Lexicon | undefined): string {
+function printWithEscapes(ast: Module, tokens: readonly Token[], source: string, lexicon: Lexicon | undefined): string | null {
   const authored = new Set(tokens.filter(t => t.escaped).map(t => String(t.value)));
   const first = printModule(ast, { escape: seg => authored.has(seg) || CORE_HARD_KEYWORDS.has(seg) });
   const original = programHash(source, lexicon);
@@ -174,14 +182,18 @@ function printWithEscapes(ast: Module, tokens: readonly Token[], source: string,
   const retry = printModule(ast, {
     escape: seg => authored.has(seg) || CORE_HARD_KEYWORDS.has(seg) || homographs.has(seg.toLowerCase()),
   });
-  return programHash(retry, undefined) === original ? retry : first;
+  return programHash(retry, undefined) === original ? retry : null;
 }
 
-/** 编译得到的 Core IR positionFreeSha256；编译失败为 undefined。lexicon 缺省为 en-US（格式化器的输出语言）。 */
+/**
+ * 程序的同一性键：编译得到的 Core IR 去掉全部 origin 后的 JSON；编译失败为 undefined。lexicon 缺省为 en-US（格式化器的输出
+ * 语言）。不用 positionFreeSha256：格式化会改变行号，而它只去掉列号。
+ */
 function programHash(source: string, lexicon: Lexicon | undefined): string | undefined {
   try {
     const result = compile(source, lexicon ? { lexicon } : {});
-    return result.success && result.coreJson !== undefined ? positionFreeSha256(result.coreJson) : undefined;
+    if (!result.success || result.coreJson === undefined) return undefined;
+    return JSON.stringify(JSON.parse(result.coreJson), (key, value: unknown) => (key === 'origin' ? undefined : value));
   } catch {
     return undefined;
   }
@@ -192,9 +204,9 @@ function programHash(source: string, lexicon: Lexicon | undefined): string | und
  * structKeywordName）。本引擎在名字位置接受其中多数（ADR 0056 修订 A4 §1.1 之前的 F12），core 拒绝；英文输出里写成这些
  * 拼写的名字一律转义，格式化结果两引擎都能读回同一程序（de 字段 `with`、zh 字段 `and`）。
  */
-const CORE_HARD_KEYWORDS: ReadonlySet<string> = new Set([
-  'to', 'with', 'and', 'or', 'produce', 'has', 'set', 'Set', 'as', 'one', 'of', 'use', 'Use', 'not', 'for', 'async',
-  'on', 'On', 'function', 'times', 'plus', 'minus', 'modulo', 'true', 'false', 'null',
+export const CORE_HARD_KEYWORDS: ReadonlySet<string> = new Set([
+  'Module', 'to', 'with', 'and', 'or', 'produce', 'has', 'set', 'Set', 'as', 'one', 'of', 'use', 'Use', 'not', 'for',
+  'async', 'on', 'On', 'function', 'Map', 'It', 'performs', 'times', 'plus', 'minus', 'modulo', 'true', 'false', 'null',
 ]);
 
 let ENGLISH_KEYWORD_WORDS: ReadonlySet<string> | undefined;

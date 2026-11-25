@@ -66,9 +66,12 @@ const IDENT_CHAR = /[\p{L}\p{M}\p{Nd}_]/u;
  * 快速修复「用作名字」：把文档里该词的每个整词出现（字符串、注释与已有转义之外）改写为 `` `word` ``。
  * 对 E901、W802、E808 与关键词误作名字的错误都适用：改写后该词在所有位置都是名字（ADR 0064 N1、N6）。
  */
-export function escapeAllOccurrences(text: string, word: string): TextEdit[] {
+export function escapeAllOccurrences(text: string, word: string, lexicon?: Lexicon): TextEdit[] {
   const edits: TextEdit[] = [];
   if (word === '' || word.includes('`')) return edits;
+  // 字符串定界符：词法器认 ASCII `"`、作者词法表的引号对与弯引号 “”（引号归一把它换成定界符）
+  const quotes = lexicon?.punctuation.stringQuotes ?? EN_US.punctuation.stringQuotes;
+  const closers = new Map<string, string>([['"', '"'], ['“', '”'], ['「', '」'], [quotes.open, quotes.close]]);
   const lines = text.split('\n');
   lines.forEach((line, lineNo) => {
     let quote: string | null = null;
@@ -79,14 +82,15 @@ export function escapeAllOccurrences(text: string, word: string): TextEdit[] {
         else if (ch === quote) quote = null;
         continue;
       }
-      if (ch === '"' || ch === '「' || ch === '“') {
-        quote = ch === '「' ? '」' : ch === '“' ? '”' : '"';
+      const close = closers.get(ch);
+      if (close !== undefined) {
+        quote = close;
         continue;
       }
       if (ch === '#' || (ch === '/' && line[i + 1] === '/')) break;
-      const close = escapeClose(line, i);
-      if (close > 0) {
-        i = close;
+      const escapeEnd = escapeClose(line, i);
+      if (escapeEnd > 0) {
+        i = escapeEnd;
         continue;
       }
       if (!line.startsWith(word, i)) continue;
