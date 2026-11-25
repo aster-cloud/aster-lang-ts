@@ -71,7 +71,8 @@ export function parseEffectList(
   // 其它基效果名（如 pure、teleport）原样接受，与 aster-lang-core 文法 `IT PERFORMS IDENT` 一致（#304）：
   // 未知名不在解析期报错，检查阶段按 pure 处理，名字原样保留到 IR。能力名一律是 TYPE_IDENT，不会走到这里；
   // core 的保留词（return、to、async、with、and 等）不是 IDENT，同样不接受。
-  if (effs.length === 0 && ctx.at(TokenKind.IDENT) && !CORE_RESERVED_WORDS.has(String(ctx.peek().value).toLowerCase())) {
+  // 转义名（`return`）在 core 是普通 IDENT，照样收作效果名（ADR 0064 N3）
+  if (effs.length === 0 && ctx.at(TokenKind.IDENT) && (ctx.peek().escaped === true || !CORE_RESERVED_WORDS.has(String(ctx.peek().value).toLowerCase()))) {
     effs.push(ctx.next().value as string);
   }
   // 效应位置上的大写名字（ADR 0055 #5，与 Java AstBuilder.classifyEffectClause 一致）：已声明的效应参数是效应变量；
