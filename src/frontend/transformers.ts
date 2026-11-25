@@ -302,7 +302,7 @@ function transformOutsideStrings(
   for (let i = 0; i < source.length; i++) {
     const ch = source[i]!;
     // 名字转义是不透明片段（ADR 0064 N2）：与字符串一样原样保留
-    const escape = inString ? -1 : escapeClose(source, i);
+    const escape = inString || ch !== '`' ? -1 : escapeClose(source, i);
     if (escape > 0) {
       output += transform(current) + source.slice(i, escape + 1);
       current = '';
@@ -358,7 +358,7 @@ function replaceOutsideStrings(
   for (let i = 0; i < source.length; i++) {
     const ch = source[i]!;
     // 名字转义与字符串一样是不透明区间（ADR 0064 N2）：与之相交的匹配不改写
-    const escape = inString ? -1 : escapeClose(source, i);
+    const escape = inString || ch !== '`' ? -1 : escapeClose(source, i);
     if (escape > 0) {
       stringRanges.push([i, escape + 1]);
       i = escape;

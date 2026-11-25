@@ -461,9 +461,11 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
   // （fruehereSchaeden 不再被错写成 frühereSchäden）。预编译 RegExp 仍走缓存。
   if (effectiveLexicon.canonicalization.customRules) {
     // 名字转义不跑 customRules（ADR 0064 N2）：`fuer` 是名字 fuer，不是关键词 für
-    s = segmentString(s, quotes)
-      .map(segment => (segment.escape ? segment.text : applyCustomRulesKeywordGated(segment.text, effectiveLexicon)))
-      .join('');
+    s = s.includes('`')
+      ? segmentString(s, quotes)
+        .map(segment => (segment.escape ? segment.text : applyCustomRulesKeywordGated(segment.text, effectiveLexicon)))
+        .join('')
+      : applyCustomRulesKeywordGated(s, effectiveLexicon);
   }
 
   // 翻译前变换器（如英语所有格 driver's age → driver.age）
@@ -733,7 +735,7 @@ function normalizeQuoteDelimiters(text: string, quotes: { open: string; close: s
   let close = quotes.close;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
-    const escape = opener === null ? escapeClose(text, i) : -1;
+    const escape = opener === null && ch === '`' ? escapeClose(text, i) : -1;
     if (escape > 0) {
       // 名字转义原样保留（ADR 0064 N2）：里面的弯引号不是定界符，由词法器报 E902
       out += text.slice(i, escape + 1);
@@ -797,7 +799,7 @@ function segmentString(text: string, quotes: { open: string; close: string }): S
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
     // 名字转义：字符串之外，反引号到同一行的下一个反引号是一个不透明片段
-    const close = inString ? -1 : escapeClose(text, i);
+    const close = inString || ch !== '`' ? -1 : escapeClose(text, i);
     if (close > 0) {
       if (current) segments.push({ text: current, inString: false });
       current = '';

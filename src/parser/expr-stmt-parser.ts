@@ -1458,7 +1458,8 @@ const PREFIX_SYMBOL_LIST = '< > <= >= != == = + - * /';
 function operatorWordBeforeParen(ctx: ParserContext, english: boolean): string | undefined {
   for (const word of OPERATOR_WORD_SYMBOLS.keys()) {
     const parts = kwParts(word);
-    const matches = parts.every((part, k) => ctx.peek(k).kind === TokenKind.IDENT && ctx.peek(k).value === part);
+    // 转义的 `plus`(…) 是普通函数调用，不是运算符词（ADR 0064 N3）
+    const matches = parts.every((part, k) => ctx.peek(k).kind === TokenKind.IDENT && !ctx.peek(k).escaped && ctx.peek(k).value === part);
     if (matches && ctx.peek(parts.length).kind === TokenKind.LPAREN) {
       return english && EN_SOFT_OPERATOR_WORDS.has(word) ? undefined : word;
     }
