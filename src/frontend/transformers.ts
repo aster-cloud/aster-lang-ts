@@ -9,7 +9,7 @@
  * - postTranslationTransformers: 关键字翻译后（处理规范化形式的语法糖）
  */
 
-import { escapeClose } from './name-escape.js';
+import { opaqueRanges } from './name-escape.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 
@@ -284,110 +284,49 @@ export function applyTransformers(
   return result;
 }
 
-/** 按 Java StringSegmenter.segment 的引号与转义规则变换字符串外片段。 */
+/** 变换器认的引号对：词法表引号、ASCII `"…"` 与弯引号 `“…”`（Java StringSegmenter.segment 的口径）。 */
+function transformerQuotePairs(quotes: { open: string; close: string }): Map<string, string> {
+  const quotePairs = new Map<string, string>([[quotes.open, quotes.close]]);
+  if (quotes.open !== '"') quotePairs.set('"', '"');
+  quotePairs.set('“', '”');
+  return quotePairs;
+}
+
+/** 按 Java StringSegmenter.segment 的引号与转义规则变换字符串外片段；名字转义与字符串一样原样保留（ADR 0064 N2）。 */
 function transformOutsideStrings(
   source: string,
   quotes: { open: string; close: string },
   transform: (text: string) => string,
 ): string {
-  const quotePairs = new Map<string, string>([[quotes.open, quotes.close]]);
-  if (quotes.open !== '"') quotePairs.set('"', '"');
-  quotePairs.set('“', '”');
-
   let output = '';
-  let current = '';
-  let inString = false;
-  let expectedClose = '';
-
-  for (let i = 0; i < source.length; i++) {
-    const ch = source[i]!;
-    // 名字转义是不透明片段（ADR 0064 N2）：与字符串一样原样保留
-    const escape = inString || ch !== '`' ? -1 : escapeClose(source, i);
-    if (escape > 0) {
-      output += transform(current) + source.slice(i, escape + 1);
-      current = '';
-      i = escape;
-      continue;
-    }
-    current += ch;
-
-    if (inString) {
-      if (ch === expectedClose && !isEscaped(source, i)) {
-        output += current;
-        current = '';
-        inString = false;
-        expectedClose = '';
-      }
-      continue;
-    }
-
-    const close = quotePairs.get(ch);
-    if (close !== undefined && !isEscaped(source, i)) {
-      output += transform(current.slice(0, -1));
-      current = ch;
-      inString = true;
-      expectedClose = close;
-    }
+  let pos = 0;
+  let unclosed = false;
+  for (const range of opaqueRanges(source, transformerQuotePairs(quotes))) {
+    output += transform(source.slice(pos, range.start)) + source.slice(range.start, range.end);
+    pos = range.end;
+    unclosed = !range.closed;
   }
-
-  output += inString ? current : transform(current);
-  return output;
+  // 未闭合的字符串延伸到末尾，其后没有字符串外片段可变换
+  return unclosed ? output : output + transform(source.slice(pos));
 }
 
-function isEscaped(source: string, index: number): boolean {
-  let slashes = 0;
-  for (let i = index - 1; i >= 0 && source[i] === '\\'; i--) slashes++;
-  return slashes % 2 === 1;
-}
-
-/** 在完整源码上匹配正则，只忽略与字符串区间相交的匹配。 */
+/** 在完整源码上匹配正则，只忽略与字符串或名字转义区间（ADR 0064 N2）相交的匹配。 */
 function replaceOutsideStrings(
   source: string,
   pattern: RegExp,
   replace: (match: RegExpExecArray) => string,
   quotes: { open: string; close: string },
 ): string {
-  const stringRanges: Array<[number, number]> = [];
-  let inString = false;
-  let start = -1;
-  let expectedClose = '';
-  const quotePairs = new Map<string, string>([[quotes.open, quotes.close]]);
-  if (quotes.open !== '"') quotePairs.set('"', '"');
-  quotePairs.set('“', '”');
-
-  for (let i = 0; i < source.length; i++) {
-    const ch = source[i]!;
-    // 名字转义与字符串一样是不透明区间（ADR 0064 N2）：与之相交的匹配不改写
-    const escape = inString || ch !== '`' ? -1 : escapeClose(source, i);
-    if (escape > 0) {
-      stringRanges.push([i, escape + 1]);
-      i = escape;
-      continue;
-    }
-    if (inString) {
-      if (ch === expectedClose && !isEscaped(source, i)) {
-        stringRanges.push([start, i + 1]);
-        inString = false;
-      }
-    } else {
-      const close = quotePairs.get(ch);
-      if (close !== undefined && !isEscaped(source, i)) {
-        start = i;
-        expectedClose = close;
-        inString = true;
-      }
-    }
-  }
-  if (inString) stringRanges.push([start, source.length]);
+  const stringRanges = opaqueRanges(source, transformerQuotePairs(quotes));
 
   pattern.lastIndex = 0;
   let rangeIndex = 0;
   return source.replace(pattern, (matched, ...args: unknown[]) => {
     const offset = args[args.length - 2] as number;
     const end = offset + matched.length;
-    while (rangeIndex < stringRanges.length && stringRanges[rangeIndex]![1] <= offset) rangeIndex++;
+    while (rangeIndex < stringRanges.length && stringRanges[rangeIndex]!.end <= offset) rangeIndex++;
     const range = stringRanges[rangeIndex];
-    const overlapsString = range !== undefined && offset < range[1] && end > range[0];
+    const overlapsString = range !== undefined && offset < range.end && end > range.start;
     if (overlapsString) return matched;
 
     const captures = args.slice(0, -2) as string[];
