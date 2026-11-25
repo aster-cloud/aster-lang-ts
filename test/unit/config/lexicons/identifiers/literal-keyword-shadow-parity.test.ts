@@ -39,7 +39,7 @@ function coreJsonOf(source: string, lexicon: Lexicon, vocabulary?: DomainVocabul
 }
 
 test('共享夹具共 12 例', () => {
-  assert.equal(CASES.length, 12);
+  assert.equal(CASES.length, 14);
 });
 
 for (const c of CASES) {

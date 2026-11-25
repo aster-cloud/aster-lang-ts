@@ -286,6 +286,8 @@ export function validateVocabulary(vocabulary: DomainVocabulary): {
     const missingParent = missingParentMessage(mapping, context);
     if (missingParent) errors.push(missingParent);
     for (const trigger of [mapping.localized, ...(mapping.aliases ?? [])]) {
+      // 写法不得含反引号（ADR 0060 修订 2 X2）：反引号是名字转义的定界符，规范化器把它当作不透明片段
+      if (trigger.includes('`')) errors.push(`${context}: 写法 "${trigger}" 含反引号 \`，与名字转义冲突（ADR 0060 修订 2）`);
       checkScopeConflict(mapping, context, nfc(trigger));
       checkTrigger(mapping, context, trigger);
     }

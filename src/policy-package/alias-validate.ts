@@ -170,6 +170,11 @@ export function validateAliasSet(aliasSet: AliasSet | null | undefined, opts: Va
         errors.push(`别名 '${alias}'（${kind}）含非规范空白/大小写；请提交规范形 '${norm}'（前后无空格、词间单个空格、小写）`);
         continue;
       }
+      // 别名不得含反引号（ADR 0060 修订 2 X2）：反引号是名字转义的定界符，含它的别名可能被转义片段整体覆盖
+      if (norm.includes('`')) {
+        errors.push(`别名 '${alias}'（${kind}）含反引号 \`，与名字转义冲突，禁止`);
+        continue;
+      }
       if (!norm.includes(' ') && !isHanSingleToken(norm, opts.locale)) {
         errors.push(`别名 '${alias}'（${kind}）必须是多词短语，或 zh 下 2–8 个汉字的单词；其余单词别名会占用标识符命名空间，破坏用户空间`);
       }

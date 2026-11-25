@@ -39,7 +39,7 @@ const vocabOf = (c: LiteralValueCase): DomainVocabulary => ({
 });
 
 test('共享夹具共 25 例', () => {
-  assert.equal(CASES.length, 25);
+  assert.equal(CASES.length, 27);
 });
 
 for (const c of CASES) {

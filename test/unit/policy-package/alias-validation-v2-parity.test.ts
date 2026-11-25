@@ -16,7 +16,7 @@ import { buildVocabularyScopes } from '../../../src/config/lexicons/identifiers/
 import type { DomainVocabulary } from '../../../src/config/lexicons/identifiers/types.js';
 
 /** 与 core AliasValidationV2Fixture.SHA256 相同；改夹具须两仓同改并同步两侧常量。 */
-const FIXTURE_SHA256 = '721ab90b1f847ce7e3806d32360db1157d6a1ac5368ef5d15f99e402464765c4';
+const FIXTURE_SHA256 = '409aaafdd4c9c5a5fd4da137fd60b8956d4cf31335687a4ed025add3e2ef5e74';
 
 interface ValidatorCase {
   readonly id: string;
@@ -59,6 +59,7 @@ const ISSUE_CODES: readonly (readonly [string, string])[] = [
   [' 的别名不能为空', 'empty'],
   [' 的别名长度 ', 'tooLong'],
   ['含非规范空白', 'nonCanonical'],
+  ['含反引号', 'containsBacktick'],
   ['必须是多词短语', 'singleWord'],
   ['与某规范关键词或已有别名同形', 'shadowsKeyword'],
   ['在多个 kind 间重复定义', 'duplicate'],
