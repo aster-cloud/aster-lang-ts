@@ -417,7 +417,7 @@ function parseTypePrimary(
 
   if (ctx.isKeywordSeq(KW.OPTION_OF)) {
     const optionToks = consumeKeywordSequence(ctx, KW.OPTION_OF);
-    const inner = parseType(ctx, error);
+    const inner = parseOfArgument(ctx, error);
     const node = Node.Option(inner);
     assignSpan(node, spanFromSources(optionToks[0]!, inner));
     return node;
@@ -425,7 +425,7 @@ function parseTypePrimary(
 
   if (ctx.isKeywordSeq(KW.RESULT_OF)) {
     const resultToks = consumeKeywordSequence(ctx, KW.RESULT_OF);
-    const ok = parseType(ctx, error);
+    const ok = parseOfArgument(ctx, error);
 
     // Error type is optional - if not specified, defaults to Text
     let err: Type;

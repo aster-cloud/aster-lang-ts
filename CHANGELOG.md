@@ -10,7 +10,7 @@
   （`Let If be …`、`Let Return be …`）仍报 E901。
 - **aster-lang-ts#389**：`of` 之后直接换行报 **E062**（原 E055），下一行同列续写类型时报 E061，与 core 同位置；句点后的 `It`
   后面换行或文件结束报 **E055** `{token: kw.performs}`（原 E064 报在 `It` 处），同一行接别的词报 **E060**
-  「Expected 'performs' before …」。共享夹具 `shared/parse_diagnostics_parity.json` 加 4 行。
+  「Expected 'performs' before …」。`option of` / `result of` 同样处理。共享夹具 `shared/parse_diagnostics_parity.json` 加 7 行。
 
 ### 关键词当名字：两引擎同码同判（ADR 0056 修订 A6 K1–K3，产品裁决 2026-11-22）
 
