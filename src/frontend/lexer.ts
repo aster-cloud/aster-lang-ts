@@ -613,6 +613,30 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
       continue;
     }
 
+    // 名字转义 `x`（ADR 0064 §3）：一对 ASCII 反引号包住一个标识符词素，同一行内。永远是名字 token：
+    // 不是 BOOL / NULL / BLOCK_END，也不是关键词；类别按首字符，与不转义时相同。格式错误报 E902，位置是开头的反引号。
+    if (ch === '`') {
+      const start = { line, col };
+      let close = i + 1;
+      while (close < input.length && input[close] !== '`' && !isLineBreak(input[close]!)) close++;
+      if (input[close] !== '`') Diagnostics.invalidEscape('unterminated', undefined, start).throw();
+      const word = input.slice(i + 1, close);
+      if (word === '') Diagnostics.invalidEscape('empty', undefined, start).throw();
+      for (let k = 0; k < word.length; ) {
+        const cp = word.codePointAt(k)!;
+        const c = String.fromCodePoint(cp);
+        const ok = k === 0 ? isLetter(c, effectiveLex) : isIdentifierPart(c, effectiveLex);
+        if (!ok) Diagnostics.invalidEscape('invalid_char', c, start).throw();
+        k += c.length;
+      }
+      while (i <= close) next();
+      tokens.push({
+        kind: /^[A-Z]/.test(word) ? TokenKind.TYPE_IDENT : TokenKind.IDENT,
+        value: word, start, end: { line, col }, escaped: true,
+      });
+      continue;
+    }
+
     // Identifiers / numbers / keywords (支持 Unicode)
     if (isLetter(ch, effectiveLex)) {
       const start = { line, col };

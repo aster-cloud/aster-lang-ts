@@ -79,11 +79,20 @@ function collisionDiagnostic(name: string, hit: Hit, span: Span | undefined): Ty
   return { severity: 'error', code: ErrorCode.ALIAS_IDENTIFIER_COLLISION, message, span: span ?? SPAN0, data };
 }
 
-/** 检查 AST；返回 E808 诊断（按源码遍历顺序，同一名字同一位置只报一次），空即通过。 */
-export function checkAliasIdentifiers(ast: Module, aliasSet: AliasSet | null | undefined, locale: string): TypecheckDiagnostic[] {
+/**
+ * 检查 AST；返回 E808 诊断（按源码遍历顺序，同一名字同一位置只报一次），空即通过。
+ * 名字转义跳过（ADR 0060 修订 2，ADR 0064 N6）：`canonical` 是 AST 跨度所指的规范化文本，转义在其中保留反引号；
+ * 不给时不识别转义。与 core `AliasIdentifierGuard.check` 同一判定。
+ */
+export function checkAliasIdentifiers(
+  ast: Module,
+  aliasSet: AliasSet | null | undefined,
+  locale: string,
+  canonical?: string,
+): TypecheckDiagnostic[] {
   const forbidden = forbiddenKeys(aliasSet, locale);
   if (forbidden.size === 0) return [];
-  return new Collector(forbidden).module(ast);
+  return new Collector(forbidden, canonical).module(ast);
 }
 
 /** 归因探测用的占位名：普通汉字名字，不是任何关键词或别名（U+4E96 两个）。 */
@@ -103,7 +112,9 @@ function hanAliasOccurrences(text: string, forbidden: Map<string, Hit>): { start
     // 只取汉字别名本身的键（英文拼写的键也指向同一 Hit，跳过）
     if (key !== foldKey(hit.alias)) continue;
     for (let i = text.indexOf(hit.alias); i >= 0; i = text.indexOf(hit.alias, i + 1)) {
-      if (!isIdentChar(text[i - 1]) && !isIdentChar(text[i + hit.alias.length])) out.push({ start: i, alias: hit.alias, hit });
+      // 名字转义里的出现不是别名（ADR 0060 修订 2）：不作归因候选
+      const escaped = text[i - 1] === '`' && text[i + hit.alias.length] === '`';
+      if (!escaped && !isIdentChar(text[i - 1]) && !isIdentChar(text[i + hit.alias.length])) out.push({ start: i, alias: hit.alias, hit });
     }
   }
   return out.sort((a, b) => a.start - b.start);
@@ -167,7 +178,14 @@ class Collector {
   private readonly diagnostics: TypecheckDiagnostic[] = [];
   private readonly reported = new Set<string>();
 
-  constructor(private readonly forbidden: Map<string, Hit>) {}
+  private readonly canonicalLines: readonly string[] | undefined;
+
+  constructor(
+    private readonly forbidden: Map<string, Hit>,
+    private readonly canonical?: string,
+  ) {
+    this.canonicalLines = canonical?.split('\n');
+  }
 
   module(m: Module): TypecheckDiagnostic[] {
     this.name(m.name, m.span);
@@ -179,13 +197,48 @@ class Collector {
     return this.diagnostics;
   }
 
-  /** 点号分隔的名字逐段检查（模块名、导入路径、成员访问、限定调用目标）。 */
+  /** 点号分隔的名字逐段检查（模块名、导入路径、成员访问、限定调用目标）；转义的段跳过。 */
   private name(written: string | null | undefined, span: Span | undefined): void {
     if (!written) return;
-    for (const segment of written.split('.')) {
-      const hit = this.forbidden.get(foldKey(segment));
+    const segments = written.split('.');
+    const escaped = this.escapedSegments(segments, span);
+    segments.forEach((segment, i) => {
+      const hit = escaped[i] ? undefined : this.forbidden.get(foldKey(segment));
       if (hit) this.report(segment, hit, span);
+    });
+  }
+
+  /**
+   * 各段在规范化文本里是否写成转义：从跨度起点逐段对照（`` `a`.b ``、`` s.`版本` ``）。跨度不指向名字本身时
+   * （声明跨度从关键词起）退回按全文判定：该段的转义写法在规范化文本里出现即算转义。与 core 同一判定。
+   */
+  private escapedSegments(segments: readonly string[], span: Span | undefined): boolean[] {
+    const none = segments.map(() => false);
+    if (this.canonical === undefined || this.canonicalLines === undefined) return none;
+    const text = span ? this.canonicalLines[span.start.line - 1] : undefined;
+    if (text !== undefined && span) {
+      let at = span.start.col - 1;
+      const found: boolean[] = [];
+      let aligned = true;
+      for (let i = 0; i < segments.length && aligned; i++) {
+        if (i > 0) {
+          if (text[at] !== '.') aligned = false;
+          at++;
+        }
+        const plain = segments[i]!;
+        if (aligned && text.startsWith(`\`${plain}\``, at)) {
+          found.push(true);
+          at += plain.length + 2;
+        } else if (aligned && text.startsWith(plain, at)) {
+          found.push(false);
+          at += plain.length;
+        } else {
+          aligned = false;
+        }
+      }
+      if (aligned) return found;
     }
+    return segments.map((segment) => this.canonical!.includes(`\`${segment}\``));
   }
 
   private report(segment: string, hit: Hit, span: Span | undefined): void {

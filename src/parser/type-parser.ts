@@ -1,7 +1,7 @@
 import type { PiiDataCategory, PiiSensitivityLevel, Token, Type } from '../types.js';
 import { kwq } from './keyword-display.js';
 import type { ParserContext } from './context.js';
-import { kwParts, MAX_TYPE_RECURSION_DEPTH } from './context.js';
+import { kwParts, MAX_TYPE_RECURSION_DEPTH, kwText } from './context.js';
 import { TokenKind, KW } from '../frontend/tokens.js';
 import { Node } from '../ast/ast.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
@@ -302,7 +302,7 @@ function parseParenOrFuncType(
 function canStartType(tok: Token | undefined): boolean {
   if (!tok) return false;
   if (tok.kind === TokenKind.LPAREN || tok.kind === TokenKind.AT || tok.kind === TokenKind.TYPE_IDENT) return true;
-  return tok.kind === TokenKind.IDENT && !isControlKeyword(String(tok.value ?? '').toLowerCase());
+  return tok.kind === TokenKind.IDENT && !isControlKeyword(kwText(tok));
 }
 
 /**
@@ -351,7 +351,7 @@ function isBareLowercaseName(ctx: ParserContext, offset: number): boolean {
   if (!/^\p{Ll}/u.test(text) || LOWERCASE_TYPE_WORDS.has(text.toLowerCase())) return false;
   const after = ctx.peek(offset + 1);
   if (after.kind === TokenKind.LT) return false;
-  return !((after.kind === TokenKind.IDENT || after.kind === TokenKind.TYPE_IDENT) && String(after.value ?? '').toLowerCase() === 'of');
+  return !((after.kind === TokenKind.IDENT || after.kind === TokenKind.TYPE_IDENT) && kwText(after) === 'of');
 }
 
 /**
@@ -366,7 +366,7 @@ function isAmbiguousLowercaseTypeArg(ctx: ParserContext, offset: number): boolea
   const lower = text.toLowerCase();
   if (lower === 'map') return true;
   const after = ctx.peek(offset + 1);
-  const isOf = (after.kind === TokenKind.IDENT || after.kind === TokenKind.TYPE_IDENT) && String(after.value ?? '').toLowerCase() === 'of';
+  const isOf = (after.kind === TokenKind.IDENT || after.kind === TokenKind.TYPE_IDENT) && kwText(after) === 'of';
   return isOf && !OF_GENERIC_WORDS.has(lower);
 }
 
@@ -383,7 +383,7 @@ function isBareLowercaseTypeAt(ctx: ParserContext, offset: number): boolean {
   if (lower === KW.MAYBE || lower === 'map') return false;
   const after = ctx.peek(offset + 1);
   if (after.kind === TokenKind.LT) return false;
-  return !((after.kind === TokenKind.IDENT || after.kind === TokenKind.TYPE_IDENT) && String(after.value ?? '').toLowerCase() === 'of');
+  return !((after.kind === TokenKind.IDENT || after.kind === TokenKind.TYPE_IDENT) && kwText(after) === 'of');
 }
 
 /**
@@ -396,7 +396,7 @@ function startsNamedItem(ctx: ParserContext, offset: number): boolean {
   const name = ctx.peek(at);
   const as = ctx.peek(at + 1);
   return (name.kind === TokenKind.IDENT || name.kind === TokenKind.TYPE_IDENT)
-    && as.kind === TokenKind.IDENT && String(as.value ?? '').toLowerCase() === KW.AS;
+    && as.kind === TokenKind.IDENT && kwText(as) === KW.AS;
 }
 
 function parseTypePrimary(

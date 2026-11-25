@@ -32,6 +32,8 @@ export interface ParsedSource {
   readonly tokens: Token[];
   readonly ast: AstModule;
   readonly diagnostics: readonly Diagnostic[];
+  /** 规范化后的源码：AST 跨度指向它（名字转义在其中保留反引号）。 */
+  readonly canonical: string;
 }
 
 /**
@@ -46,7 +48,7 @@ export function parseSource(source: string, lexicon?: Lexicon, scopes?: Vocabula
     tokens = createKeywordTranslator(lexicon).translateTokens(tokens);
   }
   const result = parse(tokens, lexicon);
-  return { tokens, ast: result.ast, diagnostics: result.diagnostics };
+  return { tokens, ast: result.ast, diagnostics: result.diagnostics, canonical };
 }
 
 export interface ResolvedCore {

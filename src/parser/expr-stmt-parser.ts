@@ -19,7 +19,7 @@ import type {
 import { kw, kwKind, kwKindq, kwq } from './keyword-display.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 import type { ParserContext } from './context.js';
-import { kwParts, tokLowerAt, tryReadTranslatedIdent } from './context.js';
+import { kwParts, tokLowerAt, tryReadTranslatedIdent, kwText } from './context.js';
 import { TokenKind, KW } from '../frontend/tokens.js';
 import { Node } from '../ast/ast.js';
 import { parseType, parseEffectList } from './type-parser.js';
@@ -228,7 +228,7 @@ function peekInlineThen(ctx: ParserContext): boolean {
   }
   const tok = ctx.tokens[k];
   if (!tok) return false;
-  return ((tok.value as string) || '').toLowerCase() === KW.THEN;
+  return kwText(tok) === KW.THEN;
 }
 
 /** 跳过 then 前的可选 NEWLINE/INDENT 布局 token。 */
@@ -902,7 +902,7 @@ function isListSeparatorAnd(ctx: ParserContext): boolean {
       t2 &&
       (t2.kind === TokenKind.IDENT || t2.kind === TokenKind.KEYWORD) &&
       typeof t2.value === 'string' &&
-      t2.value.toLowerCase() === 'set'
+      kwText(t2) === 'set'
     ) {
       return true;
     }
@@ -1387,7 +1387,7 @@ function applyLooksLikeCall(ctx: ParserContext): boolean {
   // 其后须是 `to`（TO_WORD）。tokLowerAt 按非 trivia 顺序，与 peek 偏移口径需一致——用 peek 文本判定。
   const t = ctx.peek(off);
   return (t.kind === TokenKind.IDENT || t.kind === TokenKind.KEYWORD) &&
-    typeof t.value === 'string' && (t.value as string).toLowerCase() === KW.TO_WORD;
+    kwText(t) === KW.TO_WORD;
 }
 
 /** 解析调用目标名：裸名或限定名点链（不吃 `(`、不构造 Call/Construct）。与 Java callTarget 对齐。 */
@@ -1746,7 +1746,7 @@ function parsePrimary(
   // Only treat IDENT as a potential construction if followed by 'with' keyword
   const nextTokenIsWithKeyword = ctx.tokens[ctx.index + 1] &&
     (ctx.tokens[ctx.index + 1]!.kind === TokenKind.IDENT || ctx.tokens[ctx.index + 1]!.kind === TokenKind.KEYWORD) &&
-    (ctx.tokens[ctx.index + 1]!.value as string || '').toLowerCase() === KW.WITH;
+    kwText(ctx.tokens[ctx.index + 1]!) === KW.WITH;
   if (ctx.at(TokenKind.TYPE_IDENT) || (ctx.at(TokenKind.IDENT) && nextTokenIsWithKeyword)) {
     const typeTok = ctx.next();
     const typeName = typeTok.value as string;
@@ -2041,7 +2041,7 @@ export function parseParamList(
         span: paramSpan,
       };
       params.push(param);
-      if (ctx.at(TokenKind.IDENT) && ((ctx.peek().value as string) || '').toLowerCase() === KW.AND) {
+      if (ctx.at(TokenKind.IDENT) && kwText(ctx.peek()) === KW.AND) {
         ctx.nextWord();
         continue;
       }
@@ -2100,7 +2100,7 @@ export function parseParamList(
           : { name, type, ...(typeInferred ? { typeInferred: true } : {}), span: paramSpan };
       params.push(param);
       // Accept 'and' or ',' between parameters
-      if (ctx.at(TokenKind.IDENT) && ((ctx.peek().value as string) || '').toLowerCase() === KW.AND) {
+      if (ctx.at(TokenKind.IDENT) && kwText(ctx.peek()) === KW.AND) {
         ctx.nextWord();
         continue;
       }

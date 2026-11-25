@@ -15,6 +15,7 @@
  * - `age: Int between 18 and 120`
  */
 
+import { kwText } from './context.js';
 import { KW, TokenKind } from '../frontend/tokens.js';
 import { isLocalizing, kw, kwq } from './keyword-display.js';
 import type { Constraint, ConstraintRequired, ConstraintRange, ConstraintPattern, Span, Token } from '../types.js';
@@ -84,7 +85,7 @@ function isConstraintToken(token: Token | undefined): boolean {
   ) {
     return false;
   }
-  const value = ((token.value as string) || '').toLowerCase();
+  const value = kwText(token);
   return (
     value === KW.REQUIRED ||
     value === KW.BETWEEN ||
@@ -134,7 +135,7 @@ function skipConstraintConnector(ctx: ParserContext): boolean {
     (current.kind === TokenKind.IDENT ||
       current.kind === TokenKind.TYPE_IDENT ||
       current.kind === TokenKind.KEYWORD) &&
-    ((current.value as string) || '').toLowerCase() === KW.AND
+    kwText(current) === KW.AND
   ) {
     const nextToken = nextSignificantToken(ctx, ctx.index + 1);
     if (isConstraintToken(nextToken ?? undefined)) {
@@ -167,7 +168,7 @@ function tryParseConstraint(
     return null;
   }
 
-  const value = ((startToken.value as string) || '').toLowerCase();
+  const value = kwText(startToken);
 
   // 'required' - 必填约束
   if (value === KW.REQUIRED) {
@@ -263,7 +264,7 @@ function parseAtConstraint(
     error(atModifierMessage(ctx), modifierTok);
   }
 
-  const modifier = ((modifierTok.value as string) || '').toLowerCase();
+  const modifier = kwText(modifierTok);
   if (modifier !== 'least' && modifier !== 'most') {
     error(atModifierMessage(ctx), modifierTok);
   }
@@ -299,7 +300,7 @@ function parseMatchingConstraint(
   const startTok = ctx.next(); // consume 'matching'
 
   // 可选的 'pattern' 关键字
-  if (ctx.at(TokenKind.IDENT) && ((ctx.peek().value as string) || '').toLowerCase() === KW.PATTERN) {
+  if (ctx.at(TokenKind.IDENT) && kwText(ctx.peek()) === KW.PATTERN) {
     ctx.next(); // consume 'pattern'
   }
 

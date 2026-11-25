@@ -6,7 +6,7 @@
 import { KW, TokenKind } from '../frontend/tokens.js';
 import type { Field, Span, Token, Type } from '../types.js';
 import type { ParserContext } from './context.js';
-import { tryReadTranslatedIdent } from './context.js';
+import { tryReadTranslatedIdent, kwText } from './context.js';
 import { parseType } from './type-parser.js';
 import { parseConstraints } from './constraint-parser.js';
 import { parseAnnotations } from './annotation-parser.js';
@@ -173,7 +173,7 @@ export function parseVariantList(
     vars.push(v);
 
     // 检查是否还有更多变体
-    if (ctx.at(TokenKind.IDENT) && ((ctx.peek().value as string) || '').toLowerCase() === KW.OR) {
+    if (ctx.at(TokenKind.IDENT) && kwText(ctx.peek()) === KW.OR) {
       ctx.nextWord();
       continue;
     }

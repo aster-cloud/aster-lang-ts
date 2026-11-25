@@ -130,11 +130,11 @@ describe('关键词当名字共享夹具（ts 侧）', () => {
       const first = parsed.diagnostics.find((d) => d.severity === 'error');
       assert.ok(first);
       assert.deepEqual(first.params, { keyword: 'kw.when', kind: 'WHEN' });
-      assert.equal(first.message, "'当' is the keyword WHEN and cannot be used as a name; rename it");
+      assert.equal(first.message, "'当' is the keyword WHEN and cannot be used as a name; write it in backticks to use it as a name");
     } catch (e) {
       assert.ok(e instanceof DiagnosticError, String(e));
       assert.deepEqual(e.diagnostic.params, { keyword: 'kw.when', kind: 'WHEN' });
-      assert.equal(e.diagnostic.message, "'当' is the keyword WHEN and cannot be used as a name; rename it");
+      assert.equal(e.diagnostic.message, "'当' is the keyword WHEN and cannot be used as a name; write it in backticks to use it as a name");
     }
   });
 

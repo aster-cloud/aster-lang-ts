@@ -93,18 +93,17 @@ export const STRUCTURAL_KEYWORD_NAMES: ReadonlyMap<string, { readonly slot: stri
 /**
  * E901（ADR 0056 修订 A6 K1，产品裁决 Q5）：名字位置上的结构关键词。两引擎都拒绝并同码报告；此前 ts 报泛化的 E055、
  * core 经软关键字把它收作名字（zh 形参 `返回` 静默改名为 `Return`）。英文小写写法（`return`、`when`）是普通 IDENT，不受影响。
- * 不是结构关键词时返回 null，调用方照常报 E055。
- *
- * TODO(ADR 0064)：名字转义语法落地后，消息改为建议用转义写法保留原词。
+ * 不是结构关键词时返回 null，调用方照常报 E055。名字转义 `` `If` `` 永远是名字（ADR 0064 N3），也返回 null；
+ * 消息建议的正是这种写法。
  */
 export function keywordAsNameIssue(ctx: { readonly lexicon?: Lexicon | undefined }, tok: Token): ParseIssue | null {
-  if ((tok.kind !== TokenKind.TYPE_IDENT && tok.kind !== TokenKind.KEYWORD) || tok.originalValue !== undefined) return null;
+  if ((tok.kind !== TokenKind.TYPE_IDENT && tok.kind !== TokenKind.KEYWORD) || tok.originalValue !== undefined || tok.escaped) return null;
   const keyword = STRUCTURAL_KEYWORD_NAMES.get(String(tok.value));
   if (!keyword) return null;
   return Issue.keywordAsName(
     kwParam(keyword.slot),
     keyword.kind,
-    `${kwq(ctx, keyword.slot, String(tok.value))} is the keyword ${keyword.kind} and cannot be used as a name; rename it`,
+    `${kwq(ctx, keyword.slot, String(tok.value))} is the keyword ${keyword.kind} and cannot be used as a name; write it in backticks to use it as a name`,
   );
 }
 
