@@ -76,8 +76,8 @@ function compileCase(source: string, c: EscapeCase): { ir?: string; first?: Firs
 }
 
 describe('名字转义共享夹具（ts 侧，ADR 0064 §10）', () => {
-  it('共享夹具共 117 例，F1–F7 七组都有', () => {
-    assert.equal(DATA.cases.length, 117);
+  it('共享夹具共 118 例，F1–F7 七组都有', () => {
+    assert.equal(DATA.cases.length, 118);
     assert.deepEqual([...new Set(DATA.cases.map((c) => c.group))].sort(), ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7']);
   });
 
