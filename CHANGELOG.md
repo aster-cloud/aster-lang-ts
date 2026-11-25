@@ -37,7 +37,7 @@
   `unterminated`、两个反引号之间为空 `empty`、内容含不能作标识符首字符 / 续字符的字符 `invalid_char`（带 `char`），按此优先级判定。
 - **诊断文案**：E901 的消息与 help、W802 与 E808 的 help 改为建议写成转义；E808 别名名字守卫跳过转义名（`compile` 的 `astGuard`
   多收一个规范化文本参数），解析失败归因不再把转义里的别名当候选。
-- 共享夹具 `shared/escape_parity.json`（ADR 0064 §10 F1–F7，121 例，与 aster-lang-core 逐字节相同）；
+- 共享夹具 `shared/escape_parity.json`（ADR 0064 §10 F1–F7，123 例，与 aster-lang-core 逐字节相同）；
   `shared/parse_diagnostics_parity.json` 新增 E902 三例与全角反引号一例，`shared/keyword_name_parity.json` 的 E901 消息随之更新。
   zh / de / hi 译文来自 aster-lang-locales / aster-lang-hi 同名分支，`diagnostic-overlays.generated.ts` 已按联编重新生成。
 

@@ -345,6 +345,9 @@ function parseSugarOutcome(
     if (tok.kind === TokenKind.STRING) {
       shape.push('_');
       args.push(assignTokenSpan(Node.String(tok.value as string), tok));
+    } else if (tok.escaped === true) {
+      // 转义名是名字不是结论词（ADR 0064 N3）：记为反引号，查表必然落空
+      shape.push('`');
     } else {
       shape.push(String(tok.value).toLowerCase());
     }
