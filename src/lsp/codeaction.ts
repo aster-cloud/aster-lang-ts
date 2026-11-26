@@ -16,7 +16,18 @@ import type { Lexicon } from '../config/lexicons/types.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
 import { escapeRegExp } from './navigation/shared.js';
-import { escapeAllOccurrences, keywordSpellingAt } from './name-escape.js';
+import { keywordSpellingAt } from './name-escape.js';
+import { lspSourceChecker, NAME_ESCAPE_CODES, nameEscapeEdits } from './name-escape-fix.js';
+import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
+
+/** 文档解析缓存里的租户词汇（与诊断同一份）；解析失败时缺省。 */
+function vocabularyOf(doc: TextDocument, getOrParse: (doc: TextDocument) => { vocabulary?: VocabularyScopes }): VocabularyScopes | undefined {
+  try {
+    return getOrParse(doc).vocabulary;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * 注册 CodeAction 相关的 LSP 处理器
@@ -28,7 +39,7 @@ import { escapeAllOccurrences, keywordSpellingAt } from './name-escape.js';
 export function registerCodeActionHandlers(
   connection: Connection,
   documents: { get(uri: string): TextDocument | undefined },
-  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any },
+  getOrParse: (doc: TextDocument) => { text: string; tokens: readonly any[]; ast: any; vocabulary?: VocabularyScopes },
   uriToFsPath: (u: string) => string | null,
   getLexiconForDoc?: (uri: string) => Lexicon | undefined,
 ): void {
@@ -47,19 +58,24 @@ export function registerCodeActionHandlers(
     for (const d of params.context.diagnostics) {
       const code = (d.code as string) || '';
 
-      // 关键词误作名字（E901）、静默改名（W802）与别名作名字（E808）：快速修复「用作名字」，把该词每处都写成转义（ADR 0064 §6）
-      if (code === ErrorCode.PARSE_KEYWORD_AS_NAME || code === ErrorCode.KEYWORD_RENAMED_AS_NAME
-          || code === ErrorCode.ALIAS_IDENTIFIER_COLLISION) {
+      // 关键词误作名字（E901）、静默改名（W802）与别名作名字（E808）：快速修复「用作名字」，
+      // 只把该词在名字位置上的出现写成转义，读作关键词的出现不动（ADR 0064 §6，#404，见 name-escape-fix.ts）
+      if (NAME_ESCAPE_CODES.has(code)) {
         const data = ((d as any).data ?? {}) as Record<string, unknown>;
+        const args = (data.params ?? data) as Record<string, unknown>;
         // 源码里写的那个词：诊断范围内的原文优先（W802 的 keyword、E808 的 name 也是源码写法，作退路）
-        const fallback = code === ErrorCode.KEYWORD_RENAMED_AS_NAME ? String(data.keyword ?? '')
-          : code === ErrorCode.ALIAS_IDENTIFIER_COLLISION ? String(data.name ?? '') : '';
+        const fallback = code === ErrorCode.KEYWORD_RENAMED_AS_NAME ? String(args.keyword ?? '')
+          : code === ErrorCode.ALIAS_IDENTIFIER_COLLISION ? String(args.name ?? '') : '';
         // E901 的范围是关键词起点的零宽位置（编译器 span 与本 LSP 发布的诊断都如此）：范围内无原文时按词法表取起点处的关键词写法
         const spelled = textInRange(text, d.range) || keywordSpellingAt(text, d.range.start, lexicon);
         const word = spelled !== '' && (fallback === '' || spelled === fallback) ? spelled : fallback;
-        const edits = escapeAllOccurrences(text, word, lexicon);
         const title = `Use \`${word}\` as a name`;
-        if (edits.length > 0 && !offered.has(title)) {
+        // E808 来自带租户别名集的编译（LSP 不持有别名集）：用诊断里的别名与 kind 重建这一条别名，编译判定才与报错方一致
+        const alias = code === ErrorCode.ALIAS_IDENTIFIER_COLLISION && typeof args.alias === 'string' && typeof args.kind === 'string'
+          ? { [args.kind]: [args.alias] } : undefined;
+        const edits = word === '' || offered.has(title) ? []
+          : nameEscapeEdits(text, word, d.range, lspSourceChecker({ lexicon, vocabulary: vocabularyOf(doc, getOrParse), aliasSet: alias }), lexicon).edits;
+        if (edits.length > 0) {
           offered.add(title);
           actions.push({
             title,
