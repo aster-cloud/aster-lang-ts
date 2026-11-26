@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### 修复
+
+- **LSP 快速修复「Use \`x\` as a name」在 E901 上不出现**（aster-lang-ts#401）：E901 的 span 是关键词起点的零宽位置（`compile()`
+  与 LSP 自己发布的诊断都如此，aster-cloud 把它原样转成 marker），codeAction 只取范围内原文，于是词为空、不给修复。现在范围内无原文时，
+  按文档词法表取起点处的关键词写法（`lsp/name-escape` 新增 `keywordSpellingAt`）。多词结构关键词（de `Gib zurück` / `Gib zurueck`）按
+  关键词翻译索引识别整个短语；转义里不能有空格（E902），这种写法不给修复，也不再给只转义半个词的错误修复；`escapeAllOccurrences`
+  对含空白的词返回空。编译器报告的 E901 span 与双引擎 parity 夹具不变；W802 / E808 仍以 `data` 里的源码写法为准。
+
 ## 3.8.0
 
 > **次版本号的理由**：公开声明只增不删，`exports` 不变。新增：`./layout` 的 `hiddenEscapeTriples`、`stripHiddenEscapes`、`checkHiddenEscapes` 与类型
