@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 3.8.1
+
+> **修订号的理由**：只改 LSP 快速修复的取词逻辑，公开声明与 `exports` 不变，编译结果与诊断不变。
+
 ### 修复
 
 - **LSP 快速修复「Use \`x\` as a name」在 E901 上不出现**（aster-lang-ts#401）：E901 的 span 是关键词起点的零宽位置（`compile()`
