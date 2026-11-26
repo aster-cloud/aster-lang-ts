@@ -16,7 +16,7 @@ import type { Lexicon } from '../config/lexicons/types.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
 import { escapeRegExp } from './navigation/shared.js';
-import { escapeAllOccurrences } from './name-escape.js';
+import { escapeAllOccurrences, keywordSpellingAt } from './name-escape.js';
 
 /**
  * 注册 CodeAction 相关的 LSP 处理器
@@ -54,7 +54,8 @@ export function registerCodeActionHandlers(
         // 源码里写的那个词：诊断范围内的原文优先（W802 的 keyword、E808 的 name 也是源码写法，作退路）
         const fallback = code === ErrorCode.KEYWORD_RENAMED_AS_NAME ? String(data.keyword ?? '')
           : code === ErrorCode.ALIAS_IDENTIFIER_COLLISION ? String(data.name ?? '') : '';
-        const spelled = textInRange(text, d.range);
+        // E901 的范围是关键词起点的零宽位置（编译器 span 与本 LSP 发布的诊断都如此）：范围内无原文时按词法表取起点处的关键词写法
+        const spelled = textInRange(text, d.range) || keywordSpellingAt(text, d.range.start, lexicon);
         const word = spelled !== '' && (fallback === '' || spelled === fallback) ? spelled : fallback;
         const edits = escapeAllOccurrences(text, word, lexicon);
         const title = `Use \`${word}\` as a name`;

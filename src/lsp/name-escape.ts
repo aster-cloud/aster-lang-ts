@@ -5,6 +5,8 @@ import type { TextEdit } from 'vscode-languageserver/node.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { EN_US } from '../config/lexicons/en-US.js';
 import { escapeClose } from '../frontend/name-escape.js';
+import { buildFullTranslationIndex } from '../frontend/keyword-translator.js';
+import { STRUCTURAL_KEYWORD_NAMES } from '../parser/parse-issue.js';
 import type { Token } from '../types.js';
 
 /** 名字写成转义 `` `x` ``。 */
@@ -68,7 +70,8 @@ const IDENT_CHAR = /[\p{L}\p{M}\p{Nd}_]/u;
  */
 export function escapeAllOccurrences(text: string, word: string, lexicon?: Lexicon): TextEdit[] {
   const edits: TextEdit[] = [];
-  if (word === '' || word.includes('`')) return edits;
+  // 转义里只能是一个标识符词素（ADR 0064 §3）：含反引号或空白（多词关键词 `gib zurueck`）的写法转义后是 E902，不给修复
+  if (word === '' || word.includes('`') || /\s/u.test(word)) return edits;
   // 字符串定界符：词法器认 ASCII `"`、作者词法表的引号对与弯引号 “”（引号归一把它换成定界符）
   const quotes = lexicon?.punctuation.stringQuotes ?? EN_US.punctuation.stringQuotes;
   const closers = new Map<string, string>([['"', '"'], ['“', '”'], ['「', '」'], [quotes.open, quotes.close]]);
@@ -105,4 +108,52 @@ export function escapeAllOccurrences(text: string, word: string, lexicon?: Lexic
     }
   });
   return edits;
+}
+
+const PHRASES_CACHE = new WeakMap<Lexicon, { readonly phrases: ReadonlySet<string>; readonly maxWords: number }>();
+
+/** 词法表里多词结构关键词（E901 的对象）的小写写法，含规范化变体（de `gib zurueck` / `gib zurück`），与关键词翻译同一索引。 */
+function structuralPhrases(lexicon: Lexicon): { readonly phrases: ReadonlySet<string>; readonly maxWords: number } {
+  let entry = PHRASES_CACHE.get(lexicon);
+  if (!entry) {
+    const phrases = new Set<string>();
+    let maxWords = 1;
+    for (const [source, target] of buildFullTranslationIndex(lexicon).index) {
+      const words = source.split(' ').length;
+      if (words < 2 || !STRUCTURAL_KEYWORD_NAMES.has(target)) continue;
+      phrases.add(source);
+      maxWords = Math.max(maxWords, words);
+    }
+    entry = { phrases, maxWords };
+    PHRASES_CACHE.set(lexicon, entry);
+  }
+  return entry;
+}
+
+/**
+ * 诊断范围为空时（E901 的 span 是关键词起点的零宽位置，编译器与 LSP 发布的诊断都如此），取该位置起的那个关键词的源码写法：
+ * 起点必须在词首；多词结构关键词（de `Gib zurück`）按关键词翻译索引取整个短语，否则取该位置的整词。不在词首时为空串。
+ */
+export function keywordSpellingAt(text: string, pos: { line: number; character: number }, lexicon?: Lexicon): string {
+  const line = text.split('\n')[pos.line] ?? '';
+  const start = pos.character;
+  if (start > 0 && IDENT_CHAR.test(line[start - 1]!)) return '';
+  // 起点起的连续整词：[词首, 词尾) 的偏移；词之间只隔空格或制表符
+  const words: [number, number][] = [];
+  const maxWords = lexicon ? structuralPhrases(lexicon).maxWords : 1;
+  let i = start;
+  while (words.length < maxWords) {
+    let end = i;
+    while (end < line.length && IDENT_CHAR.test(line[end]!)) end++;
+    if (end === i) break;
+    words.push([i, end]);
+    i = end;
+    while (line[i] === ' ' || line[i] === '\t') i++;
+  }
+  if (words.length === 0) return '';
+  for (let n = words.length; n >= 2 && lexicon; n--) {
+    const phrase = words.slice(0, n).map(([s, e]) => line.slice(s, e).toLowerCase()).join(' ');
+    if (structuralPhrases(lexicon).phrases.has(phrase)) return line.slice(start, words[n - 1]![1]);
+  }
+  return line.slice(start, words[0]![1]);
 }
