@@ -1,5 +1,5 @@
 /**
- * LSP 的名字转义支持（ADR 0064 §6）：语义着色、悬停、快速修复「用作名字」与补全时插入转义写法共用的判定。
+ * LSP 的名字转义支持（ADR 0064 §6）：语义着色、悬停、快速修复「用作名字」（候选出现，名字位置的判定见 name-escape-fix.ts）与补全时插入转义写法共用的判定。
  */
 import type { TextEdit } from 'vscode-languageserver/node.js';
 import type { Lexicon } from '../config/lexicons/types.js';
@@ -65,8 +65,8 @@ export function escapedHoverLine(tokens: readonly Token[], pos: { line: number; 
 const IDENT_CHAR = /[\p{L}\p{M}\p{Nd}_]/u;
 
 /**
- * 快速修复「用作名字」：把文档里该词的每个整词出现（字符串、注释与已有转义之外）改写为 `` `word` ``。
- * 对 E901、W802、E808 与关键词误作名字的错误都适用：改写后该词在所有位置都是名字（ADR 0064 N1、N6）。
+ * 该词的每个整词出现（字符串、注释与已有转义之外）改写为 `` `word` `` 的编辑，按位置排序：快速修复「用作名字」的候选集。
+ * 词法上分不清名字与关键词，快速修复只取其中编译判定在名字位置上的子集（ADR 0064 §6 N1 修订，#404，见 name-escape-fix.ts）。
  */
 export function escapeAllOccurrences(text: string, word: string, lexicon?: Lexicon): TextEdit[] {
   const edits: TextEdit[] = [];
