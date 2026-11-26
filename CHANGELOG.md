@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-> **修订号的理由**（3.8.2 候选）：只改 LSP 快速修复「Use \`x\` as a name」的改写范围，`exports` 与既有声明不变（`lsp/name-escape-fix` 是新增内部模块），
+## 3.8.2
+
+> **修订号的理由**：只改 LSP 快速修复「Use \`x\` as a name」的改写范围，`exports` 与既有声明不变（`lsp/name-escape-fix` 是新增内部模块），
 > 编译结果与诊断不变。
 
 ### 修复
