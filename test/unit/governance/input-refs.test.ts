@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseSource, resolveAndLowerChecked } from '../../../src/compile-pipeline.js';
-import { analyzeInputRefs } from '../../../src/governance/input-refs.js';
+import { analyzeInputRefs, inputRefsNodeVisits, MAX_NODE_VISITS } from '../../../src/governance/input-refs.js';
 import type { Core } from '../../../src/types.js';
 
 // analyzeInputRefs 的单元性质（ADR 0046 §11.6），与 Java InputRefsAnalyzerTest 逐条对应。ADR §11.2 正反例表逐行、
@@ -111,32 +111,49 @@ function fanOutRepro(lets: number, rules: number, fan: number): string {
   return b;
 }
 
-test('评审复现的扇出调用链分析在一秒内完成', () => {
+// ★守的缺陷（I1 编译期 DoS）：同模块调用若不记忆化，h1→h2→h3 每层扇出都重遍历被调函数体，访问数为 扇出²×函数体；
+// 节点预算若不生效，恶意扇出没有上限。原先断言 150 条规则「在一秒内完成」——墙钟受 CI 机器快慢与 c8 下并行测试文件
+// 争用影响（本机 ~280 ms，CI 上 1011 / 1093 ms 误报），这里改用分析器自己的节点访问数（与 MAX_NODE_VISITS 同口径）
+// 做确定性的守卫：量工作量与它随规模的增长率，而非绝对耗时。
+
+/** 评审复现中某条 Verdict 规则的节点访问数（各规则同构，取第一条）。 */
+function reproVisits(lets: number, fan: number): number {
+  const m = resolveSrc(fanOutRepro(lets, 1, fan));
+  return inputRefsNodeVisits(m, func(m, 'r0'));
+}
+
+test('评审复现的扇出调用链分析：访问数与源码同阶且远离预算', () => {
   const m = resolveSrc(fanOutRepro(1500, 150, 64));
-  const start = performance.now();
-  let rules = 0;
-  for (const d of m.decls) {
-    if (d.kind === 'Func' && d.name.startsWith('r')) {
-      assert.deepEqual(analyzeInputRefs(m, d).inputRefs, ['context.amount']);
-      rules++;
-    }
-  }
-  const ms = performance.now() - start;
-  assert.equal(rules, 150);
-  assert.ok(ms < 1000, `150 条规则的分析耗时 ${ms} ms`);
+  const rules = m.decls.filter((d): d is Core.Func => d.kind === 'Func' && d.name.startsWith('r'));
+  assert.equal(rules.length, 150);
+  const visits = new Set(rules.map((d) => inputRefsNodeVisits(m, d)));
+  // 每条规则独立分析、互不累积：150 条同构规则的访问数相同
+  assert.equal(visits.size, 1, `各规则访问数不一致：${[...visits].join(', ')}`);
+  const [v] = [...visits] as [number];
+  // 记忆化后约为 3×Let 行数 + 4×扇出（~4.8 千）；不记忆化时会撞上预算（20 万）
+  assert.ok(v < MAX_NODE_VISITS / 10, `单条规则访问 ${v} 次，接近节点预算 ${MAX_NODE_VISITS}——记忆化失效？`);
+  for (const d of rules) assert.deepEqual(analyzeInputRefs(m, d).inputRefs, ['context.amount']);
 });
 
-test('节点预算耗尽为 inline-depth 且在一秒内完成', () => {
+test('评审复现的访问数随函数体与扇出线性增长', () => {
+  // 规模取在预算之下（不记忆化时大的一档约 3 万次），否则两档都止于预算、比值失真
+  const small = reproVisits(20, 8);
+  const large = reproVisits(40, 16);
+  // 函数体与扇出同时翻倍：线性时访问数至多翻倍；扇出²×函数体时约为 8 倍
+  assert.ok(large <= 2.2 * small, `规模翻倍后访问数 ${small} → ${large}（${(large / small).toFixed(2)} 倍），超出线性`);
+});
+
+test('节点预算耗尽为 inline-depth 且访问数止于预算', () => {
   const fx = JSON.parse(readFileSync(resolve(process.cwd(), 'shared', 'governance_input_refs_parity.json'), 'utf8')) as {
     cases: { name: string; source: string }[];
   };
   const src = fx.cases.find((c) => c.name === 'node-visit-budget')!.source;
   const m = resolveSrc(src);
-  const start = performance.now();
-  const r = analyzeInputRefs(m, func(m, 'decide'));
-  const ms = performance.now() - start;
-  assert.equal(r.construct, 'inline-depth');
-  assert.ok(ms < 1000, `节点预算用例的分析耗时 ${ms} ms`);
+  assert.equal(analyzeInputRefs(m, func(m, 'decide')).construct, 'inline-depth');
+  const visits = inputRefsNodeVisits(m, func(m, 'decide'));
+  // 预算耗尽后每个表达式只计一次编号即返回，余下的只是各活动帧剩余语句（本例超出约 110 次）
+  assert.ok(visits > MAX_NODE_VISITS, `访问 ${visits} 次即结束，用例未触及预算`);
+  assert.ok(visits <= MAX_NODE_VISITS * 1.01, `访问 ${visits} 次，预算 ${MAX_NODE_VISITS} 后仍在展开——预算未生效？`);
 });
 
 // 第三轮审查 C1：记忆化键必须按结构比较（与 Java 同场景）。用户提交的 Core IR 可以在点路径段里带控制字符，
