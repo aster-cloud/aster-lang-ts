@@ -27,7 +27,7 @@ import { parseBlock, parseExplicitBlock, parseParamList, typeNewlineIssue } from
 import { parseFieldList, parseVariantList } from './field-variant-parser.js';
 import { assignSpan, spanFromSources, lastConsumedToken, lastNonLayoutToken, spanFromTokens } from './span-utils.js';
 import type { Span } from '../types.js';
-import { Issue, acceptedAfterNewline, headerNewlineIssue, kwParam, lit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
+import { Issue, acceptedAfterNewline, headerNewlineIssue, kwParam, lit, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 /**
  * R30+ audit P1：原本写满 14 处 {@code (node as any).nameSpan = ...} / variantSpans。
@@ -351,6 +351,13 @@ export function parseFuncDecl(
       } else {
         error(Issue.expectedAfter(tokenName('dotOrColon'), tokenName('effectClause'), "Expected '.' or ':' after effect clause"));
       }
+    } else if (tokLowerAt(ctx, ctx.index) === 'it') {
+      // 句点后的 `It` 只能引出 `It performs`，与 core 同码、报在 `It` 之后的记号处（aster-lang-ts#389）：
+      // 换行或文件末为 E055（ANTLR 缺失记号），同一行的别的记号为 E060「Expected 'performs' before …」
+      ctx.nextWord();
+      const after = ctx.peek();
+      if (after.kind === TokenKind.NEWLINE || after.kind === TokenKind.EOF) error(Issue.expected('kw.performs', "Expected 'performs'"), after);
+      error(Issue.expectedBefore('kw.performs', tokenLit(after), `Expected 'performs' before ${tokenLit(after)}`), after);
     }
   }
   // 场景2: produce Type. It performs io: ...（内联效果）

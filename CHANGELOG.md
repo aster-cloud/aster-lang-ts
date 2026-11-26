@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### 解析：与 core 对齐的两处放宽与 #389 的诊断码（Wave D，裁决 D6）
+
+- **`if` 作名字**：小写 `if` 后面紧跟 `.` / `,` / `)` 时读作名字（形参或局部量 `if`：`Return if.`、`g(if, 1)`），与 core 一致；
+  其余位置照旧是 if 表达式。`Return if plus 1.` 这类写法 core 收、ts 仍报 E057，留给关键词大小写列车 K。
+- **大写开头的 Let 名**：`Let Foo be x`、de `sei Betrag gleich x`（德语名词大写）编译通过，与 core 一致；结构关键词的规范拼写
+  （`Let If be …`、`Let Return be …`）仍报 E901。
+- **aster-lang-ts#389**：`of` 之后直接换行报 **E062**（原 E055），下一行同列续写类型时报 E061，与 core 同位置；句点后的 `It`
+  后面换行或文件结束报 **E055** `{token: kw.performs}`（原 E064 报在 `It` 处），同一行接别的词报 **E060**
+  「Expected 'performs' before …」。`option of` / `result of` 同样处理。共享夹具 `shared/parse_diagnostics_parity.json` 加 7 行。
+
 ### 显示排版隐藏名字转义的反引号：L10（ADR 0059 修订 5）
 
 - `./layout` 新增 `hiddenEscapeTriples`（L10a 形状：结构 span 的 display 不含反引号；反引号结构 span 恰为 `` {"`",""} `` 并配成

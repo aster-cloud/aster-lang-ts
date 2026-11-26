@@ -9,7 +9,7 @@ import { isCapabilityKind } from '../effects/capabilities.js';
 import type { CapabilityKind } from '../config/semantic.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
-import { Issue, kwParam, lit, tokenName, type ParseErrorFn } from './parse-issue.js';
+import { acceptedAfterNewline, headerNewlineIssue, Issue, kwParam, lit, tokenName, type ParseErrorFn } from './parse-issue.js';
 import { skipAnnotationsFrom } from './annotation-parser.js';
 
 /**
@@ -418,7 +418,7 @@ function parseTypePrimary(
 
   if (ctx.isKeywordSeq(KW.OPTION_OF)) {
     const optionToks = consumeKeywordSequence(ctx, KW.OPTION_OF);
-    const inner = parseType(ctx, error);
+    const inner = parseOfArgument(ctx, error);
     const node = Node.Option(inner);
     assignSpan(node, spanFromSources(optionToks[0]!, inner));
     return node;
@@ -426,7 +426,7 @@ function parseTypePrimary(
 
   if (ctx.isKeywordSeq(KW.RESULT_OF)) {
     const resultToks = consumeKeywordSequence(ctx, KW.RESULT_OF);
-    const ok = parseType(ctx, error);
+    const ok = parseOfArgument(ctx, error);
 
     // Error type is optional - if not specified, defaults to Text
     let err: Type;
@@ -459,7 +459,7 @@ function parseTypePrimary(
   if (ctx.isKeywordSeq(['list', 'of'])) {
     const listTok = ctx.nextWord();
     const ofTok = ctx.nextWord();
-    const inner = parseType(ctx, error);
+    const inner = parseOfArgument(ctx, error);
     const node = Node.List(inner);
     assignSpan(node, spanFromSources(listTok, ofTok, inner));
     return node;
@@ -543,7 +543,7 @@ function parseTypePrimary(
       const args: Type[] = [];
       let more = true;
       while (more) {
-        args.push(parseType(ctx, error));
+        args.push(args.length === 0 ? parseOfArgument(ctx, error) : parseType(ctx, error));
         if (continuesOfTypeArgs(ctx, error)) {
           ctx.next(); // 消费 `and` / `,`
           continue;
@@ -570,6 +570,21 @@ function parseTypePrimary(
   }
 
   error(Issue.expected(tokenName('type'), 'Expected type'));
+}
+
+/**
+ * `of` 之后的第一个类型参数。`of` 之后直接换行时与 core 同码，报在换行处（aster-lang-ts#389）：core 的 ANTLR 先试单 token
+ * 删除，下一行同列续写一个类型起始记号时报 E061，缩进、空行、文件末或其它记号时报 E062。
+ */
+function parseOfArgument(ctx: ParserContext, error: ParseErrorFn): Type {
+  if (ctx.at(TokenKind.NEWLINE)) {
+    error(headerNewlineIssue(
+      acceptedAfterNewline(ctx, () => ctx.at(TokenKind.TYPE_IDENT) || ctx.at(TokenKind.IDENT) || ctx.at(TokenKind.LPAREN) || ctx.at(TokenKind.AT)),
+      tokenName('type'),
+      'a type',
+    ));
+  }
+  return parseType(ctx, error);
 }
 
 /** 与 aster-lang-core AstBuilder.visitOfGenericType 的文案逐字相同。 */

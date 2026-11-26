@@ -411,7 +411,7 @@ export function parseStatement(
     ctx.nextWord();
     rejectNewlineAfterStatementKeyword(ctx, error, letTok);
     const nameTok = ctx.peek();
-    const name = parseIdent(ctx, error);
+    const name = parseLetName(ctx, error);
     expectKeyword(ctx, error, KW.BE, Issue.expectedIn(kwParam(KW.BE), tokenName('binding'), `Use ${kwq(ctx, KW.BE)} in bindings: '${kw(ctx, KW.LET, 'Let')} x ${kw(ctx, KW.BE)} ...'.`));
     // Special-case lambda block form to avoid trailing '.'
     if ((ctx.isKeyword('a') && tokLowerAt(ctx, ctx.index + 1) === 'function') || ctx.isKeyword('function')) {
@@ -838,7 +838,8 @@ export function parseExpr(
     // ADR 0019 G2b：表达式级 if（`if cond then a else b`）锚在表达式入口，与 Java grammar
     // `expr : ifExpr | orExpr` 对齐。cond 用 parseOr（不含 if-expr，避免 `if if ...` 歧义），
     // then/else 用 parseExpr → 支持嵌套。else 必需（表达式两方向都要有值）。
-    if (ctx.isKeyword(KW.IF)) {
+    // `if` 后面紧跟 `.` / `,` / `)` 时是名字（形参或局部量 `if`），不是 if 表达式：与 core 的 structKeywordName 同口径（ADR 0019 G1，裁决 D6）
+    if (ctx.isKeyword(KW.IF) && !IF_NAME_FOLLOWERS.has(ctx.peekToken(1).kind)) {
       return parseIfExpr(ctx, error);
     }
     return parseOr(ctx, error);
@@ -846,6 +847,9 @@ export function parseExpr(
     ctx.exitRecursion();
   }
 }
+
+/** 让 `if` 读作名字的后继记号。 */
+const IF_NAME_FOLLOWERS: ReadonlySet<TokenKind> = new Set([TokenKind.DOT, TokenKind.COMMA, TokenKind.RPAREN]);
 
 /**
  * 表达式级 if（ADR 0019 G2b）：`IF cond THEN thenE ELSE elseE`，产出 IfExpr 表达式。
@@ -2205,6 +2209,18 @@ function parseIdent(
     error(keywordAsNameIssue(ctx, ctx.peek()) ?? Issue.expected(tokenName('identifier'), 'Expected identifier'));
   }
   return ctx.next().value as string;
+}
+
+/**
+ * Let 绑定的名字：除 IDENT 外也收大写开头的名字（`Let Foo be x`、de `sei Betrag gleich x`），与 core 的 nameIdent 同口径
+ * （裁决 D6）。结构关键词的规范拼写（`If`、`Return` 等）仍报 E901，本地化关键词还原的记号仍走 parseIdent。
+ */
+function parseLetName(ctx: ParserContext, error: ParseErrorFn): string {
+  const tok = ctx.peek();
+  if (tok.kind === TokenKind.TYPE_IDENT && tok.originalValue === undefined && keywordAsNameIssue(ctx, tok) === null) {
+    return String(ctx.next().value);
+  }
+  return parseIdent(ctx, error);
 }
 
 /**
