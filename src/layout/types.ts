@@ -34,10 +34,14 @@ export type LayoutErrorCode =
   | 'layout_structural_hides_value'
   | 'layout_content_parity'
   | 'layout_display_mismatch'
-  | 'layout_structural_hides_operator';
+  | 'layout_structural_hides_operator'
+  /** L10a（ADR 0059 修订 5）：隐藏转义符的形状不合规 */
+  | 'layout_escape_delimiter_invalid'
+  /** L10b：去掉被隐藏的反引号会得到另一个程序，或无法证明不会（未给编译上下文） */
+  | 'layout_hidden_escape_changes_program';
 
 /** 包格式 1.1 的排版规则号（ADR 0059 修订 4 §4）；只由 `./layout` 的包规则函数填入。 */
-export type LayoutRule = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6' | 'L7' | 'L8' | 'L9';
+export type LayoutRule = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6' | 'L7' | 'L8' | 'L9' | 'L10a' | 'L10b';
 
 /** 失败的附加定位：`offset` 为 canonical 源码中的 UTF-16 偏移；`limit` 为超出的上限名。 */
 export interface LayoutErrorDetail {

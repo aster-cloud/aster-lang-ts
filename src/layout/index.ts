@@ -21,18 +21,23 @@ export { canonicalToDisplay, displayToCanonical } from './mapping.js';
 export {
   ASCII_OPERATORS,
   checkDerivedLayout,
+  checkHiddenEscapes,
   checkLayoutLimits,
   checkPackageLayout,
   containsWholeWord,
+  hiddenEscapeTriples,
   irNameStrings,
+  MAX_HIDDEN_ESCAPES,
   layoutRuleOf,
   operatorSequence,
   operatorTable,
   padStructuralSpans,
   parseLayoutStrict,
   sourceMeasures,
+  stripHiddenEscapes,
   structuralNameHits,
 } from './package-rules.js';
-export type { CheckPackageLayoutOptions, LayoutRuleContext } from './package-rules.js';
+export type { CheckPackageLayoutOptions, HiddenEscape, L10bCompile, LayoutRuleContext } from './package-rules.js';
+export type { LayoutCompileContext } from './validate.js';
 export { reconstructFromDisplay } from './reconstruct.js';
 export type { Reconstruction } from './reconstruct.js';

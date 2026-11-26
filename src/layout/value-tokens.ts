@@ -513,7 +513,10 @@ export function valueTokenRanges(source: string, lexicon: Lexicon, structural?: 
     return candidates.filter((c) => !c.probe || !relevant(whole) || c.probe()).map(() => whole);
   }
   const ranges = locateCandidates(tokens, candidates, original, canonLines, lexicon, spellings);
-  return candidates.filter((c) => !c.probe || !relevant(ranges.get(c.i)!) || c.probe()).map((c) => ranges.get(c.i)!);
+  // 名字转义（ADR 0059 修订 5 §4.2）：值是其间的名字，两个反引号是定界符（只能作为 L10a 三元组落在结构 span 里，由 L10a 把关）
+  const inner = (i: number, r: OffsetRange): OffsetRange =>
+    tokens[i]!.escaped && r[1] - r[0] >= 2 && source[r[0]] === '`' && source[r[1] - 1] === '`' ? [r[0] + 1, r[1] - 1] : r;
+  return candidates.filter((c) => !c.probe || !relevant(ranges.get(c.i)!) || c.probe()).map((c) => inner(c.i, ranges.get(c.i)!));
 }
 
 /**
