@@ -13,6 +13,7 @@ import { ErrorCode } from '../diagnostics/error_codes.js';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { Lexicon } from '../config/lexicons/types.js';
+import { EN_US } from '../config/lexicons/en-US.js';
 import { SemanticTokenKind } from '../config/token-kind.js';
 import { getLspUiTexts } from '../config/lexicons/lsp-ui-texts.js';
 import { escapeRegExp } from './navigation/shared.js';
@@ -20,10 +21,15 @@ import { keywordSpellingAt } from './name-escape.js';
 import { lspSourceChecker, NAME_ESCAPE_CODES, nameEscapeEdits } from './name-escape-fix.js';
 import type { VocabularyScopes } from '../config/lexicons/identifiers/scopes.js';
 
-/** 文档解析缓存里的租户词汇（与诊断同一份）；解析失败时缺省。 */
-function vocabularyOf(doc: TextDocument, getOrParse: (doc: TextDocument) => { vocabulary?: VocabularyScopes }): VocabularyScopes | undefined {
+/**
+ * 文档解析缓存里的租户词汇（与诊断同一份）。解析本身抛错时返回 undefined：拿不到诊断用的编译上下文，不给「用作名字」修复。
+ */
+function checkContext(
+  doc: TextDocument,
+  getOrParse: (doc: TextDocument) => { vocabulary?: VocabularyScopes },
+): { vocabulary: VocabularyScopes | undefined } | undefined {
   try {
-    return getOrParse(doc).vocabulary;
+    return { vocabulary: getOrParse(doc).vocabulary };
   } catch {
     return undefined;
   }
@@ -71,10 +77,12 @@ export function registerCodeActionHandlers(
         const word = spelled !== '' && (fallback === '' || spelled === fallback) ? spelled : fallback;
         const title = `Use \`${word}\` as a name`;
         // E808 来自带租户别名集的编译（LSP 不持有别名集）：用诊断里的别名与 kind 重建这一条别名，编译判定才与报错方一致
+        // 别名数据缺失或 kind 不是关键词种类时无从重建：只能按不含别名的词法表判定（至多少转义几处引用，不会误转义关键词）
         const alias = code === ErrorCode.ALIAS_IDENTIFIER_COLLISION && typeof args.alias === 'string' && typeof args.kind === 'string'
-          ? { [args.kind]: [args.alias] } : undefined;
-        const edits = word === '' || offered.has(title) ? []
-          : nameEscapeEdits(text, word, d.range, lspSourceChecker({ lexicon, vocabulary: vocabularyOf(doc, getOrParse), aliasSet: alias }), lexicon).edits;
+          && Object.hasOwn(EN_US.keywords, args.kind) ? { [args.kind]: [args.alias] } : undefined;
+        const context = word === '' || offered.has(title) ? undefined : checkContext(doc, getOrParse);
+        const edits = context === undefined ? []
+          : nameEscapeEdits(text, word, d.range, lspSourceChecker({ lexicon, vocabulary: context.vocabulary, aliasSet: alias }), lexicon).edits;
         if (edits.length > 0) {
           offered.add(title);
           actions.push({

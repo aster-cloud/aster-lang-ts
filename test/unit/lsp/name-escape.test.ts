@@ -323,6 +323,56 @@ describe('「用作名字」只转义名字位置（#404，ADR 0064 §6 N1 修�
     assert.doesNotThrow(() => compileWithAlias(fixed));
   });
 
+  it('同一行多处引用：坐标按同行已转义处右移换算，全部转义', () => {
+    const text = [
+      '模块 演示。', '',
+      '定义 软件 包含 版本 作为 整数。', '',
+      '规则 取版本 给定 软件 作为 软件，产出 整数：',
+      '  返回 软件.版本 加上 软件.版本 加上 软件.版本。', '',
+    ].join('\n');
+    const check = lspSourceChecker({ lexicon: ZH_CN });
+    const w802 = check(text).find(d => d.code === 'W802' && d.range.start.line === 2);
+    assert.ok(w802);
+    const r = nameEscapeEdits(text, '版本', w802.range, check, ZH_CN);
+    assert.equal(r.mode, 'names');
+    assert.deepEqual(at(r.edits), [[2, 9], [5, 8], [5, 17], [5, 26]]);
+    assert.deepEqual(compileErrors(applyEscapes(text, r.edits), ZH_CN), []);
+  });
+
+  it('不给修复：W802 字段另有英文拼写的引用（`软件.version`，不在该词出现行上），改名会让它失效', async () => {
+    const text = [
+      '模块 演示。', '',
+      '定义 软件 包含 版本 作为 整数。', '',
+      '规则 取版本 给定 软件 作为 软件，产出 整数：',
+      '  如果 软件.version 大于 1',
+      '    返回 1。',
+      '  返回 软件.版本。', '',
+    ].join('\n');
+    assert.deepEqual(compileErrors(text, ZH_CN), []);
+    const check = lspSourceChecker({ lexicon: ZH_CN });
+    const w802 = check(text).find(d => d.code === 'W802' && d.range.start.line === 2);
+    assert.ok(w802);
+    assert.equal(nameEscapeEdits(text, '版本', w802.range, check, ZH_CN).mode, 'none');
+    assert.deepEqual(await codeActionsFor(text, [{ code: 'W802', message: '', range: w802.range, data: { keyword: '版本' } }], ZH_CN), []);
+  });
+
+  it('原文另有被 E901 掩盖的无关错误（别处的未知字段）：照样给出修复', async () => {
+    const text = ZH_404.replace('    如果 申请人.信用评分 大于 650', '    如果 申请人.不存在 大于 650');
+    const edits = await fixEdits(text, cloudE901(text, ZH_CN), ZH_CN, '返回');
+    assert.deepEqual(at(edits), [[6, 10]]);
+    // 修复后暴露的是原有的错误，不是改写引入的
+    assert.deepEqual(compileErrors(applyEdits(text, edits), ZH_CN), ['E801']);
+  });
+
+  it('getOrParse 抛错（拿不到诊断用的编译上下文）时不给修复', async () => {
+    const handlers: Record<string, (p: unknown) => Promise<unknown>> = {};
+    const connection = { onCodeAction: (h: (p: unknown) => Promise<unknown>) => { handlers.codeAction = h; } };
+    const documents = { get: () => ({ uri: 'file:///t.aster', getText: () => ZH_404 }) };
+    registerCodeActionHandlers(connection as never, documents as never, () => { throw new Error('boom'); }, () => null, () => ZH_CN);
+    const actions = await handlers.codeAction!({ textDocument: { uri: 'file:///t.aster' }, context: { diagnostics: [cloudE901(ZH_404, ZH_CN)] } });
+    assert.deepEqual(actions, []);
+  });
+
   it('de `wenn`：字段与引用转义，IF 语句不动', async () => {
     const text = [
       'Modul demo.', '',

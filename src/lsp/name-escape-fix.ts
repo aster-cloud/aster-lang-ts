@@ -122,17 +122,25 @@ function counts(diags: readonly CheckedDiagnostic[]): Map<string, number> {
   return m;
 }
 
+/** 原文的 error 计数，以及原文是否有语法错误（有则名称解析未运行，语义错误看不见）。 */
+interface Baseline {
+  readonly errors: Map<string, number>;
+  readonly syntaxBroken: boolean;
+}
+
 /**
- * 改写是否比原文多出错误（按码与行计数）。只计语法阶段的错误与落在该词出现行上的错误：原文有语法错误时名称解析不发布，
- * 修复后才出现的、与该词无关的既有错误（别处的未知名字）不算改写引入的。
+ * 改写是否比原文多出错误（按码与行计数，全文）。唯一的放宽：原文有语法错误时名称解析没有运行，原文的语义错误不可见，
+ * 修复后才暴露的、不在该词出现行上的语义错误（别处既有的未知名字）无从判断是否新增，不计；语法错误与该词出现行上的错误照计。
+ * 原文语法完整（W802、E808 与多数文档）时全文严格比较：改名让别处以其他拼写写的引用（`软件.version`）失效也会被拒。
  */
-function addsErrors(candidate: readonly CheckedDiagnostic[], baseline: Map<string, number>, wordLines: ReadonlySet<number>): boolean {
+function addsErrors(candidate: readonly CheckedDiagnostic[], baseline: Baseline, wordLines: ReadonlySet<number>): boolean {
   const seen = new Map<string, number>();
   for (const d of candidate) {
-    if (d.severity !== 'error' || !(d.syntax || wordLines.has(d.range.start.line))) continue;
+    if (d.severity !== 'error') continue;
+    if (baseline.syntaxBroken && !d.syntax && !wordLines.has(d.range.start.line)) continue;
     const n = (seen.get(key(d)) ?? 0) + 1;
     seen.set(key(d), n);
-    if (n > (baseline.get(key(d)) ?? 0)) return true;
+    if (n > (baseline.errors.get(key(d)) ?? 0)) return true;
   }
   return false;
 }
@@ -148,7 +156,10 @@ export function applyEscapes(text: string, edits: readonly TextEdit[]): string {
   return lines.join('\n');
 }
 
-/** 所选出现转义后，第 i 处出现在改写文本中的范围（同一行前面每处转义右移 2 列；已转义的出现取反引号之内）。 */
+/**
+ * 所选出现转义后，第 i 处出现在改写文本中的范围（同一行前面每处转义右移 2 列；已转义的出现取反引号之内）。
+ * 候选出现由 {@link escapeAllOccurrences} 逐行扫描得到，都在单行之内；转义不增删行，诊断的行号不变。
+ */
 function shiftedRange(occs: readonly TextEdit[], chosen: ReadonlySet<number>, i: number): Range {
   const r = occs[i]!.range;
   let shift = 0;
@@ -177,7 +188,8 @@ export function nameEscapeEdits(
   const seed = occs.map((_, i) => i).filter(i => lies(occs[i]!.range, diagnosed));
   if (seed.length === 0) return NONE(0);
   const wordLines = new Set(occs.map(o => o.range.start.line));
-  const baseline = counts(check(text));
+  const original = check(text);
+  const baseline: Baseline = { errors: counts(original), syntaxBroken: original.some(d => d.syntax && d.severity === 'error') };
   const pick = (set: ReadonlySet<number>): TextEdit[] => [...set].sort((a, b) => a - b).map(i => occs[i]!);
 
   const chosen = new Set(seed);
@@ -185,9 +197,10 @@ export function nameEscapeEdits(
   let compiles = 2;
   let current = single;
   for (let round = 0; round < MAX_EXPANSION_ROUNDS; round++) {
-    // 触发扩展的诊断：本组三个码，或原文没有的错误；只看落在尚未转义的出现上的
+    // 触发扩展的诊断：本组三个码，或原文没有的名称解析错误（引用旧写法的未知名字）；只看落在尚未转义的出现上的。
+    // 语法错误不触发：它说明不了那一处是名字
     const triggers = current.filter(d => NAME_ESCAPE_CODES.has(d.code)
-      || (d.severity === 'error' && !baseline.has(key(d))));
+      || (d.severity === 'error' && !d.syntax && !baseline.errors.has(key(d))));
     const added = occs.map((_, i) => i)
       .filter(i => !chosen.has(i) && triggers.some(d => lies(shiftedRange(occs, chosen, i), d.range)));
     if (added.length === 0) break;
