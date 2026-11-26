@@ -339,6 +339,24 @@ describe('「用作名字」只转义名字位置（#404，ADR 0064 §6 N1 修�
     assert.deepEqual(compileErrors(applyEscapes(text, r.edits), ZH_CN), []);
   });
 
+  it('同一行原有同码错误时，多出的那条名称解析错误照样触发扩展（按计数，不按码 + 行是否出现过）', () => {
+    const text = [
+      '模块 演示。', '',
+      '定义 软件 包含 版本 作为 整数。', '',
+      '规则 取版本 给定 软件 作为 软件，产出 整数：',
+      '  返回 软件.不存在 加上 软件.版本。', '',
+    ].join('\n');
+    // 去掉 W802，只靠引用失效的 E801 判定名字位置
+    const real = lspSourceChecker({ lexicon: ZH_CN });
+    const check: SourceChecker = t => real(t).filter(d => d.code !== 'W802' || d.range.start.line === 2);
+    assert.equal(check(text).filter(d => d.code === 'E801' && d.range.start.line === 5).length, 1);
+    const w802 = check(text).find(d => d.code === 'W802');
+    assert.ok(w802);
+    const r = nameEscapeEdits(text, '版本', w802.range, check, ZH_CN);
+    assert.equal(r.mode, 'names');
+    assert.deepEqual(at(r.edits), [[2, 9], [5, 18]]);
+  });
+
   it('不给修复：W802 字段另有英文拼写的引用（`软件.version`，不在该词出现行上），改名会让它失效', async () => {
     const text = [
       '模块 演示。', '',

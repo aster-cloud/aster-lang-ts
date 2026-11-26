@@ -128,19 +128,30 @@ interface Baseline {
   readonly syntaxBroken: boolean;
 }
 
+/** 超出原文同码同行计数的那些 error（同一行原有一条 E801、改写后多出一条时，多出的那条算新增）。 */
+function newErrors(candidate: readonly CheckedDiagnostic[], baseline: Map<string, number>): Set<CheckedDiagnostic> {
+  const seen = new Map<string, number>();
+  const out = new Set<CheckedDiagnostic>();
+  for (const d of candidate) {
+    if (d.severity !== 'error') continue;
+    const n = (seen.get(key(d)) ?? 0) + 1;
+    seen.set(key(d), n);
+    if (n > (baseline.get(key(d)) ?? 0)) out.add(d);
+  }
+  return out;
+}
+
 /**
  * 改写是否比原文多出错误（按码与行计数，全文）。唯一的放宽：原文有语法错误时名称解析没有运行，原文的语义错误不可见，
  * 修复后才暴露的、不在该词出现行上的语义错误（别处既有的未知名字）无从判断是否新增，不计；语法错误与该词出现行上的错误照计。
  * 原文语法完整（W802、E808 与多数文档）时全文严格比较：改名让别处以其他拼写写的引用（`软件.version`）失效也会被拒。
+ * 放宽的代价：E901 的名字原文里没有被声明出来，别处只有以其他拼写（英文 `Return`、词汇术语）写的引用才会因改写失效，
+ * 这种引用在原文里本来就解析不到那个声明。
  */
 function addsErrors(candidate: readonly CheckedDiagnostic[], baseline: Baseline, wordLines: ReadonlySet<number>): boolean {
-  const seen = new Map<string, number>();
-  for (const d of candidate) {
-    if (d.severity !== 'error') continue;
+  for (const d of newErrors(candidate, baseline.errors)) {
     if (baseline.syntaxBroken && !d.syntax && !wordLines.has(d.range.start.line)) continue;
-    const n = (seen.get(key(d)) ?? 0) + 1;
-    seen.set(key(d), n);
-    if (n > (baseline.errors.get(key(d)) ?? 0)) return true;
+    return true;
   }
   return false;
 }
@@ -199,8 +210,8 @@ export function nameEscapeEdits(
   for (let round = 0; round < MAX_EXPANSION_ROUNDS; round++) {
     // 触发扩展的诊断：本组三个码，或原文没有的名称解析错误（引用旧写法的未知名字）；只看落在尚未转义的出现上的。
     // 语法错误不触发：它说明不了那一处是名字
-    const triggers = current.filter(d => NAME_ESCAPE_CODES.has(d.code)
-      || (d.severity === 'error' && !d.syntax && !baseline.errors.has(key(d))));
+    const fresh = newErrors(current, baseline.errors);
+    const triggers = current.filter(d => NAME_ESCAPE_CODES.has(d.code) || (fresh.has(d) && !d.syntax));
     const added = occs.map((_, i) => i)
       .filter(i => !chosen.has(i) && triggers.some(d => lies(shiftedRange(occs, chosen, i), d.range)));
     if (added.length === 0) break;
