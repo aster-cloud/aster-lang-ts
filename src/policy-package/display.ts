@@ -10,6 +10,8 @@
 import { readFileSync, statSync } from 'node:fs';
 import { foldKey, compareCodePoints } from '../config/lexicons/identifiers/casefold.js';
 import {
+  checkHiddenEscapes,
+  hiddenEscapeTriples,
   checkDerivedLayout,
   checkPackageLayout,
   irNameStrings,
@@ -136,6 +138,8 @@ export function checkPackageDisplay(pkg: LoadedPackage): PolicyLayout | null {
       source: pkg.files.get('policy/policy.aster')!,
       layoutVersion: member.layoutVersion,
       ...packageRuleContext(pkg),
+      // L10b 要编译：verify 记在 display-ir（checkDisplayIr），show / run --display 由 checkPackageHiddenEscapes 补跑
+      l10b: 'deferred',
     });
   } catch (e) {
     const rule = layoutRuleOf(e);
@@ -148,6 +152,38 @@ export function checkPackageDisplay(pkg: LoadedPackage): PolicyLayout | null {
 function compileWith(pkg: LoadedPackage, source: string): string {
   const c = compileInputs(pkg);
   return compileSource(source, { locale: c.locale, aliasSet: c.aliasSet, allowStructural: c.allowStructural, vocabulary: c.vocabulary });
+}
+
+/** L10b 的编译接缝：按包的编译输入取 positionFreeSha256，编译失败为 undefined。 */
+function hashWith(pkg: LoadedPackage): (source: string) => string | undefined {
+  return (source) => {
+    try {
+      return positionFreeSha256(compileWith(pkg, source));
+    } catch (e) {
+      if (e instanceof CompileFailure) return undefined;
+      throw e;
+    }
+  };
+}
+
+/** L10b 的失败原因（null 表示通过或没有隐藏转义）。 */
+function hiddenEscapeProblem(pkg: LoadedPackage, layout: PolicyLayout): string | null {
+  try {
+    checkHiddenEscapes(layout, hashWith(pkg));
+    return null;
+  } catch (e) {
+    if (layoutRuleOf(e) === undefined) throw e;
+    return (e as Error).message;
+  }
+}
+
+/**
+ * show / run --display 的包排版 L10b（ADR 0059 修订 5 §2.4）：含隐藏转义时编译 policy.aster 与去掉反引号的各个变体，
+ * 失败抛 PKG_DISPLAY_INVALID。verify 不调它：verify 的 L10b 在 display-ir（--recompile）。
+ */
+export function checkPackageHiddenEscapes(pkg: LoadedPackage, layout: PolicyLayout): void {
+  const why = hiddenEscapeProblem(pkg, layout);
+  if (why !== null) throw new PackageError('PKG_DISPLAY_INVALID', 'display', `显示排版 ${why}`);
 }
 
 /**
@@ -165,7 +201,8 @@ export function displayIrProblem(pkg: LoadedPackage, layout: PolicyLayout, coreJ
     throw e;
   }
   if (positionFreeSha256(padded) !== positionFreeSha256(coreJson)) return 'L9: 补空格后投影哈希改变（结构 span 切进了值或名字）';
-  return null;
+  // L10b（ADR 0059 修订 5）：去掉被隐藏的反引号不得得到另一个程序
+  return hiddenEscapeProblem(pkg, layout);
 }
 
 /** verify 的 display-ir：coreJson 为本地重编译 policy/ 的结果。失败抛 PKG_DISPLAY_INVALID。 */
@@ -263,6 +300,11 @@ export function structureNotes(pkg: LoadedPackage, layout: PolicyLayout): string
   }
   const out: string[] = [];
   if (lines.length > 0) out.push('aster: 显示排版中的结构文字（display ⇐ canonical，只是排版，编译的是 canonical）：', ...lines);
+  // 被隐藏的转义（ADR 0059 修订 5 §4.3）：显示里看不到反引号，这些词是名字
+  const hidden = hiddenEscapeTriples(layout);
+  if (hidden.length > 0) {
+    out.push('aster: 显示里隐藏了反引号的名字转义（这些词是名字，不是关键词）：', ...hidden.map((t) => `hidden escape: ${JSON.stringify(`\`${t.name}\``)} (name)`));
+  }
   const vocab = compileInputs(pkg).vocabTree;
   const literals = isJsonObject(vocab) && Array.isArray(vocab['literals']) ? vocab['literals'] : [];
   const macros = literals

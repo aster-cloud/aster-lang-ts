@@ -7,6 +7,37 @@ import { canonicalOf, readLayout, serializeLayout, toCanonical, toDisplay, utf8L
 import { LAYOUT_LIMITS, LayoutError } from './types.js';
 import type { LayoutLimitName, LayoutSpan, LayoutValidation, PolicyLayout } from './types.js';
 import { valueTokenRanges, withAliasSet } from './value-tokens.js';
+import { checkHiddenEscapes, hiddenEscapeTriples } from './package-rules.js';
+import type { DomainVocabulary } from '../config/lexicons/identifiers/types.js';
+import { CompileFailure, compileSource, positionFreeSha256 } from '../policy-package/compile-source.js';
+
+/**
+ * L10b 的编译输入（ADR 0059 修订 5 §4.2）：与版本源码相同的 locale、aliasSet、allowStructural 与词汇。cloud 保存与导出传入版本的
+ * 编译上下文；不传时含隐藏转义符的排版一律以 layout_hidden_escape_changes_program 拒绝（失败封闭）。
+ */
+export interface LayoutCompileContext {
+  readonly locale: string;
+  readonly aliasSet?: Record<string, string[]> | null;
+  readonly allowStructural?: boolean;
+  readonly vocabulary?: DomainVocabulary | null;
+}
+
+/** 按编译上下文编译一份源码的 positionFreeSha256；编译失败为 undefined。 */
+function compilerFor(context: LayoutCompileContext): (source: string) => string | undefined {
+  return (source) => {
+    try {
+      return positionFreeSha256(compileSource(source, {
+        locale: context.locale,
+        ...(context.aliasSet ? { aliasSet: context.aliasSet } : {}),
+        ...(context.allowStructural !== undefined ? { allowStructural: context.allowStructural } : {}),
+        ...(context.vocabulary ? { vocabulary: context.vocabulary } : {}),
+      }));
+    } catch (e) {
+      if (e instanceof CompileFailure) return undefined;
+      throw e;
+    }
+  };
+}
 
 /**
  * Lint：至少一个非空内容 span；结构 span 的 canonical 不含字符串字面量的引号。
@@ -115,20 +146,32 @@ function assertStructuralHidesNoValue(layout: PolicyLayout, source: string, lexi
 /**
  * 校验一个 layout 能否随 `source` 保存。`lexicon` 为版本 locale 的词法表，`aliasSet` 为该版本冻结的
  * 关键词别名（kind → 别名列表），与词法表自带的别名取并集。
+ *
+ * 隐藏转义符（ADR 0059 修订 5 L10）：L10a 总是检查（`layout_escape_delimiter_invalid`）；`compileContext` 给出时编译去掉反引号的
+ * 各个变体检查 L10b（`layout_hidden_escape_changes_program`，至多 16 次编译，只在排版含三元组时发生）；不给时含三元组即以
+ * L10b 拒绝。
  */
 export function validatePolicyLayout(
   layout: PolicyLayout,
   source: string,
   lexicon: Lexicon,
   aliasSet?: Record<string, string[]>,
+  compileContext?: LayoutCompileContext,
 ): LayoutValidation {
   try {
     const checked = readLayout(layout);
     assertWithinLimits(checked, source);
     assertRoundtrip(checked, source);
+    const triples = hiddenEscapeTriples(checked);
     assertStructuralHidesNoValue(checked, source, withAliasSet(lexicon, aliasSet));
     const parity = verifyContentParity(checked);
     if (!parity.ok) throw new LayoutError('layout_content_parity', parity.reason);
+    if (triples.length > 0) {
+      if (!compileContext) {
+        throw new LayoutError('layout_hidden_escape_changes_program', 'hidden escape delimiters need the compile context to be checked', { rule: 'L10b' });
+      }
+      checkHiddenEscapes(checked, compilerFor(compileContext));
+    }
     return { ok: true };
   } catch (e) {
     if (!(e instanceof LayoutError)) throw e;

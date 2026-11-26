@@ -88,3 +88,11 @@ test('show：stdoutBytes 为包内文件的原样字节 + \\n（不经解码 / �
   const want = Buffer.concat([readFileSync(join(dir, 'policy/policy.aster')), Buffer.from('\n')]);
   assert.ok(r.stdoutBytes !== undefined && Buffer.from(r.stdoutBytes).equals(want));
 });
+
+test('show：隐藏了反引号的名字转义在 stderr 逐个列出（ADR 0059 修订 5 §4.3）', { skip }, async () => {
+  const r = await runCommand(['show', join(pkgDir(), 'b-display-escape'), ...jwks()], ioWith(''));
+  assert.equal(r.exitCode, 0);
+  assert.ok(!r.stdout.includes('`'), r.stdout);
+  const err = r.stderr.join('\n');
+  assert.equal(err.split('\n').filter((l) => l === 'hidden escape: "`当`" (name)').length, 2, err);
+});

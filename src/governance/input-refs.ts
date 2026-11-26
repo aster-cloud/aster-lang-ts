@@ -144,6 +144,16 @@ export function analyzeInputRefs(module: Pick<Core.Module, 'name' | 'decls'>, ru
   return { inputRefs: [...a.refs].sort() };
 }
 
+/**
+ * @internal 仅供测试：与 analyzeInputRefs 同一次分析消耗的节点先序编号（与 MAX_NODE_VISITS 同口径）。
+ * 分析的工作量用访问数计，确定且与机器快慢、并发无关；生产路径不调用。
+ */
+export function inputRefsNodeVisits(module: Pick<Core.Module, 'name' | 'decls'>, rule: Core.Func): number {
+  const a = new Analyzer(module);
+  a.run(rule);
+  return a.visits;
+}
+
 class Analyzer {
   private readonly funcs = new Map<string, Core.Func>();
   private readonly importAliases: string[] = [];
@@ -158,6 +168,10 @@ class Analyzer {
   private nodeCounter = 0;
   private firstIndex = Number.MAX_SAFE_INTEGER;
   firstConstruct: InputRefsConstruct | undefined;
+
+  get visits(): number {
+    return this.nodeCounter;
+  }
 
   constructor(private readonly module: Pick<Core.Module, 'name' | 'decls'>) {
     for (const d of module.decls ?? []) {

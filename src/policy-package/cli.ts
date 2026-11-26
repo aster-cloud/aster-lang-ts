@@ -39,6 +39,7 @@ import { sha256HexSync } from './sha256.js';
 import {
   checkDisplayIr,
   checkPackageDisplay,
+  checkPackageHiddenEscapes,
   deriveProgram,
   displayMember,
   readEditedDisplay,
@@ -263,6 +264,7 @@ async function cmdRunDisplay(ctx: Ctx, args: ParsedArgs): Promise<CommandResult>
     factsWarning(ctx, pkg);
     const layout = checkPackageDisplay(pkg);
     if (layout === null) throw new PackageError('PKG_DISPLAY_INVALID', 'display', '包没有显示排版，没有可对照的排版');
+    checkPackageHiddenEscapes(pkg, layout);
     const derived = deriveProgram(pkg, layout, edited, ctx.stderr);
     const entry = args.values.get('entry') ?? defaultEntry(pkg.manifest);
     Object.assign(meta, {
@@ -315,6 +317,7 @@ async function cmdShow(ctx: Ctx, args: ParsedArgs): Promise<CommandResult> {
       ctx.stderr.push('aster: 本包无显示排版，打印的是规范源码 policy/policy.aster');
       return fileOut(ctx, pkg.files.get('policy/policy.aster')!);
     }
+    checkPackageHiddenEscapes(pkg, layout);
     ctx.stderr.push(...structureNotes(pkg, layout));
     if (!meta.signed) ctx.stderr.push('aster: 包未签名（--allow-unsigned），显示排版未经签名核验');
     if (edited !== undefined) {
