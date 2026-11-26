@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 3.8.0
+
+> **次版本号的理由**：公开声明只增不删，`exports` 不变。新增：`./layout` 的 `hiddenEscapeTriples`、`stripHiddenEscapes`、`checkHiddenEscapes` 与类型
+> `HiddenEscape` / `L10bCompile` / `LayoutCompileContext`，`validatePolicyLayout` 的可选第 5 个参数 `compileContext`，`printModule` 的可选参数
+> `{ escape }`，新错误码 E902（名字转义）与 E901 / W802（关键词当名字）。行为上：名字转义 `` `x` `` 是纯新增语法（反引号此前在字符串与注释之外是 E050，
+> 已有源码含义不变）；既有源码的新拒绝只有全角反引号 `｀` 不再折叠（照旧 E050）、结构关键词的本地化拼写作名字报 E901、别名 / 词汇含反引号被拒；
+> D6 放宽 `if` 作名字与大写开头的 Let 名；换行诊断改码（接受与拒绝的集合不变）。
+> 按 ADR 0046 §11.7 第 11 条（1.6.0、3.1.0–3.7.0 先例）取 minor。
 
 ### 解析：与 core 对齐的两处放宽与 #389 的诊断码（Wave D，裁决 D6）
 
