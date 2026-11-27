@@ -226,6 +226,20 @@ export function lowerModule(ast: Module): Core.Module {
   return withOrigin(m, ast);
 }
 
+/**
+ * 类型别名表：别名规范名 → 降级后的目标类型（按源码顺序，同名取第一条；重名已由 R1 报 E807）。别名不产出 Core
+ * 声明，R2 用这张表把别名类型的接收者展开为目标类型（aster-lang-core#313，与 Java CoreLowering.lowerTypeAliases 一致）。
+ * ast 为 R1 输出（resolvedTypeAliases 与 typeAliasDecls 同序，右侧类型名已写回规范名）。
+ */
+export function lowerTypeAliases(ast: Module): ReadonlyMap<string, Core.Type> {
+  const out = new Map<string, Core.Type>();
+  (ast.typeAliasDecls ?? []).forEach((alias, i) => {
+    const name = canonicalOf(alias.name, ast.resolvedTypeAliases?.[i]);
+    if (!out.has(name)) out.set(name, lowerType(alias.type, NO_TYPE_VARS, alias));
+  });
+  return out;
+}
+
 function lowerDecl(d: Declaration): Core.Declaration {
   switch (d.kind) {
     case 'Import':

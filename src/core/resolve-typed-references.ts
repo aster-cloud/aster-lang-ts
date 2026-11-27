@@ -60,6 +60,8 @@ interface Tables {
   readonly valueDecls: Entry[];
   /** PatternCtor 的 Data 构造器（本模块 Data 与导入类型） */
   readonly ctorDecls: Entry[];
+  /** 类型别名规范名 → 目标类型（别名不产出 Core 声明，由调用方从 R1 的 AST 降级后传入） */
+  readonly aliases: ReadonlyMap<string, Core.Type>;
 }
 
 interface Resolver {
@@ -96,8 +98,8 @@ function declEntry(d: Core.Data | Core.Enum | Core.Func, role: ResolvedRole): En
   return { written: nfc(d.origin?.written ?? d.name), canonical: d.name, role };
 }
 
-function buildTables(m: Core.Module, ctx: ResolutionContext): Tables {
-  const t: Tables = { datas: new Map(), enums: new Map(), funcs: new Map(), valueDecls: [], ctorDecls: [] };
+function buildTables(m: Core.Module, ctx: ResolutionContext, aliases: ReadonlyMap<string, Core.Type>): Tables {
+  const t: Tables = { datas: new Map(), enums: new Map(), funcs: new Map(), valueDecls: [], ctorDecls: [], aliases };
   for (const d of m.decls) registerDecl(t, d);
   const own = (name: string, role: ResolvedRole): Entry => ({ written: name, canonical: name, role });
   t.valueDecls.push(...ctx.imports.functions.map((f) => own(f, 'FUNC_REF')), ...ctx.imports.types.map((x) => own(x, 'TYPE')));
@@ -185,18 +187,33 @@ function isEnum(r: Resolver, name: string): boolean {
   return r.t.enums.has(name) || (r.scopes?.enumMembers.has(name) ?? false);
 }
 
-/** 已知类型名（TypeName）；类型变量、容器与推断类型均视为未知。 */
-function typeNameOf(t: Static): string | undefined {
-  return typeof t === 'object' && t.kind === 'TypeName' ? t.name : undefined;
+/**
+ * 类型别名逐层展开为目标类型；别名之间成环（R1 不查，A1 §2.4）时停在环上的别名名，按未声明类型名处理。
+ * 不是别名的类型原样返回。
+ */
+function expand(r: Resolver, t: Static): Static {
+  const seen = new Set<string>();
+  let type = t;
+  while (typeof type === 'object' && type.kind === 'TypeName' && r.t.aliases.has(type.name) && !seen.has(type.name)) {
+    seen.add(type.name);
+    type = r.t.aliases.get(type.name);
+  }
+  return type;
+}
+
+/** 已知类型名（TypeName，别名先展开）；类型变量、容器与推断类型均视为未知。 */
+function typeNameOf(r: Resolver, t: Static): string | undefined {
+  const type = expand(r, t);
+  return typeof type === 'object' && type.kind === 'TypeName' ? type.name : undefined;
 }
 
 function enumOf(r: Resolver, t: Static): string | undefined {
-  const name = typeNameOf(t);
+  const name = typeNameOf(r, t);
   return name !== undefined && isEnum(r, name) ? name : undefined;
 }
 
 function dataOf(r: Resolver, t: Static): string | undefined {
-  const name = typeNameOf(t);
+  const name = typeNameOf(r, t);
   return name !== undefined && r.t.datas.has(name) ? name : undefined;
 }
 
@@ -219,14 +236,20 @@ const OPAQUE_TYPE_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * 不透明类型（白名单）：动态值、类型变量、Map 及上述类型名。其后的点分段原样保留、不解析。
- * 类型别名、Option / Maybe / List / TypeApp 等包装与未声明的类型名均不在其中，按未知处理。
+ * 不透明类型（白名单，别名先展开）：动态值、类型变量、Map 及上述类型名。其后的点分段原样保留、不解析。
+ * Option / Maybe / List / TypeApp 等包装与未声明的类型名均不在其中，按未知处理。
  */
-function isOpaque(r: Resolver, t: Static): boolean {
+function isOpaque(r: Resolver, type: Static): boolean {
+  const t = expand(r, type);
   if (t === DYNAMIC) return true;
   if (t === undefined || dataOf(r, t) !== undefined) return false;
   if (t.kind === 'TypeVar' || t.kind === 'Map') return true;
   return t.kind === 'TypeName' && OPAQUE_TYPE_NAMES.has(t.name);
+}
+
+function isTypeVar(r: Resolver, t: Static): boolean {
+  const type = expand(r, t);
+  return typeof type === 'object' && type.kind === 'TypeVar';
 }
 
 // ---- 作用域 ----
@@ -400,7 +423,7 @@ function resolvePath(r: Resolver, scope: Scope, written: string, at: Span | unde
   let type = local.local.type;
   for (const [i, seg] of tail.entries()) {
     // 类型参数没有字段：其上的字段段一定无法解析（类型检查同样拒绝），不让原写法进入 IR
-    if (type !== DYNAMIC && type?.kind === 'TypeVar') report(r, ErrorCode.UNRESOLVED_FIELD, at, seg, 'FIELD_REF');
+    if (isTypeVar(r, type)) report(r, ErrorCode.UNRESOLVED_FIELD, at, seg, 'FIELD_REF');
     if (isOpaque(r, type)) return { name: [...parts, ...tail.slice(i)].join('.'), type: DYNAMIC };
     const next = resolveSegment(r, type, seg, at);
     const owner = type;
@@ -750,7 +773,7 @@ function variantCtor(member: Core.PatName): Core.PatCtor {
 function patNameMember(r: Resolver, p: Core.PatName, mark: ResolutionMark, subject: Static): Core.PatName | undefined {
   const e = enumOf(r, subject);
   if (e !== undefined) return patNameUnderEnum(r, p, mark, e);
-  if (typeNameOf(subject) !== undefined) return undefined;
+  if (typeNameOf(r, subject) !== undefined) return undefined;
   const member = choose(allMembers(r).filter((x) => x.written === nfc(mark.written) || x.canonical === nfc(mark.written)), []);
   if (member.kind === 'miss') return undefined;
   if (member.kind === 'ambiguous') {
@@ -800,7 +823,7 @@ function resolvePatCtor(r: Resolver, f: Frame, p: Core.PatCtor, subject: Static,
  * 主语类型未知（含按名推断）时不给，避免凭构造器名猜类型。
  */
 function ctorFieldHints(r: Resolver, typeName: string, hint: Static): Static[] {
-  const fields = typeNameOf(hint) === typeName ? r.t.datas.get(typeName) : undefined;
+  const fields = typeNameOf(r, hint) === typeName ? r.t.datas.get(typeName) : undefined;
   return fields ? [...fields.keys()].map((name) => fieldType(r, typeName, name)) : [];
 }
 
@@ -820,7 +843,7 @@ function ctorRule(r: Resolver, written: string, subject: Static): CtorRule {
     const choice = chooseMember(r, e, written);
     return { choice, role: 'MEMBER_REF', typed: true, ambiguous: ErrorCode.AMBIGUOUS_NAME, unresolved: ErrorCode.UNRESOLVED_PATTERN };
   }
-  if (typeNameOf(subject) !== undefined) {
+  if (typeNameOf(r, subject) !== undefined) {
     const choice = declThenVocab(r.t.ctorDecls, vocabTypes(r), written);
     return { choice, role: 'TYPE', typed: true, ambiguous: ErrorCode.AMBIGUOUS_NAME, unresolved: ErrorCode.UNRESOLVED_TYPE };
   }
@@ -856,14 +879,16 @@ function resolveDecl(r: Resolver, d: Core.Declaration): Core.Declaration {
 /**
  * R2：解析依赖类型的名字位置。返回新的 Core（只含规范名，原写法记在 origin.written）与诊断
  * （E801/E805 字段、E802 值名、E803/E806 模式、E804 期望枚举下的歧义、W800 遮蔽、W801 无类型采用）。
- * 任一 error 时调用方不得发出 IR。observer 只读接收解析结果（LSP 用），不改变输出。
+ * 任一 error 时调用方不得发出 IR。observer 只读接收解析结果（LSP 用），不改变输出。aliases 为类型别名规范名 → 目标类型
+ * （`lowerTypeAliases`）：别名类型的接收者、Match 主语与期望类型按目标类型解析，与直接写目标类型相同（aster-lang-core#313）。
  */
 export function resolveTypedReferences(
   core: Core.Module,
   ctx: ResolutionContext,
-  observer?: TypedReferenceObserver
+  observer?: TypedReferenceObserver,
+  aliases: ReadonlyMap<string, Core.Type> = new Map()
 ): { module: Core.Module; diagnostics: TypecheckDiagnostic[] } {
-  const r: Resolver = { scopes: ctx.scopes, t: buildTables(core, ctx), diags: new DiagnosticBuilder(), observer };
+  const r: Resolver = { scopes: ctx.scopes, t: buildTables(core, ctx, aliases), diags: new DiagnosticBuilder(), observer };
   const decls = core.decls.map((d) => resolveDecl(r, d));
   return { module: { ...core, decls }, diagnostics: r.diags.getDiagnostics() };
 }

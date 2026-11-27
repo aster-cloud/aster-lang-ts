@@ -14,7 +14,7 @@
 import { canonicalize } from './frontend/canonicalizer.js';
 import { lex } from './frontend/lexer.js';
 import { parse } from './parser.js';
-import { lowerModule } from './lower_to_core.js';
+import { lowerModule, lowerTypeAliases } from './lower_to_core.js';
 import { createKeywordTranslator, needsKeywordTranslation } from './frontend/keyword-translator.js';
 import { resolveDeclarations } from './frontend/resolve-declarations.js';
 import { NO_IMPORTS } from './frontend/resolution-context.js';
@@ -80,7 +80,7 @@ function contextOf(scopes: VocabularyScopes | undefined): ResolutionContext {
 export function resolveAndLower(ast: AstModule, scopes?: VocabularyScopes, observer?: TypedReferenceObserver): ResolvedCore {
   const ctx = contextOf(scopes);
   const r1 = resolveDeclarations(ast, ctx);
-  const r2 = resolveTypedReferences(lowerModule(r1.module), ctx, observer);
+  const r2 = resolveTypedReferences(lowerModule(r1.module), ctx, observer, lowerTypeAliases(r1.module));
   return { ast: r1.module, core: withInputRefs(r2.module), diagnostics: [...r1.diagnostics, ...r2.diagnostics] };
 }
 
