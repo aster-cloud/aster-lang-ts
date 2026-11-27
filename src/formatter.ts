@@ -201,8 +201,9 @@ function programHash(source: string, lexicon: Lexicon | undefined): string | und
 
 /**
  * aster-lang-core 词法上恒为关键词、在名字位置不当软关键词的拼写（区分大小写，AsterLexer.g4 的硬 token 减去
- * structKeywordName）。本引擎在名字位置接受其中多数（ADR 0056 修订 A4 §1.1 之前的 F12），core 拒绝；英文输出里写成这些
- * 拼写的名字一律转义，格式化结果两引擎都能读回同一程序（de 字段 `with`、zh 字段 `and`）。
+ * structKeywordName）。本引擎在名字位置接受其中一部分（for、one、of、function、performs…；and、with 等小写关键词自产品裁决 D4
+ * 起两引擎都拒，见 parse-issue.ts 的 LOWERCASE_KEYWORD_NAMES），core 拒绝；英文输出里写成这些拼写的名字一律转义，格式化结果
+ * 两引擎都能读回同一程序（de 字段 `for`）。
  */
 export const CORE_HARD_KEYWORDS: ReadonlySet<string> = new Set([
   'Module', 'to', 'with', 'and', 'or', 'produce', 'has', 'set', 'Set', 'as', 'one', 'of', 'use', 'Use', 'not', 'for',

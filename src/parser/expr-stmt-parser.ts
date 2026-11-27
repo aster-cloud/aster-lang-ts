@@ -33,7 +33,7 @@ import {
   spanFromSources,
   spanFromTokens,
 } from './span-utils.js';
-import { Issue, acceptedAfterNewline, headerNewlineIssue, keywordAsNameIssue, kwParam, lit, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
+import { Issue, acceptedAfterNewline, headerNewlineIssue, keywordAsNameIssue, kwParam, lit, lowercaseKeywordNameIssue, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 const WAIT_FOR_PARTS = kwParts(KW.WAIT_FOR);
 const MAX_ATTEMPTS_PARTS = kwParts(KW.MAX_ATTEMPTS);
@@ -1412,7 +1412,7 @@ function parseCallTargetName(
     (ctx.peek(1).kind === TokenKind.IDENT || ctx.peek(1).kind === TokenKind.TYPE_IDENT)) {
     consumed.push(ctx.next()); // dot
     const partTok = ctx.peek();
-    full += '.' + (ctx.at(TokenKind.IDENT) ? parseIdent(ctx, error) : (ctx.next().value as string));
+    full += '.' + (ctx.at(TokenKind.IDENT) ? parseMemberIdent(ctx, error) : (ctx.next().value as string));
     consumed.push(partTok);
   }
   const target = Node.Name(full);
@@ -1812,7 +1812,7 @@ function parsePrimary(
       consumedTokens.push(dotTok);
       if (ctx.at(TokenKind.IDENT)) {
         const partTok = ctx.peek();
-        const part = parseIdent(ctx, error);
+        const part = parseMemberIdent(ctx, error);
         consumedTokens.push(partTok);
         full += '.' + part;
       } else if (ctx.at(TokenKind.TYPE_IDENT)) {
@@ -1861,7 +1861,7 @@ function parsePrimary(
       consumedTokens.push(dotTok);
       if (ctx.at(TokenKind.IDENT)) {
         const partTok = ctx.peek();
-        full += '.' + parseIdent(ctx, error);
+        full += '.' + parseMemberIdent(ctx, error);
         consumedTokens.push(partTok);
       } else if (ctx.at(TokenKind.TYPE_IDENT)) {
         const partTok = ctx.next();
@@ -2199,6 +2199,28 @@ function commaNewlineIssue(ctx: ParserContext): ParseIssue {
  * @returns 标识符字符串
  */
 function parseIdent(
+  ctx: ParserContext,
+  error: ParseErrorFn
+): string {
+  // 小写关键词不能作名字（产品裁决 D4）：形参、Let / Set / Start / Wait 的名字、构造字段、名字引用
+  const lowercaseKeyword = lowercaseKeywordNameIssue(ctx, ctx.peek(), 'token.identifier');
+  if (lowercaseKeyword) error(lowercaseKeyword, ctx.peek());
+  return parseIdentAllowingKeyword(ctx, error);
+}
+
+/**
+ * 点之后的成员名：小写关键词同样不能作成员名（D4），唯一的例外是成员调用 `v.not(x)`——aster-lang-core 把它收作成员调用，
+ * ts 照旧（不新增 ts 拒、core 收的写法）。
+ */
+function parseMemberIdent(ctx: ParserContext, error: ParseErrorFn): string {
+  const tok = ctx.peek();
+  if (tok.kind === TokenKind.IDENT && tok.value === 'not' && ctx.peek(1)?.kind === TokenKind.LPAREN) {
+    return parseIdentAllowingKeyword(ctx, error);
+  }
+  return parseIdent(ctx, error);
+}
+
+function parseIdentAllowingKeyword(
   ctx: ParserContext,
   error: ParseErrorFn
 ): string {

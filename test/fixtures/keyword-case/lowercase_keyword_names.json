@@ -1,0 +1,8538 @@
+{
+  "description": "产品裁决 D4（eco-1.0.57，ADR 0056 修订 A4 §1.1 / 修订 A7 D1 的配套裁决）：小写关键词 and、or、not、as、with、to、set、use、on、plus、minus、times、modulo、async、has、produce 不能作名字（形参、字段、Let / Set / Start / Wait 名、lambda 形参、规则名、类型参数、类型别名名、导入别名、成员名、名字引用、注解名、注解参数名与标识符形式的参数值），本地化关键词翻译成这些拼写时（de und / mit / von、zh 并且 / 包含 / 基于 → and / with / on）以及非英文源码里直接写的英文拼写同样拒绝。aster-lang-core 里这些拼写是词法记号，在这些位置本来就报语法错误；ts 此前收作名字。reject：ts 第一条解析错误恰为 [码, 行, 列]，params 恰为 params，消息含转义提示；core 是 aster-lang-core 85f891f 的第一条诊断 [码, 行]（同样拒绝，码不同：core 报通用语法错误）。accept：ts 能编译，且 core 编译出位置无关哈希相同的 Core IR：转义名、首字母大写与混合拼写的同形词、含这些词的长名字、zh 使用 / 加 / 减 / 把（翻译不成这些关键词）。成员调用 v.not(x) 不在名单内（core 收作成员调用，ts 照旧）。",
+  "reject": [
+    {
+      "name": "field/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with and as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, and as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and and as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has and as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given and as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, and as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and and as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, and, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let and be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.and.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.and(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "varref/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Return and.\n",
+      "reject": [
+        "E055",
+        4,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "lambda/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given and as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with or as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, or as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and or as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has or as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given or as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, or as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and or as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, or, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let or be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.or.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.or(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "varref/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Return or.\n",
+      "reject": [
+        "E055",
+        4,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "lambda/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given or as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with not as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, not as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and not as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has not as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given not as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, not as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and not as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, not, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let not be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambda/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given not as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with as as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, as as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and as as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has as as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given as as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, as as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and as as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, as, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let as be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.as.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.as(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given as as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with with as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, with as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and with as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has with as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given with as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, with as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and with as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, with, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let with be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.with.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.with(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given with as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with to as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, to as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and to as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has to as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given to as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, to as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and to as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, to, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let to be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.to.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.to(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given to as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with set as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, set as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and set as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has set as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given set as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, set as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and set as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, set, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let set be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.set.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.set(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambda/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given set as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with use as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, use as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and use as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has use as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given use as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, use as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and use as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, use, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let use be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.use.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.use(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given use as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with on as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, on as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and on as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has on as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given on as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, on as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and on as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, on, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let on be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.on.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.on(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given on as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with plus as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, plus as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and plus as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has plus as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given plus as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, plus as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and plus as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, plus, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let plus be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.plus.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.plus(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given plus as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with minus as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, minus as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and minus as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has minus as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given minus as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, minus as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and minus as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, minus, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let minus be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.minus.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.minus(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given minus as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with times as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, times as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and times as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has times as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given times as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, times as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and times as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, times, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let times be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.times.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.times(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given times as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with modulo as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, modulo as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and modulo as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has modulo as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given modulo as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, modulo as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and modulo as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, modulo, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let modulo be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.modulo.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.modulo(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given modulo as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with async as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, async as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and async as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has async as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given async as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, async as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and async as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, async, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let async be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.async.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.async(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given async as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with has as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, has as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and has as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has has as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given has as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, has as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and has as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, has, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let has be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.has.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.has(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given has as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "field/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with produce as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, produce as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and produce as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has produce as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given produce as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and produce as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let produce be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.produce.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.produce(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given produce as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "settarget/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set and to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start and as async f().\n  Wait for and.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        7
+      ]
+    },
+    {
+      "name": "rulename/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule and given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as and.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType and as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of and, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.and(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.and.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, and as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) and as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set or to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start or as async f().\n  Wait for or.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        7
+      ]
+    },
+    {
+      "name": "rulename/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule or given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as or.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType or as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of or, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.or(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.or.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, or as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) or as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set not to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start not as async f().\n  Wait for not.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "rulename/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule not given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as not.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType not as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of not, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "memberchain/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, not as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) not as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set as to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start as as async f().\n  Wait for as.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "rulename/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule as given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as as.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType as as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of as, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.as(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.as.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, as as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) as as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set with to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start with as async f().\n  Wait for with.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "rulename/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule with given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as with.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType with as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.with(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.with.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, with as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) with as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set to to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start to as async f().\n  Wait for to.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "rulename/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule to given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as to.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType to as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of to, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.to(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.to.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, to as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) to as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set set to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start set as async f().\n  Wait for set.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "rulename/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule set given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as set.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType set as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of set, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.set(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.set.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, set as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) set as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set use to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start use as async f().\n  Wait for use.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "rulename/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule use given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as use.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType use as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of use, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.use(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.use.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, use as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) use as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set on to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start on as async f().\n  Wait for on.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "rulename/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule on given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as on.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType on as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of on, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.on(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.on.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, on as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) on as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set plus to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start plus as async f().\n  Wait for plus.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        7
+      ]
+    },
+    {
+      "name": "rulename/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule plus given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as plus.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType plus as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of plus, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.plus(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.plus.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, plus as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) plus as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set minus to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start minus as async f().\n  Wait for minus.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        7
+      ]
+    },
+    {
+      "name": "rulename/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule minus given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as minus.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType minus as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of minus, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.minus(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.minus.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, minus as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) minus as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set times to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start times as async f().\n  Wait for times.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        7
+      ]
+    },
+    {
+      "name": "rulename/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule times given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as times.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType times as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of times, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.times(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.times.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, times as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) times as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set modulo to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start modulo as async f().\n  Wait for modulo.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        7
+      ]
+    },
+    {
+      "name": "rulename/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule modulo given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as modulo.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType modulo as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of modulo, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.modulo(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.modulo.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, modulo as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) modulo as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set async to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start async as async f().\n  Wait for async.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "rulename/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule async given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as async.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType async as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of async, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.async(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.async.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, async as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) async as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set has to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start has as async f().\n  Wait for has.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "rulename/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule has given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as has.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType has as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of has, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.has(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.has.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, has as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) has as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "settarget/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set produce to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start produce as async f().\n  Wait for produce.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "rulename/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule produce given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as produce.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType produce as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.produce(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.produce.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) produce as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@and\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @and a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", and: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, and) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@or\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @or a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", or: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, or) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@not\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @not a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", not: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, not) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@as\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @as a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", as: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, as) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@with\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @with a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", with: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, with) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@to\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @to a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", to: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, to) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@set\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @set a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", set: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, set) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@use\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @use a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", use: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, use) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@on\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @on a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", on: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, on) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@plus\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @plus a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", plus: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, plus) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@minus\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @minus a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", minus: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, minus) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@times\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @times a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", times: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, times) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@modulo\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @modulo a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", modulo: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, modulo) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@async\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @async a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", async: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, async) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@has\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @has a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", has: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, has) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@produce\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @produce a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", produce: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, produce) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "zh-field/并且",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 并且 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-param/并且",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 并且 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-field/或者",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 或者 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-param/或者",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 或者 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-field/作为",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 作为 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-param/作为",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 作为 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-field/包含",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 包含 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-param/包含",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 包含 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-field/设为",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 设为 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-param/设为",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 设为 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-field/乘以",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 乘以 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-param/乘以",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 乘以 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-field/取模",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 取模 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-param/取模",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 取模 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-field/异步",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 异步 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-param/异步",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 异步 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-field/产出",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 产出 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-param/产出",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 产出 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-field/不是",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 不是 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-param/不是",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 不是 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-field-with",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit with als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-field-and",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit and als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-field-set",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit set als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-field-with",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 with 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-field-and",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 and 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/verwende",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit verwende als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/verwende",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben verwende als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/als",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit als als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/als",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben als als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/mit",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit mit als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/mit",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben mit als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/hat",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit hat als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/hat",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben hat als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/liefert",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit liefert als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/liefert",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben liefert als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/setze",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit setze als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/setze",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben setze als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/auf",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit auf als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/auf",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben auf als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/oder",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit oder als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/oder",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben oder als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/und",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit und als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/und",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben und als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/nicht",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit nicht als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/nicht",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben nicht als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/plus",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit plus als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/plus",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben plus als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/minus",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit minus als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/minus",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben minus als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/mal",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit mal als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/mal",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben mal als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/modulo",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit modulo als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/modulo",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben modulo als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/von",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit von als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/von",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben von als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/asynchron",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit asynchron als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/asynchron",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben asynchron als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/field/引用",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 引用 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/param/引用",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 引用 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/field/将",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 将 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/param/将",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 将 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/field/加上",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 加上 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/param/加上",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 加上 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/field/减去",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 减去 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/param/减去",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 减去 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/field/基于",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 基于 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/param/基于",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 基于 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    }
+  ],
+  "accept": [
+    {
+      "name": "escaped-param/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `and` as Int, produce Int:\n  Return `and`.\n"
+    },
+    {
+      "name": "escaped-field/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `and` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`and`.\n"
+    },
+    {
+      "name": "escaped-let/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `and` be x.\n  Return `and`.\n"
+    },
+    {
+      "name": "cap-let/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let And be x.\n  Return And.\n"
+    },
+    {
+      "name": "mixed-param/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given aND as Int, produce Int:\n  Return aND.\n"
+    },
+    {
+      "name": "escaped-param/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `or` as Int, produce Int:\n  Return `or`.\n"
+    },
+    {
+      "name": "escaped-field/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `or` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`or`.\n"
+    },
+    {
+      "name": "escaped-let/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `or` be x.\n  Return `or`.\n"
+    },
+    {
+      "name": "cap-let/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let Or be x.\n  Return Or.\n"
+    },
+    {
+      "name": "mixed-param/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given oR as Int, produce Int:\n  Return oR.\n"
+    },
+    {
+      "name": "escaped-param/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `not` as Int, produce Int:\n  Return `not`.\n"
+    },
+    {
+      "name": "escaped-field/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `not` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`not`.\n"
+    },
+    {
+      "name": "escaped-let/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `not` be x.\n  Return `not`.\n"
+    },
+    {
+      "name": "escaped-param/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `as` as Int, produce Int:\n  Return `as`.\n"
+    },
+    {
+      "name": "escaped-field/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `as` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`as`.\n"
+    },
+    {
+      "name": "escaped-let/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `as` be x.\n  Return `as`.\n"
+    },
+    {
+      "name": "cap-let/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let As be x.\n  Return As.\n"
+    },
+    {
+      "name": "mixed-param/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given aS as Int, produce Int:\n  Return aS.\n"
+    },
+    {
+      "name": "escaped-param/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `with` as Int, produce Int:\n  Return `with`.\n"
+    },
+    {
+      "name": "escaped-field/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `with` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`with`.\n"
+    },
+    {
+      "name": "escaped-let/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `with` be x.\n  Return `with`.\n"
+    },
+    {
+      "name": "cap-let/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let With be x.\n  Return With.\n"
+    },
+    {
+      "name": "mixed-param/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given wITH as Int, produce Int:\n  Return wITH.\n"
+    },
+    {
+      "name": "escaped-param/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `to` as Int, produce Int:\n  Return `to`.\n"
+    },
+    {
+      "name": "escaped-field/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `to` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`to`.\n"
+    },
+    {
+      "name": "escaped-let/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `to` be x.\n  Return `to`.\n"
+    },
+    {
+      "name": "cap-let/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let To be x.\n  Return To.\n"
+    },
+    {
+      "name": "mixed-param/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given tO as Int, produce Int:\n  Return tO.\n"
+    },
+    {
+      "name": "escaped-param/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `set` as Int, produce Int:\n  Return `set`.\n"
+    },
+    {
+      "name": "escaped-field/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `set` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`set`.\n"
+    },
+    {
+      "name": "escaped-let/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `set` be x.\n  Return `set`.\n"
+    },
+    {
+      "name": "mixed-param/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given sET as Int, produce Int:\n  Return sET.\n"
+    },
+    {
+      "name": "escaped-param/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `use` as Int, produce Int:\n  Return `use`.\n"
+    },
+    {
+      "name": "escaped-field/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `use` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`use`.\n"
+    },
+    {
+      "name": "escaped-let/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `use` be x.\n  Return `use`.\n"
+    },
+    {
+      "name": "mixed-param/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given uSE as Int, produce Int:\n  Return uSE.\n"
+    },
+    {
+      "name": "escaped-param/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `on` as Int, produce Int:\n  Return `on`.\n"
+    },
+    {
+      "name": "escaped-field/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `on` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`on`.\n"
+    },
+    {
+      "name": "escaped-let/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `on` be x.\n  Return `on`.\n"
+    },
+    {
+      "name": "mixed-param/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given oN as Int, produce Int:\n  Return oN.\n"
+    },
+    {
+      "name": "escaped-param/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `plus` as Int, produce Int:\n  Return `plus`.\n"
+    },
+    {
+      "name": "escaped-field/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `plus` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`plus`.\n"
+    },
+    {
+      "name": "escaped-let/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `plus` be x.\n  Return `plus`.\n"
+    },
+    {
+      "name": "cap-let/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let Plus be x.\n  Return Plus.\n"
+    },
+    {
+      "name": "mixed-param/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given pLUS as Int, produce Int:\n  Return pLUS.\n"
+    },
+    {
+      "name": "escaped-param/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `minus` as Int, produce Int:\n  Return `minus`.\n"
+    },
+    {
+      "name": "escaped-field/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `minus` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`minus`.\n"
+    },
+    {
+      "name": "escaped-let/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `minus` be x.\n  Return `minus`.\n"
+    },
+    {
+      "name": "cap-let/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let Minus be x.\n  Return Minus.\n"
+    },
+    {
+      "name": "mixed-param/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given mINUS as Int, produce Int:\n  Return mINUS.\n"
+    },
+    {
+      "name": "escaped-param/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `times` as Int, produce Int:\n  Return `times`.\n"
+    },
+    {
+      "name": "escaped-field/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `times` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`times`.\n"
+    },
+    {
+      "name": "escaped-let/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `times` be x.\n  Return `times`.\n"
+    },
+    {
+      "name": "cap-let/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let Times be x.\n  Return Times.\n"
+    },
+    {
+      "name": "mixed-param/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given tIMES as Int, produce Int:\n  Return tIMES.\n"
+    },
+    {
+      "name": "escaped-param/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `modulo` as Int, produce Int:\n  Return `modulo`.\n"
+    },
+    {
+      "name": "escaped-field/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `modulo` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`modulo`.\n"
+    },
+    {
+      "name": "escaped-let/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `modulo` be x.\n  Return `modulo`.\n"
+    },
+    {
+      "name": "cap-let/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let Modulo be x.\n  Return Modulo.\n"
+    },
+    {
+      "name": "mixed-param/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given mODULO as Int, produce Int:\n  Return mODULO.\n"
+    },
+    {
+      "name": "escaped-param/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `async` as Int, produce Int:\n  Return `async`.\n"
+    },
+    {
+      "name": "escaped-field/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `async` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`async`.\n"
+    },
+    {
+      "name": "escaped-let/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `async` be x.\n  Return `async`.\n"
+    },
+    {
+      "name": "cap-let/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let Async be x.\n  Return Async.\n"
+    },
+    {
+      "name": "mixed-param/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given aSYNC as Int, produce Int:\n  Return aSYNC.\n"
+    },
+    {
+      "name": "escaped-param/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `has` as Int, produce Int:\n  Return `has`.\n"
+    },
+    {
+      "name": "escaped-field/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `has` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`has`.\n"
+    },
+    {
+      "name": "escaped-let/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `has` be x.\n  Return `has`.\n"
+    },
+    {
+      "name": "cap-let/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let Has be x.\n  Return Has.\n"
+    },
+    {
+      "name": "mixed-param/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given hAS as Int, produce Int:\n  Return hAS.\n"
+    },
+    {
+      "name": "escaped-param/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `produce` as Int, produce Int:\n  Return `produce`.\n"
+    },
+    {
+      "name": "escaped-field/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `produce` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`produce`.\n"
+    },
+    {
+      "name": "escaped-let/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `produce` be x.\n  Return `produce`.\n"
+    },
+    {
+      "name": "cap-let/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let Produce be x.\n  Return Produce.\n"
+    },
+    {
+      "name": "mixed-param/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given pRODUCE as Int, produce Int:\n  Return pRODUCE.\n"
+    },
+    {
+      "name": "words-containing",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with android as Int, order as Int, notes as Int, aside as Int, without as Int, total as Int, settled as Int, user as Int, once as Int, plush as Int, timestamp as Int, hash as Int.\n"
+    },
+    {
+      "name": "zh-field/使用",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 使用 作为 整数。\n"
+    },
+    {
+      "name": "zh-field/加",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 加 作为 整数。\n"
+    },
+    {
+      "name": "zh-field/减",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 减 作为 整数。\n"
+    },
+    {
+      "name": "zh-field/把",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 把 作为 整数。\n"
+    },
+    {
+      "name": "zh-escaped-并且",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 `并且` 作为 整数。\n"
+    }
+  ]
+}

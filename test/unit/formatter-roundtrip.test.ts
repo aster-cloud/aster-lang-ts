@@ -296,10 +296,11 @@ describe('格式化器与名字转义（ADR 0064 §6、Q7）', () => {
     assert.match(formatted, /Define `If` has a as Int\./);
   });
 
-  test('英文输出里与关键词同形的名字自动加转义：de 字段 with', () => {
-    const source = 'Modul m.\n\nDefiniere Antrag mit with als Ganzzahl.\n\nRegel f gegeben a als Antrag, liefert Ganzzahl:\n  gib zurueck a.with.\n';
+  // 小写的 with / and 等作名字两引擎都拒（产品裁决 D4），这里用 D4 名单之外、core 仍是硬关键词的 for
+  test('英文输出里与关键词同形的名字自动加转义：de 字段 for', () => {
+    const source = 'Modul m.\n\nDefiniere Antrag mit for als Ganzzahl.\n\nRegel f gegeben a als Antrag, liefert Ganzzahl:\n  gib zurueck a.for.\n';
     const formatted = assertRoundTrip(source, DE_DE);
-    assert.match(formatted, /`with` as Int/);
+    assert.match(formatted, /`for` as Int/);
   });
 
   test('不需要转义的同形词不加反引号：Define Given with …', () => {

@@ -101,10 +101,11 @@ describe('与 Java 解析面的对照（T3 审查复核）', () => {
     readCoreIr(r.coreJson!);
   });
 
+  // 参数值用 structKeywordName 里的 given；小写的 to 作参数值 core 报错、ts 自产品裁决 D4 起也报错
   it('注解参数名与值可以是软关键词（与 Java structKeywordName 一致）', () => {
-    const m = core('Module m.\n\n@x(return: "a", to)\nRule f given x as Int, produce Int:\n  Return x.\n');
+    const m = core('Module m.\n\n@x(return: "a", given)\nRule f given x as Int, produce Int:\n  Return x.\n');
     const f = m.decls[0] as Core.Func;
-    assert.deepEqual(f.annotations[0]!.args, [{ name: 'return', value: 'a' }, { name: '$0', value: 'to' }]);
+    assert.deepEqual(f.annotations[0]!.args, [{ name: 'return', value: 'a' }, { name: '$0', value: 'given' }]);
   });
 });
 

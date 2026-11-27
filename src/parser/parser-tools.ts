@@ -7,7 +7,7 @@ import { TokenKind } from '../frontend/tokens.js';
 import type { Token } from '../types.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
-import { keywordAsNameIssue, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
+import { keywordAsNameIssue, lowercaseKeywordNameIssue, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 import type { ParserContext } from './context.js';
 import { tryReadTranslatedIdent } from './context.js';
 
@@ -63,6 +63,14 @@ export interface ParserTools {
  * @returns 工具函数集合
  */
 export function createParserTools(ctx: ParserContext): ParserTools {
+  /** issue 非空时报告并中止，定位在当前 token（与结构关键词的 E901 同一报法）。 */
+  const throwIssue = (issue: ParseIssue | null): void => {
+    if (!issue) return;
+    Diagnostics.unexpectedToken(issue.message, ctx.peek().start)
+      .withErrorCode(issue.code, issue.params)
+      .withMessage(issue.message)
+      .throw();
+  };
   return {
     error(issue: ParseIssue, tok: Token = ctx.peek()): never {
       Diagnostics.unexpectedToken(issue.message, tok.start)
@@ -104,6 +112,8 @@ export function createParserTools(ctx: ParserContext): ParserTools {
     },
 
     parseIdent(): string {
+      // 小写关键词不能作名字（产品裁决 D4）：规则名、类型参数、导入别名
+      throwIssue(lowercaseKeywordNameIssue(ctx, ctx.peek(), 'token.identifier'));
       // 先尝试还原"被翻译成关键词的标识符"（OF 家族当函数名/导入别名等标识符位置，
       // 非英文词法包）。与 aster-lang-core 引擎口径一致。
       const recovered = tryReadTranslatedIdent(ctx);
@@ -123,6 +133,8 @@ export function createParserTools(ctx: ParserContext): ParserTools {
     },
 
     parseTypeIdent(): string {
+      // 小写关键词不能作类型名（产品裁决 D4，`Type and as Int.`）
+      throwIssue(lowercaseKeywordNameIssue(ctx, ctx.peek(), 'token.typeName'));
       // 先尝试还原"被翻译成关键词的标识符"（非英文词法包，类型名与关键词同形）。
       const recovered = tryReadTranslatedIdent(ctx);
       if (recovered !== null) return recovered;
