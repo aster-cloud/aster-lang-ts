@@ -542,6 +542,8 @@ export function parseStatement(
     try {
       const _e = parseExpr(ctx, error);
       expectPeriodEnd(ctx, error);
+      // `v.not(1).`：点是语句结尾，其后的 `not(1).` 是下一条语句（修订 A8，见 atMemberDot），裸名字 `v.` 与 core 一致保留
+      if (_e.kind === 'Name' && atStatementKeyword(ctx)) _e.discardedStatement = true;
       return _e as Statement; // Not lowering; in v0, only Return statements are valid side-effects.
     } catch {
       // rewind
@@ -1412,7 +1414,7 @@ function parseCallTargetName(
     (ctx.peek(1).kind === TokenKind.IDENT || ctx.peek(1).kind === TokenKind.TYPE_IDENT)) {
     consumed.push(ctx.next()); // dot
     const partTok = ctx.peek();
-    full += '.' + (ctx.at(TokenKind.IDENT) ? parseMemberIdent(ctx, error) : (ctx.next().value as string));
+    full += '.' + (ctx.at(TokenKind.IDENT) ? parseIdent(ctx, error) : (ctx.next().value as string));
     consumed.push(partTok);
   }
   const target = Node.Name(full);
@@ -1804,15 +1806,13 @@ function parsePrimary(
     let full = typeName;
     const consumedTokens: Token[] = [typeTok];
     while (
-      ctx.at(TokenKind.DOT) &&
-      ctx.tokens[ctx.index + 1] &&
-      (ctx.tokens[ctx.index + 1]!.kind === TokenKind.IDENT || ctx.tokens[ctx.index + 1]!.kind === TokenKind.TYPE_IDENT)
+      atMemberDot(ctx)
     ) {
       const dotTok = ctx.next();
       consumedTokens.push(dotTok);
       if (ctx.at(TokenKind.IDENT)) {
         const partTok = ctx.peek();
-        const part = parseMemberIdent(ctx, error);
+        const part = parseIdent(ctx, error);
         consumedTokens.push(partTok);
         full += '.' + part;
       } else if (ctx.at(TokenKind.TYPE_IDENT)) {
@@ -1853,15 +1853,13 @@ function parsePrimary(
     let full = name;
     const consumedTokens: Token[] = [nameTok];
     while (
-      ctx.at(TokenKind.DOT) &&
-      ctx.tokens[ctx.index + 1] &&
-      (ctx.tokens[ctx.index + 1]!.kind === TokenKind.IDENT || ctx.tokens[ctx.index + 1]!.kind === TokenKind.TYPE_IDENT)
+      atMemberDot(ctx)
     ) {
       const dotTok = ctx.next();
       consumedTokens.push(dotTok);
       if (ctx.at(TokenKind.IDENT)) {
         const partTok = ctx.peek();
-        full += '.' + parseMemberIdent(ctx, error);
+        full += '.' + parseIdent(ctx, error);
         consumedTokens.push(partTok);
       } else if (ctx.at(TokenKind.TYPE_IDENT)) {
         const partTok = ctx.next();
@@ -2209,15 +2207,28 @@ function parseIdent(
 }
 
 /**
- * 点之后的成员名：小写关键词同样不能作成员名（D4），唯一的例外是成员调用 `v.not(x)`——aster-lang-core 把它收作成员调用，
- * ts 照旧（不新增 ts 拒、core 收的写法）。
+ * 点之后能开启一条语句的小写关键词（ADR 0056 修订 A8）：aster-lang-core 的成员后缀不收关键词记号，`v.not(1)` 里的点因此是
+ * 语句结尾，读作 `Return v.` 加表达式语句 `not(1).`；`v.set y to 2.` 同理读作 `Return v.` 加 `set y to 2.`。ts 照 core 读法，
+ * 不把它们当成员访问（此前 ts 读作成员调用 `v.not(1)`，两引擎 Core IR 不同；`H.not(x)` ts 收、core 报 E802）。
+ * 其余小写关键词开不了语句，core 无论怎么读都报错，ts 照 D4 在成员名处报 E055。
  */
-function parseMemberIdent(ctx: ParserContext, error: ParseErrorFn): string {
-  const tok = ctx.peek();
-  if (tok.kind === TokenKind.IDENT && tok.value === 'not' && ctx.peek(1)?.kind === TokenKind.LPAREN) {
-    return parseIdentAllowingKeyword(ctx, error);
-  }
-  return parseIdent(ctx, error);
+const STATEMENT_KEYWORDS_AFTER_DOT: ReadonlySet<string> = new Set(['not', 'set']);
+
+function isStatementKeyword(tok: Token | undefined): boolean {
+  return tok?.kind === TokenKind.IDENT && !tok.escaped && STATEMENT_KEYWORDS_AFTER_DOT.has(String(tok.value));
+}
+
+/** 当前记号是能开启语句的小写关键词（`not` / `set`）。 */
+function atStatementKeyword(ctx: ParserContext): boolean {
+  return isStatementKeyword(ctx.peek());
+}
+
+/** 当前是点、其后是成员名（IDENT / TYPE_IDENT，且不是能开启语句的小写关键词）。 */
+function atMemberDot(ctx: ParserContext): boolean {
+  if (!ctx.at(TokenKind.DOT)) return false;
+  const next = ctx.tokens[ctx.index + 1];
+  if (!next) return false;
+  return next.kind === TokenKind.TYPE_IDENT || (next.kind === TokenKind.IDENT && !isStatementKeyword(next));
 }
 
 function parseIdentAllowingKeyword(

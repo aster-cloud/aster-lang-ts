@@ -8,7 +8,7 @@ import { kwq } from './keyword-display.js';
 import type { ParserContext } from './context.js';
 import { kwParts } from './context.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
-import { Issue, kwParam, lit, tokenName, type ParseErrorFn } from './parse-issue.js';
+import { Issue, QUALIFIED_SEGMENT_KEYWORDS, kwParam, lit, lowercaseKeywordNameIssue, tokenName, type ParseErrorFn } from './parse-issue.js';
 
 /**
  * 解析点号分隔的标识符（用于模块名和导入名）
@@ -20,13 +20,13 @@ import { Issue, kwParam, lit, tokenName, type ParseErrorFn } from './parse-issue
  */
 export function parseDottedIdent(
   ctx: ParserContext,
-  _error: ParseErrorFn
+  error: ParseErrorFn
 ): string {
   const parts: string[] = [];
 
   // 允许点号分隔的标识符首段为普通标识符或类型标识符
   if (ctx.at(TokenKind.IDENT)) {
-    parts.push(ctx.next().value as string);
+    parts.push(parseSegment(ctx, error));
   } else if (ctx.at(TokenKind.TYPE_IDENT)) {
     parts.push(ctx.next().value as string);
   } else {
@@ -42,13 +42,25 @@ export function parseDottedIdent(
   ) {
     ctx.next(); // 消费点号
     if (ctx.at(TokenKind.IDENT)) {
-      parts.push(ctx.next().value as string);
+      parts.push(parseSegment(ctx, error));
     } else if (ctx.at(TokenKind.TYPE_IDENT)) {
       parts.push(ctx.next().value as string);
     }
   }
 
   return parts.join('.');
+}
+
+/**
+ * 限定名的小写段：and / or / not / with 之外的小写关键词作段报 E055（ADR 0056 修订 A8，与 core `qualifiedSegment` 一致）。
+ */
+function parseSegment(ctx: ParserContext, error: ParseErrorFn): string {
+  const tok = ctx.peek();
+  if (!QUALIFIED_SEGMENT_KEYWORDS.has(String(tok.value))) {
+    const issue = lowercaseKeywordNameIssue(ctx, tok, tokenName('identifier'));
+    if (issue) error(issue, tok);
+  }
+  return ctx.next().value as string;
 }
 
 /**

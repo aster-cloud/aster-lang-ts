@@ -456,6 +456,11 @@ export interface ListLit extends Base.BaseListLit<Span, Expression> {
 
 export interface Name extends Resolvable, Base.BaseName<Span> {
   span: Span;
+  /**
+   * 语句位置的裸名字，其后的点紧跟能开启语句的小写关键词（`v.not(1).` 读作 `v.` 加 `not(1).`，ADR 0056 修订 A8）。
+   * 与 aster-lang-core 一致降为 `Let _ be <name>`；其余裸名字语句照旧报 lowerStmt 错误。
+   */
+  discardedStatement?: true;
 }
 
 export interface Bool extends Base.BaseBool<Span> {

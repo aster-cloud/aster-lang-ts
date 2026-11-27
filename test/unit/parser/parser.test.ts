@@ -698,7 +698,7 @@ Rule compose, produce Int:
   describe('Set 语句解析', () => {
     test('应该解析基本的赋值语句', () => {
       const module = parseSource(`
-Module test.parser.set.basic.
+Module test.parser.setstmt.basic.
 
 Rule update given value as Int, produce Int:
   Let total be 0.
@@ -718,7 +718,7 @@ Rule update given value as Int, produce Int:
 
     test('应该在嵌套块中解析 Set 语句', () => {
       const module = parseSource(`
-Module test.parser.set.nested.
+Module test.parser.setstmt.nested.
 
 Rule configure, produce Text:
   Within scope:
@@ -744,7 +744,7 @@ Rule configure, produce Text:
 
     test('应该在缺少 to 时收集诊断', () => {
       const result = parseWithDiag(`
-Module test.parser.set.error_missing_to.
+Module test.parser.setstmt.error_missing_to.
 
 Rule broken, produce Int:
   Set total value.
@@ -756,7 +756,7 @@ Rule broken, produce Int:
 
     test('应该在缺少结尾句点时收集诊断', () => {
       const result = parseWithDiag(`
-Module test.parser.set.error_missing_period.
+Module test.parser.setstmt.error_missing_period.
 
 Rule broken, produce Int:
   Set total to 1
@@ -789,7 +789,7 @@ Rule broken, produce Int:
     test('Set 语句不应被 canonicalizer 转换为 Let（回归测试）', () => {
       // 确保 set-to transformer 不会将 "Set x to y" 语句错误地转换为 "Let x be y"
       const module = parseSource(`
-Module test.parser.set.not_transformed.
+Module test.parser.setstmt.not_transformed.
 
 Rule accumulate, produce Int:
   Let sum be 0.
