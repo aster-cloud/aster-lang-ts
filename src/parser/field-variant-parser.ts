@@ -6,7 +6,7 @@
 import { KW, TokenKind } from '../frontend/tokens.js';
 import type { Field, Span, Token, Type } from '../types.js';
 import type { ParserContext } from './context.js';
-import { tryReadTranslatedIdent, kwText } from './context.js';
+import { tryReadTranslatedIdent, tokLowerAt } from './context.js';
 import { parseType } from './type-parser.js';
 import { parseConstraints } from './constraint-parser.js';
 import { parseAnnotations } from './annotation-parser.js';
@@ -122,6 +122,10 @@ export function parseFieldList(
       ctx.consumeIndent();
       continue;
     }
+    // 换行起头的 and（`… as Int` 换行后 `and b as Text`，不缩进）：与 core fieldList `NEWLINE* (kwAnd | COMMA)` 一致，
+    // 跳过换行后是 and 才消费换行；缩进的续行（INDENT）两引擎都不收（产品裁决 2026-11-28，#411）
+    const andIdx = nextNonNewlineIndex(ctx);
+    if (andIdx !== ctx.index && tokLowerAt(ctx, andIdx) === KW.AND) ctx.index = andIdx;
     if (ctx.isKeyword(KW.AND)) {
       ctx.nextWord();
       // 'and' 后允许换行和缩进
@@ -133,6 +137,13 @@ export function parseFieldList(
   }
 
   return fields;
+}
+
+/** 从当前位置跳过连续 NEWLINE 之后的记号下标（不跳 INDENT / DEDENT）；当前不是 NEWLINE 时就是当前下标。 */
+function nextNonNewlineIndex(ctx: ParserContext): number {
+  let i = ctx.index;
+  while (ctx.tokens[i]?.kind === TokenKind.NEWLINE) i++;
+  return i;
 }
 
 /**
@@ -176,7 +187,8 @@ export function parseVariantList(
     vars.push(v);
 
     // 检查是否还有更多变体
-    if (ctx.at(TokenKind.IDENT) && kwText(ctx.peek()) === KW.OR) {
+    // 变体之间的 or / and 不区分大小写（ADR 0059 A4 §1.1，#411），与 core variantList `(COMMA | kwOr | kwAnd)` 一致
+    if (ctx.isKeyword(KW.OR) || ctx.isKeyword(KW.AND)) {
       ctx.nextWord();
       continue;
     }

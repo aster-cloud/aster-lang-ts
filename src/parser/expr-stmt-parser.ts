@@ -906,13 +906,8 @@ function isListSeparatorAnd(ctx: ParserContext): boolean {
     (t1.kind === TokenKind.IDENT || t1.kind === TokenKind.KEYWORD) &&
     typeof t1.value === 'string'
   ) {
-    const t2 = ctx.tokens[nextIdx + 1];
-    if (
-      t2 &&
-      (t2.kind === TokenKind.IDENT || t2.kind === TokenKind.KEYWORD) &&
-      typeof t2.value === 'string' &&
-      kwText(t2) === 'set'
-    ) {
+    // set 不区分大小写（ADR 0059 A4 §1.1，#411）：与构造字段里的 set 同一判定（ctx.isKeyword / tokLowerAt），转义名不是 set
+    if (tokLowerAt(ctx, nextIdx + 1) === KW.SET) {
       return true;
     }
   }
@@ -1394,8 +1389,9 @@ function applyLooksLikeCall(ctx: ParserContext): boolean {
     off += 2;
   }
   // 其后须是 `to`（TO_WORD）。tokLowerAt 按非 trivia 顺序，与 peek 偏移口径需一致——用 peek 文本判定。
+  // to 不区分大小写（ADR 0059 A4 §1.1，#411）：与 parseApplyOrPrimary 的 expectKeyword 同一口径，转义名不是 to
   const t = ctx.peek(off);
-  return (t.kind === TokenKind.IDENT || t.kind === TokenKind.KEYWORD) &&
+  return (t.kind === TokenKind.IDENT || t.kind === TokenKind.TYPE_IDENT || t.kind === TokenKind.KEYWORD) &&
     kwText(t) === KW.TO_WORD;
 }
 
@@ -1751,16 +1747,18 @@ function parsePrimary(
     return expr;
   }
 
-  // Construction: Type with a = expr and b = expr
+  // Construction: Type with a set to expr and b set to expr（with / has 同义，与 core constructExpr `(kwWith | kwHas)` 一致，
+  // 产品裁决 2026-11-28，#411）
   // Accept both TYPE_IDENT and IDENT to support languages without capitalization (e.g., Chinese)
-  // Only treat IDENT as a potential construction if followed by 'with' keyword
-  const nextTokenIsWithKeyword = ctx.tokens[ctx.index + 1] &&
-    (ctx.tokens[ctx.index + 1]!.kind === TokenKind.IDENT || ctx.tokens[ctx.index + 1]!.kind === TokenKind.KEYWORD) &&
-    kwText(ctx.tokens[ctx.index + 1]!) === KW.WITH;
-  if (ctx.at(TokenKind.TYPE_IDENT) || (ctx.at(TokenKind.IDENT) && nextTokenIsWithKeyword)) {
+  // Only treat IDENT as a potential construction if followed by 'with' / 'has'
+  const isConstructKeyword = (idx: number): boolean => {
+    const w = tokLowerAt(ctx, idx);
+    return w === KW.WITH || w === KW.HAS;
+  };
+  if (ctx.at(TokenKind.TYPE_IDENT) || (ctx.at(TokenKind.IDENT) && isConstructKeyword(ctx.index + 1))) {
     const typeTok = ctx.next();
     const typeName = typeTok.value as string;
-    if (ctx.isKeyword(KW.WITH)) {
+    if (isConstructKeyword(ctx.index)) {
       const withTok = ctx.nextWord();
       const fields: ConstructField[] = [];
       let hasMore = true;
@@ -2047,7 +2045,7 @@ export function parseParamList(
         span: paramSpan,
       };
       params.push(param);
-      if (ctx.at(TokenKind.IDENT) && kwText(ctx.peek()) === KW.AND) {
+      if (ctx.isKeyword(KW.AND)) {
         ctx.nextWord();
         continue;
       }
@@ -2106,7 +2104,7 @@ export function parseParamList(
           : { name, type, ...(typeInferred ? { typeInferred: true } : {}), span: paramSpan };
       params.push(param);
       // Accept 'and' or ',' between parameters
-      if (ctx.at(TokenKind.IDENT) && kwText(ctx.peek()) === KW.AND) {
+      if (ctx.isKeyword(KW.AND)) {
         ctx.nextWord();
         continue;
       }
