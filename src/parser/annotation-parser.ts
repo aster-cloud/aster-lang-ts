@@ -6,15 +6,22 @@
 import { TokenKind } from '../frontend/tokens.js';
 import type { Annotation, AnnotationArg, AnnotationValue, Token } from '../types.js';
 import type { ParserContext } from './context.js';
-import { Issue, lit, tokenName, type ParseErrorFn } from './parse-issue.js';
+import { Issue, lit, lowercaseKeywordNameIssue, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 /**
  * 注解参数值（ADR 0055 #3）：只接受字符串、Int32 整数、布尔与标识符（按字符串）。
  * 浮点、Long 字面量与 null 在 v2 IR 中没有对应形状，报 E067（与 Java AstBuilder 同码同参数，控制裁决）；
  * 其它 token 报「需要注解参数值」。
  */
+/** 小写关键词不能作注解名、注解参数名或标识符形式的参数值（产品裁决 D4，core 在这些位置同样报错）。 */
+function rejectLowercaseKeyword(ctx: ParserContext, error: ParseErrorFn, tok: Token, expected: string): void {
+  const issue: ParseIssue | null = lowercaseKeywordNameIssue(ctx, tok, expected);
+  if (issue) error(issue, tok);
+}
+
 function parseAnnotationValue(ctx: ParserContext, error: ParseErrorFn): AnnotationValue {
   const tok = ctx.peek();
+  rejectLowercaseKeyword(ctx, error, tok, tokenName('annotationArgumentValue'));
   switch (tok.kind) {
     case TokenKind.STRING:
     case TokenKind.INT:
@@ -57,6 +64,7 @@ function parseAnnotationArgs(ctx: ParserContext, error: ParseErrorFn, annotation
       const value = parseAnnotationValue(ctx, error);
       args.push({ name: `$${positionalIndex++}`, value });
     } else {
+      rejectLowercaseKeyword(ctx, error, ctx.peek(), tokenName('identifier'));
       const nameTok = ctx.next();
       const name = String(nameTok.value);
       // ADR 0055 #3：同一注解内参数名重复在解析期报 E900（IR 不变式 dup-annotation-arg 兜底）
@@ -95,6 +103,7 @@ export function parseAnnotations(
     if (!ctx.at(TokenKind.IDENT) && !ctx.at(TokenKind.TYPE_IDENT)) {
       error(Issue.expectedAfter(tokenName('annotationName'), lit('@'), "Expected annotation name after '@'"));
     }
+    rejectLowercaseKeyword(ctx, error, ctx.peek(), tokenName('annotationName'));
     const name = String(ctx.next().value);
     const args = parseAnnotationArgs(ctx, error, name);
     annotations.push(args && args.length > 0 ? { name, args } : { name });

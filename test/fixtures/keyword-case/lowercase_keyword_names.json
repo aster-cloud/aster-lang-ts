@@ -1,5 +1,5 @@
 {
-  "description": "产品裁决 D4（eco-1.0.57，ADR 0056 修订 A4 §1.1 / 修订 A7 D1 的配套裁决）：小写关键词 and、or、not、as、with、to、set、use、on、plus、minus、times、modulo、async、has、produce 不能作名字（形参、字段、Let / Set / Start / Wait 名、lambda 形参、规则名、类型参数、类型别名名、导入别名、成员名、名字引用），本地化关键词翻译成这些拼写时（de und / mit / von、zh 并且 / 包含 / 基于 → and / with / on）以及非英文源码里直接写的英文拼写同样拒绝。aster-lang-core 里这些拼写是词法记号，在这些位置本来就报语法错误；ts 此前收作名字。reject：ts 第一条解析错误恰为 [码, 行, 列]，params 恰为 params，消息含转义提示；core 是 aster-lang-core 85f891f 的第一条诊断 [码, 行]（同样拒绝，码不同：core 报通用语法错误）。accept：ts 能编译，且 core 编译出位置无关哈希相同的 Core IR：转义名、首字母大写与混合拼写的同形词、含这些词的长名字、zh 使用 / 加 / 减 / 把（翻译不成这些关键词）。成员调用 v.not(x) 不在名单内（core 收作成员调用，ts 照旧）。",
+  "description": "产品裁决 D4（eco-1.0.57，ADR 0056 修订 A4 §1.1 / 修订 A7 D1 的配套裁决）：小写关键词 and、or、not、as、with、to、set、use、on、plus、minus、times、modulo、async、has、produce 不能作名字（形参、字段、Let / Set / Start / Wait 名、lambda 形参、规则名、类型参数、类型别名名、导入别名、成员名、名字引用、注解名、注解参数名与标识符形式的参数值），本地化关键词翻译成这些拼写时（de und / mit / von、zh 并且 / 包含 / 基于 → and / with / on）以及非英文源码里直接写的英文拼写同样拒绝。aster-lang-core 里这些拼写是词法记号，在这些位置本来就报语法错误；ts 此前收作名字。reject：ts 第一条解析错误恰为 [码, 行, 列]，params 恰为 params，消息含转义提示；core 是 aster-lang-core 85f891f 的第一条诊断 [码, 行]（同样拒绝，码不同：core 报通用语法错误）。accept：ts 能编译，且 core 编译出位置无关哈希相同的 Core IR：转义名、首字母大写与混合拼写的同形词、含这些词的长名字、zh 使用 / 加 / 减 / 把（翻译不成这些关键词）。成员调用 v.not(x) 不在名单内（core 收作成员调用，ts 照旧）。",
   "reject": [
     {
       "name": "field/and",
@@ -5894,6 +5894,1094 @@
       ],
       "params": {
         "token": "token.fieldName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@and\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @and a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", and: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, and) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@or\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @or a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", or: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, or) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@not\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @not a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", not: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, not) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@as\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @as a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", as: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, as) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@with\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @with a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", with: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, with) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@to\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @to a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", to: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, to) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@set\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @set a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", set: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, set) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@use\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @use a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", use: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, use) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@on\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @on a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", on: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, on) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@plus\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @plus a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", plus: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, plus) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@minus\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @minus a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", minus: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, minus) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@times\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @times a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", times: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, times) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@modulo\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @modulo a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", modulo: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, modulo) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@async\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @async a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", async: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, async) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@has\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @has a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", has: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, has) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@produce\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @produce a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", produce: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, produce) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue"
       },
       "core": [
         "E061",

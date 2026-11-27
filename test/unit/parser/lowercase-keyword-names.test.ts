@@ -71,7 +71,7 @@ describe('小写关键词不能作名字（产品裁决 D4）', () => {
     const words = new Set(DATA.reject.map((c) => c.name.split('/')[1]));
     for (const w of LOWERCASE_KEYWORD_NAMES) assert.ok(words.has(w), `夹具缺少 ${w}`);
     assert.deepEqual([...new Set(DATA.reject.map((c) => c.lexicon))].sort(), ['de-DE', 'en-US', 'zh-CN']);
-    assert.equal(DATA.reject.length, 414);
+    assert.equal(DATA.reject.length, 478);
     assert.equal(DATA.accept.length, 81);
   });
 
@@ -86,6 +86,15 @@ describe('小写关键词不能作名字（产品裁决 D4）', () => {
         ? /^'[a-z]+' is a keyword and cannot be used as a name; write it in backticks \(`[a-z]+`\) to use it as a name$/
         : /is a keyword and cannot be used as a name; write the name in backticks to use it as a name$/);
       assert.ok(c.core[0].startsWith('E0'), 'core 同样拒绝');
+    });
+  }
+
+  // 成员调用 v.not(x) 不在 D4 范围：core 收作成员调用（两引擎的 Core IR 不同是既有分歧，不在本夹具里比较）
+  for (const call of ['v.not(1)', 'v.not (1)', 'v.a.not(1)']) {
+    it(`成员调用 ${call} 照旧能编译`, () => {
+      const source = `Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return ${call}.\n`;
+      const result = compile(source, { lexicon: EN_US });
+      assert.ok(result.success, JSON.stringify(result.parseErrors ?? []));
     });
   }
 
