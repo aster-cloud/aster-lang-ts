@@ -369,7 +369,11 @@ function lowerStmt(s: Statement): Core.Statement {
         s
       );
     default: {
-      // Parser now prohibits bare expressions, so this should never be reached
+      // 语句位置的 `v.not(1).` 照 core 读作 `v.` 加 `not(1).`（ADR 0056 修订 A8）：裸名字 `v.` 与 core 一致降为 `Let _ be v`
+      const bare = s as unknown as Expression;
+      if (bare.kind === 'Name' && bare.discardedStatement) {
+        return withOrigin(CoreIR.Let('_', lowerExpr(bare)), s);
+      }
       const { span } = extractMetadata(s);
       const kind = (s as any).kind;
       Diagnostics.unknownStmtKind(kind, span?.start ?? { line: 0, col: 0 }).throw();

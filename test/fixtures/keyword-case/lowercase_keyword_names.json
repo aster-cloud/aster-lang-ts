@@ -1,5 +1,5 @@
 {
-  "description": "产品裁决 D4（eco-1.0.57，ADR 0056 修订 A4 §1.1 / 修订 A7 D1 的配套裁决）：小写关键词 and、or、not、as、with、to、set、use、on、plus、minus、times、modulo、async、has、produce 不能作名字（形参、字段、Let / Set / Start / Wait 名、lambda 形参、规则名、类型参数、类型别名名、导入别名、成员名、名字引用、注解名、注解参数名与标识符形式的参数值），本地化关键词翻译成这些拼写时（de und / mit / von、zh 并且 / 包含 / 基于 → and / with / on）以及非英文源码里直接写的英文拼写同样拒绝。aster-lang-core 里这些拼写是词法记号，在这些位置本来就报语法错误；ts 此前收作名字。reject：ts 第一条解析错误恰为 [码, 行, 列]，params 恰为 params（en-US 例另带 escape，即源码写法，aster-lang-core#329），消息含转义提示；core 是 aster-lang-core 85f891f 的第一条诊断 [码, 行]（同样拒绝，码不同：core 报通用语法错误）。accept：ts 能编译，且 core 编译出位置无关哈希相同的 Core IR：转义名、首字母大写与混合拼写的同形词、含这些词的长名字、zh 使用 / 加 / 减 / 把（翻译不成这些关键词）。成员调用 v.not(x) 不在名单内（core 收作成员调用，ts 照旧）。",
+  "description": "产品裁决 D4（eco-1.0.57，ADR 0056 修订 A4 §1.1 / 修订 A7 D1 的配套裁决）与 ADR 0056 修订 A8（2026-11-28）：小写关键词 and、or、not、as、with、to、set、use、on、plus、minus、times、modulo、async、has、produce，以及 A8 补齐的 for、one、of、function、performs 不能作名字（形参、字段、Let / Set / Start / Wait 名、lambda 形参、规则名、类型参数、类型别名名、导入别名、成员名、名字引用、注解名、注解参数名与标识符形式的参数值），本地化关键词翻译成这些拼写时（de und / mit / von、zh 并且 / 包含 / 基于 → and / with / on）以及非英文源码里直接写的英文拼写同样拒绝；A8 起 Module / Use 限定名的段也拒绝其中 and / or / not / with 以外的拼写（`Use io.to as H.`、`Module a.of.`；core qualifiedSegment 只放行这四个）。aster-lang-core 里这些拼写是词法记号，在这些位置本来就报语法错误；ts 此前收作名字。reject：ts 第一条解析错误恰为 [码, 行, 列]，params 恰为 params（en-US 例另带 escape，即源码写法，aster-lang-core#329），消息含转义提示；core 是 aster-lang-core 的第一条诊断 [码, 行]（D4 行取自 85f891f，A8 行取自 63bacd8；同样拒绝，码不同：core 报通用语法错误）。accept：ts 能编译，且 core 编译出位置无关哈希相同的 Core IR：转义名、首字母大写与混合拼写的同形词、含这些词的长名字、zh 使用 / 加 / 减 / 把（翻译不成这些关键词）、限定名里的 and / or / not / with 段与转义段。dot（修订 A8）：点之后的 not / set 不是成员名——core 的成员后缀不收关键词记号，点是语句结尾（`Return v.not(1).` 读作 `Return v.` 加表达式语句 `not(1).`，`Return v.set y to 2.` 读作 `Return v.` 加 `set y to 2.`），ts 照 core 读法：coreIr 行 ts 能编译且位置无关哈希等于 core 的 Core IR 哈希；reject 行 ts 第一条诊断（compileSource）恰为 [码, 行, 列]，core 同样拒绝（`H.not(x)` 两引擎都报 E802：导入别名 H 不是值）。",
   "reject": [
     {
       "name": "field/and",
@@ -628,24 +628,6 @@
       },
       "core": [
         "E063",
-        4
-      ]
-    },
-    {
-      "name": "member/not",
-      "lexicon": "en-US",
-      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not.\n",
-      "reject": [
-        "E055",
-        4,
-        12
-      ],
-      "params": {
-        "token": "token.identifier",
-        "escape": "not"
-      },
-      "core": [
-        "E062",
         4
       ]
     },
@@ -1474,42 +1456,6 @@
       },
       "core": [
         "E063",
-        4
-      ]
-    },
-    {
-      "name": "member/set",
-      "lexicon": "en-US",
-      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.set.\n",
-      "reject": [
-        "E055",
-        4,
-        12
-      ],
-      "params": {
-        "token": "token.identifier",
-        "escape": "set"
-      },
-      "core": [
-        "E062",
-        4
-      ]
-    },
-    {
-      "name": "membercall/set",
-      "lexicon": "en-US",
-      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.set(1).\n",
-      "reject": [
-        "E055",
-        4,
-        12
-      ],
-      "params": {
-        "token": "token.identifier",
-        "escape": "set"
-      },
-      "core": [
-        "E062",
         4
       ]
     },
@@ -3908,24 +3854,6 @@
       ]
     },
     {
-      "name": "memberchain/not",
-      "lexicon": "en-US",
-      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not.x.\n",
-      "reject": [
-        "E055",
-        4,
-        12
-      ],
-      "params": {
-        "token": "token.identifier",
-        "escape": "not"
-      },
-      "core": [
-        "E061",
-        4
-      ]
-    },
-    {
       "name": "lambdaparam2/not",
       "lexicon": "en-US",
       "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, not as Int, produce Int: Return a.\n  Return x.\n",
@@ -4589,42 +4517,6 @@
       "core": [
         "E062",
         3
-      ]
-    },
-    {
-      "name": "qualcall/set",
-      "lexicon": "en-US",
-      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.set(x).\n",
-      "reject": [
-        "E055",
-        6,
-        12
-      ],
-      "params": {
-        "token": "token.identifier",
-        "escape": "set"
-      },
-      "core": [
-        "E061",
-        6
-      ]
-    },
-    {
-      "name": "memberchain/set",
-      "lexicon": "en-US",
-      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.set.x.\n",
-      "reject": [
-        "E055",
-        4,
-        12
-      ],
-      "params": {
-        "token": "token.identifier",
-        "escape": "set"
-      },
-      "core": [
-        "E061",
-        4
       ]
     },
     {
@@ -8537,6 +8429,6990 @@
         "E062",
         3
       ]
+    },
+    {
+      "name": "field/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with for as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with one as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with of as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with function as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with performs as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        15
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, for as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, one as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, of as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, function as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "field2/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int, performs as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        25
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and for as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and one as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and of as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and function as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldand/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with a as Int and performs as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        28
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has for as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has one as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has of as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has function as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "fieldhas/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S has performs as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        14
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given for as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given one as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given of as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given function as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given performs as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, for as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, one as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, of as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, function as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "param2/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int, performs as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        26
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and for as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and one as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and of as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and function as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramand/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a as Int and performs as Int, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        29
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, for, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, one, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, of, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, function, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "paramuntyped/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given a, performs, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        19
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "let/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let for be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "let/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let one be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "let/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let of be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "let/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let function be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "let/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let performs be x.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "member/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.for.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "member/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.one.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "member/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.of.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "member/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.function.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "member/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.performs.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.for(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.one(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.of(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.function(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.performs(1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "lambda/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given for as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "lambda/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given one as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "lambda/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given of as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "lambda/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given function as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "lambda/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given performs as Int, produce Int: Return 1.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        27
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "settarget/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set for to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "settarget/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set one to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "settarget/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set of to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "settarget/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set function to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "settarget/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Set performs to 2.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "startname/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start for as async f().\n  Wait for for.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "startname/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start one as async f().\n  Wait for one.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "startname/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start of as async f().\n  Wait for of.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "startname/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start function as async f().\n  Wait for function.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "startname/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f, produce Int:\n  Return 1.\n\nRule get given x as Int, produce Int:\n  Start performs as async f().\n  Wait for performs.\n  Return x.\n",
+      "reject": [
+        "E055",
+        7,
+        9
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "rulename/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule for given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "rulename/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule one given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "rulename/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule of given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "rulename/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule function given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "rulename/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule performs given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "importalias/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as for.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "importalias/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as one.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "importalias/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as of.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "importalias/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as function.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "importalias/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as performs.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType for as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName",
+        "escape": "for"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType one as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName",
+        "escape": "one"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType of as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName",
+        "escape": "of"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType function as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName",
+        "escape": "function"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "aliasname/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nType performs as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        6
+      ],
+      "params": {
+        "token": "token.typeName",
+        "escape": "performs"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of for, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of one, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of of, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of function, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "typeparam/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule f of performs, given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        11
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualcall/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.for(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "qualcall/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.one(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "qualcall/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.of(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "qualcall/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.function(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        6
+      ]
+    },
+    {
+      "name": "qualcall/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.performs(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.for.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "memberchain/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.one.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "memberchain/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.of.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "memberchain/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.function.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "memberchain/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.performs.x.\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, for as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, one as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, of as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, function as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "lambdaparam2/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let f be function given a as Int, performs as Int, produce Int: Return a.\n  Return x.\n",
+      "reject": [
+        "E055",
+        4,
+        37
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "fieldannot/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) for as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "for"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "fieldannot/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) one as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "one"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "fieldannot/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) of as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "of"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "fieldannot/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) function as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "function"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "fieldannot/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, email) performs as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        31
+      ],
+      "params": {
+        "token": "token.fieldName",
+        "escape": "performs"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annname/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@for\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "for"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annname/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@one\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "one"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annname/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@of\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "of"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annname/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@function\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "function"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annname/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\n@performs\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "performs"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @for a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "for"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @one a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "one"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @of a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "of"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @function a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "function"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annnamefield/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @performs a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "performs"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annarg/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", for: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annarg/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", one: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annarg/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", of: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annarg/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", function: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annarg/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @source(form: \"x\", performs: \"y\") a as Int.\n",
+      "reject": [
+        "E055",
+        3,
+        34
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "annval/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, for) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "for"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annval/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, one) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "one"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annval/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, of) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "of"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annval/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, function) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "function"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "annval/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with @pii(L1, performs) a as Text.\n",
+      "reject": [
+        "E055",
+        3,
+        24
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "performs"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "val/for",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(return: \"a\", for)\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "for"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "val/one",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(return: \"a\", one)\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "one"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "val/of",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(return: \"a\", of)\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "of"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "val/function",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(return: \"a\", function)\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "function"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "val/performs",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(return: \"a\", performs)\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "performs"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "val1/for",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(for)\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        4
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "for"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "val1/one",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(one)\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        4
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "one"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "val1/of",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(of)\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        4
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "of"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "val1/function",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(function)\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        4
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "function"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "val1/performs",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(performs)\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        4
+      ],
+      "params": {
+        "token": "token.annotationArgumentValue",
+        "escape": "performs"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "named/for",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(for: \"a\")\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        4
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "named/one",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(one: \"a\")\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        4
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "named/of",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(of: \"a\")\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        4
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "named/function",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(function: \"a\")\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        4
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "named/performs",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@x(performs: \"a\")\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        4
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "name/for",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@for\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "for"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "name/one",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@one\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "one"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "name/of",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@of\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "of"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "name/function",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@function\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "function"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "name/performs",
+      "lexicon": "en-US",
+      "source": "Module m.\n\n@performs\nRule f given x as Int, produce Int:\n  Return x.\n",
+      "reject": [
+        "E055",
+        3,
+        2
+      ],
+      "params": {
+        "token": "token.annotationName",
+        "escape": "performs"
+      },
+      "core": [
+        "E063",
+        3
+      ]
+    },
+    {
+      "name": "usepath-mid/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.for.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-last-alias/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.for as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-last/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.for.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-first/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse for.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usealias/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as for.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "modpath/for",
+      "lexicon": "en-US",
+      "source": "Module probe.for.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "modpath-mid/for",
+      "lexicon": "en-US",
+      "source": "Module probe.for.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualcall-h/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as h.\n\nRule get given x as Int, produce Int:\n  Return h.for(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "membercall-v2/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.for(1, 2).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-v0/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.for().\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-chain/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.a.for(1).\n",
+      "reject": [
+        "E055",
+        4,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-space/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.for (1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "call/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Return for(x).\n",
+      "reject": [
+        "E055",
+        4,
+        10
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "usepath-mid/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.one.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-last-alias/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.one as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-last/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.one.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-first/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse one.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usealias/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as one.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "modpath/one",
+      "lexicon": "en-US",
+      "source": "Module probe.one.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "modpath-mid/one",
+      "lexicon": "en-US",
+      "source": "Module probe.one.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualcall-h/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as h.\n\nRule get given x as Int, produce Int:\n  Return h.one(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "membercall-v2/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.one(1, 2).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-v0/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.one().\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-chain/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.a.one(1).\n",
+      "reject": [
+        "E055",
+        4,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-space/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.one (1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "call/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Return one(x).\n",
+      "reject": [
+        "E055",
+        4,
+        10
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "usepath-mid/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.of.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-last-alias/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.of as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-last/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.of.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-first/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse of.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usealias/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as of.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "modpath/of",
+      "lexicon": "en-US",
+      "source": "Module probe.of.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "modpath-mid/of",
+      "lexicon": "en-US",
+      "source": "Module probe.of.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualcall-h/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as h.\n\nRule get given x as Int, produce Int:\n  Return h.of(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "membercall-v2/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.of(1, 2).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-v0/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.of().\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-chain/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.a.of(1).\n",
+      "reject": [
+        "E055",
+        4,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-space/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.of (1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "call/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Return of(x).\n",
+      "reject": [
+        "E055",
+        4,
+        10
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "usepath-mid/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.function.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-last-alias/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.function as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-last/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.function.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-first/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse function.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usealias/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as function.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "modpath/function",
+      "lexicon": "en-US",
+      "source": "Module probe.function.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "modpath-mid/function",
+      "lexicon": "en-US",
+      "source": "Module probe.function.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualcall-h/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as h.\n\nRule get given x as Int, produce Int:\n  Return h.function(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        6
+      ]
+    },
+    {
+      "name": "membercall-v2/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.function(1, 2).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall-v0/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.function().\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall-chain/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.a.function(1).\n",
+      "reject": [
+        "E055",
+        4,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall-space/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.function (1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "usepath-mid/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.performs.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-last-alias/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.performs as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-last/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.performs.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usepath-first/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse performs.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "usealias/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as performs.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        16
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "modpath/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.performs.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "modpath-mid/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.performs.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualcall-h/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as h.\n\nRule get given x as Int, produce Int:\n  Return h.performs(x).\n",
+      "reject": [
+        "E055",
+        6,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "membercall-v2/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.performs(1, 2).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-v0/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.performs().\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-chain/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.a.performs(1).\n",
+      "reject": [
+        "E055",
+        4,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "membercall-space/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.performs (1).\n",
+      "reject": [
+        "E055",
+        4,
+        12
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "call/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Return performs(x).\n",
+      "reject": [
+        "E055",
+        4,
+        10
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/to",
+      "lexicon": "en-US",
+      "source": "Module probe.to.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "to"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/to",
+      "lexicon": "en-US",
+      "source": "Module probe.to.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "to"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/to",
+      "lexicon": "en-US",
+      "source": "Module to.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "to"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/to",
+      "lexicon": "en-US",
+      "source": "Module to.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "to"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.to.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "to"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.to as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "to"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.to.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "to"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse to.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "to"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse to.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "to"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.to version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "to"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.produce.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "produce"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.produce.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "produce"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/produce",
+      "lexicon": "en-US",
+      "source": "Module produce.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "produce"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/produce",
+      "lexicon": "en-US",
+      "source": "Module produce.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "produce"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.produce.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "produce"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.produce as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "produce"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.produce.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "produce"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse produce.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "produce"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse produce.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "produce"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/produce",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.produce version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "produce"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/has",
+      "lexicon": "en-US",
+      "source": "Module probe.has.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "has"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/has",
+      "lexicon": "en-US",
+      "source": "Module probe.has.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "has"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/has",
+      "lexicon": "en-US",
+      "source": "Module has.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "has"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/has",
+      "lexicon": "en-US",
+      "source": "Module has.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "has"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.has.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "has"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.has as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "has"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.has.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "has"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse has.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "has"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse has.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "has"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/has",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.has version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "has"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/set",
+      "lexicon": "en-US",
+      "source": "Module probe.set.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "set"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/set",
+      "lexicon": "en-US",
+      "source": "Module probe.set.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "set"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/set",
+      "lexicon": "en-US",
+      "source": "Module set.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "set"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/set",
+      "lexicon": "en-US",
+      "source": "Module set.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "set"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.set.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "set"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.set as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "set"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.set.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "set"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse set.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "set"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse set.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "set"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.set version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "set"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/as",
+      "lexicon": "en-US",
+      "source": "Module probe.as.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "as"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/as",
+      "lexicon": "en-US",
+      "source": "Module probe.as.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "as"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/as",
+      "lexicon": "en-US",
+      "source": "Module as.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "as"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/as",
+      "lexicon": "en-US",
+      "source": "Module as.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "as"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.as.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "as"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.as as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "as"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.as.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "as"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse as.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "as"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse as.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "as"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/as",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.as version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "as"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/one",
+      "lexicon": "en-US",
+      "source": "Module one.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/one",
+      "lexicon": "en-US",
+      "source": "Module one.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-only/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse one.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.one version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "one"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/of",
+      "lexicon": "en-US",
+      "source": "Module of.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/of",
+      "lexicon": "en-US",
+      "source": "Module of.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-only/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse of.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.of version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "of"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/use",
+      "lexicon": "en-US",
+      "source": "Module probe.use.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "use"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/use",
+      "lexicon": "en-US",
+      "source": "Module probe.use.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "use"
+      },
+      "core": [
+        "E061",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/use",
+      "lexicon": "en-US",
+      "source": "Module use.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "use"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/use",
+      "lexicon": "en-US",
+      "source": "Module use.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "use"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.use.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "use"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.use as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "use"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.use.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "use"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse use.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "use"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse use.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "use"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/use",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.use version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "use"
+      },
+      "core": [
+        "E061",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/for",
+      "lexicon": "en-US",
+      "source": "Module for.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/for",
+      "lexicon": "en-US",
+      "source": "Module for.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-only/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse for.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.for version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "for"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/async",
+      "lexicon": "en-US",
+      "source": "Module probe.async.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "async"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/async",
+      "lexicon": "en-US",
+      "source": "Module probe.async.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "async"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/async",
+      "lexicon": "en-US",
+      "source": "Module async.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "async"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/async",
+      "lexicon": "en-US",
+      "source": "Module async.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "async"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.async.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "async"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.async as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "async"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.async.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "async"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse async.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "async"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse async.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "async"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/async",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.async version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "async"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/on",
+      "lexicon": "en-US",
+      "source": "Module probe.on.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "on"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/on",
+      "lexicon": "en-US",
+      "source": "Module probe.on.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "on"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/on",
+      "lexicon": "en-US",
+      "source": "Module on.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "on"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/on",
+      "lexicon": "en-US",
+      "source": "Module on.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "on"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.on.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "on"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.on as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "on"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.on.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "on"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse on.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "on"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse on.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "on"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/on",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.on version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "on"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/function",
+      "lexicon": "en-US",
+      "source": "Module function.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/function",
+      "lexicon": "en-US",
+      "source": "Module function.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-only/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse function.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.function version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "function"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/performs",
+      "lexicon": "en-US",
+      "source": "Module performs.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/performs",
+      "lexicon": "en-US",
+      "source": "Module performs.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-only/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse performs.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.performs version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "performs"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/times",
+      "lexicon": "en-US",
+      "source": "Module probe.times.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "times"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/times",
+      "lexicon": "en-US",
+      "source": "Module probe.times.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "times"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/times",
+      "lexicon": "en-US",
+      "source": "Module times.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "times"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/times",
+      "lexicon": "en-US",
+      "source": "Module times.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "times"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.times.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "times"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.times as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "times"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.times.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "times"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse times.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "times"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse times.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "times"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/times",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.times version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "times"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.modulo.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "modulo"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.modulo.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "modulo"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/modulo",
+      "lexicon": "en-US",
+      "source": "Module modulo.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "modulo"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/modulo",
+      "lexicon": "en-US",
+      "source": "Module modulo.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "modulo"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.modulo.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "modulo"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.modulo as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "modulo"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.modulo.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "modulo"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse modulo.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "modulo"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse modulo.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "modulo"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/modulo",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.modulo version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "modulo"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.plus.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "plus"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.plus.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "plus"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/plus",
+      "lexicon": "en-US",
+      "source": "Module plus.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "plus"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/plus",
+      "lexicon": "en-US",
+      "source": "Module plus.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "plus"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.plus.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "plus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.plus as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "plus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.plus.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "plus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse plus.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "plus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse plus.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "plus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/plus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.plus version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "plus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-mod-last/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.minus.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "minus"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-mid/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.minus.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        14
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "minus"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-first/minus",
+      "lexicon": "en-US",
+      "source": "Module minus.x.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "minus"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-mod-only/minus",
+      "lexicon": "en-US",
+      "source": "Module minus.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        1,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "minus"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "qualseg-use-last/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.minus.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "minus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-last-alias/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.minus as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "minus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-mid/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.minus.Http as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "minus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-first/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse minus.io as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "minus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-only/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse minus.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        5
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "minus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "qualseg-use-version/minus",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.minus version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n",
+      "reject": [
+        "E055",
+        3,
+        8
+      ],
+      "params": {
+        "token": "token.identifier",
+        "escape": "minus"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/field/for",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit for als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/for",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben for als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/field/for",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 for 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/param/for",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 for 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/modseg/for",
+      "lexicon": "de-DE",
+      "source": "Modul m.for.\n\nRegel f, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        1,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "zh-CN/modseg/for",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.for。\n\n规则 取值，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        1,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "de-DE/field/one",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit one als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/one",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben one als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/field/one",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 one 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/param/one",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 one 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/modseg/one",
+      "lexicon": "de-DE",
+      "source": "Modul m.one.\n\nRegel f, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        1,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "zh-CN/modseg/one",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.one。\n\n规则 取值，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        1,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "de-DE/field/of",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit of als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/of",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben of als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/field/of",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 of 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/param/of",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 of 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/modseg/of",
+      "lexicon": "de-DE",
+      "source": "Modul m.of.\n\nRegel f, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        1,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "zh-CN/modseg/of",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.of。\n\n规则 取值，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        1,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "de-DE/field/function",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit function als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/function",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben function als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/field/function",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 function 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/param/function",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 function 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/modseg/function",
+      "lexicon": "de-DE",
+      "source": "Modul m.function.\n\nRegel f, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        1,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "zh-CN/modseg/function",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.function。\n\n规则 取值，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        1,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "de-DE/field/performs",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nDefiniere Antrag mit performs als Ganzzahl.\n",
+      "reject": [
+        "E055",
+        3,
+        22
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/param/performs",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nRegel f gegeben performs als Ganzzahl, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        17
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/field/performs",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n定义 软件 包含 performs 作为 整数。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.fieldName"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/param/performs",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n规则 取值 给定 performs 作为 整数，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        10
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "de-DE/modseg/performs",
+      "lexicon": "de-DE",
+      "source": "Modul m.performs.\n\nRegel f, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        1,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "zh-CN/modseg/performs",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.performs。\n\n规则 取值，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        1,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "de-DE/locseg/auf",
+      "lexicon": "de-DE",
+      "source": "Modul m.auf.\n\nRegel f, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        1,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "de-DE/locseg/als",
+      "lexicon": "de-DE",
+      "source": "Modul m.als.\n\nRegel f, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        1,
+        9
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "de-DE/useseg/mal",
+      "lexicon": "de-DE",
+      "source": "Modul m.\n\nverwende io.mal als H.\n\nRegel f, liefert Ganzzahl:\n  gib zurueck 1.\n",
+      "reject": [
+        "E055",
+        3,
+        13
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
+    },
+    {
+      "name": "zh-CN/locseg/设为",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.设为。\n\n规则 取值，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        1,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "zh-CN/locseg/基于",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.基于。\n\n规则 取值，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        1,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        1
+      ]
+    },
+    {
+      "name": "zh-CN/useseg/异步",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.样例。\n\n引用 io.异步 作为 H。\n\n规则 取值，产出 整数：\n  返回 1。\n",
+      "reject": [
+        "E055",
+        3,
+        7
+      ],
+      "params": {
+        "token": "token.identifier"
+      },
+      "core": [
+        "E062",
+        3
+      ]
     }
   ],
   "accept": [
@@ -8944,6 +15820,768 @@
       "name": "zh-escaped-并且",
       "lexicon": "zh-CN",
       "source": "模块 探针.样例。\n\n定义 软件 包含 `并且` 作为 整数。\n"
+    },
+    {
+      "name": "escaped-param/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `for` as Int, produce Int:\n  Return `for`.\n"
+    },
+    {
+      "name": "escaped-param/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `one` as Int, produce Int:\n  Return `one`.\n"
+    },
+    {
+      "name": "escaped-param/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `of` as Int, produce Int:\n  Return `of`.\n"
+    },
+    {
+      "name": "escaped-param/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `function` as Int, produce Int:\n  Return `function`.\n"
+    },
+    {
+      "name": "escaped-param/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given `performs` as Int, produce Int:\n  Return `performs`.\n"
+    },
+    {
+      "name": "escaped-field/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `for` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`for`.\n"
+    },
+    {
+      "name": "escaped-field/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `one` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`one`.\n"
+    },
+    {
+      "name": "escaped-field/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `of` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`of`.\n"
+    },
+    {
+      "name": "escaped-field/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `function` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`function`.\n"
+    },
+    {
+      "name": "escaped-field/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nDefine S with `performs` as Int.\n\nRule get given s as S, produce Int:\n  Return s.`performs`.\n"
+    },
+    {
+      "name": "escaped-let/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `for` be x.\n  Return `for`.\n"
+    },
+    {
+      "name": "escaped-let/one",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `one` be x.\n  Return `one`.\n"
+    },
+    {
+      "name": "escaped-let/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `of` be x.\n  Return `of`.\n"
+    },
+    {
+      "name": "escaped-let/function",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `function` be x.\n  Return `function`.\n"
+    },
+    {
+      "name": "escaped-let/performs",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let `performs` be x.\n  Return `performs`.\n"
+    },
+    {
+      "name": "cap-let/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Let Minus be x.\n  Return Minus.\n"
+    },
+    {
+      "name": "mixed-param/for",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given mINUS as Int, produce Int:\n  Return mINUS.\n"
+    },
+    {
+      "name": "qualseg-mod-last/with",
+      "lexicon": "en-US",
+      "source": "Module probe.with.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-mid/with",
+      "lexicon": "en-US",
+      "source": "Module probe.with.x.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-first/with",
+      "lexicon": "en-US",
+      "source": "Module with.x.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-only/with",
+      "lexicon": "en-US",
+      "source": "Module with.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-last/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.with.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-last-alias/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.with as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-mid/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.with.Http as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-first/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse with.io as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-only/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse with.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-version/with",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.with version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-last/and",
+      "lexicon": "en-US",
+      "source": "Module probe.and.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-mid/and",
+      "lexicon": "en-US",
+      "source": "Module probe.and.x.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-first/and",
+      "lexicon": "en-US",
+      "source": "Module and.x.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-only/and",
+      "lexicon": "en-US",
+      "source": "Module and.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-last/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.and.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-last-alias/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.and as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-mid/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.and.Http as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-first/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse and.io as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-only/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse and.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-version/and",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.and version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-last/or",
+      "lexicon": "en-US",
+      "source": "Module probe.or.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-mid/or",
+      "lexicon": "en-US",
+      "source": "Module probe.or.x.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-first/or",
+      "lexicon": "en-US",
+      "source": "Module or.x.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-only/or",
+      "lexicon": "en-US",
+      "source": "Module or.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-last/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.or.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-last-alias/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.or as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-mid/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.or.Http as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-first/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse or.io as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-only/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse or.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-version/or",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.or version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-last/not",
+      "lexicon": "en-US",
+      "source": "Module probe.not.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-mid/not",
+      "lexicon": "en-US",
+      "source": "Module probe.not.x.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-first/not",
+      "lexicon": "en-US",
+      "source": "Module not.x.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-mod-only/not",
+      "lexicon": "en-US",
+      "source": "Module not.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-last/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.not.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-last-alias/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.not as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-mid/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.not.Http as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-first/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse not.io as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-only/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse not.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-use-version/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.not version 2 as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-esc:mod/to",
+      "lexicon": "en-US",
+      "source": "Module probe.`to`.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-esc:use/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.`to` as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-esc:usealias/to",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as `to`.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-esc:mod/of",
+      "lexicon": "en-US",
+      "source": "Module probe.`of`.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-esc:use/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.`of` as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-esc:usealias/of",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as `of`.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-esc:mod/x",
+      "lexicon": "en-US",
+      "source": "Module probe.`x`.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-esc:use/x",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.`x` as H.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "qualseg-esc:usealias/x",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as `x`.\n\nRule f, produce Int:\n  Return 1.\n"
+    },
+    {
+      "name": "de-DE/locseg/und",
+      "lexicon": "de-DE",
+      "source": "Modul m.und.\n\nRegel f, liefert Ganzzahl:\n  gib zurueck 1.\n"
+    },
+    {
+      "name": "de-DE/locseg/nicht",
+      "lexicon": "de-DE",
+      "source": "Modul m.nicht.\n\nRegel f, liefert Ganzzahl:\n  gib zurueck 1.\n"
+    },
+    {
+      "name": "zh-CN/locseg/并且",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.并且。\n\n规则 取值，产出 整数：\n  返回 1。\n"
+    },
+    {
+      "name": "zh-CN/locseg/使用",
+      "lexicon": "zh-CN",
+      "source": "模块 探针.使用。\n\n规则 取值，产出 整数：\n  返回 1。\n"
+    }
+  ],
+  "dot": [
+    {
+      "name": "member/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not.\n",
+      "reject": [
+        "E064",
+        4,
+        12
+      ],
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "member/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.set.\n",
+      "reject": [
+        "E055",
+        4,
+        15
+      ],
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.set(1).\n",
+      "reject": [
+        "E055",
+        4,
+        15
+      ],
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "memberchain/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not.x.\n",
+      "reject": [
+        "E064",
+        4,
+        12
+      ],
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "qualcall/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.set(x).\n",
+      "reject": [
+        "E055",
+        6,
+        15
+      ],
+      "core": [
+        "E061",
+        6
+      ]
+    },
+    {
+      "name": "memberchain/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.set.x.\n",
+      "reject": [
+        "E055",
+        4,
+        15
+      ],
+      "core": [
+        "E061",
+        4
+      ]
+    },
+    {
+      "name": "sp",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v. not(1).\n",
+      "coreIr": "9a7379990b9d8fc3d38f514c820012d269bb29b4afec9bda39a74c86b966e9a0"
+    },
+    {
+      "name": "v.notnot",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not not(1).\n",
+      "coreIr": "b27e0df8cd760d0b4f11b682b1c7fef96741870a7ea8e183421eee58d6fc19e2"
+    },
+    {
+      "name": "v.not1.",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not 1.\n",
+      "coreIr": "9a7379990b9d8fc3d38f514c820012d269bb29b4afec9bda39a74c86b966e9a0"
+    },
+    {
+      "name": "v.not x",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Bool, produce Bool:\n  Return v.not v.\n",
+      "coreIr": "af0e0f51867121076557e837853a69d0685b1abcbf2266743582c55200b92f18"
+    },
+    {
+      "name": "v.not(1)eq",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Bool, produce Bool:\n  Return v.not(1) == 2.\n",
+      "coreIr": "ec7e4b10f366f900a3c484e08dafaad4c6ec9491fb53afc5014f3d0b6402700e"
+    },
+    {
+      "name": "set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Let y be 1.\n  Set y to v.not(1).\n  Return y.\n",
+      "coreIr": "a1f36a3841944f59d8a737ced566db72f3a1ce9374489ce1cbaf5afe4ca2dd38"
+    },
+    {
+      "name": "arg",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule g given a as Int, produce Int:\n  Return a.\n\nRule get given v as Int, produce Int:\n  Return g(v.not(1)).\n",
+      "reject": [
+        "E055",
+        7,
+        13
+      ],
+      "core": [
+        "E063",
+        7
+      ]
+    },
+    {
+      "name": "list",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce List of Int:\n  Return [v.not(1)].\n",
+      "reject": [
+        "E057",
+        4,
+        12
+      ],
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "H.not(x)stmt",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  H.not(x).\n  Return x.\n",
+      "reject": [
+        "E802",
+        6,
+        3
+      ],
+      "core": [
+        "E802",
+        6
+      ]
+    },
+    {
+      "name": "v.not(1)stmt",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  v.not(1).\n  Return v.\n",
+      "coreIr": "9e87276e34ed3004cdcc37eb7c12e90e049a44cfb122ac9eef314b3cf1c7b877"
+    },
+    {
+      "name": "setstmt/set",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Let y be 1.\n  Return v.set y to 2.\n",
+      "coreIr": "c032712f2fa6e91584e58f0bd51aec6cbb3d1bef885fc86c6a2611586b12dfe2"
+    },
+    {
+      "name": "call1/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Let y be 1.\n  Return v.not(1).\n",
+      "coreIr": "27158c4cff1ef0344f3eca791e56026547c4a9473023787c696b1fb1d8404d19"
+    },
+    {
+      "name": "sp1/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Let y be 1.\n  Return v.not 1.\n",
+      "coreIr": "27158c4cff1ef0344f3eca791e56026547c4a9473023787c696b1fb1d8404d19"
+    },
+    {
+      "name": "id/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Let y be 1.\n  Return v.not y.\n",
+      "coreIr": "9878cd8db13b42f3001d39c165d5836c254c85be13400d607395b955790174a3"
+    },
+    {
+      "name": "let/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Let y be v.not(1).\n  Return y.\n",
+      "coreIr": "0dd88fe16a14fb3fb7a3c97b32074fae617c95b33a49dccd9992b16656628f60"
+    },
+    {
+      "name": "v.set y stmt",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Let y be 1.\n  v.set y to 2.\n  Return y.\n",
+      "coreIr": "bb019141756dc043d0f9e5be420a1ef87075415ee0321cbc0bbc34e62576729e"
+    },
+    {
+      "name": "v.not(1)",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not(1).\n",
+      "coreIr": "9a7379990b9d8fc3d38f514c820012d269bb29b4afec9bda39a74c86b966e9a0"
+    },
+    {
+      "name": "v.not (1)",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not (1).\n",
+      "coreIr": "9a7379990b9d8fc3d38f514c820012d269bb29b4afec9bda39a74c86b966e9a0"
+    },
+    {
+      "name": "v.a.not(1)",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.a.not(1).\n",
+      "coreIr": "171e12533e92c9f0df3448ccc9f944e32f6c6b9f761f703d6f55a70d19a384b1"
+    },
+    {
+      "name": "v.not v",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not v.\n",
+      "coreIr": "9e0b000b5f36004c26eb3e015a2d656fee537d3087dbfad889da40c1e4b0c7c0"
+    },
+    {
+      "name": "v.not(1) plus 1",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not(1) plus 1.\n",
+      "coreIr": "dc36fb893b910929dfe692cbe7c3820bb8e46909c1d5615ebe6685d04a557bad"
+    },
+    {
+      "name": "v.not(1)==2",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not(1) == 2.\n",
+      "coreIr": "38ed81f6b529e198d657fb2cffeb3597e90b19aae7169238b3d1c25a01306e38"
+    },
+    {
+      "name": "if-not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  If v.not(true):\n    Return 1.\n  Return 0.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "core": [
+        "E063",
+        4
+      ]
+    },
+    {
+      "name": "when-not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Match v:\n    When 1, Return v.not(1).\n    When 2, Return 2.\n  Return 0.\n",
+      "reject": [
+        "E057",
+        5,
+        22
+      ],
+      "core": [
+        "E062",
+        5
+      ]
+    },
+    {
+      "name": "H.not(x)",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.not(x).\n",
+      "reject": [
+        "E802",
+        6,
+        10
+      ],
+      "core": [
+        "E802",
+        6
+      ]
+    },
+    {
+      "name": "H.a.not(x)",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.a.not(x).\n",
+      "coreIr": "85370a2e6f67eedc53e6b09f968824d117e4eaafb754743cf0352e6406873c68"
+    },
+    {
+      "name": "Http.not(x)",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return Http.not(x).\n",
+      "reject": [
+        "E802",
+        6,
+        10
+      ],
+      "core": [
+        "E802",
+        6
+      ]
+    },
+    {
+      "name": "v. not(1) wsp",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule g given a as Int, produce Int:\n  Return a.\n\nRule get given v as Int, produce Int:\n  Return v . not(1).\n",
+      "coreIr": "61adb13e7ffdd9fd514dbbe568473403df2f280766715da1448cb669e7b2c63e"
+    },
+    {
+      "name": "lambda-body",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule g given a as Int, produce Int:\n  Return a.\n\nRule get given v as Int, produce Int:\n  Let f be function given a as Int, produce Int: Return a.not(1).\n  Return v.\n",
+      "coreIr": "355fe6162723e03b6851bea030d166df37a14a05899f2f84aa767628a2ed58b3"
+    },
+    {
+      "name": "v.set y nl",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule g given a as Int, produce Int:\n  Return a.\n\nRule get given v as Int, produce Int:\n  Let y be 1.\n  Return v.set y to 2.\n  Return y.\n",
+      "coreIr": "c497d273d1657ac8d5e6738050218307db406983588995fe81b26ee583d64057"
+    },
+    {
+      "name": "qualcall-h/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as h.\n\nRule get given x as Int, produce Int:\n  Return h.not(x).\n",
+      "reject": [
+        "E802",
+        6,
+        10
+      ],
+      "core": [
+        "E802",
+        6
+      ]
+    },
+    {
+      "name": "membercall-v2/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not(1, 2).\n",
+      "reject": [
+        "E064",
+        4,
+        12
+      ],
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "membercall-v0/not",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return v.not().\n",
+      "reject": [
+        "E064",
+        4,
+        12
+      ],
+      "core": [
+        "E062",
+        4
+      ]
+    },
+    {
+      "name": "H.not(x,1)",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nUse io.Http as H.\n\nRule get given x as Int, produce Int:\n  Return H.not(x, 1).\n",
+      "reject": [
+        "E064",
+        6,
+        12
+      ],
+      "core": [
+        "E062",
+        6
+      ]
+    },
+    {
+      "name": "Http.not(x)-noimport",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given x as Int, produce Int:\n  Return Http.not(x).\n",
+      "reject": [
+        "E802",
+        4,
+        10
+      ],
+      "core": [
+        "E802",
+        4
+      ]
+    },
+    {
+      "name": "v.not(1)-bool",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Bool, produce Bool:\n  Return v.not(true).\n",
+      "coreIr": "f15039f380a9f4db67148b3456fdf7e7f60fc9d0e151b100819c536eac62fb58"
+    },
+    {
+      "name": "if v.not(1)",
+      "lexicon": "en-US",
+      "source": "Module probe.sample.\n\nRule get given v as Bool, produce Int:\n  If v.not(true):\n    Return 1.\n  Return 0.\n",
+      "reject": [
+        "E055",
+        4,
+        7
+      ],
+      "core": [
+        "E063",
+        4
+      ]
     }
   ]
 }

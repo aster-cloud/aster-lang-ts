@@ -1,8 +1,9 @@
 /**
- * 产品裁决 D4（eco-1.0.57）：小写关键词不能作名字。夹具 test/fixtures/keyword-case/lowercase_keyword_names.json：
+ * 产品裁决 D4（eco-1.0.57）与 ADR 0056 修订 A8：小写关键词不能作名字。夹具 test/fixtures/keyword-case/lowercase_keyword_names.json：
  * reject 的每例 ts 报 E055（码、行、列、参数与夹具相同，消息带转义提示），core 同样拒绝（夹具的 core 字段记录 aster-lang-core
- * 85f891f 的第一条诊断）；accept 的每例 ts 能编译（转义名、首字母大写与混合拼写的同形词、含这些词的长名字、不翻译成这些关键词的
- * zh 词），core 编译出同一 Core IR。
+ * 的第一条诊断）；accept 的每例 ts 能编译（转义名、首字母大写与混合拼写的同形词、含这些词的长名字、不翻译成这些关键词的
+ * zh 词、限定名里 core 放行的段），core 编译出同一 Core IR；dot 的每例是点之后的 not / set（修订 A8：点是语句结尾，照 core 读法），
+ * coreIr 行 ts 的位置无关 Core IR 哈希等于夹具记录的 core 哈希，reject 行 ts 与 core 都拒绝。
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,6 +14,7 @@ import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../src/frontend/lexer.js';
 import { parseWithLexicon } from '../../../src/parser.js';
 import { DiagnosticError } from '../../../src/diagnostics/diagnostics.js';
+import { CompileFailure, compileSource, positionFreeSha256 } from '../../../src/policy-package/compile-source.js';
 import { LOWERCASE_KEYWORD_NAMES } from '../../../src/parser/parse-issue.js';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
@@ -34,9 +36,20 @@ interface AcceptCase {
   readonly source: string;
 }
 
+/** 点之后的 not / set（修订 A8）：coreIr 与 reject 二者恰有其一。 */
+interface DotCase {
+  readonly name: string;
+  readonly lexicon: string;
+  readonly source: string;
+  readonly coreIr?: string;
+  readonly reject?: readonly [string, number, number];
+  readonly core?: readonly [string, number];
+}
+
 interface Fixture {
   readonly reject: readonly RejectCase[];
   readonly accept: readonly AcceptCase[];
+  readonly dot: readonly DotCase[];
 }
 
 const FIXTURE = resolve(process.cwd(), 'test', 'fixtures', 'keyword-case', 'lowercase_keyword_names.json');
@@ -66,13 +79,26 @@ function firstError(source: string, lexicon: Lexicon): { code: string; line: num
   }
 }
 
-describe('小写关键词不能作名字（产品裁决 D4）', () => {
+/** 整条编译（含降级与名字解析）：能编译时给出位置无关哈希，否则给出第一条诊断的 [码, 行, 列]。 */
+function compileOutcome(source: string, locale: string): { pf: string } | { diag: [string, number, number] } {
+  try {
+    return { pf: positionFreeSha256(compileSource(source, { locale })) };
+  } catch (e) {
+    if (!(e instanceof CompileFailure)) throw e;
+    const d = JSON.parse(e.diagnostics[0]!) as { code: string; span: { start: { line: number; col: number } } };
+    return { diag: [d.code, d.span.start.line, d.span.start.col] };
+  }
+}
+
+describe('小写关键词不能作名字（产品裁决 D4、ADR 0056 修订 A8）', () => {
   it('夹具覆盖名单里的每个词与三个语言包', () => {
     const words = new Set(DATA.reject.map((c) => c.name.split('/')[1]));
     for (const w of LOWERCASE_KEYWORD_NAMES) assert.ok(words.has(w), `夹具缺少 ${w}`);
     assert.deepEqual([...new Set(DATA.reject.map((c) => c.lexicon))].sort(), ['de-DE', 'en-US', 'zh-CN']);
-    assert.equal(DATA.reject.length, 478);
-    assert.equal(DATA.accept.length, 81);
+    assert.equal(DATA.reject.length, 862);
+    assert.equal(DATA.accept.length, 151);
+    assert.equal(DATA.dot.length, 43);
+    assert.equal(DATA.dot.filter((c) => c.coreIr !== undefined).length, 24);
   });
 
   for (const c of DATA.reject) {
@@ -89,12 +115,19 @@ describe('小写关键词不能作名字（产品裁决 D4）', () => {
     });
   }
 
-  // 成员调用 v.not(x) 不在 D4 范围：core 收作成员调用（两引擎的 Core IR 不同是既有分歧，不在本夹具里比较）
-  for (const call of ['v.not(1)', 'v.not (1)', 'v.a.not(1)']) {
-    it(`成员调用 ${call} 照旧能编译`, () => {
-      const source = `Module probe.sample.\n\nRule get given v as Int, produce Int:\n  Return ${call}.\n`;
-      const result = compile(source, { lexicon: EN_US });
-      assert.ok(result.success, JSON.stringify(result.parseErrors ?? []));
+  // 修订 A8：点之后的 not / set 照 core 读作语句结尾（`Return v.not(1).` = `Return v.` + `not(1).`），Core IR 与 core 相同
+  for (const c of DATA.dot) {
+    it(`点之后的关键词照 core 读法 ${c.lexicon} ${c.name}`, () => {
+      assert.ok((c.coreIr === undefined) !== (c.reject === undefined), '夹具行须恰有 coreIr 或 reject 之一');
+      const outcome = compileOutcome(c.source, c.lexicon);
+      if (c.coreIr !== undefined) {
+        assert.ok('pf' in outcome, `应能编译：${JSON.stringify(outcome)}`);
+        assert.equal(outcome.pf, c.coreIr, '位置无关 Core IR 哈希应等于 core');
+      } else {
+        assert.ok('diag' in outcome, '应拒绝');
+        assert.deepEqual(outcome.diag, [...c.reject!]);
+        assert.ok(c.core![0].startsWith('E'), 'core 同样拒绝');
+      }
     });
   }
 
