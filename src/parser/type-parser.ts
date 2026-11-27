@@ -9,7 +9,7 @@ import { isCapabilityKind } from '../effects/capabilities.js';
 import type { CapabilityKind } from '../config/semantic.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
-import { acceptedAfterNewline, headerNewlineIssue, Issue, kwParam, lit, tokenName, type ParseErrorFn } from './parse-issue.js';
+import { acceptedAfterNewline, headerNewlineIssue, Issue, kwParam, lit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 import { skipAnnotationsFrom } from './annotation-parser.js';
 
 /**
@@ -467,6 +467,7 @@ function parseTypePrimary(
 
   if (ctx.isKeyword('map')) {
     const mapTok = ctx.nextWord();
+    if (ctx.isKeyword('of')) error(mapOfIssue(ctx), ctx.peek());
     const keyType = parseType(ctx, error);
     if (!ctx.isKeyword(KW.TO_WORD)) {
       Diagnostics.expectedKeyword(KW.TO_WORD, ctx.peek().start)
@@ -586,6 +587,20 @@ function parseOfArgument(ctx: ParserContext, error: ParseErrorFn): Type {
   }
   return parseType(ctx, error);
 }
+
+/**
+ * Map 类型写成 `Map K to V`，不带 of。`Map of …` 与 core 同码，报在 of 上（aster-lang-ts#396）：core 的 ANTLR 先试单 token
+ * 删除，of 之后正是类型起始记号时报 E061「多余的 of」；换行、文件末或其它记号时报 E062。
+ */
+function mapOfIssue(ctx: ParserContext): ParseIssue {
+  const after = ctx.peek(1).kind;
+  const startsType = after === TokenKind.TYPE_IDENT || after === TokenKind.IDENT
+    || after === TokenKind.LPAREN || after === TokenKind.AT;
+  if (startsType) return Issue.unexpected(kwParam('of'), MAP_OF_MESSAGE);
+  return Issue.unexpectedExpecting(kwParam('of'), tokenName('type'), `${MAP_OF_MESSAGE}; expected a type`);
+}
+
+const MAP_OF_MESSAGE = "Unexpected 'of': write 'Map K to V' for a map type";
 
 /** 与 aster-lang-core AstBuilder.visitOfGenericType 的文案逐字相同。 */
 const MAYBE_OF_MESSAGE = "Unexpected 'of': write 'maybe T' or 'T?' for an optional type";
