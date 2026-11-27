@@ -366,7 +366,7 @@ function getEffectiveLexicon(lexicon?: Lexicon): Lexicon {
  */
 /**
  * 多词关键词的匹配是否落在 Set 的目标名上（aster-lang-core#328，与 aster-lang-core Canonicalizer.isSetTargetPhrase
- * 同一判据）：行首（可缩进）是 Set 关键词（任意大小写），其后紧接这个匹配，且匹配恰为「一个词 + to」。多词运算符只能接在
+ * 同一判据）：行首（可缩进）是 Set 关键词（`Set` / `set`），其后紧接这个匹配，且匹配恰为「一个词 + to」。多词运算符只能接在
  * 操作数之后，Set 之后是目标名：`Set Equals to 5.` 的 `Equals to` 是名字 `Equals` 加 Set 的 to，改写成小写的运算符拼写
  * 会把目标名改成 `equals`（另一个变量）。`segmentStartsLine` 为假时片段紧跟在同一行的字符串字面量后面，找不到行首就不是 Set 语句。
  */
@@ -375,6 +375,12 @@ function setTargetPredicate(
 ): (match: string, offset: number, text: string, segmentStartsLine: boolean) => boolean {
   const sets = singleWordSpellings(lexicon, [SemanticTokenKind.SET]);
   const tos = singleWordSpellings(lexicon, [SemanticTokenKind.TO_WORD]);
+  // 只认小写与首字母大写（`set` / `Set`，core 词法的 SET 记号）：`SET` 等其余大小写在 core 是同形词，
+  // `SET equals to 2.` 可以是以 SET 为名的变量的比较表达式语句，这里不改变它的读法
+  const isSetKeywordSpelling = (word: string): boolean => {
+    const lower = word.toLowerCase();
+    return sets.has(lower) && (word === lower || word === lower.charAt(0).toUpperCase() + lower.slice(1));
+  };
   const isHorizontalSpace = (ch: string | undefined): boolean => ch === ' ' || ch === '\t';
   const skipSpaceBackward = (text: string, i: number): number => {
     while (i > 0 && isHorizontalSpace(text[i - 1])) i--;
@@ -390,7 +396,7 @@ function setTargetPredicate(
     if (i === offset) return false;
     const wordEnd = i;
     while (i > 0 && !/\s/.test(text[i - 1]!)) i--;
-    if (!sets.has(text.slice(i, wordEnd).toLowerCase())) return false;
+    if (!isSetKeywordSpelling(text.slice(i, wordEnd))) return false;
     i = skipSpaceBackward(text, i);
     return i === 0 ? segmentStartsLine : text[i - 1] === '\n';
   };

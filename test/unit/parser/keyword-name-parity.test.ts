@@ -83,8 +83,8 @@ function firstParseError(c: KeywordNameCase): [string, number] | null {
 }
 
 describe('关键词当名字共享夹具（ts 侧）', () => {
-  it('共享夹具共 93 例，四个语言包都有', () => {
-    assert.equal(DATA.cases.length, 93);
+  it('共享夹具共 94 例，四个语言包都有', () => {
+    assert.equal(DATA.cases.length, 94);
     assert.deepEqual([...new Set(DATA.cases.map((c) => c.lexicon))].sort(), ['de-DE', 'en-US', 'hi-IN', 'zh-CN']);
   });
 
