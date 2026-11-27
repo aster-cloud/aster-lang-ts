@@ -119,11 +119,11 @@ Rule main given seed as Int, produce Int:
     // 需要抬高 maxSteps 才能隔离出预算维度——默认 10000 步会先拦住（25ms），
     // 那是另一道防线在起作用，不能用它来证明预算有效。
     let s = `Module p.
-Rule one given x, produce:
+Rule unit given x, produce:
   Return 1.
 Rule main given seed as Int, produce Int:
   Let a be List.range(0, 1000000).\n`;
-    for (let i = 1; i <= 20; i++) s += `  Let g${i} be List.groupBy(a, one).\n`;
+    for (let i = 1; i <= 20; i++) s += `  Let g${i} be List.groupBy(a, unit).\n`;
     s += `  Return Map.size(g20).`;
     const m = compile(s);
     assert.ok(m.core);

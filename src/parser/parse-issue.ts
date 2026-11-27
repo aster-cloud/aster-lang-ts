@@ -110,13 +110,22 @@ export function keywordAsNameIssue(ctx: { readonly lexicon?: Lexicon | undefined
 }
 
 /**
- * 小写拼写不能作名字的关键词（产品裁决 D4，eco-1.0.57）：aster-lang-core 里它们的小写拼写是词法记号，在任何名字位置都报语法错误，
- * ts 此前却收作名字（`given and as Int`、`Let to be x`、zh `并且` 作字段名）。两引擎因此对同一份源码一侧编译一侧报错。
- * 首字母大写等其余拼写是同形词，照旧是名字（两引擎一致）；名字转义 `` `and` `` 永远是名字（ADR 0064 N3），消息建议的正是这种写法。
+ * 小写拼写不能作名字的关键词（产品裁决 D4，eco-1.0.57；ADR 0056 修订 A8 补齐 for / one / of / function / performs）：
+ * aster-lang-core 里它们的小写拼写是词法记号、又不在 core 的软关键字集（structKeywordName）里，在任何名字位置都报语法错误，
+ * ts 此前却收作名字（`given and as Int`、`Let to be x`、`Define S with of as Int`、zh `并且` 作字段名）。两引擎因此对同一份源码
+ * 一侧编译一侧报错。这张表恰是 core 词法里这类单词记号的全集。首字母大写等其余拼写是同形词，照旧是名字（两引擎一致）；
+ * 名字转义 `` `and` `` 永远是名字（ADR 0064 N3），消息建议的正是这种写法。
  */
 export const LOWERCASE_KEYWORD_NAMES: ReadonlySet<string> = new Set([
   'and', 'or', 'not', 'as', 'with', 'to', 'set', 'use', 'on', 'plus', 'minus', 'times', 'modulo', 'async', 'has', 'produce',
+  'for', 'one', 'of', 'function', 'performs',
 ]);
+
+/**
+ * Module / Use 限定名的段位置上 core 照旧收作名字的小写关键词（core `qualifiedSegment` 放行 AND / OR / NOT / WITH）。
+ * LOWERCASE_KEYWORD_NAMES 的其余拼写作段时 core 报语法错误（`Use io.to as H.`、`Module a.of.`），ts 同样拒绝（修订 A8）。
+ */
+export const QUALIFIED_SEGMENT_KEYWORDS: ReadonlySet<string> = new Set(['and', 'or', 'not', 'with']);
 
 /**
  * D4：名字位置上的小写关键词报 E055（参数同该位置原有的 E055：`token` 为期望的名字种类），消息带转义提示。
