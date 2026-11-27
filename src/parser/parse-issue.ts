@@ -208,3 +208,30 @@ export function acceptedAfterNewline(ctx: { index: number; next(): Token }, acce
     ctx.index = saved;
   }
 }
+
+/**
+ * aster-lang-core 词法里区分大小写、首字母大写拼写同样是关键词记号的词（ADR 0056 修订 A8 第 3 条，产品裁决「处处照 core」）：
+ * `Set`（SET）、`Use`（USE）、`On`（ON）、`It`（IT）、`Map`（MAP）、`Module`（MODULE_KW）。它们不在 core 的软关键字集
+ * （structKeywordName），因此：点之后不是成员名（core 的点在这里是语句结尾，`Return v.Set y to 2.` = `Return v.` 加
+ * `Set y to 2.`）、不是构造字段名；除 `Map`（core primaryExpr 收 MAP）外也不能开启表达式。ts 词法把它们读作 TYPE_IDENT，
+ * 只按原文逐字判定（`SET`、`iT` 等其余拼写在 core 也是名字）；名字转义 `` `On` `` 永远是名字。
+ */
+export const CORE_CAPITALISED_TOKENS: ReadonlySet<string> = new Set(['Set', 'Use', 'On', 'It', 'Map', 'Module']);
+
+/** 记号是否为 {@link CORE_CAPITALISED_TOKENS} 里的拼写（TYPE_IDENT、非转义，原文逐字相同）。 */
+export function isCoreCapitalisedToken(tok: Token | undefined): boolean {
+  return tok?.kind === TokenKind.TYPE_IDENT && !tok.escaped && CORE_CAPITALISED_TOKENS.has(String(tok.value));
+}
+
+/**
+ * 表达式开头的 `Set` / `Use` / `On` / `It` / `Module`（修订 A8 第 3 条）：core 的 primaryExpr 不收这些记号，`Return On(1).`、
+ * 点之后拆出的 `On(1).` 都是语法错误；ts 报 E055 并给转义提示。
+ */
+export function coreTokenAsExpressionIssue(tok: Token): ParseIssue {
+  const written = String(tok.value);
+  return issue(
+    ErrorCode.PARSE_EXPECTED,
+    { token: tokenName('expression') },
+    `'${written}' is a keyword and cannot start an expression; write it in backticks (\`${written}\`) to use it as a name`,
+  );
+}

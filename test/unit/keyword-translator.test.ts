@@ -229,7 +229,7 @@ describe('关键词翻译器', () => {
   describe('完整编译流程集成', () => {
     it('应能解析翻译后的中文 CNL 简单返回语句', () => {
       // 中文源代码 - 使用 规则 关键词
-      const zhSource = '规则 identity 包含 id，产出：\n  返回 id。';
+      const zhSource = '规则 identity 给定 id，产出：\n  返回 id。';
 
       // 步骤 1: 规范化
       const canonical = canonicalize(zhSource, ZH_CN);
@@ -244,12 +244,13 @@ describe('关键词翻译器', () => {
       // 验证关键词已翻译（翻译值来自 Java 源 en-US lexicon）
       const allTokens = translatedTokens;
       const hasRule = allTokens.some(t => (t.value as string)?.toLowerCase() === 'rule');
-      const hasWith = allTokens.some(t => (t.value as string)?.toLowerCase() === 'with');
+      // 规则头的形参由 给定（given）引导；包含（with）引导的形参两引擎都拒（ADR 0056 修订 A8 第 3 条）
+      const hasGiven = allTokens.some(t => (t.value as string)?.toLowerCase() === 'given');
       const hasProduce = allTokens.some(t => (t.value as string)?.toLowerCase() === 'produce');
       const hasReturn = allTokens.some(t => (t.value as string)?.toLowerCase() === 'return');
 
       assert.ok(hasRule, '应有翻译后的 "Rule" 关键词');
-      assert.ok(hasWith, '应有翻译后的 "with" 关键词');
+      assert.ok(hasGiven, '应有翻译后的 "given" 关键词');
       assert.ok(hasProduce, '应有翻译后的 "produce" 关键词');
       assert.ok(hasReturn, '应有翻译后的 "Return" 关键词');
 
@@ -292,7 +293,7 @@ describe('关键词翻译器', () => {
 
     it('应能解析翻译后的中文 CNL If 语句', () => {
       // 中文 If 语句 - 使用 规则 标记关键词
-      const zhSource = `规则 check 包含 x，产出：
+      const zhSource = `规则 check 给定 x，产出：
   如果 1 小于 2
     返回 1。
   返回 0。`;

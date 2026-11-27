@@ -1,5 +1,6 @@
 import type {
   Block,
+  Call,
   Case,
   ConstructField,
   Expression,
@@ -33,7 +34,7 @@ import {
   spanFromSources,
   spanFromTokens,
 } from './span-utils.js';
-import { Issue, acceptedAfterNewline, headerNewlineIssue, keywordAsNameIssue, kwParam, lit, lowercaseKeywordNameIssue, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
+import { Issue, acceptedAfterNewline, coreTokenAsExpressionIssue, headerNewlineIssue, isCoreCapitalisedToken, keywordAsNameIssue, kwParam, lit, lowercaseKeywordNameIssue, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 const WAIT_FOR_PARTS = kwParts(KW.WAIT_FOR);
 const MAX_ATTEMPTS_PARTS = kwParts(KW.MAX_ATTEMPTS);
@@ -528,23 +529,21 @@ export function parseStatement(
   if (ctx.isKeyword(KW.WORKFLOW)) {
     return parseWorkflow(ctx, error);
   }
-  // Plain bare expression as statement (allow method calls, constructions) ending with '.'
-  if (
-    ctx.at(TokenKind.IDENT) ||
-    ctx.at(TokenKind.TYPE_IDENT) ||
-    ctx.at(TokenKind.STRING) ||
-    ctx.at(TokenKind.INT) ||
-    ctx.at(TokenKind.BOOL) ||
-    ctx.at(TokenKind.NULL) ||
-    ctx.at(TokenKind.LPAREN)
-  ) {
+  // 裸表达式语句 `<expr>.`：与 core exprStmt 一致，任何能开启表达式的记号都可以（字面量、名字、列表、前缀运算符调用、括号…），
+  // 降级为 `Let _ be <expr>`（求值并丢弃结果，ADR 0056 修订 A8 第 3 条）
+  if (startsBareExpression(ctx)) {
+    // 行首的字符串字面量开不了语句：core 规范化时丢掉这种行的缩进，`  "x".` 在 core 是语法错误（`("x").` 与同行第二条语句不受影响）。
+    // 与 core 同码同位置：缩进被丢掉后字符串落在第 1 列
+    if (ctx.at(TokenKind.STRING) && atLineStart(ctx)) {
+      const str = ctx.peek();
+      const text = `"${String(str.value)}"`;
+      error(Issue.unexpected(lit(text), `Unexpected '${text}'`), { ...str, start: { line: str.start.line, col: 1 } });
+    }
     const exprStart = ctx.index;
     try {
       const _e = parseExpr(ctx, error);
       expectPeriodEnd(ctx, error);
-      // `v.not(1).`：点是语句结尾，其后的 `not(1).` 是下一条语句（修订 A8，见 atMemberDot），裸名字 `v.` 与 core 一致保留
-      if (_e.kind === 'Name' && atStatementKeyword(ctx)) _e.discardedStatement = true;
-      return _e as Statement; // Not lowering; in v0, only Return statements are valid side-effects.
+      return _e as Statement;
     } catch {
       // rewind
       ctx.index = exprStart;
@@ -899,19 +898,11 @@ function parseIfExpr(
 function isListSeparatorAnd(ctx: ParserContext): boolean {
   // 当前位置必须是 'and' keyword
   const nextIdx = ctx.index + 1;
-  const t1 = ctx.tokens[nextIdx];
-  if (!t1) return false;
-  // 模式 A：`and <ident> set to ...` → Construct field
-  if (
-    (t1.kind === TokenKind.IDENT || t1.kind === TokenKind.KEYWORD) &&
-    typeof t1.value === 'string'
-  ) {
-    // set 不区分大小写（ADR 0059 A4 §1.1，#411）：与构造字段里的 set 同一判定（ctx.isKeyword / tokLowerAt），转义名不是 set
-    if (tokLowerAt(ctx, nextIdx + 1) === KW.SET) {
-      return true;
-    }
-  }
-  return false;
+  if (!ctx.tokens[nextIdx]) return false;
+  // `and <名字> set to ...` → Construct field。与 core kwGateAnd / isConstructFieldAt 一致：只看 and 之后第二个记号是不是 set，
+  // 不论字段名是什么记号（首字母大写的 `and Q set to 2` 同样是下一个字段，ADR 0056 修订 A8 第 3 条）；字段名不合法时由构造报错。
+  // set 不区分大小写（ADR 0059 A4 §1.1，#411）：与构造字段里的 set 同一判定（ctx.isKeyword / tokLowerAt），转义名不是 set
+  return tokLowerAt(ctx, nextIdx + 1) === KW.SET;
 }
 
 /**
@@ -1366,7 +1357,45 @@ function parseApplyOrPrimary(
     assignSpan(call, spanFromSources(applyTok, arg));
     return call;
   }
-  return parsePrimary(ctx, error);
+  const startTok = ctx.peek();
+  return parseTrailingMembers(ctx, error, parsePrimary(ctx, error), startTok);
+}
+
+/**
+ * 基本表达式之后的成员后缀（core `postfixExpr: primaryExpr postfixSuffix*` 的 MemberSuffix）。名字的点链已由 parsePrimary 读完；
+ * 这里处理 core 读作成员访问、ts 此前读作语句结尾的写法（ADR 0056 修订 A8 第 3 条；是否取成员读法见 memberReadingContinues）：
+ * - 括号里的名字 `(v).x`：core 按名字拼成限定名 `v.x`（AstBuilder.applyTrailingMembers）；
+ * - 其余表达式（字面量、调用、列表…）之后的 `.x`：core 报 E064（不支持在非名字表达式上取成员）；
+ * - 成员之后紧跟 `(`（`f(1).g(2)`、`(v).g(2)`）：core 读作方法调用，接收者作第一个实参（applyCallSuffix）。
+ */
+function parseTrailingMembers(ctx: ParserContext, error: ParseErrorFn, base: Expression, startTok: Token): Expression {
+  let current = base;
+  while (atMemberDot(ctx) && memberReadingContinues(ctx)) {
+    const members: string[] = [];
+    let lastTok: Token = ctx.peek();
+    while (atMemberDot(ctx)) {
+      ctx.next();
+      lastTok = ctx.peek();
+      members.push(parseMemberPart(ctx, error));
+    }
+    if (ctx.at(TokenKind.LPAREN)) {
+      // 方法调用：目标是成员名（多段时以点相连），接收者作第一个实参（core applyCallSuffix）
+      const method = Node.Name(members.join('.'));
+      assignSpan(method, spanFromTokens(lastTok, lastTok));
+      const args = parseArgList(ctx, error);
+      const call: Call = { ...Node.Call(method, [current, ...args]), ufcs: true };
+      assignSpan(call, spanFromSources(current, lastNonLayoutToken(ctx)));
+      current = call;
+      continue;
+    }
+    if (current.kind !== 'Name') {
+      error(Issue.unexpectedConstruct(tokenName('memberAccessOnExpression'), 'Unexpected member access on a non-name expression (bind the result to a name first)'), startTok);
+    }
+    const name = Node.Name(`${current.name}.${members.join('.')}`);
+    assignSpan(name, spanFromSources(current, lastTok));
+    current = name;
+  }
+  return current;
 }
 
 /**
@@ -1755,6 +1784,8 @@ function parsePrimary(
     const w = tokLowerAt(ctx, idx);
     return w === KW.WITH || w === KW.HAS;
   };
+  // core 的大写关键词记号除 Map 外不能开启表达式（core primaryExpr 只收 MAP）：`Return On(1).`、点之后拆出的 `Use.`（修订 A8 第 3 条）
+  if (isCoreCapitalisedToken(ctx.peek()) && ctx.peek().value !== 'Map') error(coreTokenAsExpressionIssue(ctx.peek()), ctx.peek());
   if (ctx.at(TokenKind.TYPE_IDENT) || (ctx.at(TokenKind.IDENT) && isConstructKeyword(ctx.index + 1))) {
     const typeTok = ctx.next();
     const typeName = typeTok.value as string;
@@ -1771,8 +1802,11 @@ function parsePrimary(
         // 构造字段名是结构关键词（`S with Return set to 1`）：报 E901（ADR 0056 修订 A6 K1），与 core constructField 一致
         const keywordIssue = translated === null && tokLowerAt(ctx, ctx.index + 1) === KW.SET ? keywordAsNameIssue(ctx, nameTok) : null;
         if (keywordIssue) error(keywordIssue, nameTok);
-        if (translated === null && !ctx.at(TokenKind.IDENT)) error(setToMissing);
-        const name = translated ?? parseIdent(ctx, error);
+        // 字段名与 core constructField `(IDENT | TYPE_IDENT | structKeywordName)` 一致：首字母大写的名字（`S with P set to 1`、
+        // `… and Q set to 2`）同样是字段名（修订 A8 第 3 条）；core 的大写关键词记号（Set / Use / On / It / Map / Module）不是，报缺 set to
+        const typeIdentField = ctx.at(TokenKind.TYPE_IDENT) && !isCoreCapitalisedToken(nameTok);
+        if (translated === null && !ctx.at(TokenKind.IDENT) && !typeIdentField) error(setToMissing);
+        const name = translated ?? (typeIdentField ? (ctx.next().value as string) : parseIdent(ctx, error));
         if (!ctx.isKeyword(KW.SET)) error(setToMissing);
         const equalsTok = ctx.peek();
         ctx.nextWord();
@@ -1808,18 +1842,9 @@ function parsePrimary(
     ) {
       const dotTok = ctx.next();
       consumedTokens.push(dotTok);
-      if (ctx.at(TokenKind.IDENT)) {
-        const partTok = ctx.peek();
-        const part = parseIdent(ctx, error);
-        consumedTokens.push(partTok);
-        full += '.' + part;
-      } else if (ctx.at(TokenKind.TYPE_IDENT)) {
-        const partTok = ctx.next();
-        consumedTokens.push(partTok);
-        full += '.' + (partTok.value as string);
-      } else {
-        error(Issue.expectedAfter(tokenName('identifier'), lit('.'), 'Expected identifier after dot'));
-      }
+      const partTok = ctx.peek();
+      full += '.' + parseMemberPart(ctx, error);
+      consumedTokens.push(partTok);
     }
     const target = Node.Name(full);
     assignSpan(target, spanFromSources(...consumedTokens));
@@ -1855,15 +1880,9 @@ function parsePrimary(
     ) {
       const dotTok = ctx.next();
       consumedTokens.push(dotTok);
-      if (ctx.at(TokenKind.IDENT)) {
-        const partTok = ctx.peek();
-        full += '.' + parseIdent(ctx, error);
-        consumedTokens.push(partTok);
-      } else if (ctx.at(TokenKind.TYPE_IDENT)) {
-        const partTok = ctx.next();
-        full += '.' + (partTok.value as string);
-        consumedTokens.push(partTok);
-      }
+      const partTok = ctx.peek();
+      full += '.' + parseMemberPart(ctx, error);
+      consumedTokens.push(partTok);
     }
     const target = Node.Name(full);
     assignSpan(target, spanFromSources(...consumedTokens));
@@ -2216,17 +2235,87 @@ function isStatementKeyword(tok: Token | undefined): boolean {
   return tok?.kind === TokenKind.IDENT && !tok.escaped && STATEMENT_KEYWORDS_AFTER_DOT.has(String(tok.value));
 }
 
-/** 当前记号是能开启语句的小写关键词（`not` / `set`）。 */
-function atStatementKeyword(ctx: ParserContext): boolean {
-  return isStatementKeyword(ctx.peek());
+/** 能开启裸表达式语句的记号（其余语句头已由 parseStatement 先行分派）：与 core primaryExpr 的起始记号一致。 */
+const BARE_EXPRESSION_STARTS: ReadonlySet<TokenKind> = new Set([
+  TokenKind.IDENT, TokenKind.TYPE_IDENT, TokenKind.STRING, TokenKind.INT, TokenKind.FLOAT, TokenKind.LONG, TokenKind.DECIMAL,
+  TokenKind.BOOL, TokenKind.NULL, TokenKind.LPAREN, TokenKind.LBRACKET,
+]);
+
+function startsBareExpression(ctx: ParserContext): boolean {
+  if (BARE_EXPRESSION_STARTS.has(ctx.peek().kind)) return true;
+  // 前缀运算符调用 `<(a, b).`、`+(1, 2).`（core operatorCall）
+  return PREFIX_OPERATORS.has(ctx.peek().kind) && ctx.peek(1).kind === TokenKind.LPAREN;
+}
+
+/** 当前记号是否位于行首（前一个记号是换行或缩进变化）。 */
+function atLineStart(ctx: ParserContext): boolean {
+  const prev = ctx.tokens[ctx.index - 1]?.kind;
+  return prev === TokenKind.NEWLINE || prev === TokenKind.INDENT || prev === TokenKind.DEDENT;
 }
 
 /** 当前是点、其后是成员名（IDENT / TYPE_IDENT，且不是能开启语句的小写关键词）。 */
 function atMemberDot(ctx: ParserContext): boolean {
   if (!ctx.at(TokenKind.DOT)) return false;
   const next = ctx.tokens[ctx.index + 1];
-  if (!next) return false;
+  return isMemberNameAfterDot(next);
+}
+
+/** 开启一个值的记号：成员点链之后紧跟它们（`1. Return x.`、`1. ok of a.`）时，成员读法在 core 走不通。 */
+const VALUE_START_KINDS: ReadonlySet<TokenKind> = new Set([
+  TokenKind.IDENT, TokenKind.TYPE_IDENT, TokenKind.INT, TokenKind.FLOAT, TokenKind.LONG, TokenKind.DECIMAL, TokenKind.STRING,
+  TokenKind.BOOL, TokenKind.NULL, TokenKind.LBRACKET,
+]);
+
+/** 紧跟在值之后的运算符词（ts 词法里是 IDENT）：`1.a plus 1` 的成员读法在 core 走得通。 */
+const OPERATOR_WORDS_AFTER_VALUE: ReadonlySet<string> = new Set([
+  'plus', 'minus', 'times', 'modulo', 'and', 'or', 'is', 'under', 'over', 'less', 'greater', 'more', 'at', 'equals', 'divided', 'integer',
+  'then', 'else', 'otherwise',
+]);
+
+/**
+ * core 在非名字表达式之后的点上贪婪取成员读法的语句头（不区分大小写）：`Let a be 1. Let x be 1.`、`g(1). If v:` 在 core 是成员访问
+ * 之后的语法错误（实测 E063），ts 同样读作成员并报错。`Return` / `Wait` / `Set`（SET 记号）之后 core 读作同行的下一条语句。
+ */
+const GREEDY_MEMBER_WORDS: ReadonlySet<string> = new Set([
+  'let', 'if', 'start', 'match', 'when', 'define', 'apply', 'otherwise', 'else', 'within',
+]);
+
+/**
+ * 非名字表达式之后的点：成员读法在 core 是否走得通（ADR 0056 修订 A8 第 3 条）。core 的后缀循环靠 ALL(*) 预测在「成员」与「语句结尾」
+ * 之间选择：成员点链之后紧跟一个值（`Let x be 1. Return x.`、`Let a be 1. ok of a.`、`Return "ok". It performs io.`）时成员读法
+ * 走不通，点是语句结尾，下一条语句同行开始；其余情况（`1.Start.a`、`1.g(2)`、`true.x` 之后是句点或运算符）取成员。
+ * 例外是 GREEDY_MEMBER_WORDS：core 的预测在这些语句头上总取成员读法（随后报错），ts 照做。
+ * 名字点链不经这里（`v.Return x` 照旧读作成员，与修订前相同）。
+ */
+function memberReadingContinues(ctx: ParserContext): boolean {
+  const first = ctx.tokens[ctx.index + 1];
+  const firstLower = tokLowerAt(ctx, ctx.index + 1);
+  if (firstLower !== null && GREEDY_MEMBER_WORDS.has(firstLower)) return true;
+  // set 的其余拼写（`SET`、`sET`）在 core 是名字记号，同样贪婪取成员；`Set` / `set` 是 SET 记号，点是语句结尾（见 isMemberNameAfterDot）
+  if (firstLower === KW.SET && first?.value !== 'Set' && first?.value !== 'set') return true;
+  let i = ctx.index;
+  while (ctx.tokens[i]?.kind === TokenKind.DOT && isMemberNameAfterDot(ctx.tokens[i + 1])) i += 2;
+  const after = ctx.tokens[i];
+  if (!after || !VALUE_START_KINDS.has(after.kind)) return true;
+  return after.kind === TokenKind.IDENT && !after.escaped && OPERATOR_WORDS_AFTER_VALUE.has(String(after.value));
+}
+
+/**
+ * 点之后的记号是否读作成员名（core MemberSuffix `IDENT | TYPE_IDENT | structKeywordName`）。core 的大写关键词记号（`.Set` / `.Use` /
+ * `.On` / `.It` / `.Map` / `.Module`）不是成员名，点是语句结尾（修订 A8 第 3 条）；字面量词的其余大小写拼写（`.True`、`.NULL`）
+ * 在 core 是 TYPE_IDENT，读作成员（ts 在成员名处照 K-c D2 报 E055）。
+ */
+function isMemberNameAfterDot(next: Token | undefined): boolean {
+  if (!next || isCoreCapitalisedToken(next)) return false;
+  if ((next.kind === TokenKind.BOOL || next.kind === TokenKind.NULL) && next.spelling !== undefined) return true;
   return next.kind === TokenKind.TYPE_IDENT || (next.kind === TokenKind.IDENT && !isStatementKeyword(next));
+}
+
+/** 点之后的一段成员名：名字照常读，字面量词的其余大小写拼写（`.True`）报 E055（名字转义提示由 withLiteralEscapeHint 补上）。 */
+function parseMemberPart(ctx: ParserContext, error: ParseErrorFn): string {
+  if (ctx.at(TokenKind.IDENT)) return parseIdent(ctx, error);
+  if (ctx.at(TokenKind.TYPE_IDENT)) return ctx.next().value as string;
+  return error(Issue.expected(tokenName('identifier'), 'Expected identifier'), ctx.peek());
 }
 
 function parseIdentAllowingKeyword(

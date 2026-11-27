@@ -114,6 +114,11 @@ export function parseFieldList(
     };
     fields.push(field);
 
+    // 换行起头的分隔符（`… as Int` 换行后 `and b as Text` / `, b as Text`，不缩进）：与 core fieldList `NEWLINE* (kwAnd | COMMA)`
+    // 一致，跳过换行后是 and 或逗号才消费换行；缩进的续行（INDENT）两引擎都不收（and：产品裁决 2026-11-28，#411；逗号：
+    // ADR 0056 修订 A8 第 3 条）
+    const sepIdx = nextNonNewlineIndex(ctx);
+    if (sepIdx !== ctx.index && (tokLowerAt(ctx, sepIdx) === KW.AND || ctx.tokens[sepIdx]?.kind === TokenKind.COMMA)) ctx.index = sepIdx;
     // 检查是否还有更多字段
     if (ctx.at(TokenKind.COMMA)) {
       ctx.next();
@@ -122,10 +127,6 @@ export function parseFieldList(
       ctx.consumeIndent();
       continue;
     }
-    // 换行起头的 and（`… as Int` 换行后 `and b as Text`，不缩进）：与 core fieldList `NEWLINE* (kwAnd | COMMA)` 一致，
-    // 跳过换行后是 and 才消费换行；缩进的续行（INDENT）两引擎都不收（产品裁决 2026-11-28，#411）
-    const andIdx = nextNonNewlineIndex(ctx);
-    if (andIdx !== ctx.index && tokLowerAt(ctx, andIdx) === KW.AND) ctx.index = andIdx;
     if (ctx.isKeyword(KW.AND)) {
       ctx.nextWord();
       // 'and' 后允许换行和缩进
