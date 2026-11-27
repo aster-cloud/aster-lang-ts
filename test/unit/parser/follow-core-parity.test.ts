@@ -47,9 +47,9 @@ function firstDiagnostic(c: FollowCoreCase): FirstDiagnostic {
 }
 
 describe('处处照 core（ADR 0056 修订 A8 第 3 条）', () => {
-  it('共享夹具共 105 例，其中 40 例两引擎都拒、23 例诊断逐项相同', () => {
-    assert.equal(CASES.length, 105);
-    assert.equal(CASES.filter((c) => c.reject).length, 40);
+  it('共享夹具共 108 例，其中 42 例两引擎都拒、23 例诊断逐项相同', () => {
+    assert.equal(CASES.length, 108);
+    assert.equal(CASES.filter((c) => c.reject).length, 42);
     assert.equal(CASES.filter((c) => c.code !== undefined).length, 23);
   });
 
