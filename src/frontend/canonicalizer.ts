@@ -359,12 +359,6 @@ function getEffectiveLexicon(lexicon?: Lexicon): Lexicon {
 }
 
 /**
- * 获取多词关键字列表（按长度降序排列，用于贪婪匹配）。
- *
- * @param lexicon - 可选的词法表
- * @returns 多词关键字数组
- */
-/**
  * 多词关键词的匹配是否落在 Set 的目标名上（aster-lang-core#328，与 aster-lang-core Canonicalizer.isSetTargetPhrase
  * 同一判据）：行首（可缩进）是 Set 关键词（`Set` / `set`），其后紧接这个匹配，且匹配恰为「一个词 + to」。多词运算符只能接在
  * 操作数之后，Set 之后是目标名：`Set Equals to 5.` 的 `Equals to` 是名字 `Equals` 加 Set 的 to，改写成小写的运算符拼写
@@ -402,6 +396,12 @@ function setTargetPredicate(
   };
 }
 
+/**
+ * 获取多词关键字列表（按长度降序排列，用于贪婪匹配）。
+ *
+ * @param lexicon - 可选的词法表
+ * @returns 多词关键字数组
+ */
 function getMultiWordKeywordList(lexicon?: Lexicon): string[] {
   const effectiveLexicon = getEffectiveLexicon(lexicon);
   return getMultiWordKeywords(effectiveLexicon);
