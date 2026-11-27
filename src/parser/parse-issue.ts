@@ -10,7 +10,7 @@
  */
 
 import { ErrorCode } from '../diagnostics/error_codes.js';
-import type { ParseDiagnosticParams } from '../diagnostics/diagnostics.js';
+import type { Diagnostic, ParseDiagnosticParams } from '../diagnostics/diagnostics.js';
 import type { Lexicon } from '../config/lexicons/types.js';
 import { TokenKind, type Token } from '../types.js';
 import { kwq } from './keyword-display.js';
@@ -128,7 +128,8 @@ export const LOWERCASE_KEYWORD_NAMES: ReadonlySet<string> = new Set([
 export const QUALIFIED_SEGMENT_KEYWORDS: ReadonlySet<string> = new Set(['and', 'or', 'not', 'with']);
 
 /**
- * D4：名字位置上的小写关键词报 E055（参数同该位置原有的 E055：`token` 为期望的名字种类），消息带转义提示。
+ * D4：名字位置上的小写关键词报 E055（参数同该位置原有的 E055：`token` 为期望的名字种类），消息带转义提示；英文源码另带参数
+ * `escape`（源码写法，aster-lang-core#329），结构化诊断据此渲染「写成 `` `and` ``」。
  * 本地化关键词经翻译得到的记号（de `und`、zh `并且` → `and`）同样拒绝（core 同样拒绝）；翻译后的记号不带源码原文，
  * 非英文源码的消息用本语言包的关键词拼写（kwq），不给具体的转义写法。不是这些关键词时返回 null。
  */
@@ -151,9 +152,35 @@ export function lowercaseKeywordNameIssue(
   const written = tok.originalValue ?? value;
   return issue(
     ErrorCode.PARSE_EXPECTED,
-    { token: expected },
+    { token: expected, escape: written },
     `'${written}' is a keyword and cannot be used as a name; write it in backticks (\`${written}\`) to use it as a name`,
   );
+}
+
+/** 声明名字位置的 E055 期望种类（与 aster-lang-core AstBuilder.rejectLiteralName 的调用点相同）。 */
+const LITERAL_NAME_TOKENS: ReadonlySet<string> = new Set(['token.identifier', 'token.typeName', 'token.variantName', 'token.fieldName']);
+
+/**
+ * E055 的名字转义提示（aster-lang-core#329，K-c 产品裁决 D2）：名字位置上写了字面量 true / false / null 的其余大小写拼写
+ * （`True`、`NULL`、`tRUE`），两引擎都报 E055；这里补上参数 `escape`（源码写法）与英文提示句，与 core 同参数。
+ * 只看英文源码：非英文词法表的字面量词不是 D2 的对象（core 经关键词翻译读作字面量）。已带 `escape` 的诊断原样返回。
+ */
+export function withLiteralEscapeHint(
+  ctx: { readonly lexicon?: Lexicon | undefined; readonly tokens: readonly Token[] },
+  d: Diagnostic,
+): Diagnostic {
+  if (d.code !== ErrorCode.PARSE_EXPECTED || d.params?.escape !== undefined) return d;
+  if (!LITERAL_NAME_TOKENS.has(String(d.params?.token)) || (ctx.lexicon && ctx.lexicon.id.toLowerCase() !== 'en-us')) return d;
+  const { line, col } = d.span.start;
+  const tok = ctx.tokens.find(
+    (t) => (t.kind === TokenKind.BOOL || t.kind === TokenKind.NULL) && t.start.line === line && t.start.col === col,
+  );
+  if (!tok?.spelling) return d;
+  return {
+    ...d,
+    params: { ...d.params, escape: tok.spelling },
+    message: `${d.message}. Write it in backticks (\`${tok.spelling}\`) to use it as a name`,
+  };
 }
 
 /** 源码 token 作为字面片段参数（取其文本；无文本时取词法种类）。 */

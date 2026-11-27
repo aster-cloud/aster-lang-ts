@@ -27,7 +27,7 @@ import { parseBlock, parseExplicitBlock, parseParamList, typeNewlineIssue } from
 import { parseFieldList, parseVariantList } from './field-variant-parser.js';
 import { assignSpan, spanFromSources, lastConsumedToken, lastNonLayoutToken, spanFromTokens } from './span-utils.js';
 import type { Span } from '../types.js';
-import { Issue, acceptedAfterNewline, headerNewlineIssue, kwParam, lit, tokenLit, tokenName, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
+import { Issue, acceptedAfterNewline, headerNewlineIssue, kwParam, lit, tokenLit, tokenName, withLiteralEscapeHint, type ParseErrorFn, type ParseIssue } from './parse-issue.js';
 
 /**
  * R30+ audit P1：原本写满 14 处 {@code (node as any).nameSpan = ...} / variantSpans。
@@ -687,7 +687,7 @@ export function collectTopLevelDecls(
         tools.error(Issue.unexpectedConstruct(tokenName('topLevelToken'), 'Unexpected token at top level'));
       }
     } catch (e) {
-      diagnostics.push(toDiagnostic(e));
+      diagnostics.push(withLiteralEscapeHint(ctx, toDiagnostic(e)));
       syncToNextDecl(ctx);
     }
 

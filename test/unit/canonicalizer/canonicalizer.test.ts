@@ -462,4 +462,31 @@ describe('canonicalizer', () => {
       }
     });
   });
+
+  describe('Set 的目标名不读作多词运算符（aster-lang-core#328）', () => {
+    it('行首 Set / set（可缩进）之后的「名字 to」原样保留', () => {
+      assert.strictEqual(canonicalize('  Set Equals to 5.'), '  Set Equals to 5.');
+      assert.strictEqual(canonicalize('  Set EQUALS to 5.'), '  Set EQUALS to 5.');
+      assert.strictEqual(canonicalize('Set eQUALS to 5.'), 'Set eQUALS to 5.');
+      assert.strictEqual(canonicalize('  set Equals to 5.'), '  set Equals to 5.');
+      // 前面的行里有字符串字面量（分段不从源码开头起）也照样按行首判定
+      assert.strictEqual(canonicalize('  Let s be "a".\n  Set Equals to 5.'), '  Let s be "a".\n  Set Equals to 5.');
+    });
+
+    it('SET 等其余大小写是同形词（可以是变量名），读法不变', () => {
+      assert.strictEqual(canonicalize('  SET Equals to 5.'), '  SET equals to 5.');
+    });
+
+    it('操作数之后的 Equals to 照旧归一成小写运算符', () => {
+      assert.strictEqual(canonicalize('  Return x Equals to 5.'), '  Return x equals to 5.');
+      assert.strictEqual(canonicalize('  Set y to x Equals to 5.'), '  Set y to x equals to 5.');
+    });
+
+    it('Set 不在行首、或同一行此前有字符串字面量时不按 Set 目标处理', () => {
+      assert.strictEqual(canonicalize('  Return Set Equals to 5.'), '  Return Set equals to 5.');
+      assert.strictEqual(canonicalize('  Return "Set" Equals to 5.'), '  Return "Set" equals to 5.');
+      // to 只是更长单词的前缀时不是 Set 的 to，照旧按多词关键词改写
+      assert.strictEqual(canonicalize('  Set Equals tomorrow.'), '  Set equals tomorrow.');
+    });
+  });
 });

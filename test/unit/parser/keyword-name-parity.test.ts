@@ -16,6 +16,7 @@ import { canonicalize } from '../../../src/frontend/canonicalizer.js';
 import { lex } from '../../../src/frontend/lexer.js';
 import { parseWithLexicon } from '../../../src/parser.js';
 import { DiagnosticError } from '../../../src/diagnostics/diagnostics.js';
+import { positionFreeSha256 } from '../../../src/policy-package/compile-source.js';
 import { collisionWords, checkKeywordNames } from '../../../src/frontend/keyword-name-guard.js';
 import { EN_US } from '../../../src/config/lexicons/en-US.js';
 import { ZH_CN } from '../../../src/config/lexicons/zh-CN.js';
@@ -32,6 +33,8 @@ interface KeywordNameCase {
   readonly message?: string;
   readonly names?: readonly string[];
   readonly warnings?: readonly (readonly [string, number])[];
+  /** 与 source 位置无关哈希相同的源码（aster-lang-core#328：用名字转义写出同一个名字）。 */
+  readonly samePf?: string;
 }
 
 interface Fixture {
@@ -80,8 +83,8 @@ function firstParseError(c: KeywordNameCase): [string, number] | null {
 }
 
 describe('关键词当名字共享夹具（ts 侧）', () => {
-  it('共享夹具共 87 例，四个语言包都有', () => {
-    assert.equal(DATA.cases.length, 87);
+  it('共享夹具共 94 例，四个语言包都有', () => {
+    assert.equal(DATA.cases.length, 94);
     assert.deepEqual([...new Set(DATA.cases.map((c) => c.lexicon))].sort(), ['de-DE', 'en-US', 'hi-IN', 'zh-CN']);
   });
 
@@ -110,6 +113,11 @@ describe('关键词当名字共享夹具（ts 侧）', () => {
         .filter((d) => d.code === 'W802')
         .map((d) => [d.code, d.span?.start.line ?? 0]);
       assert.deepEqual(warnings, c.warnings ?? []);
+      if (c.samePf !== undefined) {
+        const same = compile(c.samePf, { lexicon });
+        assert.ok(same.success && same.coreJson && result.coreJson, 'samePf 应能编译');
+        assert.equal(positionFreeSha256(result.coreJson), positionFreeSha256(same.coreJson), 'Core IR 与 samePf 相同');
+      }
     });
   }
 

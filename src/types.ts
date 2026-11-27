@@ -98,6 +98,11 @@ export interface Token {
   readonly transUnitLen?: number;
   /** 数值字面量（INT / FLOAT / LONG）的源码原文（ADR 0055 §5），用于精确求出规范十进制串与诊断。 */
   readonly raw?: string;
+  /**
+   * BOOL / NULL 记号的源码写法，仅当不是词法表的小写拼写时设置（`True`、`NULL`、`tRUE`，K-c 产品裁决 D2）：名字位置上的
+   * 这些写法报 E055，诊断参数 `escape` 取此值给出名字转义提示（aster-lang-core#329）。不参与求值与 Core IR。
+   */
+  readonly spelling?: string;
   /** 本 token 由非英文关键词翻译而来（关键词翻译器设置）；源码写的是关键词，不是用户标识符。 */
   readonly translated?: true;
   /**
