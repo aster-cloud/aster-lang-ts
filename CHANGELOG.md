@@ -16,6 +16,12 @@
   - 期望类型为枚举别名（返回类型、实参）时本地化裸成员名由 E802 变为成员。
   别名目标是包装类型（`Fahrer?`、`Option of …`）时照旧按未知（R20）。
 
+- **`Map of …` 的诊断码与 core 不同**（aster-lang-ts#396）：Map 类型写成 `Map K to V`，`Map of …` 在 ts 报 E055「Expected type name」，
+  core 报 E061 / E062。现在与 core 同码、同位置（报在 `of` 上，`token: kw.of`）：`of` 之后是类型起始记号（类型名、名字、`(`、`@`）时
+  报 E061，换行、逗号、文件末或其它记号时报 E062 `{expected: token.type}`。只改诊断码与列号，接受范围不变（两引擎都拒绝 `Map of`）；
+  共享夹具 `parse_diagnostics_parity.json` 加 7 行。小写 `map of Int` 在 core 是名为 `map` 的泛型类型（core#314，eco-1.0.57 K-b 统一），
+  ts 照旧拒绝，码由 E055 变为 E061。
+
 ## 3.8.2
 
 > **修订号的理由**：只改 LSP 快速修复「Use \`x\` as a name」的改写范围，`exports` 与既有声明不变（`lsp/name-escape-fix` 是新增内部模块），
