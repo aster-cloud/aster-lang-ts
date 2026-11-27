@@ -364,6 +364,38 @@ function getEffectiveLexicon(lexicon?: Lexicon): Lexicon {
  * @param lexicon - 可选的词法表
  * @returns 多词关键字数组
  */
+/**
+ * 多词关键词的匹配是否落在 Set 的目标名上（aster-lang-core#328，与 aster-lang-core Canonicalizer.isSetTargetPhrase
+ * 同一判据）：行首（可缩进）是 Set 关键词（任意大小写），其后紧接这个匹配，且匹配恰为「一个词 + to」。多词运算符只能接在
+ * 操作数之后，Set 之后是目标名：`Set Equals to 5.` 的 `Equals to` 是名字 `Equals` 加 Set 的 to，改写成小写的运算符拼写
+ * 会把目标名改成 `equals`（另一个变量）。`segmentStartsLine` 为假时片段紧跟在同一行的字符串字面量后面，找不到行首就不是 Set 语句。
+ */
+function setTargetPredicate(
+  lexicon: Lexicon,
+): (match: string, offset: number, text: string, segmentStartsLine: boolean) => boolean {
+  const sets = singleWordSpellings(lexicon, [SemanticTokenKind.SET]);
+  const tos = singleWordSpellings(lexicon, [SemanticTokenKind.TO_WORD]);
+  const isHorizontalSpace = (ch: string | undefined): boolean => ch === ' ' || ch === '\t';
+  const skipSpaceBackward = (text: string, i: number): number => {
+    while (i > 0 && isHorizontalSpace(text[i - 1])) i--;
+    return i;
+  };
+  return (match, offset, text, segmentStartsLine) => {
+    const words = match.trim().split(/[ \t]+/);
+    if (words.length !== 2 || !tos.has(words[1]!.toLowerCase())) return false;
+    // `Set Equals tomorrow` 的 to 只是更长单词的前缀，不是 Set 的 to
+    if (/^[\p{L}\p{M}\p{N}_]/u.test(text.slice(offset + match.length, offset + match.length + 1))) return false;
+    // 自匹配处向前：空白、一个词（须是 Set 的拼写）、行首缩进。只回看紧邻的一个词，长行里大量匹配也是线性的
+    let i = skipSpaceBackward(text, offset);
+    if (i === offset) return false;
+    const wordEnd = i;
+    while (i > 0 && !/\s/.test(text[i - 1]!)) i--;
+    if (!sets.has(text.slice(i, wordEnd).toLowerCase())) return false;
+    i = skipSpaceBackward(text, i);
+    return i === 0 ? segmentStartsLine : text[i - 1] === '\n';
+  };
+}
+
 function getMultiWordKeywordList(lexicon?: Lexicon): string[] {
   const effectiveLexicon = getEffectiveLexicon(lexicon);
   return getMultiWordKeywords(effectiveLexicon);
@@ -538,12 +570,15 @@ export function canonicalize(input: string, lexiconOrOptions?: Lexicon | Canonic
     const keywordRes = sortedKeywords.map(
       phrase => new RegExp(phrase.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'ig'),
     );
+    const isSetTarget = setTargetPredicate(effectiveLexicon);
     marked = segmentString(marked, quotes)
-      .map(segment => {
+      .map((segment, index) => {
         if (segment.inString) return segment.text;
         let text = segment.text;
         for (const re of keywordRes) {
-          text = text.replace(re, m => {
+          text = text.replace(re, (m: string, offset: number, whole: string) => {
+            // Set 的目标名不是多词关键词（aster-lang-core#328）：`Set Equals to 5.` 原样保留
+            if (isSetTarget(m, offset, whole, index === 0)) return m;
             const marker = `\x00KW${markerIndex++}\x00`;
             keywordMarkers.set(marker, m.toLowerCase());
             return marker;

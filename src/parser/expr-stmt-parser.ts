@@ -435,7 +435,7 @@ export function parseStatement(
   if (ctx.isKeyword(KW.SET)) {
     const setTok = ctx.peek();
     ctx.nextWord();
-    const name = parseIdent(ctx, error);
+    const name = parseSetTarget(ctx, error);
     expectKeyword(ctx, error, KW.TO_WORD, Issue.expectedIn(kwParam(KW.TO_WORD), tokenName('assignment'), `Use ${kwq(ctx, KW.TO_WORD)} in assignments: '${kw(ctx, KW.SET, 'Set')} x ${kw(ctx, KW.TO_WORD)} ...'.`));
     const expr = parseExpr(ctx, error);
     expectPeriodEnd(ctx, error);
@@ -2231,6 +2231,19 @@ function parseIdentAllowingKeyword(
     error(keywordAsNameIssue(ctx, ctx.peek()) ?? Issue.expected(tokenName('identifier'), 'Expected identifier'));
   }
   return ctx.next().value as string;
+}
+
+/**
+ * Set 的目标：与 Let 名同口径，也收大写开头的名字（`Set Foo to 1`、`Set Equals to 5`，aster-lang-core#328）；core 的 setStmt
+ * 同样用 nameIdent。core 词法里是关键词记号的大写拼写（Set、Map、Module、Use、It、On）在 core 的 Set 目标位置不是名字，
+ * 这里照旧报 E055，不新增 ts 收、core 拒的写法。
+ */
+const CORE_KEYWORD_TOKEN_SPELLINGS: ReadonlySet<string> = new Set(['Set', 'Map', 'Module', 'Use', 'It', 'On']);
+
+function parseSetTarget(ctx: ParserContext, error: ParseErrorFn): string {
+  const tok = ctx.peek();
+  if (tok.kind === TokenKind.TYPE_IDENT && CORE_KEYWORD_TOKEN_SPELLINGS.has(String(tok.value))) return parseIdent(ctx, error);
+  return parseLetName(ctx, error);
 }
 
 /**

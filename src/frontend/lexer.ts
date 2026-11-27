@@ -217,6 +217,11 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
     const tokenBase = { kind, value, start, end: { line, col } } as const;
     tokens.push(channel ? { ...tokenBase, channel } : tokenBase);
   };
+  // BOOL / NULL 的其余大小写写法（`True`、`NULL`）带上源码写法，供名字位置的 E055 给出转义提示（aster-lang-core#329）
+  const pushLiteralWord = (kind: TokenKind, value: Token['value'], start: Position, word: string, lower: string): void => {
+    const tokenBase = { kind, value, start, end: { line, col } } as const;
+    tokens.push(word === lower ? tokenBase : { ...tokenBase, spelling: word });
+  };
   // 数值 token 额外带上字面量原文（ADR 0055 §5：IR 的规范十进制串由原文求出，不经 number；Long 的原文含 L 后缀）
   const pushNumber = (kind: TokenKind, value: number, start: Position, raw: string): void => {
     tokens.push({ kind, value, start, end: { line, col }, raw });
@@ -660,15 +665,15 @@ export function lex(input: string, lexicon?: Lexicon): Token[] {
       // 使用缓存的有效词法表检查布尔/null 关键字
       // 不再硬编码英文关键字，统一从词法表获取
       if (lower === effectiveLex.keywords[SemanticTokenKind.TRUE].toLowerCase()) {
-        push(TokenKind.BOOL, true, start);
+        pushLiteralWord(TokenKind.BOOL, true, start, word, lower);
         continue;
       }
       if (lower === effectiveLex.keywords[SemanticTokenKind.FALSE].toLowerCase()) {
-        push(TokenKind.BOOL, false, start);
+        pushLiteralWord(TokenKind.BOOL, false, start, word, lower);
         continue;
       }
       if (lower === effectiveLex.keywords[SemanticTokenKind.NULL].toLowerCase()) {
-        push(TokenKind.NULL, null, start);
+        pushLiteralWord(TokenKind.NULL, null, start, word, lower);
         continue;
       }
 
