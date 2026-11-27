@@ -1,6 +1,28 @@
 # Changelog
 
-## Unreleased
+## 3.9.0
+
+> **次版本号的理由**：公开声明只增不删，`exports` 不变（`.d.ts` 门：在 `v3.8.2` 与 main `3c1848a` 各自 `pnpm run build`，`dist/src` 与
+> `dist/scripts` 的 `.d.ts` 文件清单相同，`dist/scripts` 无变化；改动的四份 `resolve-typed-references` / `lower_to_core` / `parser/parse-issue` /
+> `formatter` 只新增导出或可选参数、改注释，且都不经任何 `exports` 子路径导出）。行为上：既有源码的**新拒绝**——小写关键词 `and`、`or`、`not`、
+> `as`、`with`、`to`、`set`、`use`、`on`、`plus`、`minus`、`times`、`modulo`、`async`、`has`、`produce`（及翻译成这些拼写的 de / zh 关键词）
+> 作名字，3.8.2 接受、本版报 E055（产品裁决 D4；core 里这些拼写是词法记号，这些源码本来就报错，两引擎因此对同一份源码一侧编译一侧报错）；
+> `Map of …` 的诊断码改为 E061 / E062（接受范围不变）；别名接收者的 W801 消失、别名目标没有的字段报 E801、枚举别名的 Match 裸名由绑定变为成员。
+> 按 ADR 0046 §11.7 第 11 条（1.6.0、3.1.0–3.8.0 先例，新拒绝既有源码取 minor）取 minor。
+
+### 解析：小写关键词不能作名字（产品裁决 D4，aster-lang-ts#338 第 1 部分，#414）
+
+- 名字位置上的 `and`、`or`、`not`、`as`、`with`、`to`、`set`、`use`、`on`、`plus`、`minus`、`times`、`modulo`、`async`、`has`、`produce`
+  小写拼写（以及翻译成这些拼写的 de `und`、zh `并且` 等关键词）报 E055，消息提示写成名字转义 `` `and` ``（ADR 0064 N3：转义永远是名字）。
+  覆盖形参、字段、Let 名、注解名、注解参数名与标识符形式的参数值；成员调用 `v.not(x)` 照旧（core 收作成员调用）。首字母大写等其余拼写是同形词，
+  照旧是名字。
+- 新增（内部，不经 `exports`）：`parse-issue.ts` 的 `LOWERCASE_KEYWORD_NAMES` 与 `lowercaseKeywordNameIssue`；共享夹具
+  `test/fixtures/keyword-case/lowercase_keyword_names.json`。
+
+### 测试：关键词不区分大小写的 parity 夹具（K-a..K-d，aster-lang-ts#338 第 1 部分，#409 #410 #412 #413）
+
+- `shared/keyword_name_parity.json` 加 IF / iF 两行（K-a）、同形词三行（K-b）、17 行（K-c）、7 行（K-d）；只改夹具与测试，包行为不变
+  （关键词不区分大小写由 aster-lang-core 1.0.57 的 #325 #326 #327 #330 实现）。
 
 ### 修复
 
