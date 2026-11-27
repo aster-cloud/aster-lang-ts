@@ -12,7 +12,7 @@ import { parseConstraints } from './constraint-parser.js';
 import { parseAnnotations } from './annotation-parser.js';
 import { assignSpan, spanFromSources, spanFromTokens } from './span-utils.js';
 import { inferFieldType } from './type-inference.js';
-import { Issue, keywordAsNameIssue, tokenName, type ParseErrorFn } from './parse-issue.js';
+import { Issue, keywordAsNameIssue, lowercaseKeywordNameIssue, tokenName, type ParseErrorFn } from './parse-issue.js';
 import { ErrorCode } from '../diagnostics/error_codes.js';
 
 /**
@@ -59,6 +59,9 @@ export function parseFieldList(
     const { annotations } = parseAnnotations(ctx, error, false);
     const nameTok = ctx.peek();
 
+    // 小写关键词不能作字段名（产品裁决 D4）
+    const lowercaseKeyword = lowercaseKeywordNameIssue(ctx, nameTok, tokenName('fieldName'));
+    if (lowercaseKeyword) error(lowercaseKeyword, nameTok);
     // 解析字段名：先尝试还原"被翻译成关键词的标识符"（非英文词法包），否则要求普通标识符。
     let name = tryReadTranslatedIdent(ctx);
     if (name === null) {

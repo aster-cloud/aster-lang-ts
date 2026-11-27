@@ -75,7 +75,7 @@ Rule ping, produce Text:
     const core = lower(`
 Module test.lowering.func_types.
 
-Rule repeat given text as Text and times as Int, produce Text:
+Rule repeat given text as Text and count as Int, produce Text:
   Return text.
 `);
     const func = core.decls.find(d => d.kind === 'Func') as Core.Func | undefined;

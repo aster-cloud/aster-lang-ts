@@ -109,6 +109,44 @@ export function keywordAsNameIssue(ctx: { readonly lexicon?: Lexicon | undefined
   );
 }
 
+/**
+ * 小写拼写不能作名字的关键词（产品裁决 D4，eco-1.0.57）：aster-lang-core 里它们的小写拼写是词法记号，在任何名字位置都报语法错误，
+ * ts 此前却收作名字（`given and as Int`、`Let to be x`、zh `并且` 作字段名）。两引擎因此对同一份源码一侧编译一侧报错。
+ * 首字母大写等其余拼写是同形词，照旧是名字（两引擎一致）；名字转义 `` `and` `` 永远是名字（ADR 0064 N3），消息建议的正是这种写法。
+ */
+export const LOWERCASE_KEYWORD_NAMES: ReadonlySet<string> = new Set([
+  'and', 'or', 'not', 'as', 'with', 'to', 'set', 'use', 'on', 'plus', 'minus', 'times', 'modulo', 'async', 'has', 'produce',
+]);
+
+/**
+ * D4：名字位置上的小写关键词报 E055（参数同该位置原有的 E055：`token` 为期望的名字种类），消息带转义提示。
+ * 本地化关键词经翻译得到的记号（de `und`、zh `并且` → `and`）同样拒绝（core 同样拒绝）；翻译后的记号不带源码原文，
+ * 非英文源码的消息用本语言包的关键词拼写（kwq），不给具体的转义写法。不是这些关键词时返回 null。
+ */
+export function lowercaseKeywordNameIssue(
+  ctx: { readonly lexicon?: Lexicon | undefined },
+  tok: Token | undefined,
+  expected: string,
+): ParseIssue | null {
+  if (!tok || tok.kind !== TokenKind.IDENT || tok.escaped) return null;
+  const value = String(tok.value);
+  if (!LOWERCASE_KEYWORD_NAMES.has(value)) return null;
+  if (tok.originalValue === undefined && ctx.lexicon && ctx.lexicon.id.toLowerCase() !== 'en-us') {
+    // 非英文源码：记号是翻译后的规范拼写，源码里写的可能是本地化关键词（de `und`、zh `并且`），提示不给具体写法
+    return issue(
+      ErrorCode.PARSE_EXPECTED,
+      { token: expected },
+      `${kwq(ctx, value)} is a keyword and cannot be used as a name; write the name in backticks to use it as a name`,
+    );
+  }
+  const written = tok.originalValue ?? value;
+  return issue(
+    ErrorCode.PARSE_EXPECTED,
+    { token: expected },
+    `'${written}' is a keyword and cannot be used as a name; write it in backticks (\`${written}\`) to use it as a name`,
+  );
+}
+
 /** 源码 token 作为字面片段参数（取其文本；无文本时取词法种类）。 */
 export const tokenLit = (tok: Token): string => lit(String(tok.value ?? tok.kind));
 

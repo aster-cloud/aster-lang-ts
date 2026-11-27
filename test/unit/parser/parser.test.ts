@@ -74,8 +74,8 @@ Define Status as one of Pending, Success, Failure.
     const module = parseSource(`
 Module test.parser.func_signature.
 
-Rule format given name as Text and times as Int, produce Text:
-  Return Text.concat(name, Text.toString(times)).
+Rule format given name as Text and count as Int, produce Text:
+  Return Text.concat(name, Text.toString(count)).
 `);
     const func = findDecl(module, 'Func');
     assert.equal(func.name, 'format');
