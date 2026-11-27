@@ -4,6 +4,18 @@
 
 ### 修复
 
+- **类型别名类型的接收者按未知类型解析**（aster-lang-core#313，ADR 0056 修订 A7 D1）：别名不产出 Core 声明，R2 原先把别名类型当作
+  未知类型（ADR 0051 R20），字段段走「全局唯一候选 + W801」的回退，Match 主语为枚举别名时裸名被当作绑定。现在 `lowerTypeAliases`
+  把 R1 输出的别名降级成「别名规范名 → 目标类型」表交给 `resolveTypedReferences`（新增可选第 4 个参数），别名逐层展开为目标类型
+  （成环时停在别名名上，照旧按未知），点分路径接收者、Match 主语与期望类型与直接写目标类型时解析结果相同。与 core 同车次，共享夹具
+  `shared/alias_receiver_parity.json`（18 例）。**编译结果会变**：
+  - 别名接收者上的 W801 消失，IR 不变（`x.alter` → `x.age` 照旧）；
+  - 别名目标 Data 没有、但别的 Data 有的字段，原先静默接受，现在报 E801；
+  - 别名目标是 Map / 内置标量时点分段原样保留（原先经词汇改写成别的 Data 的字段名并报 W801，或报 E801）；
+  - Match 主语为枚举别名时，裸名 `When Hoch,` 由绑定（第一臂吞掉所有输入）变为成员 PatCtor——**IR 与运行结果都会变**；
+  - 期望类型为枚举别名（返回类型、实参）时本地化裸成员名由 E802 变为成员。
+  别名目标是包装类型（`Fahrer?`、`Option of …`）时照旧按未知（R20）。
+
 - **`Map of …` 的诊断码与 core 不同**（aster-lang-ts#396）：Map 类型写成 `Map K to V`，`Map of …` 在 ts 报 E055「Expected type name」，
   core 报 E061 / E062。现在与 core 同码、同位置（报在 `of` 上，`token: kw.of`）：`of` 之后是类型起始记号（类型名、名字、`(`、`@`）时
   报 E061，换行、逗号、文件末或其它记号时报 E062 `{expected: token.type}`。只改诊断码与列号，接受范围不变（两引擎都拒绝 `Map of`）；

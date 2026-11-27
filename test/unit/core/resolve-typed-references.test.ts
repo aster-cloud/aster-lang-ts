@@ -19,7 +19,7 @@ import type { DomainVocabulary, IdentifierMapping } from '../../../src/config/le
 import { resolveDeclarations } from '../../../src/frontend/resolve-declarations.js';
 import { NO_IMPORTS } from '../../../src/frontend/resolution-context.js';
 import type { ResolutionContext } from '../../../src/frontend/resolution-context.js';
-import { lowerModule } from '../../../src/lower_to_core.js';
+import { lowerModule, lowerTypeAliases } from '../../../src/lower_to_core.js';
 import { resolveTypedReferences } from '../../../src/core/resolve-typed-references.js';
 import { resolutionMarkOf } from '../../../src/core/resolution-mark.js';
 import { ErrorCode } from '../../../src/diagnostics/error_codes.js';
@@ -73,7 +73,7 @@ function run(
 ): Run {
   const ctx = ctxOf(mappings);
   const r1 = resolveDeclarations(edit(parse(source, lexicon)), ctx);
-  const r2 = resolveTypedReferences(lowerModule(r1.module), ctx);
+  const r2 = resolveTypedReferences(lowerModule(r1.module), ctx, undefined, lowerTypeAliases(r1.module));
   return { module: r2.module, r1: r1.diagnostics, r2: r2.diagnostics };
 }
 
@@ -737,7 +737,6 @@ describe('resolveTypedReferences（R2）', () => {
     const EN_DRIVER = 'Module m.\n\nDefine Fahrer has alter as Int.\n\n';
 
     const receivers: Array<[string, string]> = [
-      ['类型别名', 'Type Fz as Fahrer.\n\nRule f given x as Fz, produce Int:\n  Return x.alter.\n'],
       ['Option of', 'Rule f given x as Option of Fahrer, produce Int:\n  Return x.alter.\n'],
       ['可空 ?', 'Rule f given x as Fahrer?, produce Int:\n  Return x.alter.\n'],
       ['未声明类型名（Data 字段）', 'Define Halter has fz as Unbekannt.\n\nRule f given x as Halter, produce Int:\n  Return x.fz.alter.\n'],
@@ -749,6 +748,25 @@ describe('resolveTypedReferences（R2）', () => {
         assert.match(nameOf(returned(func(module, 'f'), 0)).name, /\.age$/);
       });
     }
+
+    const aliasReceivers: Array<[string, string]> = [
+      ['类型别名', 'Type Fz as Fahrer.\n\nRule f given x as Fz, produce Int:\n  Return x.alter.\n'],
+      ['别名链', 'Type A as Fz.\n\nType Fz as Fahrer.\n\nRule f given x as A, produce Int:\n  Return x.alter.\n'],
+      ['别名类型的字段', 'Type Fz as Fahrer.\n\nDefine Halter has fz as Fz.\n\nRule f given x as Halter, produce Int:\n  Return x.fz.alter.\n'],
+    ];
+    for (const [label, body] of aliasReceivers) {
+      it(`接收者类型为${label} → 按别名目标类型解析，无 W801（aster-lang-core#313）`, () => {
+        const { module, r2 } = run(EN_DRIVER + body, DRIVER, EN_US);
+        assert.deepEqual(codes(r2), []);
+        assert.match(nameOf(returned(func(module, 'f'), 0)).name, /\.age$/);
+      });
+    }
+
+    it('别名成环 → 按未知类型名，全局候选采用 + W801', () => {
+      const { module, r2 } = run(EN_DRIVER + 'Type A as B.\n\nType B as A.\n\nRule f given x as A, produce Int:\n  Return x.alter.\n', DRIVER, EN_US);
+      assert.deepEqual(codes(r2), [ErrorCode.RESOLVED_WITHOUT_TYPE]);
+      assert.equal(nameOf(returned(func(module, 'f'), 0)).name, 'x.age');
+    });
 
     it('同一 Core 上连续两次 R2：模块与诊断相同', () => {
       const ctx = ctxOf(DRIVER);
