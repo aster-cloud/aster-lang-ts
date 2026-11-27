@@ -191,6 +191,40 @@ export function parseEnumDecl(
  * @param parseIdent 解析标识符的辅助函数
  * @returns 函数声明
  */
+/**
+ * 规则头里由 with 引导的形参（`Rule f with a as Int, produce …`）：core funcDecl 的形参只认 givenParamList，with 处报 E062
+ * （ADR 0056 修订 A8 第 3 条，产品裁决「处处照 core」；此前 ts 把 with 当 given 的同义词）。码、位置与参数照 core：token 为
+ * with 记号（小写拼写与本地化关键词是 `kw.with`，其余拼写是原文），expected 是 core 在该处的期望集合，随规则头已写到哪一步而变。
+ * lambda 的 `function with x as Int, …` 不受影响（core lambdaParamList 收 with）。
+ */
+function rejectWithParams(
+  ctx: ParserContext,
+  error: ParseErrorFn,
+  afterTypeParams: boolean,
+  afterEffectParams: boolean,
+  afterTypeParamComma: boolean,
+): never {
+  const tok = ctx.peek();
+  const written = String(tok.originalValue ?? tok.value);
+  const lowercase = tok.translated === true || tok.value === KW.WITH;
+  const expected = afterTypeParamComma
+    ? [lit('.'), lit(':'), kwParam(KW.PRODUCE)]
+    : afterEffectParams
+      ? [lit('.'), lit(':'), lit(','), kwParam(KW.GIVEN), kwParam(KW.PRODUCE)]
+      : afterTypeParams
+        ? [lit('.'), lit(':'), lit(','), lit('<'), kwParam(KW.GIVEN), kwParam(KW.PRODUCE)]
+        : [lit('.'), lit(':'), lit(','), lit('<'), kwParam(KW.GIVEN), kwParam(KW.PRODUCE), kwParam('of')];
+  const shown = expected.slice(0, 3).map((e) => (e.startsWith('kw.') ? kwq(ctx, e.slice(3)) : e)).join(' or ');
+  return error(
+    Issue.unexpectedExpecting(
+      lowercase ? kwParam(KW.WITH) : lit(written),
+      expected.join(' | '),
+      `Unexpected '${written}'; expected ${shown}${expected.length > 3 ? ', …' : ''}`,
+    ),
+    tok,
+  );
+}
+
 export function parseFuncDecl(
   ctx: ParserContext,
   error: ParseErrorFn,
@@ -239,6 +273,8 @@ export function parseFuncDecl(
   // 规则头从 Rule 到 `:` / `.` 写在一行，不跳过 NEWLINE / INDENT / DEDENT（aster-lang-core#266，与 core 文法 funcDecl 一致）。
   // 解析可选的类型参数: 'of' TypeId ('and' TypeId)*
   const typeParams: string[] = [];
+  // 类型参数之后已消费逗号（`Rule f of T, …`）：此后 core 只收 produce / `:` / `.`（见 rejectWithParams）
+  let commaAfterTypeParams = false;
   if (ctx.isKeyword('of')) {
     ctx.nextWord();
     let more = true;
@@ -261,6 +297,7 @@ export function parseFuncDecl(
         ctx.next();
         // 如果逗号后面跟 'with'/'given' 或 produce，停止
         if (ctx.isKeyword(KW.WITH) || ctx.isKeyword(KW.GIVEN) || ctx.isKeyword(KW.PRODUCE)) {
+          commaAfterTypeParams = true;
           more = false;
           break;
         }
@@ -282,6 +319,9 @@ export function parseFuncDecl(
   ctx.currentTypeVars = new Set(typeParams);
   ctx.currentEffectVars = new Set(effectParams);
   const activeEffectVars = ctx.currentEffectVars;
+
+  // 规则头的形参只能由 given 引导（core givenParamList）；with 引导的是 lambda 形参，规则头里两引擎都拒（修订 A8 第 3 条）
+  if (ctx.isKeyword(KW.WITH)) rejectWithParams(ctx, error, typeParams.length > 0, effectParams.length > 0, commaAfterTypeParams);
 
   // 解析参数列表
   const params = parseParamList(ctx, error);
@@ -535,7 +575,17 @@ function prescanDeclaredTypes(ctx: ParserContext): void {
     }
     return true; // 流首
   };
+  let depth = 0;
   for (let i = 0; i < tokens.length; i++) {
+    const kind = tokens[i]!.kind;
+    if (kind === TokenKind.INDENT) depth++;
+    if (kind === TokenKind.DEDENT) depth--;
+    // 省略 Define 的顶层数据类型（`S has x as Int.`）：只认不缩进的行首，构造表达式语句 `S with p set to 1.` 在规则体里（缩进）
+    if (depth === 0 && atBareDataDecl(ctx, i) && tokLowerAt(ctx, i + 2) !== KW.AS && isDeclBoundary(i)) {
+      ctx.declaredTypes.add(tokens[i]!.value as string);
+      ctx.declaredRecordTypes.add(tokens[i]!.value as string);
+      continue;
+    }
     const v = tokLowerAt(ctx, i);
     const isAlias = isTypeAliasKeywordAt(ctx, i);
     if (v !== KW.DEFINE && !isAlias) continue;
@@ -558,6 +608,50 @@ function prescanDeclaredTypes(ctx: ParserContext): void {
       ctx.declaredRecordTypes.add(nameTok.value as string);
     }
   }
+}
+
+/** 数据类型的 `with` / `has` 及其后的字段列表与句点（`Define S` 或省略 Define 的 `S` 已消费）。 */
+function parseDataBody(ctx: ParserContext, tools: ParserTools, startTok: Token, typeName: string): Declaration {
+  ctx.nextWord();
+  const fields = parseFieldList(ctx, tools.error);
+  tools.expectDot();
+  const dataDecl = Node.Data(typeName, fields);
+  const endTok = lastConsumedToken(ctx);
+  assignSpan(dataDecl, spanFromTokens(startTok, endTok));
+  ctx.declaredTypes.add(typeName);
+  return dataDecl;
+}
+
+/**
+ * aster-lang-core 词法里首字母大写拼写同样是关键词记号的词：core 的 dataDecl 第二个分支只收 TYPE_IDENT，这些拼写在顶层
+ * 不能省略 Define 作类型名（`Start has x as Int.` 两引擎都拒）。前一组不区分大小写（core 用逐字母字符集），后一组逐字相同。
+ */
+const CORE_KEYWORDS_ANY_CASE: ReadonlySet<string> = new Set([
+  'rule', 'define', 'let', 'return', 'apply', 'if', 'then', 'else', 'otherwise', 'match', 'when', 'start', 'wait',
+]);
+const CORE_KEYWORDS_CAPITALISED: ReadonlySet<string> = new Set([
+  'Set', 'Use', 'Workflow', 'Step', 'Retry', 'Timeout', 'Depends', 'On', 'Compensate', 'Max', 'Attempts', 'Backoff', 'Map', 'It',
+  'Module',
+]);
+
+/**
+ * core 词法 TYPE_IDENT 的首字符：ASCII 大写、Latin-1 大写（À-Ö、Ø-Þ）、Latin Extended-A（不分大小写）与 CJK 统一汉字（含扩展 A）。
+ * ts 词法只把 ASCII 大写开头的词读作 TYPE_IDENT，其余（`Über`、`用户`）是 IDENT；省略 Define 的写法按 core 的口径判定。
+ */
+const CORE_TYPE_IDENT_START = /^[A-Z\u00C0-\u00D6\u00D8-\u00DE\u0100-\u017F\u4E00-\u9FFF\u3400-\u4DBF]/;
+
+/**
+ * 顶层省略 Define 的数据类型头 `S has` / `S with`（core `article? TYPE_IDENT (kwHas | kwWith) fieldList DOT`）：类型名是首字母大写的
+ * 名字（不是 core 的关键词记号；名字转义照旧是名字），其后是任意大小写的 has / with。
+ */
+function atBareDataDecl(ctx: ParserContext, i: number): boolean {
+  const tok = ctx.tokens[i];
+  if (!tok || (tok.kind !== TokenKind.TYPE_IDENT && tok.kind !== TokenKind.IDENT) || tok.translated) return false;
+  const text = String(tok.value);
+  if (!CORE_TYPE_IDENT_START.test(text)) return false;
+  if (!tok.escaped && (CORE_KEYWORDS_ANY_CASE.has(text.toLowerCase()) || CORE_KEYWORDS_CAPITALISED.has(text))) return false;
+  const next = tokLowerAt(ctx, i + 1);
+  return next === KW.WITH || next === KW.HAS;
 }
 
 export function collectTopLevelDecls(
@@ -599,7 +693,13 @@ export function collectTopLevelDecls(
         parseModuleHeader(ctx, tools.error, tools.expectDot);
         // ADR 0046：Profile 只能紧跟模块头（中间可有空行）；模块头唯一，故此处至多解析一条，其余交给下方分支报错
         ctx.consumeNewlines();
-        if (atProfileDecl(ctx)) parseProfileDecl(ctx, tools.error, tools.expectDot);
+        if (atProfileDecl(ctx) && !atBareDataDecl(ctx, ctx.index)) parseProfileDecl(ctx, tools.error, tools.expectDot);
+      }
+      // 省略 Define 的数据类型：`S has x as Int.` / `S with x as Int.`（与 core dataDecl 第二个分支一致，ADR 0056 修订 A8 第 3 条）。
+      // 先于 Profile 与类型别名判定：`Profile has x as Int.`、`Type has x as Int.` 在 core 同样是数据类型（`Type with as Int.` 仍是别名）
+      else if (atBareDataDecl(ctx, ctx.index) && tokLowerAt(ctx, ctx.index + 2) !== KW.AS) {
+        const nameTok = ctx.next();
+        decls.push(parseDataBody(ctx, tools, nameTok, nameTok.value as string));
       }
       // 其余位置出现的 Profile（重复、模块头之前或声明之间）一律报错
       else if (ctx.isKeyword(KW.PROFILE)) {
@@ -623,16 +723,8 @@ export function collectTopLevelDecls(
 
         // 判断是 Data 还是 Enum
         if (ctx.isKeywordSeq(KW.WITH) || ctx.isKeywordSeq(KW.HAS)) {
-          const startTok = defineTok;
           // Data: Define User with ...
-          ctx.nextWord();
-          const fields = parseFieldList(ctx, tools.error);
-          tools.expectDot();
-          const dataDecl = Node.Data(typeName, fields);
-          const endTok = lastConsumedToken(ctx);
-          assignSpan(dataDecl, spanFromTokens(startTok, endTok));
-          ctx.declaredTypes.add(typeName);
-          decls.push(dataDecl);
+          decls.push(parseDataBody(ctx, tools, defineTok, typeName));
         } else if (ctx.isKeywordSeq(KW.ONE_OF)) {
           const startTok = defineTok;
           // Enum: Define Status as one of ...

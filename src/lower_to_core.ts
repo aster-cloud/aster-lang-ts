@@ -353,33 +353,28 @@ function lowerStmt(s: Statement): Core.Statement {
       return lowerWorkflow(s as WorkflowStmt);
     case 'Block':
       return withOrigin(CoreIR.Scope(lowerStatements((s as Block).statements)), s);
-    case 'Call':
-      // 裸表达式语句（`File.write("...").`）：求值并丢弃结果，降为 `Let _ be <call>`。
-      //
-      // ★内层 Call 也必须挂 origin。原实现只给外层 Let 包了 withOrigin，内层
-      //   `CoreIR.Call(...)` 直接构造 → 该表达式**没有位置信息**。
-      //   后果：ADR 0032 的 trace 锚点与 ADR 0037 的 OriginMap 都按位置定位，
-      //   一个无 origin 的节点在「点击源码 ↔ 高亮 IR」里**不可达**——不报错，
-      //   只是这段代码从双向导航里静默消失。
-      //   （实测 eff_valid_all_caps.aster：真正的 Let 有 expr.origin，
-      //     合成的 Let "_" 没有，与 Java 侧跨引擎分叉。）
-      return withOrigin(
-        CoreIR.Let('_', withOrigin(
-          CoreIR.Call(lowerExpr((s as any).target), (s as any).args.map(lowerExpr)), s)),
-        s
-      );
     default: {
-      // 语句位置的 `v.not(1).` 照 core 读作 `v.` 加 `not(1).`（ADR 0056 修订 A8）：裸名字 `v.` 与 core 一致降为 `Let _ be v`
-      const bare = s as unknown as Expression;
-      if (bare.kind === 'Name' && bare.discardedStatement) {
-        return withOrigin(CoreIR.Let('_', lowerExpr(bare)), s);
-      }
+      // 裸表达式语句（`File.write("...").`、`v.`、`1.`、`ok of 1.`）：与 core AstBuilder.visitExprStmt 一致，求值并丢弃结果，
+      // 降为 `Let _ be <expr>`（ADR 0056 修订 A8 第 3 条）。表达式整体走 lowerExpr：调用的 UFCS 拆分、`Some(x)` 等内置变体归一与
+      // 名字解析都与其它位置的同一表达式相同（此前语句位置的调用绕过 lowerExpr，`h.g(1).` 与 core IR 不同）；
+      // 内层表达式与外层 Let 都挂 origin（ADR 0032 trace 锚点、ADR 0037 OriginMap 按位置定位）。
+      if (isExpressionStatement(s)) return withOrigin(CoreIR.Let('_', lowerExpr(s)), s);
       const { span } = extractMetadata(s);
       const kind = (s as any).kind;
       Diagnostics.unknownStmtKind(kind, span?.start ?? { line: 0, col: 0 }).throw();
       throw new Error('unreachable'); // For TypeScript's control flow analysis
     }
   }
+}
+
+/** 语句位置的裸表达式（parseStatement 原样返回的表达式节点）：lowerExpr 认得的表达式种类。 */
+const EXPRESSION_STATEMENT_KINDS: ReadonlySet<string> = new Set([
+  'Name', 'Bool', 'Int', 'Long', 'Double', 'Decimal', 'String', 'Null', 'Call', 'Construct', 'Ok', 'Err', 'Some', 'None',
+  'Await', 'IfExpr', 'ListLit', 'Lambda',
+]);
+
+function isExpressionStatement(s: Statement): s is Statement & Expression {
+  return EXPRESSION_STATEMENT_KINDS.has((s as { kind: string }).kind);
 }
 
 function lowerWorkflow(stmt: WorkflowStmt): Core.Workflow {
@@ -624,6 +619,11 @@ function lowerExpr(e: Expression): Core.Expression {
       //   ★该规则本身（「首字母大小写决定调用约定」）是隐式的、用户不易预期的，
       //     但它是既有语义且有测试支撑；此处的职责是**与 Java 对齐**，
       //     而不是单方面改变语义。若要重新设计，应走 ADR。
+      // 非名字表达式上的方法调用（解析期已改写成 方法名(接收者, …)，与 core applyCallSuffix 一致）：不再按点拆分目标，
+      // 方法名与名字接收者照 core lowerCallPart 标为 ufcs 交给 R2
+      if (e.ufcs) {
+        return withOrigin(CoreIR.Call(lowerUfcsPart(e.target), e.args.map((a, i) => (i === 0 ? lowerUfcsPart(a) : lowerExpr(a)))), e);
+      }
       const target = lowerExpr(e.target);
       const loweredArgs = e.args.map(lowerExpr);
       const ufcs = splitUfcsReceiver(target, e.target.kind === 'Name' && !e.target.resolved);
@@ -722,14 +722,20 @@ function lowerPatternCtor(p: PatternCtor): Core.PatCtor {
  * 值位置名字：R1 已解析的取规范名。裸单段名一律交给 R2（期望类型为枚举时结果可能改变），
  * 并记下 R1 的角色；R1 未决定的点分名（字段路径、限定调用）同样交给 R2。
  */
-function lowerName(e: Name): Core.Name {
+function lowerName(e: Name, ufcs = false): Core.Name {
   const node = withResolution(withOrigin(CoreIR.Name(canonicalOf(e.name, e.resolved)), e), e.resolved);
+  const extra = ufcs ? { ufcs: true as const } : {};
   if (!e.name.includes('.')) {
-    markForResolution(node, e.resolved ? { written: e.name, r1Role: e.resolved.role } : { written: e.name });
+    markForResolution(node, e.resolved ? { written: e.name, r1Role: e.resolved.role, ...extra } : { written: e.name, ...extra });
   } else if (!e.resolved) {
-    markForResolution(node, { written: e.name });
+    markForResolution(node, { written: e.name, ...extra });
   }
   return node;
+}
+
+/** 方法调用的目标与接收者（core lowerCallPart）：名字标为 ufcs，其余表达式照常降级。 */
+function lowerUfcsPart(e: Expression): Core.Expression {
+  return e.kind === 'Name' ? lowerName(e, true) : lowerExpr(e);
 }
 
 function spanToOrigin(span: Span, file: string | null): CoreOrigin {

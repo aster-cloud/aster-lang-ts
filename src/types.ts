@@ -461,11 +461,6 @@ export interface ListLit extends Base.BaseListLit<Span, Expression> {
 
 export interface Name extends Resolvable, Base.BaseName<Span> {
   span: Span;
-  /**
-   * 语句位置的裸名字，其后的点紧跟能开启语句的小写关键词（`v.not(1).` 读作 `v.` 加 `not(1).`，ADR 0056 修订 A8）。
-   * 与 aster-lang-core 一致降为 `Let _ be <name>`；其余裸名字语句照旧报 lowerStmt 错误。
-   */
-  discardedStatement?: true;
 }
 
 export interface Bool extends Base.BaseBool<Span> {
@@ -501,6 +496,11 @@ export interface Null extends Base.BaseNull<Span> {
 
 export interface Call extends Base.BaseCall<Span, Expression> {
   span: Span;
+  /**
+   * 非名字表达式上的方法调用 `f(1).g(2)` / `(v).g(2)`：与 aster-lang-core AstBuilder.applyCallSuffix 一致，目标是方法名、第一个实参是
+   * 接收者（UFCS 已在解析期完成，降级时不再按点拆分目标；方法名与名字接收者交给 R2 时标为 ufcs）。ADR 0056 修订 A8 第 3 条。
+   */
+  ufcs?: true;
 }
 
 export interface Lambda extends Base.BaseLambda<Span, Type, Block> {

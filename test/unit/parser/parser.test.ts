@@ -1416,7 +1416,7 @@ Rule greet given name as Text, produce Text:
       const zhSource = `
 模块 测试。
 
-规则 identity 包含 value 作为 整数，产出：
+规则 identity 给定 value 作为 整数，产出：
   返回 value。
 `;
       const canonical = canonicalize(zhSource, ZH_CN);
@@ -1456,7 +1456,7 @@ Rule greet given name as Text, produce Text:
       const zhSource = `
 模块 测试。
 
-规则 check 包含 x 作为 整数，产出：
+规则 check 给定 x 作为 整数，产出：
   如果 x 大于 0
     返回 1。
   否则
@@ -1480,7 +1480,7 @@ Rule greet given name as Text, produce Text:
       const zhSource = `
 模块 测试。
 
-规则 describe 包含 status 作为 整数，产出：
+规则 describe 给定 status 作为 整数，产出：
   匹配于 status：
     当 1，返回 「成功」。
     当 0，返回 「失败」。
@@ -1503,7 +1503,7 @@ Rule greet given name as Text, produce Text:
       const zhSource = `
 模块 测试。
 
-规则 calc 包含 x 作为 整数，产出：
+规则 calc 给定 x 作为 整数，产出：
   令 result 定义为 x 加上 1。
   返回 result。
 `;
